@@ -260,7 +260,7 @@ class Message (object):
             raise TypeError("Payload must not be None. Use empty string instead.")
  
     @classmethod
-    def decode(cls, rawdata):
+    def decode(cls, rawdata, remote = None, protocol = None):
         """Create Message object from binary representation of message."""
         (vttkl, code, mid) = struct.unpack('!BBH', rawdata[:4])
         version = (vttkl & 0xC0) >> 6
@@ -271,6 +271,8 @@ class Message (object):
         msg = Message(mtype=mtype, mid=mid,  code=code)
         msg.token = rawdata[4:4+token_length]
         msg.payload = msg.opt.decode(rawdata[4+token_length:])
+        msg.remote = remote
+        msg.protocol = protocol
         return msg
        
     def encode(self):
@@ -550,13 +552,9 @@ class Coap(protocol.DatagramProtocol):
         self.outgoing_requests = {}       #unfinished outgoing requests (identified by token and remote)
         self.incoming_requests = {}       #unfinished incoming requests (identified by URL path and remote)
 
-
-
     def datagramReceived(self, data, (host, port)):
         log.msg("received %r from %s:%d" % (data, host, port))
-        message = Message.decode(data)
-        message.protocol = self
-        message.remote = (host, port)
+        message = Message.decode(data, (host,port), self)
         if self.deduplicateMessage(message) is True:
             return
         if isRequest(message.code):
@@ -569,13 +567,15 @@ class Coap(protocol.DatagramProtocol):
                 rst = Message(mtype=RST, mid=message.mid,code=EMPTY, payload='')
                 rst.remote = message.remote             
                 self.sendMessage(rst)
-            #Doesn't matter if empty ACK or RST is received - in both cases exchange has to be removed
+            #TODO: passing ACK/RESET info to application
+            #Currently it doesn't matter if empty ACK or RST is received - in both cases exchange has to be removed
             if message.mid in self.active_exchanges and message.mtype in (ACK, RST):
                 self.removeExchange(message)
             
 
     def deduplicateMessage(self, message):
         key = (message.mid, message.remote)
+        log.msg("Incoming Message ID: %d" % message.mid) 
         if key in self.recent_messages:
             if message.mtype is CON:
                 #TODO: send a copy of acknowledgement
@@ -592,103 +592,6 @@ class Coap(protocol.DatagramProtocol):
     def removeMessageFromRecent(self, key):
         self.recent_messages.pop(key)  
     
-    def request(self, app_request):
-        if isRequest(app_request.code) is False:
-            raise ValueError("Message code is not valid for request")
-        size_exp = DEFAULT_BLOCK_SIZE_EXP
-        if len(app_request.payload) > (2**(size_exp+4)):
-            request = app_request.extractBlock(0, size_exp)
-        else:
-            request = app_request
-        if request is None:
-            return defer.fail()
-        d = self.sendRequest(request)  
-        d.addCallback(self.processBlock1, app_request)
-        d.addCallback(self.processBlock2, app_request)
-        return d
-        
-            
-    def sendRequest(self, request): 
-        if request.mtype is None:
-            request.mtype = CON
-        request.token = self.nextToken()
-        self.sendMessage(request)
-        d = defer.Deferred()
-        canceller = reactor.callLater(MAX_TRANSMIT_WAIT, self.handleTimedOutRequest, d, request)
-        self.outgoing_requests[(request.token, request.remote)] = (d, canceller)
-        log.msg("Sending request - Token: %s, Host: %s, Port: %s" % (request.token, request.remote[0], request.remote[1]))
-        return d  
-
-    def processBlock1(self, response, original_request):
-        if response.opt.block1 is not None:
-            block1 = response.opt.block1
-            log.msg("Response with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
-            #TODO: compare block size of request and response - calculate new block_number if necessary
-            next_block = original_request.extractBlock(block1.block_number+1, block1.size_exponent)
-            if next_block is not None:
-                return self.sendNextRequestBlock(next_block, original_request)
-            else:
-                if block1.more is False:
-                    return defer.succeed(response)
-                else:
-                    return defer.fail()
-        else:
-            if original_request.opt.block1 is None:
-                return defer.succeed(response)
-            else:
-                return defer.fail()
-
-    def sendNextRequestBlock(self, next_block, original_request):
-        log.msg("Sending next block of blockwise request.")
-        d = self.sendRequest(next_block)
-        d.addCallback(self.processBlock1, original_request)
-        return d   
-
-    def processBlock2(self, response, original_request, assembled_response = None):
-        if response.opt.block2 is not None:
-            block2 = response.opt.block2
-            log.msg("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
-            if assembled_response is not None:
-                log.msg("Appending another block")
-                if block2.block_number*(2**(block2.size_exponent+4)) is len(assembled_response.payload):
-                    assembled_response.payload+=response.payload
-                    assembled_response.opt.block2 = (block2.block_number, block2.more, block2.size_exponent)
-                else:
-                    log.msg("ProcessBlock2 error: Block received out of order.")
-                    return defer.fail()
-            else:
-                if block2.block_number is 0:
-                    log.msg("Receiving blockwise response")  
-                    assembled_response = response
-                else:
-                    log.msg("ProcessBlock2 error: transfer started with nonzero block number.")
-                    return defer.fail()
-            if block2.more is True:
-                request = original_request.generateNextBlock2Request(response)
-                return self.askForNextResponseBlock(request, original_request, assembled_response)
-            else:
-                return defer.succeed(assembled_response)
-        else:
-            if assembled_response is None:
-                return defer.succeed(response)
-            else:
-                return defer.fail()
-
-    def askForNextResponseBlock(self, request, original_request, assembled_response):
-        log.msg("Requesting next block of blockwise response.")
-        d = self.sendRequest(request)
-        d.addCallback(self.processBlock2, original_request, assembled_response)
-        return d   
-    
-    def handleTimedOutRequest(self, deferred, request):
-        """Clean the Request after a timeout."""
-        try:
-            del self.outgoing_requests[(request.token, request.remote)]
-        except KeyError:
-            pass
-        deferred.errback(failure.Failure())
-       
-
     def processResponse(self, response):
         if response.mtype is RST:
             return
@@ -718,179 +621,14 @@ class Coap(protocol.DatagramProtocol):
             response = Message(code=BAD_REQUEST, payload='Wrong message type for request!')
             self.respond(response, request)
             return
-        
         if (uriPathAsString(request.opt.uri_path), request.remote) in self.incoming_requests:
             log.msg("Request pertains to earlier blockwise requests.")
             d, canceller = self.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote))
             canceller.cancel()
             d.callback(request)
         else:
-            log.msg("Request doesn't pertain to earlier blockwise requests.")
-            d = defer.succeed(request)
-            d.addCallback(self.bangBlock1)
-            d.addCallback(self.dispatchRequest)
+            responder = Responder(self, request)
 
-            
-    def bangBlock1(self, request, assembled_request = None):       
-        if request.opt.block1 is not None:
-            block1 = request.opt.block1
-            log.msg("Request with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
-            if block1.block_number is 0:
-                #TODO: Check if resource is available - if not send error immediately
-                if assembled_request is not None:
-                    log.msg("Incoming blockwise request restarted by client.")
-                else:
-                    log.msg("New incoming blockwise request.")
-                assembled_request = request
-            else:
-                if assembled_request is not None:
-                    if block1.block_number*(2**(block1.size_exponent+4)) is len(assembled_request.payload):
-                        assembled_request.payload+=request.payload
-                        assembled_request.opt.block1 = block1
-                        assembled_request.token = request.token
-                        assembled_request.mid = request.mid
-                    else:
-                        #TODO: send an error message - wait for reply from core list
-                        log.msg("Request block received out of order.")
-                        return defer.fail()
-                else:
-                    #TODO: send an error message - wait for reply from core list
-                    log.msg("Request block received out of order.")
-                    return defer.fail()
-            if block1.more is True:
-                log.msg("Sending block confirmation (allowing client to send next block).")
-                #TODO: SUCCES_CODE Code should be either Changed or Created - Resource check needed 
-                #TODO: SIZE_CHECK1 should check if the size of incoming payload is still acceptable 
-                #TODO: SIZE_CHECK2 should check if Size option is present, and reject the resource if size too large
-                d = defer.Deferred()
-                canceller = reactor.callLater(MAX_TRANSMIT_WAIT, self.handleTimedOutClientRequest, d, request)
-                self.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)] = (d, canceller)
-                response = request.generateNextBlock1Response()
-                self.sendResponse(response, request)
-                d.addCallback(self.bangBlock1, assembled_request)
-                return d
-            else:
-                log.msg("Complete blockwise request received.")
-                #TODO: using response_type is not very elegant - search for a nicer solution
-                assembled_request.response_type = None
-                return defer.succeed(assembled_request)
-        else:
-            if assembled_request is not None:
-                log.msg("Non-blockwise request received during blockwise transfer. Blockwise transfer cancelled.")
-            return defer.succeed(request)
-
-    def dispatchRequest(self, request):
-        #TODO: Request with Block2 option and non-zero block number should get error response    
-        request.prepath = []
-        request.postpath = request.opt.uri_path
-        resource = self.endpoint.getResourceFor(request)
-        if resource is None:
-            response = Message(code=NOT_FOUND, payload='Resource not found!')
-            self.respond(response, request)
-            return
-        try:
-            d = resource.render(request)
-        except iot.error.UnallowedMethod:
-            response = Message(code=METHOD_NOT_ALLOWED, payload='Method not allowed!')
-            self.respond(response, request)
-            return
-        except iot.error.UnsupportedMethod:
-            response = Message(code=NOT_IMPLEMENTED, payload='Method not implemented!')
-            self.respond(response, request)
-            return
-        delayed_ack = reactor.callLater(EMPTY_ACK_DELAY, self.sendEmptyAck, request)
-        d.addCallback(self.respond, request, delayed_ack)
-        return d
-
-    def respond (self, app_response, request, delayed_ack=None):
-        log.msg("Preparing response...")  
-        if delayed_ack is not None:
-            if delayed_ack.active() is True:
-                delayed_ack.cancel()
-        size_exp = min(request.opt.block2.size_exponent if request.opt.block2 is not None else DEFAULT_BLOCK_SIZE_EXP, DEFAULT_BLOCK_SIZE_EXP)
-        if len(app_response.payload) > (2**(size_exp+4)):
-            response = app_response.extractBlock(0, size_exp)
-            app_response.opt.block2 = response.opt.block2
-            d = defer.Deferred()
-            canceller = reactor.callLater(MAX_TRANSMIT_WAIT, self.handleTimedOutClientRequest, d, request)
-            self.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)] = (d, canceller)
-            self.sendResponse(response, request)
-            d.addCallback(self.bangBlock2, app_response)
-            return d
-        else:
-            self.sendResponse(app_response, request)
-            return defer.succeed(None)
-        if response is None:
-            return defer.fail()
-        
-        
-    def bangBlock2(self, request, original_response):
-        if request.opt.block2 is not None:
-            block2 = request.opt.block2
-            log.msg("Request with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
-            sent_length = (2**(original_response.opt.block2.size_exponent+4))*(original_response.opt.block2.block_number+1)
-            if (2**(block2.size_exponent + 4)) * block2.block_number is sent_length:
-                next_block = original_response.extractBlock(block2.block_number, block2.size_exponent)
-                if next_block is None:
-                    log.msg("Block out of range")
-                    return defer.fail()
-                if next_block.opt.block2.more is True:
-                    original_response.opt.block2 = next_block.opt.block2
-                    d = defer.Deferred()
-                    canceller = reactor.callLater(MAX_TRANSMIT_WAIT, self.handleTimedOutClientRequest, d, request)
-                    self.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)] = (d, canceller)
-                    self.sendResponse(next_block, request)
-                    d.addCallback(self.bangBlock2, original_response)
-                    return d
-                else:
-                    self.sendResponse(next_block, request)
-                    return defer.succeed(None)
-            else:
-                log.msg("Incorrect block number requested")
-                return defer.fail()               
-        else:
-            return defer.fail()
-
-
-    def sendResponse(self, response, request):
-            
-        #if isResponse(response.code) is False:
-            #raise ValueError("Message code is not valid for a response.")
-        response.token = request.token
-        response.remote = request.remote
-        if request.opt.block1 is not None:
-            response.opt.block1 = request.opt.block1
-        if response.mtype is None:
-            if request.response_type is None:
-                if request.mtype is CON:
-                    response.mtype = ACK
-                else:
-                    response.mtype = NON
-            elif request.response_type is ACK:
-                response.mtype = CON
-            else:
-                raise Exception()            
-        request.response_type = response.mtype
-        if response.mid is None:
-            if response.mtype in (ACK, RST):
-                response.mid = request.mid
-        log.msg("Sending response, type = %s (request type = %s)" % (types[response.mtype],types[request.mtype]))    
-        self.sendMessage(response) 
-   
-    def handleTimedOutClientRequest(self, deferred, request):
-        """Clean the incoming client request after a timeout."""
-        try:
-            del self.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)]
-        except KeyError:
-            pass
-        deferred.errback(failure.Failure())
-        
-
-    def sendEmptyAck (self, request):
-        log.msg("Response preparation takes too long - sending empty ACK.")
-        ack=Message(mtype=ACK, code=EMPTY, payload="")
-        self.respond(ack, request)
-       
     def sendMessage(self, message):
         """Set Message ID, encode and send message.
            Also if message is Confirmable (CON) add Exchange""" 
@@ -936,9 +674,288 @@ class Coap(protocol.DatagramProtocol):
             self.active_exchanges.pop(message.mid)
             #TODO: error handling (especially for requests)
 
+    def request(self, request):
+        return Requester(self, request).deferred
+        
+
+class Requester(object):
+    
+    def __init__(self, protocol, app_request):
+        self.protocol = protocol
+        self.app_request = app_request
+        self.assembled_reponse = None
+        if isRequest(self.app_request.code) is False:
+            raise ValueError("Message code is not valid for request")
+        size_exp = DEFAULT_BLOCK_SIZE_EXP
+        if len(self.app_request.payload) > (2**(size_exp+4)):
+            request = self.app_request.extractBlock(0, size_exp)
+        else:
+            request = self.app_request
+        if request is None:
+            return defer.fail()
+        self.deferred = self.sendRequest(request)  
+        self.deferred.addCallback(self.processBlock1)
+        self.deferred.addCallback(self.processBlock2)
+        
+            
+    def sendRequest(self, request): 
+        if request.mtype is None:
+            request.mtype = CON
+        request.token = self.protocol.nextToken()
+        self.protocol.sendMessage(request)
+        d = defer.Deferred()
+        canceller = reactor.callLater(MAX_TRANSMIT_WAIT, self.handleTimedOutRequest, d, request)
+        self.protocol.outgoing_requests[(request.token, request.remote)] = (d, canceller)
+        log.msg("Sending request - Token: %s, Host: %s, Port: %s" % (request.token, request.remote[0], request.remote[1]))
+        return d  
+
+    def processBlock1(self, response):
+        if response.opt.block1 is not None:
+            block1 = response.opt.block1
+            log.msg("Response with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
+            #TODO: compare block size of request and response - calculate new block_number if necessary
+            next_block = self.app_request.extractBlock(block1.block_number+1, block1.size_exponent)
+            if next_block is not None:
+                return self.sendNextRequestBlock(next_block)
+            else:
+                if block1.more is False:
+                    return defer.succeed(response)
+                else:
+                    return defer.fail()
+        else:
+            if self.app_request.opt.block1 is None:
+                return defer.succeed(response)
+            else:
+                return defer.fail()
+
+    def sendNextRequestBlock(self, next_block):
+        log.msg("Sending next block of blockwise request.")
+        d = self.sendRequest(next_block)
+        d.addCallback(self.processBlock1)
+        return d   
+
+    def processBlock2(self, response):
+        if response.opt.block2 is not None:
+            block2 = response.opt.block2
+            log.msg("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
+            if self.assembled_reponse is not None:
+                log.msg("Appending another block")
+                if block2.block_number*(2**(block2.size_exponent+4)) is len(self.assembled_reponse.payload):
+                    self.assembled_reponse.payload+=response.payload
+                    self.assembled_reponse.opt.block2 = (block2.block_number, block2.more, block2.size_exponent)
+                else:
+                    log.msg("ProcessBlock2 error: Block received out of order.")
+                    return defer.fail()
+            else:
+                if block2.block_number is 0:
+                    log.msg("Receiving blockwise response")  
+                    self.assembled_reponse = response
+                else:
+                    log.msg("ProcessBlock2 error: transfer started with nonzero block number.")
+                    return defer.fail()
+            if block2.more is True:
+                request = self.app_request.generateNextBlock2Request(response)
+                return self.askForNextResponseBlock(request)
+            else:
+                return defer.succeed(self.assembled_reponse)
+        else:
+            if assembled_response is None:
+                return defer.succeed(response)
+            else:
+                return defer.fail()
+
+    def askForNextResponseBlock(self, request):
+        log.msg("Requesting next block of blockwise response.")
+        d = self.sendRequest(request)
+        d.addCallback(self.processBlock2)
+        return d   
+    
+    def handleTimedOutRequest(self, deferred, request):
+        """Clean the Request after a timeout."""
+        try:
+            del self.protocol.outgoing_requests[(request.token, request.remote)]
+        except KeyError:
+            pass
+        deferred.errback(failure.Failure())
     
 
- 
- 
- 
+class Responder(object):
+    
+    def __init__(self, protocol, request):
+        self.protocol = protocol
+        self._assembled_request = None
+        self._app_response = None
+        log.msg("Request doesn't pertain to earlier blockwise requests.")
+        self.d = self.processBlock1(request)
+        self.d.addCallback(self.dispatchRequest)#.addErrback(self.handleRenderErrors)
+
+    def processBlock1(self, request):
+        if request.opt.block1 is not None:
+            block1 = request.opt.block1
+            log.msg("Request with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
+            if block1.block_number is 0:
+                #TODO: Check if resource is available - if not send error immediately
+                #TODO: Check if method is allowed - if not send error immediately
+                if self._assembled_request is not None:
+                    log.msg("Incoming blockwise request restarted by client.")
+                else:
+                    log.msg("New incoming blockwise request.")
+                self._assembled_request = request
+            else:
+                if self._assembled_request is not None:
+                    if block1.block_number*(2**(block1.size_exponent+4)) is len(self._assembled_request.payload):
+                        self._assembled_request.payload+=request.payload
+                        self._assembled_request.opt.block1 = block1
+                        self._assembled_request.token = request.token
+                        self._assembled_request.mid = request.mid
+                    else:
+                        #TODO: send an error message - wait for reply from core list
+                        log.msg("Request block received out of order.")
+                        return defer.fail()
+                else:
+                    #TODO: send an error message - wait for reply from core list
+                    log.msg("Request block received out of order.")
+                    return defer.fail()
+            if block1.more is True:
+                #TODO: SUCCES_CODE Code should be either Changed or Created - Resource check needed 
+                #TODO: SIZE_CHECK1 should check if the size of incoming payload is still acceptable 
+                #TODO: SIZE_CHECK2 should check if Size option is present, and reject the resource if size too large
+                return self.acknowledgeRequestBlock(request)
+            else:
+                log.msg("Complete blockwise request received.")
+                #TODO: using response_type is not very elegant - search for a nicer solution
+                self._assembled_request.response_type = None
+                return defer.succeed(self._assembled_request)
+        else:
+            if self._assembled_request is not None:
+                log.msg("Non-blockwise request received during blockwise transfer. Blockwise transfer cancelled.")
+            return defer.succeed(request)
+
+    def acknowledgeRequestBlock(self, request):
+        log.msg("Sending block acknowledgement (allowing client to send next block).")
+        response = request.generateNextBlock1Response()
+        d = self.sendNonFinalResponse(response, request)
+        d.addCallback(self.processBlock1)
+        return d
+
+    def dispatchRequest(self, request):
+        #TODO: Request with Block2 option and non-zero block number should get error response
+        request.prepath = []
+        request.postpath = request.opt.uri_path
+        resource = self.protocol.endpoint.getResourceFor(request)
+        if resource is None:
+            raise iot.error.NoResource
+        d = resource.render(request)
+        delayed_ack = reactor.callLater(EMPTY_ACK_DELAY, self.sendEmptyAck, request)
+        d.addCallback(self.respond, request, delayed_ack)
+        return d
+
+    def handleRenderErrors(self, err):#, request):
+        log.msg("ERRBACK REQUEST ID: %d" % request.mid) 
+        err.trap(iot.error.NoResource, iot.error.UnallowedMethod, iot.error.UnsupportedMethod)
+        if err.check(iot.error.NoResource):
+            log.msg("Dispatch Error: Resource not Found!")
+            response = Message(code=NOT_FOUND, payload='Resource not found!')
+            self.respond(response, request)
+            return
+        if err.check(iot.error.UnallowedMethod):
+            log.msg("Dispatch Error: Method not allowed!")
+            response = Message(code=METHOD_NOT_ALLOWED, payload='Method not allowed!')
+            self.respond(response, request)
+            return
+        if err.check(iot.error.UnsupportedMethod):
+            log.msg("Dispatch Error: Method not implemented!")
+            response = Message(code=NOT_IMPLEMENTED, payload='Method not implemented!')
+            self.respond(response, request)
+            return       
+
+    def respond (self, app_response, request, delayed_ack=None):
+        log.msg("Preparing response...")  
+        if delayed_ack is not None:
+            if delayed_ack.active() is True:
+                delayed_ack.cancel()
+        self._app_response = app_response
+        size_exp = min(request.opt.block2.size_exponent if request.opt.block2 is not None else DEFAULT_BLOCK_SIZE_EXP, DEFAULT_BLOCK_SIZE_EXP)
+        if len(self._app_response.payload) > (2**(size_exp+4)):
+            response = self._app_response.extractBlock(0, size_exp)
+            self._app_response.opt.block2 = response.opt.block2
+            return self.sendResponseBlock(response, request)
+        else:
+            self.sendResponse(app_response, request)
+            return defer.succeed(None)
+        if response is None:
+            return defer.fail()
+        
+    def processBlock2(self, request):
+        if request.opt.block2 is not None:
+            block2 = request.opt.block2
+            log.msg("Request with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
+            sent_length = (2**(self._app_response.opt.block2.size_exponent+4))*(self._app_response.opt.block2.block_number+1)
+            #TODO: compare block size of request and response - calculate new block_number if necessary
+            if (2**(block2.size_exponent + 4)) * block2.block_number is sent_length:
+                next_block = self._app_response.extractBlock(block2.block_number, block2.size_exponent)
+                if next_block is None:
+                    log.msg("Block out of range")
+                    return defer.fail()
+                if next_block.opt.block2.more is True:
+                    self._app_response.opt.block2 = next_block.opt.block2
+                    return self.sendResponseBlock(next_block, request)
+                else:
+                    self.sendResponse(next_block, request)
+                    return defer.succeed(None)
+            else:
+                log.msg("Incorrect block number requested")
+                return defer.fail()               
+        else:
+            return defer.fail()
+
+    def sendResponseBlock(self, response_block, request):
+        log.msg("Sending response block.")
+        d = self.sendNonFinalResponse(response_block, request)
+        d.addCallback(self.processBlock2)
+        return d
+
+    def sendNonFinalResponse(self, response, request):
+        d = defer.Deferred()
+        canceller = reactor.callLater(MAX_TRANSMIT_WAIT, self.handleTimedOutClientRequest, d, request)
+        self.protocol.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)] = (d, canceller)
+        self.sendResponse(response, request)
+        return d
+
+    def sendResponse(self, response, request):
+            
+        #if isResponse(response.code) is False:
+            #raise ValueError("Message code is not valid for a response.")
+        response.token = request.token
+        response.remote = request.remote
+        if request.opt.block1 is not None:
+            response.opt.block1 = request.opt.block1
+        if response.mtype is None:
+            if request.response_type is None:
+                if request.mtype is CON:
+                    response.mtype = ACK
+                else:
+                    response.mtype = NON
+            elif request.response_type is ACK:
+                response.mtype = CON
+            else:
+                raise Exception()            
+        request.response_type = response.mtype
+        if response.mid is None:
+            if response.mtype in (ACK, RST):
+                response.mid = request.mid
+        log.msg("Sending response, type = %s (request type = %s)" % (types[response.mtype],types[request.mtype]))    
+        self.protocol.sendMessage(response)
+
+    def handleTimedOutClientRequest(self, deferred, request):
+        """Clean the incoming client request after a timeout."""
+        try:
+            del self.protocol.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)]
+        except KeyError:
+            pass
+        deferred.errback(failure.Failure()) 
       
+    def sendEmptyAck (self, request):
+        log.msg("Response preparation takes too long - sending empty ACK.")
+        ack=Message(mtype=ACK, code=EMPTY, payload="")
+        self.respond(ack, request)

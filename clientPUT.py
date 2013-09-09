@@ -31,7 +31,7 @@ class Agent():
         reactor.callLater(2, self.putResource)
 
     def putResource (self):
-        payload="If one knew, he wondered, the facts, would one have to feel pity even for the planets? If one reached what they called the heart of the matter? No."
+        payload="Poland CAN into space!!! Poland MUST into space!!! Poland WILL into space!!!!"
         request = coap.Message(code=coap.PUT, payload=payload)
         request.opt.uri_path = ("other", "block")
         request.remote = ('127.0.0.1',coap.COAP_PORT)
