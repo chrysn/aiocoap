@@ -27,7 +27,11 @@ class UnsupportedMethod(Exception):
     Raised when request method is not understood by the server at all.
     """
 
+class NotImplemented(Exception):
+    """
+    Raised when request is correct, but feature is not implemented
+    by txThings library.
+    For example non-sequential blockwise transfers
+    """
 
-__all__ = [
- 'UnallowedMethod', 'UnsupportedMethod'
-]
+__all__ = ['NoResource', 'UnallowedMethod', 'UnsupportedMethod', 'NotImplemented']

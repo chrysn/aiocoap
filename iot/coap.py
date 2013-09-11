@@ -302,6 +302,36 @@ class Message (object):
                 block.opt.block2 = (number, more, size_exp)
             return block
     
+    def appendRequestBlock(self, next_block):
+        """Append next block to current request message.
+           Used when assembling incoming blockwise requests."""
+        if isRequest(self.code):
+            block1 = next_block.opt.block1
+            if block1.block_number*(2**(block1.size_exponent+4)) is len(self.payload):
+                self.payload+=next_block.payload
+                self.opt.block1 = block1
+                self.token = next_block.token
+                self.mid = next_block.mid
+                self.response_type = None
+            else:
+                raise iot.error.NotImplemented()
+        else:
+            raise ValueError("Fatal Error: called appendRequestBlock on non-request message!!!")
+                
+    def appendResponseBlock(self, next_block):
+        """Append next block to current response message.
+           Used when assembling incoming blockwise responses."""
+        if isResponse(self.code):
+            block2 = next_block.opt.block2
+            if block2.block_number*(2**(block2.size_exponent+4)) is len(self.payload):
+                self.payload+=next_block.payload
+                self.opt.block2 = block2
+                self.token = next_block.token
+                self.mid = next_block.mid
+            else:
+                raise iot.error.NotImplemented()
+        else:
+            raise ValueError("Fatal Error: called appendResponseBlock on non-response message!!!")   
     def generateNextBlock2Request(self, response):
         """Generate a request for next response block.
            This method is used by client after receiving 
@@ -739,13 +769,7 @@ class Requester(object):
             block2 = response.opt.block2
             log.msg("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
             if self.assembled_reponse is not None:
-                log.msg("Appending another block")
-                if block2.block_number*(2**(block2.size_exponent+4)) is len(self.assembled_reponse.payload):
-                    self.assembled_reponse.payload+=response.payload
-                    self.assembled_reponse.opt.block2 = (block2.block_number, block2.more, block2.size_exponent)
-                else:
-                    log.msg("ProcessBlock2 error: Block received out of order.")
-                    return defer.fail()
+                self.assembled_reponse.appendResponseBlock(response)
             else:
                 if block2.block_number is 0:
                     log.msg("Receiving blockwise response")  
@@ -783,11 +807,12 @@ class Responder(object):
     
     def __init__(self, protocol, request):
         self.protocol = protocol
-        self._assembled_request = None
-        self._app_response = None
+        self.assembled_request = None
+        self.app_response = None
         log.msg("Request doesn't pertain to earlier blockwise requests.")
-        self.d = self.processBlock1(request)
-        self.d.addCallback(self.dispatchRequest)#.addErrback(self.handleRenderErrors)
+        self.deferred = self.processBlock1(request)
+        self.deferred.addErrback(self.handleRequestErrors)
+        self.deferred.addCallback(self.dispatchRequest)
 
     def processBlock1(self, request):
         if request.opt.block1 is not None:
@@ -796,26 +821,15 @@ class Responder(object):
             if block1.block_number is 0:
                 #TODO: Check if resource is available - if not send error immediately
                 #TODO: Check if method is allowed - if not send error immediately
-                if self._assembled_request is not None:
-                    log.msg("Incoming blockwise request restarted by client.")
-                else:
-                    log.msg("New incoming blockwise request.")
-                self._assembled_request = request
+                log.msg("New or restarted incoming blockwise request.")
+                self.assembled_request = request
             else:
-                if self._assembled_request is not None:
-                    if block1.block_number*(2**(block1.size_exponent+4)) is len(self._assembled_request.payload):
-                        self._assembled_request.payload+=request.payload
-                        self._assembled_request.opt.block1 = block1
-                        self._assembled_request.token = request.token
-                        self._assembled_request.mid = request.mid
-                    else:
-                        #TODO: send an error message - wait for reply from core list
-                        log.msg("Request block received out of order.")
-                        return defer.fail()
-                else:
-                    #TODO: send an error message - wait for reply from core list
-                    log.msg("Request block received out of order.")
-                    return defer.fail()
+                try:
+                    self.assembled_request.appendRequestBlock(request)
+                except (iot.error.NotImplemented, AttributeError):
+                    self.respondWithError(request, NOT_IMPLEMENTED, "Error: Request block received out of order!")
+                    return defer.fail(iot.error.NotImplemented())
+                    #raise iot.error.NotImplemented
             if block1.more is True:
                 #TODO: SUCCES_CODE Code should be either Changed or Created - Resource check needed 
                 #TODO: SIZE_CHECK1 should check if the size of incoming payload is still acceptable 
@@ -823,11 +837,9 @@ class Responder(object):
                 return self.acknowledgeRequestBlock(request)
             else:
                 log.msg("Complete blockwise request received.")
-                #TODO: using response_type is not very elegant - search for a nicer solution
-                self._assembled_request.response_type = None
-                return defer.succeed(self._assembled_request)
+                return defer.succeed(self.assembled_request)
         else:
-            if self._assembled_request is not None:
+            if self.assembled_request is not None:
                 log.msg("Non-blockwise request received during blockwise transfer. Blockwise transfer cancelled.")
             return defer.succeed(request)
 
@@ -844,41 +856,37 @@ class Responder(object):
         request.postpath = request.opt.uri_path
         resource = self.protocol.endpoint.getResourceFor(request)
         if resource is None:
-            raise iot.error.NoResource
-        d = resource.render(request)
-        delayed_ack = reactor.callLater(EMPTY_ACK_DELAY, self.sendEmptyAck, request)
-        d.addCallback(self.respond, request, delayed_ack)
-        return d
+            self.respondWithError(request, NOT_FOUND, "Error: Resource not found!")
+        try:
+            d = resource.render(request)
+        except iot.error.UnallowedMethod:
+            self.respondWithError(request, METHOD_NOT_ALLOWED, "Error: Method not allowed!")
+        except iot.error.UnsupportedMethod:
+            self.respondWithError(request, METHOD_NOT_ALLOWED, "Error: Method not recognized!")
+        else:
+            delayed_ack = reactor.callLater(EMPTY_ACK_DELAY, self.sendEmptyAck, request)
+            d.addCallback(self.respond, request, delayed_ack)
+            return d
 
-    def handleRenderErrors(self, err):#, request):
-        log.msg("ERRBACK REQUEST ID: %d" % request.mid) 
-        err.trap(iot.error.NoResource, iot.error.UnallowedMethod, iot.error.UnsupportedMethod)
-        if err.check(iot.error.NoResource):
-            log.msg("Dispatch Error: Resource not Found!")
-            response = Message(code=NOT_FOUND, payload='Resource not found!')
-            self.respond(response, request)
-            return
-        if err.check(iot.error.UnallowedMethod):
-            log.msg("Dispatch Error: Method not allowed!")
-            response = Message(code=METHOD_NOT_ALLOWED, payload='Method not allowed!')
-            self.respond(response, request)
-            return
-        if err.check(iot.error.UnsupportedMethod):
-            log.msg("Dispatch Error: Method not implemented!")
-            response = Message(code=NOT_IMPLEMENTED, payload='Method not implemented!')
-            self.respond(response, request)
-            return       
+    def handleRequestErrors(self, err):
+        err.trap(iot.error.NotImplemented)        
+      
+    def respondWithError(self, request, code, payload):
+        log.msg(payload) 
+        response = Message(code=code, payload=payload)
+        self.respond(response, request)
+        return
 
     def respond (self, app_response, request, delayed_ack=None):
         log.msg("Preparing response...")  
         if delayed_ack is not None:
             if delayed_ack.active() is True:
                 delayed_ack.cancel()
-        self._app_response = app_response
+        self.app_response = app_response
         size_exp = min(request.opt.block2.size_exponent if request.opt.block2 is not None else DEFAULT_BLOCK_SIZE_EXP, DEFAULT_BLOCK_SIZE_EXP)
-        if len(self._app_response.payload) > (2**(size_exp+4)):
-            response = self._app_response.extractBlock(0, size_exp)
-            self._app_response.opt.block2 = response.opt.block2
+        if len(self.app_response.payload) > (2**(size_exp+4)):
+            response = self.app_response.extractBlock(0, size_exp)
+            self.app_response.opt.block2 = response.opt.block2
             return self.sendResponseBlock(response, request)
         else:
             self.sendResponse(app_response, request)
@@ -890,15 +898,15 @@ class Responder(object):
         if request.opt.block2 is not None:
             block2 = request.opt.block2
             log.msg("Request with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
-            sent_length = (2**(self._app_response.opt.block2.size_exponent+4))*(self._app_response.opt.block2.block_number+1)
+            sent_length = (2**(self.app_response.opt.block2.size_exponent+4))*(self.app_response.opt.block2.block_number+1)
             #TODO: compare block size of request and response - calculate new block_number if necessary
             if (2**(block2.size_exponent + 4)) * block2.block_number is sent_length:
-                next_block = self._app_response.extractBlock(block2.block_number, block2.size_exponent)
+                next_block = self.app_response.extractBlock(block2.block_number, block2.size_exponent)
                 if next_block is None:
                     log.msg("Block out of range")
                     return defer.fail()
                 if next_block.opt.block2.more is True:
-                    self._app_response.opt.block2 = next_block.opt.block2
+                    self.app_response.opt.block2 = next_block.opt.block2
                     return self.sendResponseBlock(next_block, request)
                 else:
                     self.sendResponse(next_block, request)
