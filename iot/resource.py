@@ -14,8 +14,10 @@ from zope.interface import Attribute, implements, Interface
 import iot.error
 import iot.coap as coap
 from itertools import chain
+from twisted.python import log
 from twisted.python.reflect import prefixedMethodNames
 from twisted.web.resource import IResource
+
 
 def getChildForRequest(resource, request):
     """
@@ -26,6 +28,7 @@ def getChildForRequest(resource, request):
         request.prepath.append(pathElement)
         resource = resource.getChildWithDefault(pathElement, request)
     return resource
+
 
 class CoAPResource:
     """
@@ -75,7 +78,7 @@ class CoAPResource:
         return self.children.get(name)
 
     def getDynamicEntity(self, name, request):
-        if not self.children.has_key(name):
+        if name not in self.children:
             return self.getChild(name, request)
         else:
             return None
@@ -111,8 +114,7 @@ class CoAPResource:
         @param request: a twisted.web.server.Request specifying meta-information
                         about the request that is being made for this child.
         """
-        return None#NoResource()
-
+        raise iot.error.NoResource
 
     def getChildWithDefault(self, path, request):
         """
@@ -130,7 +132,6 @@ class CoAPResource:
             return self.children[path]
         return self.getChild(path, request)
 
-
     def putChild(self, path, child):
         """
         Register a static child.
@@ -141,7 +142,6 @@ class CoAPResource:
         """
         self.children[path] = child
         child.server = self.server
-
 
     def render(self, request):
         """
@@ -168,59 +168,53 @@ class CoAPResource:
         if not m:
             raise iot.error.UnallowedMethod()
         return m(request)
-    
+
     def addParam(self, param):
-        self.params.setdefault(param.name,[]).append(param)    
-    
+        self.params.setdefault(param.name, []).append(param)
+
     def deleteParam(self, name):
         if name in self.params:
             self.params.pop(name)
-       
-    def getParam (self, name):
+
+    def getParam(self, name):
         return self.params.get(name)
-    
-    def encode_params (self):
+
+    def encode_params(self):
         data = [""]
         param_list = chain.from_iterable(sorted(self.params.values(), key=lambda x: x[0].name))
         for param in param_list:
             data.append(param.encode())
         return (';'.join(data))
-        
 
-    def generateResourceList(self, data, path = ""):
+    def generateResourceList(self, data, path=""):
         if self.visible is True:
             if path is "":
-                data.append('</>'+self.encode_params())
+                data.append('</>' + self.encode_params())
             else:
-                data.append('<'+path+'>'+self.encode_params())
+                data.append('<' + path + '>' + self.encode_params())
         for key in self.children:
-            self.children[key].generateResourceList(data,path+"/"+key)
-  
-    
-        
-        
-        
+            self.children[key].generateResourceList(data, path + "/" + key)
+
+
 class LinkParam(object):
     def __init__(self, name, value):
         self.name = name
         self.value = value
-        
+
     def decode(self, rawdata):
         pass
-        
+
     def encode(self):
-        return '%s="%s"'  % (self.name, self.value)
+        return '%s="%s"' % (self.name, self.value)
 
 __all__ = [
-    'IResource', 'getChildForRequest','Resource', 'LinkParam']
+    'IResource', 'getChildForRequest', 'Resource', 'LinkParam']
 
- 
 
 class Endpoint():
 
     counter = 0
-    
-    
+
     def __init__(self, root_resource):
         """
         Initialize endpoint.
@@ -255,6 +249,6 @@ class Endpoint():
         # servers and disconnected sites.
         request.sitepath = copy.copy(request.prepath)
         return getChildForRequest(self.resource, request)
-        
-        
+
+
 
