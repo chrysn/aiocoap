@@ -393,6 +393,7 @@ class Options(object):
         self._options = {}
 
     def decode(self, rawdata):
+        """Decode all options in message from raw binary data."""
         option_number = 0
 
         while len(rawdata) > 0:
@@ -412,6 +413,7 @@ class Options(object):
         return ''
 
     def encode(self):
+        """Encode all options in option header into string of bytes."""
         data = []
         current_opt_num = 0
         option_list = chain.from_iterable(sorted(self._options.values(), key=lambda x: x[0].number))
@@ -426,16 +428,20 @@ class Options(object):
         return (''.join(data))
 
     def addOption(self, option):
+        """Add option into option header."""
         self._options.setdefault(option.number, []).append(option)
 
     def deleteOption(self, number):
+        """Delete option from option header."""
         if number in self._options:
             self._options.pop(number)
 
     def getOption (self, number):
+        """Get option with specified number."""
         return self._options.get(number)
 
     def _setUriPath(self, segments):
+        """Convenience setter: Uri-Path option"""
         if isinstance(segments, basestring): #For Python >3.1 replace with isinstance(segments,str)
             raise ValueError("URI Path should be passed as a list or tuple of segments")
         self.deleteOption(number=URI_PATH)
@@ -443,6 +449,7 @@ class Options(object):
             self.addOption(StringOption(number=URI_PATH, value=str(segment)))
 
     def _getUriPath(self):
+        """Convenience getter: Uri-Path option"""
         segment_list = []
         uri_path = self.getOption(number=URI_PATH)
         if uri_path is not None:
@@ -453,6 +460,7 @@ class Options(object):
     uri_path = property(_getUriPath, _setUriPath)
 
     def _setUriQuery(self, segments):
+        """Convenience setter: Uri-Query option"""
         if isinstance(segments, basestring): #For Python >3.1 replace with isinstance(segments,str)
             raise ValueError("URI Query should be passed as a list or tuple of segments")
         self.deleteOption(number=URI_QUERY)
@@ -460,6 +468,7 @@ class Options(object):
             self.addOption(StringOption(number=URI_QUERY, value=str(segment)))
 
     def _getUriQuery(self):
+        """Convenience getter: Uri-Query option"""
         segment_list = []
         uri_query = self.getOption(number=URI_QUERY)
         if uri_query is not None:
@@ -470,10 +479,12 @@ class Options(object):
     uri_query = property(_getUriQuery, _setUriQuery)
 
     def _setBlock2(self, block_tuple):
+        """Convenience setter: Block2 option"""
         self.deleteOption(number=BLOCK2)
         self.addOption(BlockOption(number=BLOCK2, value=block_tuple))
 
     def _getBlock2(self):
+        """Convenience getter: Block2 option"""
         block2 = self.getOption(number=BLOCK2)
         if block2 is not None:
             return block2[0].value
@@ -483,10 +494,12 @@ class Options(object):
     block2 = property(_getBlock2, _setBlock2)
 
     def _setBlock1(self, block_tuple):
+        """Convenience setter: Block1 option"""
         self.deleteOption(number=BLOCK1)
         self.addOption(BlockOption(number=BLOCK1, value=block_tuple))
 
     def _getBlock1(self):
+        """Convenience getter: Block1 option"""
         block1 = self.getOption(number=BLOCK1)
         if block1 is not None:
             return block1[0].value
@@ -496,10 +509,12 @@ class Options(object):
     block1 = property(_getBlock1, _setBlock1)
 
     def _setContentFormat(self, content_format):
+        """Convenience setter: Content-Format option"""
         self.deleteOption(number=CONTENT_FORMAT)
         self.addOption(UintOption(number=CONTENT_FORMAT, value=content_format))
 
     def _getContentFormat(self):
+        """Convenience getter: Content-Format option"""
         content_format = self.getOption(number=CONTENT_FORMAT)
         if content_format is not None:
             return content_format[0].value
@@ -510,7 +525,8 @@ class Options(object):
 
 
 def readExtendedFieldValue(value, rawdata):
-    """Used to extract large values of option delta and option length"""
+    """Used to decode large values of option delta and option length
+       from raw binary form."""
     if value >= 0 and value < 13:
         return (value, rawdata)
     elif value is 13:
@@ -522,6 +538,10 @@ def readExtendedFieldValue(value, rawdata):
 
 
 def writeExtendedFieldValue(value):
+    """Used to encode large values of option delta and option length 
+       into raw binary form.
+       In CoAP option delta and length can be represented by a variable
+       number of bytes depending on the value."""   
     if value >= 0 and value < 13:
         return (value, '')
     elif value >= 13 and value < 269:
@@ -533,6 +553,7 @@ def writeExtendedFieldValue(value):
 
 
 class StringOption(object):
+    """String CoAP option - used to represent string and opaque options."""
 
     def __init__(self, number, value=""):
         self.value = value
@@ -551,6 +572,7 @@ class StringOption(object):
 
 
 class UintOption(object):
+    """Uint CoAP option - used to represent uint options."""
 
     def __init__(self, number, value=0):
         self.value = value
@@ -576,6 +598,9 @@ class UintOption(object):
 
 
 class BlockOption(object):
+    """Block CoAP option - special option used only for Block1 and Block2 options.
+       Currently it is the only type of CoAP options that has
+       internal structure."""
     BlockwiseTuple = collections.namedtuple('BlockwiseTuple', ['block_number', 'more', 'size_exponent'])
 
     def __init__(self, number, value=(0, None, 0)):
@@ -605,6 +630,7 @@ option_formats = {6: UintOption,
                   23: BlockOption,
                   27: BlockOption,
                   28: UintOption}
+"""Dictionary used to assign option type to option numbers."""
 
 
 def isRequest(code):
@@ -626,7 +652,7 @@ def uriPathAsString(segment_list):
 class Coap(protocol.DatagramProtocol):
 
     def __init__(self, endpoint):
-        """Initialize a CoAP endpoint."""
+        """Initialize a CoAP protocol instance."""
         self.message_id = random.randint(0, 65535)
         self.token = random.randint(0, 65535)
         self.endpoint = endpoint
@@ -656,6 +682,12 @@ class Coap(protocol.DatagramProtocol):
                 self.removeExchange(message)
 
     def deduplicateMessage(self, message):
+        """Check incoming message if it's a duplicate.
+        
+           Duplicate is a message with the same Message ID (mid)
+           and sender (remote), as message received within last
+           EXCHANGE_LIFETIME seconds (usually 247 seconds)."""
+           
         key = (message.mid, message.remote)
         log.msg("Incoming Message ID: %d" % message.mid)
         if key in self.recent_messages:
@@ -672,9 +704,12 @@ class Coap(protocol.DatagramProtocol):
             return False
 
     def removeMessageFromRecent(self, key):
+        """Remove Message ID+Remote combination from
+           recent messages cache.""" 
         self.recent_messages.pop(key)
 
     def processResponse(self, response):
+        """Method used for incoming response processing."""
         if response.mtype is RST:
             return
         if response.mtype is ACK:
@@ -699,6 +734,7 @@ class Coap(protocol.DatagramProtocol):
             self.sendMessage(rst)
 
     def processRequest(self, request):
+        """Method used for incoming request processing."""
         if request.mtype not in (CON, NON):
             response = Message(code=BAD_REQUEST, payload='Wrong message type for request!')
             self.respond(response, request)
@@ -731,11 +767,18 @@ class Coap(protocol.DatagramProtocol):
 
     def nextToken(self):
         """Reserve and return a new Token for request."""
+        #TODO: add proper Token handling
         token = self.token
         self.token = 0xFFFF & (1 + self.token)
         return str(token)
 
     def addExchange(self, message):
+        """Add an "exchange" for outgoing CON message.
+        
+           CON (Confirmable) messages are automatically
+           retransmitted by protocol until ACK or RST message
+           with the same Message ID is received from target host."""
+           
         timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
         retransmission_counter = 0
         next_retransmission = reactor.callLater(timeout, self.retransmit, message, timeout, retransmission_counter)
@@ -743,6 +786,8 @@ class Coap(protocol.DatagramProtocol):
         log.msg("Exchange added, Message ID: %d." % message.mid)
 
     def removeExchange(self, message):
+        """Remove exchange from active exchanges and cancel the timeout
+           to next retransmission."""
         self.active_exchanges.pop(message.mid)[1].cancel()
         log.msg("Exchange removed, Message ID: %d." % message.mid)
 
@@ -759,10 +804,18 @@ class Coap(protocol.DatagramProtocol):
             #TODO: error handling (especially for requests)
 
     def request(self, request):
+        """Send a request.
+        
+           This is a method that should be called by user app."""
         return Requester(self, request).deferred
 
 
 class Requester(object):
+    """Class used to handle single outgoing request.
+    
+       Class includes methods that handle sending 
+       outgoing blockwise requests and receiving incoming
+       blockwise responses."""
 
     def __init__(self, protocol, app_request):
         self.protocol = protocol
@@ -778,10 +831,17 @@ class Requester(object):
         if request is None:
             return defer.fail()
         self.deferred = self.sendRequest(request)
-        self.deferred.addCallback(self.processBlock1)
-        self.deferred.addCallback(self.processBlock2)
+        self.deferred.addCallback(self.processBlock1InResponse)
+        self.deferred.addCallback(self.processBlock2InResponse)
 
     def sendRequest(self, request):
+        """Send a request or single request block.
+           
+           This method is used in 3 situations:
+           - sending non-blockwise request
+           - sending blockwise (Block1) request block
+           - asking server to send blockwise (Block2) response block
+        """
         if request.mtype is None:
             request.mtype = CON
         request.token = self.protocol.nextToken()
@@ -792,7 +852,15 @@ class Requester(object):
         log.msg("Sending request - Token: %s, Host: %s, Port: %s" % (request.token, request.remote[0], request.remote[1]))
         return d
 
-    def processBlock1(self, response):
+    def processBlock1InResponse(self, response):
+        """Process incoming response with regard to Block1 option.
+           
+           Method is called for all responses, with or without Block1
+           option. 
+           
+           Method is recursive - calls itself until all request blocks
+           are sent."""
+        
         if response.opt.block1 is not None:
             block1 = response.opt.block1
             log.msg("Response with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
@@ -812,12 +880,20 @@ class Requester(object):
                 return defer.fail()
 
     def sendNextRequestBlock(self, next_block):
+        """Helper method used for sending request blocks."""
         log.msg("Sending next block of blockwise request.")
         d = self.sendRequest(next_block)
-        d.addCallback(self.processBlock1)
+        d.addCallback(self.processBlock1InResponse)
         return d
 
-    def processBlock2(self, response):
+    def processBlock2InResponse(self, response):
+        """Process incoming response with regard to Block2 option.
+           
+           Method is called for all responses, with or without Block2
+           option. 
+           
+           Method is recursive - calls itself until all response blocks
+           from server are received."""
         if response.opt.block2 is not None:
             block2 = response.opt.block2
             log.msg("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
@@ -842,9 +918,10 @@ class Requester(object):
                 return defer.fail()
 
     def askForNextResponseBlock(self, request):
+        """Helper method used to ask server to send next response block."""
         log.msg("Requesting next block of blockwise response.")
         d = self.sendRequest(request)
-        d.addCallback(self.processBlock2)
+        d.addCallback(self.processBlock2InResponse)
         return d
 
     def handleTimedOutRequest(self, deferred, request):
@@ -857,17 +934,28 @@ class Requester(object):
 
 
 class Responder(object):
+    """Class used to handle single incoming request.
+    
+       Class includes methods that handle receiving 
+       incoming blockwise requests, searching for target
+       resources, preparing responses and sending outgoing
+       blockwise responses.
+       """
 
     def __init__(self, protocol, request):
         self.protocol = protocol
         self.assembled_request = None
         self.app_response = None
         log.msg("Request doesn't pertain to earlier blockwise requests.")
-        self.deferred = self.processBlock1(request)
-        self.deferred.addErrback(self.handleRequestErrors)
+        self.deferred = self.processBlock1InRequest(request)
+        self.deferred.addErrback(self.handleBlock1RequestErrors)
         self.deferred.addCallback(self.dispatchRequest)
 
-    def processBlock1(self, request):
+    def processBlock1InRequest(self, request):
+        """Process incoming request with regard to Block1 option.
+           
+           Method is recursive - calls itself until all request blocks
+           are received."""
         if request.opt.block1 is not None:
             block1 = request.opt.block1
             log.msg("Request with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
@@ -897,13 +985,17 @@ class Responder(object):
             return defer.succeed(request)
 
     def acknowledgeRequestBlock(self, request):
+        """Helper method used to ask client to send next request block."""
         log.msg("Sending block acknowledgement (allowing client to send next block).")
         response = request.generateNextBlock1Response()
         d = self.sendNonFinalResponse(response, request)
-        d.addCallback(self.processBlock1)
+        d.addCallback(self.processBlock1InRequest)
         return d
 
     def dispatchRequest(self, request):
+        """Dispatch incoming request - search endpoint 
+           resource tree for resource in Uri Path
+           and call proper CoAP Method on it.""" 
         #TODO: Request with Block2 option and non-zero block number should get error response
         request.prepath = []
         request.postpath = request.opt.uri_path
@@ -921,16 +1013,23 @@ class Responder(object):
             d.addCallback(self.respond, request, delayed_ack)
             return d
 
-    def handleRequestErrors(self, err):
+    def handleBlock1RequestErrors(self, err):
+        """Handle (silently ignore) request errors related
+           to Block1. Currently it's used only to ignore
+           requests which are send non-sequentially"""
         err.trap(iot.error.NotImplemented)
 
     def respondWithError(self, request, code, payload):
+        """Helper method to send error response to client."""
         log.msg(payload)
         response = Message(code=code, payload=payload)
         self.respond(response, request)
         return
 
     def respond(self, app_response, request, delayed_ack=None):
+        """Take application-supplied response and prepare it
+           for sending."""
+
         log.msg("Preparing response...")
         if delayed_ack is not None:
             if delayed_ack.active() is True:
@@ -947,7 +1046,11 @@ class Responder(object):
         if response is None:
             return defer.fail()
 
-    def processBlock2(self, request):
+    def processBlock2InRequest(self, request):
+        """Process incoming request with regard to Block2 option.
+           
+           Method is recursive - calls itself until all response blocks
+           are sent to client."""
         if request.opt.block2 is not None:
             block2 = request.opt.block2
             log.msg("Request with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
@@ -971,12 +1074,15 @@ class Responder(object):
             return defer.fail()
 
     def sendResponseBlock(self, response_block, request):
+        """Helper method to send next response block to client."""
         log.msg("Sending response block.")
         d = self.sendNonFinalResponse(response_block, request)
-        d.addCallback(self.processBlock2)
+        d.addCallback(self.processBlock2InRequest)
         return d
 
     def sendNonFinalResponse(self, response, request):
+        """Helper method to send, a response to client, and setup
+           a timeout for client."""
         d = defer.Deferred()
         canceller = reactor.callLater(MAX_TRANSMIT_WAIT, self.handleTimedOutWaitingForClient, d, request)
         self.protocol.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)] = (d, canceller)
@@ -984,7 +1090,14 @@ class Responder(object):
         return d
 
     def sendResponse(self, response, request):
-
+        """Send a response or single response block.
+           
+           This method is used in 4 situations:
+           - sending success non-blockwise response
+           - asking client to send blockwise (Block1) request block
+           - sending blockwise (Block2) response block
+           - sending any error response
+        """
         #if isResponse(response.code) is False:
             #raise ValueError("Message code is not valid for a response.")
         response.token = request.token
@@ -1009,7 +1122,9 @@ class Responder(object):
         self.protocol.sendMessage(response)
 
     def handleTimedOutWaitingForClient(self, deferred, request):
-        """Clean the incoming client request after a timeout."""
+        """Stop waiting for client to send next request block
+           or ask for next response block. Clean all state associated
+           with client request."""
         try:
             del self.protocol.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)]
         except KeyError:
@@ -1017,6 +1132,7 @@ class Responder(object):
         deferred.errback(iot.error.WaitingForClientTimedOut())
 
     def sendEmptyAck(self, request):
+        """Send separate empty ACK when response preparation takes too long."""
         log.msg("Response preparation takes too long - sending empty ACK.")
         ack = Message(mtype=ACK, code=EMPTY, payload="")
         self.respond(ack, request)

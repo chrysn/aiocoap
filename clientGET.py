@@ -32,9 +32,6 @@ class Agent():
 
     Method printResponse is added as a callback to the deferred 'd'. This
     method's main purpose is to act upon received response (here it's simple print).
-
-    Payload is bigger than 64 bytes, and with default settings it
-    should be sent as several blocks.
     """
 
     def __init__(self, protocol):
