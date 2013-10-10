@@ -4,6 +4,7 @@ Created on 08-09-2012
 @author: Maciej Wasilak
 '''
 import random
+import re
 import copy
 import struct
 import collections
@@ -243,6 +244,15 @@ media_types = {0: 'text/plain',
 
 class Message(object):
     """A CoAP Message."""
+    
+    #Netloc parser from http://bytes.com/topic/python/answers/681442-url-parsing-hard-cases
+    NETLOC_RE = re.compile(r'''^
+                           (?:([^@])+@)?
+                           (?:\[([0-9a-fA-F:]+)\]|
+                           ([^\[\]:]+))
+                           (?::(\d+))?
+                           $''', re.VERBOSE) # end of string
+    
 
     def __init__(self, mtype=None, mid=None, code=EMPTY, payload='', token=''):
         self.version = 1
@@ -309,7 +319,7 @@ class Message(object):
            Used when assembling incoming blockwise requests."""
         if isRequest(self.code):
             block1 = next_block.opt.block1
-            if block1.block_number * (2 ** (block1.size_exponent + 4)) is len(self.payload):
+            if block1.block_number * (2 ** (block1.size_exponent + 4)) == len(self.payload):
                 self.payload += next_block.payload
                 self.opt.block1 = block1
                 self.token = next_block.token
@@ -325,7 +335,7 @@ class Message(object):
            Used when assembling incoming blockwise responses."""
         if isResponse(self.code):
             block2 = next_block.opt.block2
-            if block2.block_number * (2 ** (block2.size_exponent + 4)) is len(self.payload):
+            if block2.block_number * (2 ** (block2.size_exponent + 4)) == len(self.payload):
                 self.payload += next_block.payload
                 self.opt.block2 = block2
                 self.token = next_block.token
@@ -352,20 +362,32 @@ class Message(object):
             fragment = fragment.encode('ascii')
         if scheme != "coap":
             raise ValueError('Error: URI scheme should be "coap"')
-        if fragment is not "":
+        if fragment != "":
             raise ValueError('Error: URI fragment should be ""')
-        netloc_list = netloc.split(":")
-        host = netloc_list[0]
-        if len(netloc_list) > 1:
-            port = netloc_list[1]
+        
+        match = self.NETLOC_RE.match(netloc)
+        if match:
+            if match.group(3):
+                host = match.group(3)
+            elif match.group(2):
+                host = match.group(2)
+            else:
+                raise ValueError('Error: URI netloc invalid')
+        else:
+            raise ValueError('Error: URI netloc invalid')
+        if match.group(4):
+            port = int(match.group(4))
         else:
             port = COAP_PORT
+        
         self.remote = (host, port)
-        if path is not "" and path is not "/":
+        if path != "" and path != "/":
             path = path.lstrip("/")
             self.opt.uri_path = path.split("/")
-        if query is not "":
+        if query != "":
             self.opt.uri_query = query.split("&")
+               
+        
 
     def generateNextBlock2Request(self, response):
         """Generate a request for next response block.
@@ -397,7 +419,7 @@ class Options(object):
         option_number = 0
 
         while len(rawdata) > 0:
-            if ord(rawdata[0]) is 0xFF:
+            if ord(rawdata[0]) == 0xFF:
                 return rawdata[1:]
             dllen = ord(rawdata[0])
             delta = (dllen & 0xF0) >> 4
@@ -529,9 +551,9 @@ def readExtendedFieldValue(value, rawdata):
        from raw binary form."""
     if value >= 0 and value < 13:
         return (value, rawdata)
-    elif value is 13:
+    elif value == 13:
         return (ord(rawdata[0]) + 13, rawdata[1:])
-    elif value is 14:
+    elif value == 14:
         return (struct.unpack('!H', rawdata[:2])[0] + 269, rawdata[2:])
     else:
         raise ValueError("Value out of range.")
@@ -959,7 +981,7 @@ class Responder(object):
         if request.opt.block1 is not None:
             block1 = request.opt.block1
             log.msg("Request with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
-            if block1.block_number is 0:
+            if block1.block_number == 0:
                 #TODO: Check if resource is available - if not send error immediately
                 #TODO: Check if method is allowed - if not send error immediately
                 log.msg("New or restarted incoming blockwise request.")
@@ -1056,7 +1078,7 @@ class Responder(object):
             log.msg("Request with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
             sent_length = (2 ** (self.app_response.opt.block2.size_exponent + 4)) * (self.app_response.opt.block2.block_number + 1)
             #TODO: compare block size of request and response - calculate new block_number if necessary
-            if (2 ** (block2.size_exponent + 4)) * block2.block_number is sent_length:
+            if (2 ** (block2.size_exponent + 4)) * block2.block_number == sent_length:
                 next_block = self.app_response.extractBlock(block2.block_number, block2.size_exponent)
                 if next_block is None:
                     log.msg("Block out of range")
