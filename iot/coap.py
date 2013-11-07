@@ -336,13 +336,16 @@ class Message(object):
         if isResponse(self.code):
             ## @TODO: check etags for consistency
             block2 = next_block.opt.block2
-            if block2.block_number * (2 ** (block2.size_exponent + 4)) == len(self.payload):
-                self.payload += next_block.payload
-                self.opt.block2 = block2
-                self.token = next_block.token
-                self.mid = next_block.mid
-            else:
+            if block2.block_number * (2 ** (block2.size_exponent + 4)) != len(self.payload):
                 raise iot.error.NotImplemented()
+
+            if next_block.opt.etag != self.opt.etag:
+                raise iot.error.ResourceChanged()
+
+            self.payload += next_block.payload
+            self.opt.block2 = block2
+            self.token = next_block.token
+            self.mid = next_block.mid
         else:
             raise ValueError("Fatal Error: called appendResponseBlock on non-response message!!!")
 
@@ -949,7 +952,10 @@ class Requester(object):
             block2 = response.opt.block2
             log.msg("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
             if self.assembled_response is not None:
-                self.assembled_response.appendResponseBlock(response)
+                try:
+                    self.assembled_response.appendResponseBlock(response)
+                except iot.error.Error as e:
+                    return defer.fail(e)
             else:
                 if block2.block_number is 0:
                     log.msg("Receiving blockwise response")

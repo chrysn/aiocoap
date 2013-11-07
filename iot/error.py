@@ -9,27 +9,31 @@ Exception definitions for txThings CoAP library.
 
 #import iot.coap
 
+class Error(Exception):
+    """
+    Base exception for all exceptions that indicate a failed request
+    """
 
-class NoResource(Exception):
+class NoResource(Error):
     """
     Raised when resource is not found.
     """
 
 
-class UnallowedMethod(Exception):
+class UnallowedMethod(Error):
     """
     Raised by a resource when request method is understood by the server
     but not allowed for that particular resource.
     """
 
 
-class UnsupportedMethod(Exception):
+class UnsupportedMethod(Error):
     """
     Raised when request method is not understood by the server at all.
     """
 
 
-class NotImplemented(Exception):
+class NotImplemented(Error):
     """
     Raised when request is correct, but feature is not implemented
     by txThings library.
@@ -37,13 +41,13 @@ class NotImplemented(Exception):
     """
 
 
-class RequestTimedOut(Exception):
+class RequestTimedOut(Error):
     """
     Raised when request is timed out.
     """
 
 
-class WaitingForClientTimedOut(Exception):
+class WaitingForClientTimedOut(Error):
     """
     Raised when server expects some client action:
         - sending next PUT/POST request with block1 or block2 option
@@ -51,7 +55,14 @@ class WaitingForClientTimedOut(Exception):
     but client does nothing.
     """
 
-__all__ = ['NoResource',
+class ResourceChanged(Error):
+    """
+    The requested resource was modified during the request and could therefore
+    not be received in a consistent state.
+    """
+
+__all__ = ['Error',
+           'NoResource',
            'UnallowedMethod',
            'UnsupportedMethod',
            'NotImplemented',
