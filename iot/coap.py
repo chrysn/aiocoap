@@ -334,6 +334,7 @@ class Message(object):
         """Append next block to current response message.
            Used when assembling incoming blockwise responses."""
         if isResponse(self.code):
+            ## @TODO: check etags for consistency
             block2 = next_block.opt.block2
             if block2.block_number * (2 ** (block2.size_exponent + 4)) == len(self.payload):
                 self.payload += next_block.payload
@@ -544,6 +545,34 @@ class Options(object):
             return None
 
     content_format = property(_getContentFormat, _setContentFormat)
+
+    def _setETag(self, etag):
+        """Convenience setter: ETag option"""
+        self.deleteOption(number=ETAG)
+        if etag is not None:
+            self.addOption(StringOption(number=ETAG, value=etag))
+
+    def _getETag(self):
+        """Convenience getter: ETag option"""
+        etag = self.getOption(number=ETAG)
+        if etag is not None:
+            return etag[0].value
+        else:
+            return None
+
+    etag = property(_getETag, _setETag, None, "Access to a single ETag on the message (as used in responses)")
+
+    def _setETags(self, etags):
+        self.deleteOption(number=ETAG)
+        for tag in etags:
+            self.addOption(StringOption(number=ETAG, value=tag))
+
+    def _getETags(self):
+        etag = self.getOption(number=ETAG)
+        return [] if etag is None else [tag.value for tag in etag]
+
+    etags = property(_getETags, _setETags, None, "Access to a list of ETags on the message (as used in requests)")
+
 
 
 def readExtendedFieldValue(value, rawdata):
