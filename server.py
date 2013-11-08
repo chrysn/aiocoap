@@ -7,6 +7,7 @@ import struct
 import random
 import copy
 import sys
+import datetime
 
 from twisted.internet import defer
 from twisted.internet.protocol import DatagramProtocol
@@ -97,6 +98,23 @@ class SeparateLargeResource(resource.CoAPResource):
         response = coap.Message(code=coap.CONTENT, payload=payload)
         d.callback(response)
 
+class TimeResource(resource.CoAPResource):
+    def __init__(self):
+        resource.CoAPResource.__init__(self)
+        self.visible = True
+        self.observable = True
+
+        self.notify()
+
+    def notify(self):
+        print "i'm trying to send notifications"
+        self.updatedState()
+        reactor.callLater(60, self.notify)
+
+    def render_GET(self, request):
+        response = coap.Message(code=coap.CONTENT, payload=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+        return defer.succeed(response)
+
 class CoreResource(resource.CoAPResource):
     """
     Example Resource that provides list of links hosted by a server.
@@ -137,6 +155,9 @@ well_known.putChild('core', core)
 
 counter = CounterResource(5000)
 root.putChild('counter', counter)
+
+time = TimeResource()
+root.putChild('time', time)
 
 other = resource.CoAPResource()
 root.putChild('other', other)

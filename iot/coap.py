@@ -576,6 +576,20 @@ class Options(object):
 
     etags = property(_getETags, _setETags, None, "Access to a list of ETags on the message (as used in requests)")
 
+    def _setObserve(self, observe):
+        self.deleteOption(number=OBSERVE)
+        if observe is not None:
+            self.addOption(UintOption(number=OBSERVE, value=observe))
+
+    def _getObserve(self):
+        observe = self.getOption(number=OBSERVE)
+        if observe is not None:
+            return observe[0].value
+        else:
+            return None
+
+    observe = property(_getObserve, _setObserve)
+
 
 
 def readExtendedFieldValue(value, rawdata):
@@ -1067,6 +1081,8 @@ class Responder(object):
             self.respondWithError(request, METHOD_NOT_ALLOWED, "Error: Method not recognized!")
         else:
             delayed_ack = reactor.callLater(EMPTY_ACK_DELAY, self.sendEmptyAck, request)
+            if resource.observable and request.code == GET and request.opt.observe is not None:
+                d.addCallback(self.handleObserve, request, resource)
             d.addCallback(self.respond, request, delayed_ack)
             return d
 
@@ -1082,6 +1098,32 @@ class Responder(object):
         response = Message(code=code, payload=payload)
         self.respond(response, request)
         return
+
+    def handleObserve(self, app_response, request, resource):
+        """Intermediate state of sending a response that the response will go
+        through if it might need to be processed for observation. This both
+        handles the implications for notification sending and adds the observe
+        response option."""
+
+        observation_identifier = (request.remote, request.token)
+
+        if app_response.code not in (VALID, CONTENT):
+            if observation_identifier in resource.observers:
+                ## @TODO cancel observation
+                pass
+
+            return app_response
+
+        if observation_identifier in resource.observers:
+            pass ## @TODO renew that observation (but keep in mind that whenever we send a notification, the original message is replayed)
+        else:
+            obs = Observation(request)
+            resource.observers[observation_identifier] = obs
+
+        app_response.opt.observe = resource.observe_index
+
+        return app_response
+
 
     def respond(self, app_response, request, delayed_ack=None):
         """Take application-supplied response and prepare it
@@ -1193,3 +1235,20 @@ class Responder(object):
         log.msg("Response preparation takes too long - sending empty ACK.")
         ack = Message(mtype=ACK, code=EMPTY, payload="")
         self.respond(ack, request)
+
+class Observation(object):
+    """An active CoAP observation is described as an Observation object
+    attached to a Resource in .observers[(address, token)].
+
+    It keeps a complete copy of the original request for simplicity (while it
+    actually would only need parts of that request, like the accept option)."""
+
+    def __init__(self, original_request):
+        self.original_request = original_request
+
+    def trigger(self):
+        # bypassing parsing and duplicate detection, pretend the request came in again
+        print "triggering retransmission with original request %r (will set response_type to ACK)"%vars(self.original_request)
+        self.original_request.response_type = ACK # trick responder into sending CON
+        Responder(self.original_request.protocol, self.original_request)
+        ## @TODO pass a callback down to the exchange -- if it gets a RST, we have to unregister

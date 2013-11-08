@@ -51,7 +51,10 @@ class CoAPResource:
         self.children = {}
         self.params = {}
         self.visible = False
+        self.observers = {} # (address, token) -> observation
 
+    observable = False
+    observe_index = 0
     isLeaf = 0
 
     ### Abstract Collection Interface
@@ -187,13 +190,29 @@ class CoAPResource:
         return (';'.join(data))
 
     def generateResourceList(self, data, path=""):
+        params = self.encode_params() + (";obs" if self.observable else "")
         if self.visible is True:
             if path is "":
-                data.append('</>' + self.encode_params())
+                data.append('</>' + params)
             else:
-                data.append('<' + path + '>' + self.encode_params())
+                data.append('<' + path + '>' + params)
         for key in self.children:
             self.children[key].generateResourceList(data, path + "/" + key)
+
+    def updatedState(self):
+        """Call this whenever the resource was updated, and a notification
+        should be sent to observers."""
+
+        # this implements the second implementation suggestion from
+        # draft-ietf-coap-observe-11 section 4.4
+        #
+        ## @TODO handle situations in which this gets called more often than
+        #        2^32 times in 256 seconds (or document why we can be sure that
+        #        that will not happen)
+        self.observe_index = (self.observe_index + 1) % (2**24)
+
+        for o in self.observers.values():
+            o.trigger()
 
 
 class LinkParam(object):
