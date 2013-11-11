@@ -40,13 +40,25 @@ class Agent():
 
     def requestResource(self):
         request = coap.Message(code=coap.GET)
-        request.opt.uri_path = ('other', 'separate')
+        #request.opt.uri_path = ('other', 'separate')
+        request.opt.uri_path = ('time',)
         request.remote = ("127.0.0.1", coap.COAP_PORT)
+        request.setObserve(self.printLaterResponse)
         d = protocol.request(request)
         d.addCallback(self.printResponse)
+        d.addErrback(self.noResponse)
 
     def printResponse(self, response):
         print 'Result: ' + response.payload
+        #reactor.stop()
+
+    def printLaterResponse(self, response):
+        print 'Newer result: ' + response.payload
+
+    def noResponse(self, failure):
+        print 'Failed to fetch resource:'
+        print failure
+        #reactor.stop()
 
 log.startLogging(sys.stdout)
 

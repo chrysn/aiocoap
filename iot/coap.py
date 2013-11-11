@@ -412,6 +412,10 @@ class Message(object):
         response.opt.block1 = (self.opt.block1.block_number, True, self.opt.block1.size_exponent)
         return response
 
+    def setObserve(self, callback):
+        self.opt.observe = 0
+        self.observe_callback = callback
+
 
 class Options(object):
     """Represent CoAP Header Options."""
@@ -728,6 +732,7 @@ class Coap(protocol.DatagramProtocol):
         self.active_exchanges = {}  # active exchanges i.e. sent CON messages (identified by message ID and remote)
         self.outgoing_requests = {}  # unfinished outgoing requests (identified by token and remote)
         self.incoming_requests = {}  # unfinished incoming requests (identified by URL path and remote)
+        self.observations = {} # outgoing observations. (token, remote) -> callback
 
     def datagramReceived(self, data, (host, port)):
         log.msg("received %r from %s:%d" % (data, host, port))
@@ -795,6 +800,19 @@ class Coap(protocol.DatagramProtocol):
                 self.sendMessage(ack)
             timeout_canceller.cancel()
             d.callback(response)
+        elif (response.token, response.remote) in self.observations:
+            ## @TODO: deduplication based on observe option value, collecting
+            # the rest of the resource if blockwise
+            self.observations[(response.token, response.remote)](response)
+
+            if response.mtype is CON:
+                #TODO: Some variation of sendEmptyACK should be used (as above)
+                ack = Message(mtype=ACK, mid=response.mid, code=EMPTY, payload="")
+                ack.remote = response.remote
+                self.sendMessage(ack)
+
+            if response.opt.observe is None:
+                del self.observations[(response.token, response.remote)]
         else:
             log.msg("Response not recognized - sending RST.")
             rst = Message(mtype=RST, mid=response.mid, code=EMPTY, payload='')
@@ -918,7 +936,15 @@ class Requester(object):
         canceller = reactor.callLater(REQUEST_TIMEOUT, self.handleTimedOutRequest, d, request)
         self.protocol.outgoing_requests[(request.token, request.remote)] = (d, canceller)
         log.msg("Sending request - Token: %s, Host: %s, Port: %s" % (request.token, request.remote[0], request.remote[1]))
+        if request.opt.observe is not None and hasattr(request, 'observe_callback'):
+            d.addCallback(self.registerObservation, request.observe_callback)
         return d
+
+    def registerObservation(self, response, callback):
+        if response.opt.observe is not None:
+            self.protocol.observations[(response.token, response.remote)] = callback
+
+        return response
 
     def processBlock1InResponse(self, response):
         """Process incoming response with regard to Block1 option.
