@@ -401,6 +401,7 @@ class Message(object):
         request.payload = ""
         request.mid = None
         request.opt.block2 = (response.opt.block2.block_number + 1, False, response.opt.block2.size_exponent)
+        request.opt.observe = None
         return request
 
     def generateNextBlock1Response(self):
