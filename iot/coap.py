@@ -791,7 +791,7 @@ class Coap(protocol.DatagramProtocol):
                 self.removeExchange(response)
             else:
                 return
-        log.msg("Received Response, token: %s, host: %s, port: %s" % (response.token, response.remote[0], response.remote[1]))
+        log.msg("Received Response, token: %s, host: %s, port: %s" % (response.token.encode('hex'), response.remote[0], response.remote[1]))
         if (response.token, response.remote) in self.outgoing_requests:
             d, timeout_canceller = self.outgoing_requests.pop((response.token, response.remote))
             if response.mtype is CON:
@@ -856,8 +856,8 @@ class Coap(protocol.DatagramProtocol):
         """Reserve and return a new Token for request."""
         #TODO: add proper Token handling
         token = self.token
-        self.token = 0xFFFF & (1 + self.token)
-        return str(token)
+        self.token = (self.token + 1) & 0xffffffffffffffff
+        return ("%08x"%self.token).decode('hex')
 
     def addExchange(self, message):
         """Add an "exchange" for outgoing CON message.
@@ -936,7 +936,7 @@ class Requester(object):
         d = defer.Deferred()
         canceller = reactor.callLater(REQUEST_TIMEOUT, self.handleTimedOutRequest, d, request)
         self.protocol.outgoing_requests[(request.token, request.remote)] = (d, canceller)
-        log.msg("Sending request - Token: %s, Host: %s, Port: %s" % (request.token, request.remote[0], request.remote[1]))
+        log.msg("Sending request - Token: %s, Host: %s, Port: %s" % (request.token.encode('hex'), request.remote[0], request.remote[1]))
         if request.opt.observe is not None and hasattr(request, 'observe_callback'):
             d.addCallback(self.registerObservation, request.observe_callback)
         return d
