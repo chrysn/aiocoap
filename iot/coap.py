@@ -766,8 +766,11 @@ class Coap(protocol.DatagramProtocol):
         log.msg("Incoming Message ID: %d" % message.mid)
         if key in self.recent_messages:
             if message.mtype is CON:
-                #TODO: send a copy of acknowledgement
-                log.msg('Duplicate CON received')
+                if len(self.recent_messages[key]) == 3:
+                    log.msg('Duplicate CON received, sending old response again')
+                    self.sendMessage(self.recent_messages[key][2])
+                else:
+                    log.msg('Duplicate CON received, no response to send')
             else:
                 log.msg('Duplicate NON, ACK or RST received')
             return True
@@ -837,6 +840,12 @@ class Coap(protocol.DatagramProtocol):
     def sendMessage(self, message):
         """Set Message ID, encode and send message.
            Also if message is Confirmable (CON) add Exchange"""
+
+        recent_key = (message.mid, message.remote)
+        if recent_key in self.recent_messages:
+            if len(self.recent_messages[recent_key]) != 3:
+                self.recent_messages[recent_key] = self.recent_messages[recent_key] + (message,)
+
         if message.mid is None:
             message.mid = self.nextMessageID()
         if message.mtype is CON:
