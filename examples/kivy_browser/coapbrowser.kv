@@ -1,0 +1,126 @@
+#:import ScrollEffect kivy.effects.scroll.ScrollEffect
+<Controller>:
+    #effect_cls:ScrollEffect
+    address_bar:address_bar
+    grid:grid
+    do_scroll_x:False
+    size_hint:(None,None)
+    size:(720,1280)
+    GridLayout:
+        id:grid
+        size_hint:(1,None)
+        height:self.minimum_height
+        spacing:(0,20)
+        cols:1
+        row_force_default:False#True
+        row_default_height:40
+        BoxLayout:
+            id:top_box
+            size_hint_y:None
+            height:60
+            orientation:'horizontal'
+            TextInput:
+                id:address_bar
+                background_color:(0.75,0.3,0,1)
+                foreground_color:(1,1,1,1)
+                background_normal: ""
+                background_active: ""
+                size_hint_x:.8
+                multiline:False
+                text:"coap://127.0.0.1/motd"
+                #text:"coap://129.132.15.80/test"
+                #text: "coap://[2001:5c0:1515:3300:224:d2ff:fe41:a8aa]/counter"
+            Button:
+                id:send_button
+                background_normal: ""
+                background_down: ""
+                background_color:(1,0.4,0,1)
+                #color:(0,0,0,1)
+                size_hint_x:.2
+                text:"Send"
+                on_press:root.send_request()
+
+<ColorBoxLayout>:
+    canvas:
+        Color:
+            rgba: self.background_color
+        BorderImage:
+            border: self.border
+            pos: self.pos
+            size: self.size
+            source: self.background_normal
+        Color:
+            rgba: self.color
+        Rectangle:
+            texture: self.texture
+            size: self.texture_size
+            pos: int(self.center_x - self.texture_size[0] / 2.), int(self.center_y - self.texture_size[1] / 2.)
+
+<BrowsingCardVariant>:
+    height:160
+    cols:1
+    size_hint:(1,None)
+    #row_default_height:160
+    height:self.minimum_height
+    btn:btn
+    lbl:lbl
+    GridLayout:
+        cols:1
+        size_hint:(1,None)
+        row_default_height:40
+        height:self.minimum_height
+        padding:5,5
+        Button:
+            id:lbl
+            size_hint:(1,0.4)
+            #text_size:self.size
+            halign:'left'
+            valign:'top'
+            text:"GET"
+            background_normal: ""
+            background_down: ""
+            background_color:(0,0.4,0.6,1)
+        Button:
+            id:btn
+            size_hint:(1,None)
+            text:"Waiting for response..."
+            size:self.texture_size
+            background_normal: ""
+            background_down: ""
+            background_color:(0.2,0.6,0.8,1)
+
+<BrowsingCard>:
+    height:160
+    cols:1
+    size_hint:(1,None)
+    #row_default_height:160
+    height:self.minimum_height
+    btn:btn
+    lbl:lbl
+    ColorBoxLayout:
+        cols:1
+        size_hint:(1,None)
+        row_default_height:40
+        height:self.minimum_height
+        background_normal: 'blue.png'
+        background_down: 'blue.png'
+        border: 11,11,11,11
+        padding:20,20
+        Label:
+            id:lbl
+            size_hint:(1,0.4)
+            #text_size:self.size
+            halign:'left'
+            valign:'top'
+            text:"GET"
+        Button:
+            id:btn
+            size_hint:(1,None)
+            text:"Waiting for response..."
+            size:self.texture_size
+            background_normal: 'gray.png'
+            background_down: 'gray.png'
+            border: 11,11,11,11
+
+
+
