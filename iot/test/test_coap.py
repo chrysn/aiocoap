@@ -7,6 +7,36 @@ from twisted.trial import unittest
 import iot.coap as coap
 import struct
 
+class TestMessage(unittest.TestCase):
+    
+    def test_encode(self):
+        msg1 = coap.Message(mtype=coap.CON, mid=0)
+        binary1 = chr(64)+chr(0)+chr(0)+chr(0)
+        self.assertEqual(msg1.encode(), binary1, "wrong encode operation for empty CON message")
+        
+        msg2 = coap.Message(mtype=coap.ACK, mid=0xBC90, code=coap.CONTENT, payload="temp = 22.5 C", token='q')
+        msg2.opt.etag = "abcd"
+        binary2 = chr(97)+chr(69)+chr(188)+chr(144)+chr(113)+chr(68)+"abcd"+chr(255)+"temp = 22.5 C"
+        self.assertEqual(msg2.encode(), binary2, "wrong encode operation for ACK message with payload, and Etag option")
+
+        msg3 = coap.Message()
+        self.assertRaises(TypeError, msg3.encode)
+
+    def test_decode(self):
+        rawdata1 = chr(64)+chr(0)+chr(0)+chr(0)
+        self.assertEqual(coap.Message.decode(rawdata1).mtype, coap.CON, "wrong message type for decode operation")
+        self.assertEqual(coap.Message.decode(rawdata1).mid, 0, "wrong message ID for decode operation")
+        self.assertEqual(coap.Message.decode(rawdata1).code, coap.EMPTY, "wrong message code for decode operation")
+        self.assertEqual(coap.Message.decode(rawdata1).token, '', "wrong message token for decode operation")                                                    
+        self.assertEqual(coap.Message.decode(rawdata1).payload, '', "wrong message payload for decode operation")   
+        rawdata2 = chr(97)+chr(69)+chr(188)+chr(144)+chr(113)+chr(68)+"abcd"+chr(255)+"temp = 22.5 C"
+        self.assertEqual(coap.Message.decode(rawdata2).mtype, coap.ACK, "wrong message type for decode operation")
+        self.assertEqual(coap.Message.decode(rawdata2).mid, 0xBC90, "wrong message ID for decode operation")
+        self.assertEqual(coap.Message.decode(rawdata2).code, coap.CONTENT, "wrong message code for decode operation")
+        self.assertEqual(coap.Message.decode(rawdata2).token, 'q', "wrong message token for decode operation")                                                    
+        self.assertEqual(coap.Message.decode(rawdata2).payload, 'temp = 22.5 C', "wrong message payload for decode operation")
+        self.assertEqual(coap.Message.decode(rawdata2).opt.etags, ["abcd"], "problem with etag option decoding for decode operation")  
+        self.assertEqual(len(coap.Message.decode(rawdata2).opt._options), 1, "wrong number of options after decode operation")
 
 class TestReadExtendedFieldValue(unittest.TestCase):
 
@@ -110,4 +140,4 @@ class TestOptions(unittest.TestCase):
         opt3 = coap.Options()
         self.assertRaises(ValueError, setattr, opt3, "uri_path", "core")
                                 
-                
+      

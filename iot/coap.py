@@ -277,7 +277,7 @@ class Message(object):
         (vttkl, code, mid) = struct.unpack('!BBH', rawdata[:4])
         version = (vttkl & 0xC0) >> 6
         if version is not 1:
-            raise Exception()
+            raise ValueError("Fatal Error: Protocol Version must be 1")
         mtype = (vttkl & 0x30) >> 4
         token_length = (vttkl & 0x0F)
         msg = Message(mtype=mtype, mid=mid, code=code)
@@ -289,6 +289,8 @@ class Message(object):
 
     def encode(self):
         """Create binary representation of message from Message object."""
+        if self.mtype is None or self.mid is None:
+            raise TypeError("Fatal Error: Message Type and Message ID must not be None.")
         rawdata = chr((self.version << 6) + ((self.mtype & 0x03) << 4) + (len(self.token) & 0x0F))
         rawdata += struct.pack('!BH', self.code, self.mid)
         rawdata += self.token
@@ -1236,6 +1238,7 @@ class Responder(object):
         #if isResponse(response.code) is False:
             #raise ValueError("Message code is not valid for a response.")
         response.token = request.token
+        print "Token: %s" % (response.token)
         response.remote = request.remote
         if request.opt.block1 is not None:
             response.opt.block1 = request.opt.block1
