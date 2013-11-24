@@ -90,7 +90,7 @@ DEFAULT_BLOCK_SIZE_EXP = 2  # Block size 64
 EMPTY_ACK_DELAY = 0.1
 """After this time protocol sends empty ACK, and separate response"""
 
-REQUEST_TIMEOUT = 10
+REQUEST_TIMEOUT = MAX_TRANSMIT_WAIT
 """Time after which server assumes it won't receive any answer.
    It is not defined by IETF documents.
    For human-operated devices it might be preferable to set some small value

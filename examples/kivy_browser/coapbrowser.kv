@@ -1,6 +1,11 @@
 #:import ScrollEffect kivy.effects.scroll.ScrollEffect
+#: set dark_orange (0.75 ,0.3 ,0.0 , 1.0)
+#: set light_orange (1.0, 0.4, 0.0 , 1.0)
+#: set white (1.0, 1.0, 1.0 , 1.0)
+
+
 <Controller>:
-    #effect_cls:ScrollEffect
+    effect_cls:ScrollEffect
     address_bar:address_bar
     grid:grid
     do_scroll_x:False
@@ -13,7 +18,7 @@
         spacing:(0,20)
         cols:1
         row_force_default:False#True
-        row_default_height:40
+        #row_default_height:40
         BoxLayout:
             id:top_box
             size_hint_y:None
@@ -21,42 +26,67 @@
             orientation:'horizontal'
             TextInput:
                 id:address_bar
-                background_color:(0.75,0.3,0,1)
-                foreground_color:(1,1,1,1)
+                background_color: dark_orange
+                foreground_color: white
                 background_normal: ""
                 background_active: ""
                 size_hint_x:.8
                 multiline:False
-                text:"coap://127.0.0.1/motd"
-                #text:"coap://129.132.15.80/test"
+                #text:"coap://127.0.0.1/motd"
+                text:"coap://129.132.15.80/test"
                 #text: "coap://[2001:5c0:1515:3300:224:d2ff:fe41:a8aa]/counter"
             Button:
                 id:send_button
                 background_normal: ""
                 background_down: ""
-                background_color:(1,0.4,0,1)
-                #color:(0,0,0,1)
+                background_color:light_orange
                 size_hint_x:.2
                 text:"Send"
                 on_press:root.send_request()
+        BoxLayout:
+            id:bottom_box
+            size_hint_y:None
+            height:60
+            orientation:'horizontal'
+            ToggleMethod:
+            	id: 'method_GET'
+            	text:"GET"
+            	on_press: root.set_active_method('GET') 	
+            	state:'down'
+            ToggleMethod:
+            	id: 'method_PUT'
+            	text:"PUT"
+            	on_press: root.set_active_method('PUT') 	
+            ToggleMethod:
+            	id: 'method_POST'
+            	text:"POST"
+            	on_press: root.set_active_method('POST') 	
+            ToggleMethod:
+            	id: 'method_DELETE'
+            	text:"DELETE"
+            	on_press: root.set_active_method('DELETE') 	
 
-<ColorBoxLayout>:
+
+<-ToggleMethod@ToggleButton>:
     canvas:
         Color:
-            rgba: self.background_color
-        BorderImage:
-            border: self.border
-            pos: self.pos
+            rgba: dark_orange if self.state == 'normal' else light_orange
+        Rectangle:
             size: self.size
-            source: self.background_normal
+            pos: self.pos    
         Color:
             rgba: self.color
         Rectangle:
             texture: self.texture
             size: self.texture_size
             pos: int(self.center_x - self.texture_size[0] / 2.), int(self.center_y - self.texture_size[1] / 2.)
+    group:'method'
+    size_hint_x:.25
+    
 
-<BrowsingCardVariant>:
+
+
+<BrowsingCard>:
     height:160
     cols:1
     size_hint:(1,None)
@@ -88,39 +118,5 @@
             background_normal: ""
             background_down: ""
             background_color:(0.2,0.6,0.8,1)
-
-<BrowsingCard>:
-    height:160
-    cols:1
-    size_hint:(1,None)
-    #row_default_height:160
-    height:self.minimum_height
-    btn:btn
-    lbl:lbl
-    ColorBoxLayout:
-        cols:1
-        size_hint:(1,None)
-        row_default_height:40
-        height:self.minimum_height
-        background_normal: 'blue.png'
-        background_down: 'blue.png'
-        border: 11,11,11,11
-        padding:20,20
-        Label:
-            id:lbl
-            size_hint:(1,0.4)
-            #text_size:self.size
-            halign:'left'
-            valign:'top'
-            text:"GET"
-        Button:
-            id:btn
-            size_hint:(1,None)
-            text:"Waiting for response..."
-            size:self.texture_size
-            background_normal: 'gray.png'
-            background_down: 'gray.png'
-            border: 11,11,11,11
-
 
 

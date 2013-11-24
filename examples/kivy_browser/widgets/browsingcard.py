@@ -1,3 +1,15 @@
+'''
+Created on 14-09-2013
+
+@author: Maciej Wasilak
+
+This is a Kivy widget class used to display a "browsing card" - a rectangle
+that contains browsing result. Card can be closed with a swipe to the right.
+It should be used on touch screens.
+
+Caution: this class is experimental and may contain bugs!!!
+'''
+
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.relativelayout import RelativeLayout
 from functools import partial
