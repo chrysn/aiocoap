@@ -145,6 +145,8 @@ requests = {1: 'GET',
             3: 'PUT',
             4: 'DELETE'}
 
+requests_rev = {v:k for k, v in requests.items()}
+
 responses = {65: '2.01 Created',
              66: '2.02 Deleted',
              67: '2.03 Valid',
@@ -168,31 +170,39 @@ responses = {65: '2.01 Created',
              164: '5.04 Gateway Timeout',
              165: '5.05 Proxying Not Supported'}
 
-#============================================================================
-# coap-13, block-09, observe-06
-#============================================================================
-# +-----+---+---+---+---+----------------+--------+--------+-------------+
-# | No. | C | U | N | R | Name           | Format | Length | Default     |
-# +-----+---+---+---+---+----------------+--------+--------+-------------+
-# |   1 | x |   |   | x | If-Match       | opaque | 0-8    | (none)      |
-# |   3 | x | x |   |   | Uri-Host       | string | 1-255  | (see below) |
-# |   4 |   |   |   | x | ETag           | opaque | 1-8    | (none)      |
-# |   5 | x |   |   |   | If-None-Match  | empty  | 0      | (none)      |
-# |   6 | ? | ? | ? | ? | Observe        | uint   | ?      | (none)      |
-# |   7 | x | x |   |   | Uri-Port       | uint   | 0-2    | (see below) |
-# |   8 |   |   |   | x | Location-Path  | string | 0-255  | (none)      |
-# |  11 | x | x |   | x | Uri-Path       | string | 0-255  | (none)      |
-# |  12 |   |   |   |   | Content-Format | uint   | 0-2    | (none)      |
-# |  14 |   | x |   |   | Max-Age        | uint   | 0-4    | 60          |
-# |  15 | x | x |   | x | Uri-Query      | string | 1-255  | (none)      |
-# |  16 |   |   |   | x | Accept         | uint   | 0-2    | (none)      |
-# |  20 |   |   |   | x | Location-Query | string | 0-255  | (none)      |
-# |  23 | x | ? | ? | ? | Block2         | uint   | 1-3    | (see below) |
-# |  27 | x | ? | ? | ? | Block1         | uint   | 1-3    | (see below) |
-# |  28 |   | ? | ? | ? | Size           | uint   | 0-4    | (none)      |
-# |  35 | x | x |   |   | Proxy-Uri      | string | 1-1034 | (none)      |
-# +-----+---+---+---+---+----------------+--------+--------+-------------+
-#============================================================================
+responses_rev = {v:k for k, v in responses.items()}
+
+#=============================================================================
+# coap-18, block-14, observe-11
+#=============================================================================
+# +-----+---+---+---+---+----------------+------------+--------+-------------+
+# | No. | C | U | N | R | Name           | Format     | Length | Default     |
+# +-----+---+---+---+---+----------------+------------+--------+-------------+
+# |   1 | x |   |   | x | If-Match       | opaque     | 0-8    | (none)      |
+# |   3 | x | x | - |   | Uri-Host       | string     | 1-255  | (see below) |
+# |   4 |   |   |   | x | ETag           | opaque     | 1-8    | (none)      |
+# |   5 | x |   |   |   | If-None-Match  | empty      | 0      | (none)      |
+# |   6 |   | x |   |   | Observe        | empty/uint | ?      | (none)      |
+# |   7 | x | x | - |   | Uri-Port       | uint       | 0-2    | (see below) |
+# |   8 |   |   |   | x | Location-Path  | string     | 0-255  | (none)      |
+# |  11 | x | x | - | x | Uri-Path       | string     | 0-255  | (none)      |
+# |  12 |   |   |   |   | Content-Format | uint       | 0-2    | (none)      |
+# |  14 |   | x |   |   | Max-Age        | uint       | 0-4    | 60          |
+# |  15 | x | x | - | x | Uri-Query      | string     | 0-255  | (none)      |
+# |  17 | x |   |   |   | Accept         | uint       | 0-2    | (none)      |
+# |  20 |   |   |   | x | Location-Query | string     | 0-255  | (none)      |
+# |  23 | x | x | - | - | Block2         | uint       | 0-3    | (see below) |
+# |  27 | x | x | - | - | Block1         | uint       | 0-3    | (see below) |
+# |  28 |   |   | x |   | Size2          | uint       | 0-4    | (none)      |
+# |  35 | x | x | - |   | Proxy-Uri      | string     | 1-1034 | (none)      |
+# |  39 | x | x | - |   | Proxy-Scheme   | string     | 1-255  | (none)      |
+# |  60 |   |   | x |   | Size1          | uint       | 0-4    | (none)      |
+# +-----+---+---+---+---+----------------+------------+--------+-------------+
+#=============================================================================
+#
+# This table should serve as a reference only. It does not confirm that
+# txThings conforms to the documents above
+#
 
 IF_MATCH = 1
 URI_HOST = 3
@@ -205,31 +215,36 @@ URI_PATH = 11
 CONTENT_FORMAT = 12
 MAX_AGE = 14
 URI_QUERY = 15
-ACCEPT = 16
+ACCEPT = 17
 LOCATION_QUERY = 20
 BLOCK2 = 23
 BLOCK1 = 27
-SIZE = 28
+SIZE2 = 28
 PROXY_URI = 35
+PROXY_SCHEME = 39
+SIZE1 = 60
 
+options = {1: 'If-Match',
+           3: 'Uri-Host',
+           4: 'ETag',
+           5: 'If-None-Match',
+           6: 'Observe',
+           7: 'Uri-Port',
+           8: 'Location-Path',
+           11: 'Uri-Path',
+           12: 'Content-Format',
+           14: 'Max-Age',
+           15: 'Uri-Query',
+           17: 'Accept',
+           20: 'Location-Query',
+           23: 'Block2',
+           27: 'Block1',
+           28: 'Size2',
+           35: 'Proxy-Uri',
+           39: 'Proxy-Scheme',
+           60: 'Size1'}
 
-OPTIONS = {'If-Match': 1,
-           'Uri-Host': 3,
-           'ETag': 4,
-           'If-None-Match': 5,
-           'Observe': 6,
-           'Uri-Port': 7,
-           'Location-Path': 8,
-           'Uri-Path': 11,
-           'Content-Format': 12,
-           'Max-Age': 14,
-           'Uri-Query': 15,
-           'Accept': 16,
-           'Location-Query': 20,
-           'Block2': 23,
-           'Block1': 27,
-           'Size': 28,
-           'Proxy-Uri': 35}
+options_rev = {v:k for k, v in options.items()}
 
 media_types = {0: 'text/plain',
                40: 'application/link-format',
@@ -238,6 +253,8 @@ media_types = {0: 'text/plain',
                47: 'application/exi',
                50: 'application/json'}
 """A map from CoAP-assigned integral codes to Internet media type descriptions."""
+
+media_types_rev = {v:k for k, v in media_types.items()}
 
 
 class Message(object):
