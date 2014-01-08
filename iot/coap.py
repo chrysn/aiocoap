@@ -562,6 +562,19 @@ class Options(object):
 
     observe = property(_getObserve, _setObserve)
 
+    def _setAccept(self, accept):
+        self.deleteOption(number=ACCEPT)
+        if accept is not None:
+            self.addOption(UintOption(number=ACCEPT, value=accept))
+
+    def _getAccept(self):
+        accept = self.getOption(number=ACCEPT)
+        if accept is not None:
+            return accept[0].value
+        else:
+            return None
+
+    accept = property(_getAccept, _setAccept)
 
 
 def readExtendedFieldValue(value, rawdata):
