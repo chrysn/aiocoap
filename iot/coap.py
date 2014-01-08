@@ -364,7 +364,12 @@ class Message(object):
         request = copy.deepcopy(self)
         request.payload = ""
         request.mid = None
-        request.opt.block2 = (response.opt.block2.block_number + 1, False, response.opt.block2.size_exponent)
+        if response.opt.block2.block_number == 0 and response.opt.block2.size_exponent > DEFAULT_BLOCK_SIZE_EXP:
+            new_size_exponent = DEFAULT_BLOCK_SIZE_EXP
+            new_block_number = 2 ** (response.opt.block2.size_exponent - new_size_exponent)
+            request.opt.block2 = (new_block_number, False, new_size_exponent)
+        else:
+            request.opt.block2 = (response.opt.block2.block_number + 1, False, response.opt.block2.size_exponent)
         request.opt.observe = None
         return request
 
