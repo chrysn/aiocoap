@@ -4,12 +4,10 @@ Created on 08-09-2012
 @author: Maciej Wasilak
 '''
 import random
-import re
 import copy
 import struct
 import collections
 from itertools import chain
-from urlparse import urlsplit as urlsplit
 
 from twisted.internet import protocol, defer, reactor
 from twisted.python import log, failure
@@ -244,15 +242,6 @@ media_types = {0: 'text/plain',
 
 class Message(object):
     """A CoAP Message."""
-    
-    #Netloc parser from http://bytes.com/topic/python/answers/681442-url-parsing-hard-cases
-    NETLOC_RE = re.compile(r'''^
-                           (?:([^@])+@)?
-                           (?:\[([0-9a-fA-F:]+)\]|
-                           ([^\[\]:]+))
-                           (?::(\d+))?
-                           $''', re.VERBOSE) # end of string
-    
 
     def __init__(self, mtype=None, mid=None, code=EMPTY, payload='', token=''):
         self.version = 1
@@ -350,50 +339,6 @@ class Message(object):
             self.mid = next_block.mid
         else:
             raise ValueError("Fatal Error: called appendResponseBlock on non-response message!!!")
-
-    def parseURI(self, uri_string):
-        """
-        Parse an URI into five components and set appropriate
-        options.
-        """
-        #TODO: Don't know why Twisted Web forbids unicode strings - check that
-        #if isinstance(uri_string, unicode):
-        #    raise TypeError("uri must be str, not unicode")
-        scheme, netloc, path, query, fragment = urlsplit(uri_string)
-        if isinstance(scheme, unicode):
-            scheme = scheme.encode('ascii')
-            netloc = netloc.encode('ascii')
-            path = path.encode('ascii')
-            query = query.encode('ascii')
-            fragment = fragment.encode('ascii')
-        if scheme != "coap":
-            raise ValueError('Error: URI scheme should be "coap"')
-        if fragment != "":
-            raise ValueError('Error: URI fragment should be ""')
-        
-        match = self.NETLOC_RE.match(netloc)
-        if match:
-            if match.group(3):
-                host = match.group(3)
-            elif match.group(2):
-                host = match.group(2)
-            else:
-                raise ValueError('Error: URI netloc invalid')
-        else:
-            raise ValueError('Error: URI netloc invalid')
-        if match.group(4):
-            port = int(match.group(4))
-        else:
-            port = COAP_PORT
-        
-        self.remote = (host, port)
-        if path != "" and path != "/":
-            path = path.lstrip("/")
-            self.opt.uri_path = path.split("/")
-        if query != "":
-            self.opt.uri_query = query.split("&")
-               
-        
 
     def generateNextBlock2Request(self, response):
         """Generate a request for next response block.
@@ -613,10 +558,10 @@ def readExtendedFieldValue(value, rawdata):
 
 
 def writeExtendedFieldValue(value):
-    """Used to encode large values of option delta and option length 
+    """Used to encode large values of option delta and option length
        into raw binary form.
        In CoAP option delta and length can be represented by a variable
-       number of bytes depending on the value."""   
+       number of bytes depending on the value."""
     if value >= 0 and value < 13:
         return (value, '')
     elif value >= 13 and value < 269:
@@ -759,11 +704,11 @@ class Coap(protocol.DatagramProtocol):
 
     def deduplicateMessage(self, message):
         """Check incoming message if it's a duplicate.
-        
+
            Duplicate is a message with the same Message ID (mid)
            and sender (remote), as message received within last
            EXCHANGE_LIFETIME seconds (usually 247 seconds)."""
-           
+
         key = (message.mid, message.remote)
         log.msg("Incoming Message ID: %d" % message.mid)
         if key in self.recent_messages:
@@ -784,7 +729,7 @@ class Coap(protocol.DatagramProtocol):
 
     def removeMessageFromRecent(self, key):
         """Remove Message ID+Remote combination from
-           recent messages cache.""" 
+           recent messages cache."""
         self.recent_messages.pop(key)
 
     def processResponse(self, response):
@@ -872,11 +817,11 @@ class Coap(protocol.DatagramProtocol):
 
     def addExchange(self, message):
         """Add an "exchange" for outgoing CON message.
-        
+
            CON (Confirmable) messages are automatically
            retransmitted by protocol until ACK or RST message
            with the same Message ID is received from target host."""
-           
+
         timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
         retransmission_counter = 0
         next_retransmission = reactor.callLater(timeout, self.retransmit, message, timeout, retransmission_counter)
@@ -903,15 +848,15 @@ class Coap(protocol.DatagramProtocol):
 
     def request(self, request):
         """Send a request.
-        
+
            This is a method that should be called by user app."""
         return Requester(self, request).deferred
 
 
 class Requester(object):
     """Class used to handle single outgoing request.
-    
-       Class includes methods that handle sending 
+
+       Class includes methods that handle sending
        outgoing blockwise requests and receiving incoming
        blockwise responses."""
 
@@ -934,7 +879,7 @@ class Requester(object):
 
     def sendRequest(self, request):
         """Send a request or single request block.
-           
+
            This method is used in 3 situations:
            - sending non-blockwise request
            - sending blockwise (Block1) request block
@@ -960,13 +905,13 @@ class Requester(object):
 
     def processBlock1InResponse(self, response):
         """Process incoming response with regard to Block1 option.
-           
+
            Method is called for all responses, with or without Block1
-           option. 
-           
+           option.
+
            Method is recursive - calls itself until all request blocks
            are sent."""
-        
+
         if response.opt.block1 is not None:
             block1 = response.opt.block1
             log.msg("Response with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
@@ -994,10 +939,10 @@ class Requester(object):
 
     def processBlock2InResponse(self, response):
         """Process incoming response with regard to Block2 option.
-           
+
            Method is called for all responses, with or without Block2
-           option. 
-           
+           option.
+
            Method is recursive - calls itself until all response blocks
            from server are received."""
         if response.opt.block2 is not None:
@@ -1044,8 +989,8 @@ class Requester(object):
 
 class Responder(object):
     """Class used to handle single incoming request.
-    
-       Class includes methods that handle receiving 
+
+       Class includes methods that handle receiving
        incoming blockwise requests, searching for target
        resources, preparing responses and sending outgoing
        blockwise responses.
@@ -1062,7 +1007,7 @@ class Responder(object):
 
     def processBlock1InRequest(self, request):
         """Process incoming request with regard to Block1 option.
-           
+
            Method is recursive - calls itself until all request blocks
            are received."""
         if request.opt.block1 is not None:
@@ -1102,9 +1047,9 @@ class Responder(object):
         return d
 
     def dispatchRequest(self, request):
-        """Dispatch incoming request - search endpoint 
+        """Dispatch incoming request - search endpoint
            resource tree for resource in Uri Path
-           and call proper CoAP Method on it.""" 
+           and call proper CoAP Method on it."""
         #TODO: Request with Block2 option and non-zero block number should get error response
         request.prepath = []
         request.postpath = request.opt.uri_path
@@ -1185,7 +1130,7 @@ class Responder(object):
 
     def processBlock2InRequest(self, request):
         """Process incoming request with regard to Block2 option.
-           
+
            Method is recursive - calls itself until all response blocks
            are sent to client."""
         if request.opt.block2 is not None:
@@ -1228,7 +1173,7 @@ class Responder(object):
 
     def sendResponse(self, response, request):
         """Send a response or single response block.
-           
+
            This method is used in 4 situations:
            - sending success non-blockwise response
            - asking client to send blockwise (Block1) request block
