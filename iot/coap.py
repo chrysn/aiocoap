@@ -377,9 +377,9 @@ class Message(object):
         response.opt.block1 = (self.opt.block1.block_number, True, self.opt.block1.size_exponent)
         return response
 
-    def setObserve(self, callback):
+    def setObserve(self, callback, *args, **kw):
         self.opt.observe = 0
-        self.observe_callback = callback
+        self.observe_callback = (callback, args, kw)
 
 
 class Options(object):
@@ -787,7 +787,10 @@ class Coap(protocol.DatagramProtocol):
         elif (response.token, response.remote) in self.observations:
             ## @TODO: deduplication based on observe option value, collecting
             # the rest of the resource if blockwise
-            self.observations[(response.token, response.remote)](response)
+            callback, args, kw = self.observations[(response.token, response.remote)]
+            args = args or ()
+            kw = kw or {}
+            callback(response, *args, **kw)
 
             if response.mtype is CON:
                 #TODO: Some variation of sendEmptyACK should be used (as above)
