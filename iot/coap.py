@@ -872,14 +872,16 @@ class Coap(protocol.DatagramProtocol):
 
     def retransmit(self, message, timeout, retransmission_counter):
         """Retransmit CON message that has not been ACKed or RSTed."""
+        self.active_exchanges.pop(message.mid)
         if retransmission_counter < MAX_RETRANSMIT:
             self.transport.write(message.encode(), message.remote)
             retransmission_counter += 1
             timeout *= 2
-            message.next_retransmission = reactor.callLater(timeout, self.retransmit, message, timeout, retransmission_counter)
+            next_retransmission = reactor.callLater(timeout, self.retransmit, message, timeout, retransmission_counter)
+            self.active_exchanges[message.mid] = (message, next_retransmission)
             log.msg("Retransmission, Message ID: %d." % message.mid)
         else:
-            self.active_exchanges.pop(message.mid)
+            pass
             #TODO: error handling (especially for requests)
 
     def request(self, request):
