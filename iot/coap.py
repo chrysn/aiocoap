@@ -411,7 +411,7 @@ class Options(object):
         """Encode all options in option header into string of bytes."""
         data = []
         current_opt_num = 0
-        option_list = chain.from_iterable(sorted(self._options.values(), key=lambda x: x[0].number))
+        option_list = self.optionList()
         for option in option_list:
             delta, extended_delta = writeExtendedFieldValue(option.number - current_opt_num)
             length, extended_length = writeExtendedFieldValue(option.length)
@@ -434,6 +434,9 @@ class Options(object):
     def getOption (self, number):
         """Get option with specified number."""
         return self._options.get(number)
+
+    def optionList(self):
+        return chain.from_iterable(sorted(self._options.values(), key=lambda x: x[0].number))
 
     def _setUriPath(self, segments):
         """Convenience setter: Uri-Path option"""
