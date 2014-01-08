@@ -34,9 +34,6 @@ class CoAPResource:
     """
     CoAP-accessible resource.
 
-    I serve 2 main purposes; one is to provide a standard representation for
-    what CoAP specification calls an 'entity', and the other is to provide an
-    abstract directory structure for URL retrieval.
     """
 
     implements(IResource)
