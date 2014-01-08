@@ -379,7 +379,11 @@ class Message(object):
            blockwise request from client with "more" flag set."""
         response = Message(code=CHANGED, token=self.token )
         response.remote = self.remote
-        response.opt.block1 = (self.opt.block1.block_number, True, self.opt.block1.size_exponent)
+        if self.opt.block1.block_number == 0 and self.opt.block1.size_exponent > DEFAULT_BLOCK_SIZE_EXP:
+            new_size_exponent = DEFAULT_BLOCK_SIZE_EXP
+            response.opt.block1 = (0, True, new_size_exponent)
+        else:
+            response.opt.block1 = (self.opt.block1.block_number, True, self.opt.block1.size_exponent)
         return response
 
     def setObserve(self, callback, *args, **kw):
