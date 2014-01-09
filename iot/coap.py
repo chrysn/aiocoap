@@ -933,11 +933,16 @@ class Requester(object):
            - sending blockwise (Block1) request block
            - asking server to send blockwise (Block2) response block
         """
+
+        def cancelRequest(d):
+            log.msg("Request cancelled")
+            self.protocol.outgoing_requests.pop((request.token, request.remote))
+
         if request.mtype is None:
             request.mtype = CON
         request.token = self.protocol.nextToken()
         self.protocol.sendMessage(request)
-        d = defer.Deferred()
+        d = defer.Deferred(cancelRequest)
         canceller = reactor.callLater(REQUEST_TIMEOUT, self.handleTimedOutRequest, d, request)
         self.protocol.outgoing_requests[(request.token, request.remote)] = (d, canceller)
         log.msg("Sending request - Token: %s, Host: %s, Port: %s" % (request.token.encode('hex'), request.remote[0], request.remote[1]))
@@ -1220,7 +1225,12 @@ class Responder(object):
     def sendNonFinalResponse(self, response, request):
         """Helper method to send, a response to client, and setup
            a timeout for client."""
-        d = defer.Deferred()
+
+        def cancelNonFinalResponse(d):
+            log.msg("Waiting for next client request cancelled")
+            self.protocol.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote))
+
+        d = defer.Deferred(cancelNonFinalResponse)
         canceller = reactor.callLater(MAX_TRANSMIT_WAIT, self.handleTimedOutWaitingForClient, d, request)
         self.protocol.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)] = (d, canceller)
         self.sendResponse(response, request)
