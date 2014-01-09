@@ -916,6 +916,7 @@ class Requester(object):
         size_exp = DEFAULT_BLOCK_SIZE_EXP
         if len(self.app_request.payload) > (2 ** (size_exp + 4)):
             request = self.app_request.extractBlock(0, size_exp)
+            self.app_request.opt.block1 = request.opt.block1
         else:
             request = self.app_request
         if request is None:
@@ -962,15 +963,22 @@ class Requester(object):
         if response.opt.block1 is not None:
             block1 = response.opt.block1
             log.msg("Response with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
-            #TODO: compare block size of request and response - calculate new block_number if necessary
-            next_block = self.app_request.extractBlock(block1.block_number + 1, block1.size_exponent)
-            if next_block is not None:
-                return self.sendNextRequestBlock(next_block)
-            else:
-                if block1.more is False:
-                    return defer.succeed(response)
+            if block1.block_number == self.app_request.opt.block1.block_number:
+                if block1.size_exponent < self.app_request.opt.block1.size_exponent:
+                    next_number = (self.app_request.opt.block1.block_number + 1) * 2 ** (self.app_request.opt.block1.size_exponent - block1.size_exponent)
+                    next_block = self.app_request.extractBlock(next_number, block1.size_exponent)
                 else:
-                    return defer.fail()
+                    next_block = self.app_request.extractBlock(self.app_request.opt.block1.block_number + 1, block1.size_exponent)
+                if next_block is not None:
+                    self.app_request.opt.block1 = next_block.opt.block1
+                    return self.sendNextRequestBlock(next_block)
+                else:
+                    if block1.more is False:
+                        return defer.succeed(response)
+                    else:
+                        return defer.fail()
+            else:
+                return defer.fail()
         else:
             if self.app_request.opt.block1 is None:
                 return defer.succeed(response)
