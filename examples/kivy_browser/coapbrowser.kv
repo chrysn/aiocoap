@@ -2,121 +2,321 @@
 #: set dark_orange (0.75 ,0.3 ,0.0 , 1.0)
 #: set light_orange (1.0, 0.4, 0.0 , 1.0)
 #: set white (1.0, 1.0, 1.0 , 1.0)
+#: set grey (.5, .5, .5, .5)
+#: set dark_grey (.1, .1, .1, .5)
 
+<MainScreen>:
+    address_bar: address_bar
+    grid: grid
+    menu_wrapper: menu_wrapper
+    method_button: method_button
+    ScrollView:
+        effect_cls:ScrollEffect
+        do_scroll_x:False
+        size_hint:(None,None)
+        size:(720,1280)
+        GridLayout:
+            id:grid
+            size_hint:(1,None)
+            height:self.minimum_height
+            spacing:(0,20)
+            cols:1
+            row_force_default:False
+            GridLayout:
+                id: menu_wrapper
+                cols:1
+                height:self.minimum_height
+                size_hint:(1,None)
+                BoxLayout:
+                    id:top_box
+                    size_hint_y:None
+                    height:80
+                    orientation:'horizontal'
+                    FlatButton:
+                        id:a_button
+                        background_normal: grey
+                        background_down: light_orange
+                        size_hint_x:0.15
+                        text:"Node"
+                        on_release: root.open_nodes_screen()
+                    FlatButton:
+                        id:c_button
+                        background_normal: grey
+                        background_down: light_orange
+                        size_hint_x:0.7
+                        text:"Aneska"
+                BoxLayout:
+                    id:top_box
+                    size_hint_y:None
+                    height:88
+                    orientation:'horizontal'
+                    FlatButton:
+                        id:method_button
+                        background_normal: grey
+                        background_down: light_orange
+                        size_hint_x:0.2
+                        text:"GET"
+                        on_release: root.toggle_method_chooser()
+                    TextInput:
+                        id:address_bar
+                        #background_color: dark_orange
+                        #foreground_color: white
+                        #background_normal: ""
+                        #background_active: ""
+                        size_hint_x:0.6
+                        multiline:True
+                        #text:"coap://127.0.0.1/other/block"
+                        #text:"coap://[::1]/other/block"
+                        text:"coap://129.132.15.80/obs"
+                        #text:"coap://129.132.15.80/.well-known/core"
+                        #text:"coap://134.102.218.16/.well-known/core"
+                        #text:"coap://134.102.218.16/create1"
+                        #text:"coap://coap.me/.well-known/core"
+                        #text: "coap://[2001:5c0:1515:3301:2:2:2:2]/sensors/temp"
+                        #text: "coap://[2001:5c0:1515:3301:11:22ff:fe33:4455]/test/chunks"
+                        #text: "coap://[2001:5c0:1515:3300:224:d2ff:fe41:a8aa]/counter"
+                    FlatButton:
+                        id:send_button
+                        background_normal: grey
+                        background_down: light_orange
+                        size_hint_x:0.2
+                        text:"Send"
+                        on_release:root.prepare_request()
 
-<Controller>:
-    effect_cls:ScrollEffect
-    address_bar:address_bar
-    grid:grid
-    do_scroll_x:False
-    size_hint:(None,None)
-    size:(720,1280)
-    GridLayout:
-        id:grid
-        size_hint:(1,None)
-        height:self.minimum_height
-        spacing:(0,20)
-        cols:1
-        row_force_default:False#True
-        #row_default_height:40
-        BoxLayout:
-            id:top_box
-            size_hint_y:None
-            height:60
-            orientation:'horizontal'
-            TextInput:
-                id:address_bar
-                background_color: dark_orange
-                foreground_color: white
-                background_normal: ""
-                background_active: ""
-                size_hint_x:.8
-                multiline:False
-                #text:"coap://127.0.0.1/motd"
-                text:"coap://129.132.15.80/test"
-                #text: "coap://[2001:5c0:1515:3300:224:d2ff:fe41:a8aa]/counter"
-            Button:
-                id:send_button
-                background_normal: ""
-                background_down: ""
-                background_color:light_orange
-                size_hint_x:.2
-                text:"Send"
-                on_press:root.send_request()
-        BoxLayout:
-            id:bottom_box
-            size_hint_y:None
-            height:60
-            orientation:'horizontal'
-            ToggleMethod:
-            	id: 'method_GET'
-            	text:"GET"
-            	on_press: root.set_active_method('GET') 	
-            	state:'down'
-            ToggleMethod:
-            	id: 'method_PUT'
-            	text:"PUT"
-            	on_press: root.set_active_method('PUT') 	
-            ToggleMethod:
-            	id: 'method_POST'
-            	text:"POST"
-            	on_press: root.set_active_method('POST') 	
-            ToggleMethod:
-            	id: 'method_DELETE'
-            	text:"DELETE"
-            	on_press: root.set_active_method('DELETE') 	
+<NodeLabel>:
+    text_size: (0.9*self.width, None)
+    height: self.texture_size[1] if self.texture_size[1] > 60 else 60
+    markup: True
+    no_selection: True
 
+<NodesScreen>:
+    tree_view: tree_view
+    ScrollView:
+        effect_cls:ScrollEffect
+        do_scroll_x:False
+        size_hint:(None,None)
+        size:(720,1280)
+        GridLayout:
+            id:grid_n
+            size_hint:(1,None)
+            height:self.minimum_height
+            spacing:(0,20)
+            cols:1
+            row_force_default:False
+            BoxLayout:
+                id:top_box_n
+                size_hint_y:None
+                height:80
+                orientation:'horizontal'
+                FlatButton:
+                    id:y_button
+                    background_normal: grey
+                    background_down: light_orange
+                    size_hint_x:0.85
+                    text:"Aneska"
+                FlatButton:
+                    id:z_button
+                    background_normal: grey
+                    background_down: light_orange
+                    size_hint_x:0.15
+                    text:"Browser"
+                    on_release: root.open_main_screen()
+            TreeView:
+                id:tree_view
+                size_hint:(1,None)
+                height:self.minimum_height
+                root_options:dict(text="Discovery results")
 
-<-ToggleMethod@ToggleButton>:
+<TabbedPanelContentGrid>:
+    size_hint:(1,None)
+    rows:1
+    height:self.minimum_height
+    row_force_default:False
+    padding: 3
     canvas:
         Color:
-            rgba: dark_orange if self.state == 'normal' else light_orange
+            rgba: self.parent.background_color if self.parent else (1, 1, 1, 1)
+        BorderImage:
+            border: self.parent.border if self.parent else (16, 16, 16, 16)
+            texture: root.parent._bk_img.texture if root.parent else None
+            size: self.size
+            pos: self.pos
+
+<MethodPanel>:
+    id:method_panel
+    do_default_tab: False
+    size_hint:(1,None)
+    tab_height:60
+    tab_width: 180
+    row_force_default:False
+    accept_field: accept_field
+    observe_field: observe_field
+    content_format_put_field: content_format_put_field
+    put_payload_box: put_payload_box
+    content_format_post_field: content_format_post_field
+    post_payload_box: post_payload_box
+    TabbedPanelItem:
+        text: "GET"
+        on_release: root.controller.set_active_method("GET")
+        GridLayout:
+            size_hint:(1,None)
+            height:self.minimum_height
+            cols:1
+            row_force_default:False
+            BoxLayout:
+                size_hint:(1,None)
+                height: 60
+                Label:
+                    text:"Accept option:"
+                Spinner:
+                    id:accept_field
+                    text: "none"
+                    values: root.accept_field_values
+            BoxLayout:
+                size_hint:(1,None)
+                height: 60
+                Label:
+                    text:"Observe option:"
+                CheckBox:
+                    id:observe_field
+                    active: False
+    TabbedPanelItem:
+        text: "PUT"
+        on_release: root.controller.set_active_method('PUT')
+        GridLayout:
+            size_hint:(1,None)
+            height:self.minimum_height
+            cols:1
+            row_force_default:False
+            BoxLayout:
+                size_hint:(1,None)
+                height: 60
+                Label:
+                    text:"Content format option:"
+                Spinner:
+                    id:content_format_put_field
+                    text: "none"
+                    values: root.accept_field_values
+            TextInput:
+                id: put_payload_box
+                height: 120
+                size_hint:(1,None)
+                multiline:True
+                hint_text: "Enter PUT message payload"
+                text: "Poland can into space! Poland must into space! Poland will into space!"
+    TabbedPanelItem:
+        text: "POST"
+        on_release: root.controller.set_active_method('POST')
+        GridLayout:
+            size_hint:(1,None)
+            height:self.minimum_height
+            cols:1
+            row_force_default:False
+            BoxLayout:
+                size_hint:(1,None)
+                height: 60
+                Label:
+                    text:"Content format option:"
+                Spinner:
+                    id:content_format_post_field
+                    text: "none"
+                    values: root.accept_field_values
+            TextInput:
+                id: post_payload_box
+                height: 120
+                size_hint:(1,None)
+                multiline:True
+                hint_text: "Enter POST message payload"
+    TabbedPanelItem:
+        text: "DELETE"
+        on_release: root.controller.set_active_method('DELETE')
+        Label:
+            size_hint:(1,None)
+            height: 40
+            text: "No additional options"
+
+
+#Style definition below is modified from kivy/data/style.kv
+#It is a definition of a simple, flat rectangular button with no image
+<-FlatButton>:
+    canvas:
+        Color:
+            rgba: self.background_normal if self.state == 'normal' else self.background_down
         Rectangle:
             size: self.size
-            pos: self.pos    
+            pos: self.pos
         Color:
             rgba: self.color
         Rectangle:
             texture: self.texture
             size: self.texture_size
             pos: int(self.center_x - self.texture_size[0] / 2.), int(self.center_y - self.texture_size[1] / 2.)
-    group:'method'
-    size_hint_x:.25
-    
+    canvas.after:
+        Color:
+            rgba: .5, .5, .5, .2
+        Line:
+            points: [self.parent.x, self.y, self.parent.right, self.y] if self.parent else []
 
-
-
-<BrowsingCard>:
+<ResponseCard>:
     height:160
     cols:1
     size_hint:(1,None)
-    #row_default_height:160
     height:self.minimum_height
-    btn:btn
-    lbl:lbl
+    response_payload: response_payload
+    target_uri: target_uri
+    response_code: response_code
+    message_type: message_type
+    option_list: option_list
     GridLayout:
         cols:1
         size_hint:(1,None)
         row_default_height:40
         height:self.minimum_height
         padding:5,5
-        Button:
-            id:lbl
-            size_hint:(1,0.4)
-            #text_size:self.size
-            halign:'left'
-            valign:'top'
+        row_force_default:False
+        FlatButton:
+            id:target_uri
+            size_hint:(1,None)
             text:"GET"
-            background_normal: ""
-            background_down: ""
-            background_color:(0,0.4,0.6,1)
-        Button:
-            id:btn
+            size:self.texture_size
+            text_size: (0.9*self.width, None)
+            background_normal: grey
+            background_down: light_orange
+        FlatButton:
+            id: message_type
+            size_hint:(1,None)
+            text: ""
+            size:self.texture_size
+            text_size: (0.9*self.width, None)
+            markup: True
+            background_normal: grey
+            background_down: light_orange
+        FlatButton:
+            id:option_list
+            size_hint:(1,None)
+            text:"Options: "
+            size:self.texture_size
+            text_size: (0.9*self.width, None)
+            markup: True
+            background_normal: grey
+            background_down: light_orange
+        FlatButton:
+            id:response_code
+            size_hint:(1,None)
+            text:"Code: "
+            size:self.texture_size
+            text_size: (0.9*self.width, None)
+            markup: True
+            background_normal: grey
+            background_down: light_orange
+        FlatButton:
+            id:response_payload
             size_hint:(1,None)
             text:"Waiting for response..."
             size:self.texture_size
-            background_normal: ""
-            background_down: ""
-            background_color:(0.2,0.6,0.8,1)
-
+            markup: True
+            text_size: (0.9*self.width, None)
+            background_normal: grey
+            background_down: light_orange
+            on_release: root.open_message_popup()
 

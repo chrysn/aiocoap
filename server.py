@@ -169,5 +169,5 @@ separate = SeparateLargeResource()
 other.putChild('separate', separate)
 
 endpoint = resource.Endpoint(root)
-reactor.listenUDP(coap.COAP_PORT, coap.Coap(endpoint))
+reactor.listenUDP(coap.COAP_PORT, coap.Coap(endpoint)) #, interface="::")
 reactor.run()
