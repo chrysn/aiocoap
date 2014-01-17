@@ -734,15 +734,7 @@ class Coap(protocol.DatagramProtocol):
         elif isResponse(message.code):
             self.processResponse(message)
         elif message.code is EMPTY:
-            if message.mtype is CON:
-                log.msg('Empty CON message received (CoAP Ping) - replying with RST.')
-                rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload='')
-                rst.remote = message.remote
-                self.sendMessage(rst)
-            #TODO: passing ACK/RESET info to application
-            #Currently it doesn't matter if empty ACK or RST is received - in both cases exchange has to be removed
-            if message.mid in self.active_exchanges and message.mtype in (ACK, RST):
-                self.removeExchange(message)
+            self.processEmpty(message)
 
     def deduplicateMessage(self, message):
         """Check incoming message if it's a duplicate.
@@ -828,6 +820,17 @@ class Coap(protocol.DatagramProtocol):
             d.callback(request)
         else:
             responder = Responder(self, request)
+
+    def processEmpty(self, message):
+        if message.mtype is CON:
+            log.msg('Empty CON message received (CoAP Ping) - replying with RST.')
+            rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload='')
+            rst.remote = message.remote
+            self.sendMessage(rst)
+        #TODO: passing ACK/RESET info to application
+        #Currently it doesn't matter if empty ACK or RST is received - in both cases exchange has to be removed
+        if message.mid in self.active_exchanges and message.mtype in (ACK, RST):
+            self.removeExchange(message)
 
     def sendMessage(self, message):
         """Set Message ID, encode and send message.
