@@ -777,14 +777,12 @@ class Coap(protocol.DatagramProtocol):
                 return
         log.msg("Received Response, token: %s, host: %s, port: %s" % (response.token.encode('hex'), response.remote[0], response.remote[1]))
         if (response.token, response.remote) in self.outgoing_requests:
-            d, timeout_canceller = self.outgoing_requests.pop((response.token, response.remote))
+            self.outgoing_requests.pop((response.token, response.remote)).handleResponse(response)
             if response.mtype is CON:
                 #TODO: Some variation of sendEmptyACK should be used
                 ack = Message(mtype=ACK, mid=response.mid, code=EMPTY, payload="")
                 ack.remote = response.remote
                 self.sendMessage(ack)
-            timeout_canceller.cancel()
-            d.callback(response)
         elif (response.token, response.remote) in self.observations:
             ## @TODO: deduplication based on observe option value, collecting
             # the rest of the resource if blockwise
@@ -938,20 +936,39 @@ class Requester(object):
         """
 
         def cancelRequest(d):
+            """Clean request after cancellation from user application."""
+            
             log.msg("Request cancelled")
             self.protocol.outgoing_requests.pop((request.token, request.remote))
+
+        def timeoutRequest(d):
+            """Clean the Request after a timeout."""
+            
+            log.msg("Request timed out")
+            del self.protocol.outgoing_requests[(request.token, request.remote)]
+            d.errback(iot.error.RequestTimedOut())
+            
+        def gotResult(result):
+            if timeout.active():
+                timeout.cancel()
+            return result
 
         if request.mtype is None:
             request.mtype = CON
         request.token = self.protocol.nextToken()
         self.protocol.sendMessage(request)
         d = defer.Deferred(cancelRequest)
-        canceller = reactor.callLater(REQUEST_TIMEOUT, self.handleTimedOutRequest, d, request)
-        self.protocol.outgoing_requests[(request.token, request.remote)] = (d, canceller)
+        timeout = reactor.callLater(REQUEST_TIMEOUT, timeoutRequest, d)
+        d.addBoth(gotResult)
+        self.protocol.outgoing_requests[(request.token, request.remote)] = self
         log.msg("Sending request - Token: %s, Host: %s, Port: %s" % (request.token.encode('hex'), request.remote[0], request.remote[1]))
         if request.opt.observe is not None and hasattr(request, 'observe_callback'):
             d.addCallback(self.registerObservation, request.observe_callback)
         return d
+
+    def handleResponse(self, response):
+        d, self.deferred = self.deferred, None
+        d.callback(response)
 
     def registerObservation(self, response, callback):
         if response.opt.observe is not None:
@@ -996,9 +1013,9 @@ class Requester(object):
     def sendNextRequestBlock(self, next_block):
         """Helper method used for sending request blocks."""
         log.msg("Sending next block of blockwise request.")
-        d = self.sendRequest(next_block)
-        d.addCallback(self.processBlock1InResponse)
-        return d
+        self.deferred = self.sendRequest(next_block)
+        self.deferred.addCallback(self.processBlock1InResponse)
+        return self.deferred
 
     def processBlock2InResponse(self, response):
         """Process incoming response with regard to Block2 option.
@@ -1037,17 +1054,11 @@ class Requester(object):
     def askForNextResponseBlock(self, request):
         """Helper method used to ask server to send next response block."""
         log.msg("Requesting next block of blockwise response.")
-        d = self.sendRequest(request)
-        d.addCallback(self.processBlock2InResponse)
-        return d
+        self.deferred = self.sendRequest(request)
+        self.deferred.addCallback(self.processBlock2InResponse)
+        return self.deferred
 
-    def handleTimedOutRequest(self, deferred, request):
-        """Clean the Request after a timeout."""
-        try:
-            del self.protocol.outgoing_requests[(request.token, request.remote)]
-        except KeyError:
-            pass
-        deferred.errback(iot.error.RequestTimedOut())
+
 
 
 class Responder(object):
