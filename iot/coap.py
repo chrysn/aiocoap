@@ -813,9 +813,7 @@ class Coap(protocol.DatagramProtocol):
             return
         if (uriPathAsString(request.opt.uri_path), request.remote) in self.incoming_requests:
             log.msg("Request pertains to earlier blockwise requests.")
-            d, canceller = self.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote))
-            canceller.cancel()
-            d.callback(request)
+            self.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote)).handleNextRequest(request)
         else:
             responder = Responder(self, request)
 
@@ -1116,9 +1114,9 @@ class Responder(object):
         """Helper method used to ask client to send next request block."""
         log.msg("Sending block acknowledgement (allowing client to send next block).")
         response = request.generateNextBlock1Response()
-        d = self.sendNonFinalResponse(response, request)
-        d.addCallback(self.processBlock1InRequest)
-        return d
+        self.deferred = self.sendNonFinalResponse(response, request)
+        self.deferred.addCallback(self.processBlock1InRequest)
+        return self.deferred
 
     def dispatchRequest(self, request):
         """Dispatch incoming request - search endpoint
@@ -1145,9 +1143,11 @@ class Responder(object):
 
     def handleBlock1RequestErrors(self, err):
         """Handle (silently ignore) request errors related
-           to Block1. Currently it's used only to ignore
-           requests which are send non-sequentially"""
-        err.trap(iot.error.NotImplemented)
+           to Block1. Currently it's used to catch:
+           - NotImplemented - requests which are send non-sequentially
+           - WaitingForClientTimedOut - requests timed out
+        """
+        err.trap(iot.error.NotImplemented, iot.error.WaitingForClientTimedOut)
 
     def respondWithError(self, request, code, payload):
         """Helper method to send error response to client."""
@@ -1232,9 +1232,16 @@ class Responder(object):
     def sendResponseBlock(self, response_block, request):
         """Helper method to send next response block to client."""
         log.msg("Sending response block.")
-        d = self.sendNonFinalResponse(response_block, request)
-        d.addCallback(self.processBlock2InRequest)
-        return d
+        self.deferred = self.sendNonFinalResponse(response_block, request)
+        self.deferred.addCallback(self.processBlock2InRequest)
+        self.deferred.addErrback(self.handleBlock2RequestErrors)
+        return self.deferred
+
+    def handleBlock2RequestErrors(self, err):
+        """Handle (silently ignore) request errors related
+           to Block2. Currently it's used only to ignore
+           when client doesn't request next block for a long time"""
+        err.trap(iot.error.WaitingForClientTimedOut)
 
     def sendNonFinalResponse(self, response, request):
         """Helper method to send, a response to client, and setup
@@ -1244,11 +1251,28 @@ class Responder(object):
             log.msg("Waiting for next client request cancelled")
             self.protocol.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote))
 
+        def timeoutNonFinalResponse(d):
+            """Clean the Response after a timeout."""
+            
+            log.msg("Waiting for next blockwise request timed out")
+            self.protocol.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote))
+            d.errback(iot.error.WaitingForClientTimedOut())
+            
+        def gotResult(result):
+            if timeout.active():
+                timeout.cancel()
+            return result
+
         d = defer.Deferred(cancelNonFinalResponse)
-        canceller = reactor.callLater(MAX_TRANSMIT_WAIT, self.handleTimedOutWaitingForClient, d, request)
-        self.protocol.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)] = (d, canceller)
+        timeout = reactor.callLater(MAX_TRANSMIT_WAIT, timeoutNonFinalResponse, d)
+        d.addBoth(gotResult)
+        self.protocol.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)] = self
         self.sendResponse(response, request)
         return d
+
+    def handleNextRequest(self, request):
+        d, self.deferred = self.deferred, None
+        d.callback(request)
 
     def sendResponse(self, response, request):
         """Send a response or single response block.
@@ -1282,16 +1306,6 @@ class Responder(object):
                 response.mid = request.mid
         log.msg("Sending response, type = %s (request type = %s)" % (types[response.mtype], types[request.mtype]))
         self.protocol.sendMessage(response)
-
-    def handleTimedOutWaitingForClient(self, deferred, request):
-        """Stop waiting for client to send next request block
-           or ask for next response block. Clean all state associated
-           with client request."""
-        try:
-            del self.protocol.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)]
-        except KeyError:
-            pass
-        deferred.errback(iot.error.WaitingForClientTimedOut())
 
     def sendEmptyAck(self, request):
         """Send separate empty ACK when response preparation takes too long."""
