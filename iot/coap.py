@@ -370,7 +370,8 @@ class Message(object):
             request.opt.block2 = (new_block_number, False, new_size_exponent)
         else:
             request.opt.block2 = (response.opt.block2.block_number + 1, False, response.opt.block2.size_exponent)
-        request.opt.observe = None
+        request.opt.deleteOption(BLOCK1)
+        request.opt.deleteOption(OBSERVE)
         return request
 
     def generateNextBlock1Response(self):
