@@ -219,11 +219,17 @@ class MainScreen(Screen):
             if query != "":
                 card.request.opt.uri_query = query.split("&")
             try:
-                deferred = self.protocol.request(card.request)
+                deferred = self.protocol.request(card.request, self.block1_callback, self.block2_callback)
             except:
                 card.response_payload.text = "Error sending request!!!"
             else:
                 return deferred.addCallback(self.process_response, card).addErrback(self.print_error, card)
+
+    def block1_callback(self):
+        return defer.succeed(True)
+
+    def block2_callback(self):
+        return defer.succeed(True)
 
     def process_response(self, response, card):
         card.response = response

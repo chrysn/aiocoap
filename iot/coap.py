@@ -893,11 +893,11 @@ class Coap(protocol.DatagramProtocol):
             pass
             #TODO: error handling (especially for requests)
 
-    def request(self, request):
+    def request(self, request, block1Callback=None, block2Callback=None):
         """Send a request.
 
            This is a method that should be called by user app."""
-        return Requester(self, request).deferred
+        return Requester(self, request, block1Callback, block2Callback).deferred
 
 
 class Requester(object):
@@ -907,10 +907,12 @@ class Requester(object):
        outgoing blockwise requests and receiving incoming
        blockwise responses."""
 
-    def __init__(self, protocol, app_request):
+    def __init__(self, protocol, app_request, block1Callback, block2Callback):
         self.protocol = protocol
         self.app_request = app_request
         self.assembled_response = None
+        self.block1Callback = block1Callback
+        self.block2Callback = block2Callback
         if isRequest(self.app_request.code) is False:
             raise ValueError("Message code is not valid for request")
         size_exp = DEFAULT_BLOCK_SIZE_EXP
@@ -995,7 +997,12 @@ class Requester(object):
                     next_block = self.app_request.extractBlock(self.app_request.opt.block1.block_number + 1, block1.size_exponent)
                 if next_block is not None:
                     self.app_request.opt.block1 = next_block.opt.block1
-                    return self.sendNextRequestBlock(next_block)
+                    if self.block1Callback is None:
+                        return self.sendNextRequestBlock(None, next_block)
+                    else:
+                        d = self.block1Callback()
+                        d.addCallback(self.sendNextRequestBlock, next_block)
+                        return d
                 else:
                     if block1.more is False:
                         return defer.succeed(response)
@@ -1009,7 +1016,7 @@ class Requester(object):
             else:
                 return defer.fail()
 
-    def sendNextRequestBlock(self, next_block):
+    def sendNextRequestBlock(self, result, next_block):
         """Helper method used for sending request blocks."""
         log.msg("Sending next block of blockwise request.")
         self.deferred = self.sendRequest(next_block)
@@ -1041,7 +1048,12 @@ class Requester(object):
                     return defer.fail()
             if block2.more is True:
                 request = self.app_request.generateNextBlock2Request(response)
-                return self.askForNextResponseBlock(request)
+                if self.block2Callback is None:
+                    return self.askForNextResponseBlock(None, request)
+                else:
+                    d = self.block2Callback()
+                    d.addCallback(self.askForNextResponseBlock, request)
+                    return d
             else:
                 return defer.succeed(self.assembled_response)
         else:
@@ -1050,7 +1062,7 @@ class Requester(object):
             else:
                 return defer.fail(iot.error.MissingBlock2Option)
 
-    def askForNextResponseBlock(self, request):
+    def askForNextResponseBlock(self, result, request):
         """Helper method used to ask server to send next response block."""
         log.msg("Requesting next block of blockwise response.")
         self.deferred = self.sendRequest(request)
