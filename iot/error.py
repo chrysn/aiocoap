@@ -61,9 +61,17 @@ class ResourceChanged(Error):
     not be received in a consistent state.
     """
 
+class MissingBlock2Option(Error):
+    """
+    Raised when response with Block2 option is expected 
+    (previous response had Block2 option with More flag set),
+    but response without Block2 option is received.
+    """
+
 __all__ = ['Error',
            'NoResource',
            'UnallowedMethod',
            'UnsupportedMethod',
            'NotImplemented',
-           'RequestTimedOut']
+           'RequestTimedOut',
+           'ResourceChanged']

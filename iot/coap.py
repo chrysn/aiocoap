@@ -1048,7 +1048,7 @@ class Requester(object):
             if self.assembled_response is None:
                 return defer.succeed(response)
             else:
-                return defer.fail()
+                return defer.fail(iot.error.MissingBlock2Option)
 
     def askForNextResponseBlock(self, request):
         """Helper method used to ask server to send next response block."""
