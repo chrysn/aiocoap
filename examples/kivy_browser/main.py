@@ -114,14 +114,13 @@ def parseURI(uri_string):
 
 def process_name(gaiResult, netloc_fragments):
     scheme, port, path, query = netloc_fragments
+    address_list = []
     for family, socktype, proto, canonname, sockaddr in gaiResult:
         if family in [socket.AF_INET6]:
-            yield (scheme, sockaddr[0],port, path, query)
+            address_list.append((scheme, sockaddr[0],port, path, query))
         elif family in [socket.AF_INET]:
-            yield (scheme, "::ffff:"+sockaddr[0],port, path, query)
-    #host = "::ffff:"+result
-    #print "Host:", host
-    #return (scheme, host, port, path, query)
+            address_list.append((scheme, "::ffff:"+sockaddr[0],port, path, query))
+    return address_list
 
 class ResponseCard(BrowsingCard):
 
@@ -202,16 +201,33 @@ class MainScreen(Screen):
             content_format = self.method_chooser.content_format_post_field.text
             if content_format in coap.media_types_rev:
                 card.request.opt.content_format = coap.media_types_rev[content_format]
-        card.deferred = parseURI(self.address_bar.text).addErrback(self.handle_DNS_failure, card).addCallback(self.send_request, card)
+        d = parseURI(self.address_bar.text).addErrback(self.handle_DNS_failure, card).addCallback(self.send_request, card)
+        d.addCallback(self.process_response, card)
+        d.addErrback(self.print_error, card)
+        card.deferred = d
 
     def handle_DNS_failure(self, card):
         log.msg("DNS Error - host not found")
         card.response_payload.text = "DNS error: host not found!!!"
 
     def send_request(self, result, card):
+        
+        def remove_request(response, deferred):
+            request_list.remove(deferred)
+            for d in request_list:
+                d.cancel()
+            winner.callback(response)
+
+        def cancel_request(d):
+            for d in request_list:
+                d.cancel()
+        
+        request_list = []
+        card.response_payload.text = "Sending %d requests:\n" % len(request_list)
         for scheme, host, port, path, query in result:
+            card.response_payload.text += "Request to %s" % host
             if scheme != "coap":
-                card.response_payload.text = 'Error: URI scheme should be "coap"'
+                card.response_payload.text += 'Error: URI scheme should be "coap"'
             card.request.remote = (host, port)
             if path != "" and path != "/":
                 path = path.lstrip("/")
@@ -219,11 +235,16 @@ class MainScreen(Screen):
             if query != "":
                 card.request.opt.uri_query = query.split("&")
             try:
-                deferred = self.protocol.request(card.request, self.block1_callback, self.block2_callback)
+                d = self.protocol.request(card.request, self.block1_callback, self.block2_callback)
             except:
-                card.response_payload.text = "Error sending request!!!"
+                card.response_payload.text += "Error sending request!!!"
             else:
-                return deferred.addCallback(self.process_response, card).addErrback(self.print_error, card)
+                request_list.append(d)
+                d.addBoth(remove_request, d)
+                request_list.append(d)
+        card.request_list = request_list
+        winner = defer.Deferred(canceller=cancel_request)
+        return winner
 
     def block1_callback(self):
         return defer.succeed(True)
