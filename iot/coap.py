@@ -123,6 +123,7 @@ DELETED = 66
 VALID = 67
 CHANGED = 68
 CONTENT = 69
+CONTINUE = 95
 BAD_REQUEST = 128
 UNAUTHORIZED = 129
 BAD_OPTION = 130
@@ -130,6 +131,7 @@ FORBIDDEN = 131
 NOT_FOUND = 132
 METHOD_NOT_ALLOWED = 133
 NOT_ACCEPTABLE = 134
+REQUEST_ENTITY_INCOMPLETE = 136
 PRECONDITION_FAILED = 140
 REQUEST_ENTITY_TOO_LARGE = 141
 UNSUPPORTED_MEDIA_TYPE = 143
@@ -152,6 +154,7 @@ responses = {65: '2.01 Created',
              67: '2.03 Valid',
              68: '2.04 Changed',
              69: '2.05 Content',
+             95: '2.31 Continue',
              128: '4.00 Bad Request',
              129: '4.01 Unauthorized',
              130: '4.02 Bad Option',
