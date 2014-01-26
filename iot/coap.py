@@ -896,11 +896,15 @@ class Coap(protocol.DatagramProtocol):
             pass
             #TODO: error handling (especially for requests)
 
-    def request(self, request, block1Callback=None, block2Callback=None):
+    def request(self, request, block1Callback=None, block2Callback=None,
+                     block1CallbackArgs=None, block1CallbackKeywords=None,
+                     block2CallbackArgs=None, block2CallbackKeywords=None):
         """Send a request.
 
            This is a method that should be called by user app."""
-        return Requester(self, request, block1Callback, block2Callback).deferred
+        return Requester(self, request, block1Callback, block2Callback,
+                         block1CallbackArgs, block1CallbackKeywords,
+                         block2CallbackArgs, block2CallbackKeywords).deferred
 
 
 class Requester(object):
@@ -910,12 +914,16 @@ class Requester(object):
        outgoing blockwise requests and receiving incoming
        blockwise responses."""
 
-    def __init__(self, protocol, app_request, block1Callback, block2Callback):
+    def __init__(self, protocol, app_request, block1Callback, block2Callback,
+                       block1CallbackArgs, block1CallbackKeywords,
+                       block2CallbackArgs, block2CallbackKeywords):
         self.protocol = protocol
         self.app_request = app_request
         self.assembled_response = None
-        self.block1Callback = block1Callback
-        self.block2Callback = block2Callback
+        assert block1Callback == None or callable(block1Callback)
+        assert block2Callback == None or callable(block2Callback)
+        self.cbs = ((block1Callback, block1CallbackArgs, block1CallbackKeywords),
+                    (block2Callback, block2CallbackArgs, block2CallbackKeywords))
         if isRequest(self.app_request.code) is False:
             raise ValueError("Message code is not valid for request")
         size_exp = DEFAULT_BLOCK_SIZE_EXP
@@ -941,17 +949,17 @@ class Requester(object):
 
         def cancelRequest(d):
             """Clean request after cancellation from user application."""
-            
+
             log.msg("Request cancelled")
             self.protocol.outgoing_requests.pop((request.token, request.remote))
 
         def timeoutRequest(d):
             """Clean the Request after a timeout."""
-            
+
             log.msg("Request timed out")
             del self.protocol.outgoing_requests[(request.token, request.remote)]
             d.errback(iot.error.RequestTimedOut())
-            
+
         def gotResult(result):
             if timeout.active():
                 timeout.cancel()
@@ -1000,10 +1008,13 @@ class Requester(object):
                     next_block = self.app_request.extractBlock(self.app_request.opt.block1.block_number + 1, block1.size_exponent)
                 if next_block is not None:
                     self.app_request.opt.block1 = next_block.opt.block1
-                    if self.block1Callback is None:
+                    block1Callback, args, kw = self.cbs[0]
+                    if block1Callback is None:
                         return self.sendNextRequestBlock(None, next_block)
                     else:
-                        d = self.block1Callback()
+                        args = args or ()
+                        kw = kw or {}
+                        d = block1Callback(response, *args, **kw)
                         d.addCallback(self.sendNextRequestBlock, next_block)
                         return d
                 else:
@@ -1051,10 +1062,13 @@ class Requester(object):
                     return defer.fail()
             if block2.more is True:
                 request = self.app_request.generateNextBlock2Request(response)
-                if self.block2Callback is None:
+                block2Callback, args, kw = self.cbs[1]
+                if block2Callback is None:
                     return self.askForNextResponseBlock(None, request)
                 else:
-                    d = self.block2Callback()
+                    args = args or ()
+                    kw = kw or {}
+                    d = block2Callback(response, *args, **kw)
                     d.addCallback(self.askForNextResponseBlock, request)
                     return d
             else:
@@ -1269,11 +1283,11 @@ class Responder(object):
 
         def timeoutNonFinalResponse(d):
             """Clean the Response after a timeout."""
-            
+
             log.msg("Waiting for next blockwise request timed out")
             self.protocol.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote))
             d.errback(iot.error.WaitingForClientTimedOut())
-            
+
         def gotResult(result):
             if timeout.active():
                 timeout.cancel()
