@@ -835,7 +835,8 @@ class Coap(protocol.DatagramProtocol):
     def sendMessage(self, message):
         """Set Message ID, encode and send message.
            Also if message is Confirmable (CON) add Exchange"""
-
+        host, port = message.remote
+        log.msg("Sending message to %s:%d" % (host, port))
         recent_key = (message.mid, message.remote)
         if recent_key in self.recent_messages:
             if len(self.recent_messages[recent_key]) != 3:
@@ -843,12 +844,11 @@ class Coap(protocol.DatagramProtocol):
 
         if message.mid is None:
             message.mid = self.nextMessageID()
-        if message.mtype is CON:
-            self.addExchange(message)
         msg = message.encode()
         self.transport.write(msg, message.remote)
-        host, port = message.remote
-        log.msg("sent %r to %s:%d" % (msg, host, port))
+        if message.mtype is CON:
+            self.addExchange(message)
+        log.msg("Message %r sent successfully" % msg)
 
     def nextMessageID(self):
         """Reserve and return a new message ID."""
