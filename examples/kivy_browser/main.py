@@ -20,6 +20,7 @@ Config.set('graphics', 'width', '720')
 import socket
 import sys
 import re
+import copy
 from urlparse import urlsplit as urlsplit, urlunsplit
 
 from kivy.support import install_twisted_reactor
@@ -40,7 +41,7 @@ Window.clearcolor = (0, 0, 0, 1)
 # kivy initialization before importing reactor
 install_twisted_reactor()
 
-from twisted.internet import reactor, defer, threads
+from twisted.internet import reactor, defer, threads, task
 from twisted.python import log
 
 import iot.coap as coap
@@ -99,14 +100,11 @@ def parseURI(uri_string):
             port = coap.COAP_PORT
         if match.group(2):
             host = match.group(2)
-            return defer.succeed([(scheme, host, port, path, query)])
+            return defer.succeed(iter([(scheme, host, port, path, query)]))
         elif match.group(3):
-            #host = "::ffff:"+match.group(3)
-            host = match.group(3)
-            return defer.succeed([(scheme, host, port, path, query)])
+            host = "::ffff:"+match.group(3)
+            return defer.succeed(iter([(scheme, host, port, path, query)]))
         elif match.group(4):
-            print match.group(4)
-            #d = client.getHostByName(match.group(4))
             d = threads.deferToThread(socket.getaddrinfo, match.group(4), port, 0, socket.SOCK_DGRAM)
             d.addCallback(process_name, (scheme, port, path, query))
             return d
@@ -114,13 +112,12 @@ def parseURI(uri_string):
 
 def process_name(gaiResult, netloc_fragments):
     scheme, port, path, query = netloc_fragments
-    address_list = []
     for family, socktype, proto, canonname, sockaddr in gaiResult:
         if family in [socket.AF_INET6]:
-            address_list.append((scheme, sockaddr[0],port, path, query))
-        elif family in [socket.AF_INET]:
-            address_list.append((scheme, "::ffff:"+sockaddr[0],port, path, query))
-    return address_list
+            yield (scheme, sockaddr[0],port, path, query)
+    for family, socktype, proto, canonname, sockaddr in gaiResult:
+        if family in [socket.AF_INET]:
+            yield (scheme, "::ffff:"+sockaddr[0], port, path, query)
 
 class ResponseCard(BrowsingCard):
 
@@ -176,81 +173,120 @@ class MainScreen(Screen):
         card = ResponseCard(controller=self)
         self.grid.add_widget(card)
         log.msg("send request %s" % self.active_method)
-        card.request = coap.Message()
-        card.request.code = coap.requests_rev[self.active_method]
-        card.request_uri = self.address_bar.text
+        request = coap.Message()
+        request.code = coap.requests_rev[self.active_method]
         card.target_uri.text = self.active_method + ' ' + self.address_bar.text
-        if card.request.code is coap.GET:
+        card.request_uri = self.address_bar.text
+        if request.code is coap.GET:
             accept = self.method_chooser.accept_field.text
             if accept in coap.media_types_rev:
-                card.request.opt.accept = coap.media_types_rev[accept]
+                request.opt.accept = coap.media_types_rev[accept]
             observe = self.method_chooser.observe_field.active
             if observe is True:
-                card.request.setObserve(self.process_update, card)
-        if card.request.code is coap.PUT:
+                request.setObserve(self.process_update, card)
+        if request.code is coap.PUT:
             payload =  self.method_chooser.put_payload_box.text
             payload = payload.encode('utf-8')
-            card.request.payload = payload
+            request.payload = payload
             content_format = self.method_chooser.content_format_put_field.text
             if content_format in coap.media_types_rev:
-                card.request.opt.content_format = coap.media_types_rev[content_format]
-        if card.request.code is coap.POST:
+                request.opt.content_format = coap.media_types_rev[content_format]
+        if request.code is coap.POST:
             payload =  self.method_chooser.post_payload_box.text
             payload = payload.encode('utf-8')
-            card.request.payload = payload
+            request.payload = payload
             content_format = self.method_chooser.content_format_post_field.text
             if content_format in coap.media_types_rev:
-                card.request.opt.content_format = coap.media_types_rev[content_format]
-        d = parseURI(self.address_bar.text).addErrback(self.handle_DNS_failure, card).addCallback(self.send_request, card)
+                request.opt.content_format = coap.media_types_rev[content_format]
+        d = parseURI(self.address_bar.text).addErrback(self.handle_DNS_failure, card).addCallback(self.send_request, card, request)
         d.addCallback(self.process_response, card)
         d.addErrback(self.print_error, card)
         card.deferred = d
 
-    def handle_DNS_failure(self, card):
+    def handle_DNS_failure(self, failure, card):
         log.msg("DNS Error - host not found")
         card.response_payload.text = "DNS error: host not found!!!"
 
-    def send_request(self, result, card):
-        
-        def remove_request(response, deferred):
-            request_list.remove(deferred)
-            for d in request_list:
+    def send_request(self, result, card, request):
+
+        def block1_callback(response, deferred):
+            if response.code is coap.CONTINUE:
+                for d in pending:
+                    if d is not deferred:
+                        d.cancel()
+                    if lc.running:
+                        lc.stop()
+            return defer.succeed(True)
+
+        def block2_callback(response, deferred):
+            if response.code is coap.CONTENT:
+                for d in pending:
+                    if d is not deferred:
+                        d.cancel()
+                    if lc.running:
+                        lc.stop()
+            return defer.succeed(True)
+
+        def remove_from_pending(response, deferred):
+            pending.remove(deferred)
+            return response
+
+        def set_winner(response):
+            if lc.running:
+                lc.stop()
+
+            successful.append(True)
+            for d in pending:
                 d.cancel()
             winner.callback(response)
+            return None
+
+        def check_done():
+            if dns_result_list_exhausted and not pending and not successful:
+                winner.errback(failures.pop())
+
+        def request_failed(reason):
+            failures.append(reason)
+            check_done()
+            return None
 
         def cancel_request(d):
-            for d in request_list:
+            for d in pending:
                 d.cancel()
-        
-        request_list = []
-        card.response_payload.text = "Sending %d requests:\n" % len(request_list)
-        for scheme, host, port, path, query in result:
-            card.response_payload.text += "Request to %s" % host
-            if scheme != "coap":
-                card.response_payload.text += 'Error: URI scheme should be "coap"'
-            card.request.remote = (host, port)
-            if path != "" and path != "/":
-                path = path.lstrip("/")
-                card.request.opt.uri_path = path.split("/")
-            if query != "":
-                card.request.opt.uri_query = query.split("&")
+
+        def iterate_requests():
             try:
-                d = self.protocol.request(card.request, self.block1_callback, self.block2_callback)
-            except:
-                card.response_payload.text += "Error sending request!!!"
+                scheme, host, port, path, query = next(result)
+            except StopIteration:
+                lc.stop()
+                dns_result_list_exhausted.append(True)
+                check_done()
             else:
-                request_list.append(d)
-                d.addBoth(remove_request, d)
-                request_list.append(d)
-        card.request_list = request_list
+                card.response_payload.text += "\nRequest to %s" % host
+                request_copy = copy.deepcopy(request)
+                if scheme != "coap":
+                    card.response_payload.text += 'Error: URI scheme should be "coap"'
+                request_copy.remote = (host, port)
+                if path != "" and path != "/":
+                    path = path.lstrip("/")
+                    request_copy.opt.uri_path = path.split("/")
+                if query != "":
+                    request_copy.opt.uri_query = query.split("&")
+                d = None
+                d = self.protocol.request(request_copy, block1_callback, block2_callback, block1CallbackArgs=[d], block2CallbackArgs=[d])
+                pending.append(d)
+                d.addBoth(remove_from_pending, d)
+                d.addCallback(set_winner)
+                d.addErrback(request_failed)
+
+        pending = []
+        dns_result_list_exhausted = []
+        successful = []
+        failures = []
         winner = defer.Deferred(canceller=cancel_request)
+        lc = task.LoopingCall(iterate_requests)
+        lc.start(0.3)
         return winner
-
-    def block1_callback(self):
-        return defer.succeed(True)
-
-    def block2_callback(self):
-        return defer.succeed(True)
 
     def process_response(self, response, card):
         card.response = response
@@ -276,7 +312,7 @@ class MainScreen(Screen):
 
     def print_error(self, err, card):
         err.trap(error.RequestTimedOut, card)
-        card.response_payload.text = 'Request timed out!'
+        card.response_payload.text = 'Request failed!'
 
     def close_card(self, animation, card):
         if hasattr(card, 'deferred') is True:
@@ -375,7 +411,7 @@ class CoapBrowserApp(App):
     def create_protocol(self):
         endpoint = resource.Endpoint(None)
         self.protocol = coap.Coap(endpoint)
-        reactor.listenUDP(61616, self.protocol)#, interface="::")
+        reactor.listenUDP(61616, self.protocol, interface="::")
 
 
     def on_pause(self):
