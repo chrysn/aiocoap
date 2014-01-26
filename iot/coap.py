@@ -968,15 +968,19 @@ class Requester(object):
         if request.mtype is None:
             request.mtype = CON
         request.token = self.protocol.nextToken()
-        self.protocol.sendMessage(request)
-        d = defer.Deferred(cancelRequest)
-        timeout = reactor.callLater(REQUEST_TIMEOUT, timeoutRequest, d)
-        d.addBoth(gotResult)
-        self.protocol.outgoing_requests[(request.token, request.remote)] = self
-        log.msg("Sending request - Token: %s, Host: %s, Port: %s" % (request.token.encode('hex'), request.remote[0], request.remote[1]))
-        if request.opt.observe is not None and hasattr(request, 'observe_callback'):
-            d.addCallback(self.registerObservation, request.observe_callback)
-        return d
+        try:
+            self.protocol.sendMessage(request)
+        except:
+            return defer.fail()
+        else:
+            d = defer.Deferred(cancelRequest)
+            timeout = reactor.callLater(REQUEST_TIMEOUT, timeoutRequest, d)
+            d.addBoth(gotResult)
+            self.protocol.outgoing_requests[(request.token, request.remote)] = self
+            log.msg("Sending request - Token: %s, Host: %s, Port: %s" % (request.token.encode('hex'), request.remote[0], request.remote[1]))
+            if request.opt.observe is not None and hasattr(request, 'observe_callback'):
+                d.addCallback(self.registerObservation, request.observe_callback)
+            return d
 
     def handleResponse(self, response):
         d, self.deferred = self.deferred, None
