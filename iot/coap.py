@@ -390,10 +390,6 @@ class Message(object):
             response.opt.block1 = (self.opt.block1.block_number, True, self.opt.block1.size_exponent)
         return response
 
-    def setObserve(self, callback, *args, **kw):
-        self.opt.observe = 0
-        self.observe_callback = (callback, args, kw)
-
 
 class Options(object):
     """Represent CoAP Header Options."""
@@ -896,15 +892,15 @@ class Coap(protocol.DatagramProtocol):
             pass
             #TODO: error handling (especially for requests)
 
-    def request(self, request, block1Callback=None, block2Callback=None,
-                     block1CallbackArgs=None, block1CallbackKeywords=None,
-                     block2CallbackArgs=None, block2CallbackKeywords=None):
+    def request(self, request, observeCallback=None, block1Callback=None, block2Callback=None,
+                observeCallbackArgs=None, block1CallbackArgs=None, block2CallbackArgs=None,
+                observeCallbackKeywords=None, block1CallbackKeywords=None, block2CallbackKeywords=None):
         """Send a request.
 
            This is a method that should be called by user app."""
-        return Requester(self, request, block1Callback, block2Callback,
-                         block1CallbackArgs, block1CallbackKeywords,
-                         block2CallbackArgs, block2CallbackKeywords).deferred
+        return Requester(self, request, observeCallback, block1Callback, block2Callback,
+                         observeCallbackArgs, block1CallbackArgs, block2CallbackArgs,
+                         observeCallbackKeywords, block1CallbackKeywords, block2CallbackKeywords).deferred
 
 
 class Requester(object):
@@ -914,15 +910,17 @@ class Requester(object):
        outgoing blockwise requests and receiving incoming
        blockwise responses."""
 
-    def __init__(self, protocol, app_request, block1Callback, block2Callback,
-                       block1CallbackArgs, block1CallbackKeywords,
-                       block2CallbackArgs, block2CallbackKeywords):
+    def __init__(self, protocol, app_request, observeCallback, block1Callback, block2Callback,
+                       observeCallbackArgs, block1CallbackArgs, block2CallbackArgs,
+                       observeCallbackKeywords, block1CallbackKeywords, block2CallbackKeywords):
         self.protocol = protocol
         self.app_request = app_request
         self.assembled_response = None
+        assert observeCallback == None or callable(observeCallback)
         assert block1Callback == None or callable(block1Callback)
         assert block2Callback == None or callable(block2Callback)
-        self.cbs = ((block1Callback, block1CallbackArgs, block1CallbackKeywords),
+        self.cbs = ((observeCallback, observeCallbackArgs, observeCallbackKeywords),
+                    (block1Callback, block1CallbackArgs, block1CallbackKeywords),
                     (block2Callback, block2CallbackArgs, block2CallbackKeywords))
         if isRequest(self.app_request.code) is False:
             raise ValueError("Message code is not valid for request")
@@ -978,8 +976,8 @@ class Requester(object):
             d.addBoth(gotResult)
             self.protocol.outgoing_requests[(request.token, request.remote)] = self
             log.msg("Sending request - Token: %s, Host: %s, Port: %s" % (request.token.encode('hex'), request.remote[0], request.remote[1]))
-            if request.opt.observe is not None and hasattr(request, 'observe_callback'):
-                d.addCallback(self.registerObservation, request.observe_callback)
+            if request.opt.observe is not None and self.cbs[0][0] is not None:
+                d.addCallback(self.registerObservation, self.cbs[0])
             return d
 
     def handleResponse(self, response):
@@ -989,7 +987,6 @@ class Requester(object):
     def registerObservation(self, response, callback):
         if response.opt.observe is not None:
             self.protocol.observations[(response.token, response.remote)] = callback
-
         return response
 
     def processBlock1InResponse(self, response):
@@ -1012,7 +1009,7 @@ class Requester(object):
                     next_block = self.app_request.extractBlock(self.app_request.opt.block1.block_number + 1, block1.size_exponent)
                 if next_block is not None:
                     self.app_request.opt.block1 = next_block.opt.block1
-                    block1Callback, args, kw = self.cbs[0]
+                    block1Callback, args, kw = self.cbs[1]
                     if block1Callback is None:
                         return self.sendNextRequestBlock(None, next_block)
                     else:
@@ -1066,7 +1063,7 @@ class Requester(object):
                     return defer.fail()
             if block2.more is True:
                 request = self.app_request.generateNextBlock2Request(response)
-                block2Callback, args, kw = self.cbs[1]
+                block2Callback, args, kw = self.cbs[2]
                 if block2Callback is None:
                     return self.askForNextResponseBlock(None, request)
                 else:
