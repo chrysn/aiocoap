@@ -1,20 +1,26 @@
 #:import ScrollEffect kivy.effects.scroll.ScrollEffect
+#:import Factory kivy.factory.Factory
 #: set dark_orange (0.75 ,0.3 ,0.0 , 1.0)
 #: set light_orange (1.0, 0.4, 0.0 , 1.0)
 #: set white (1.0, 1.0, 1.0 , 1.0)
+#: set black (0, 0, 0 , 1.0)
 #: set grey (.5, .5, .5, .5)
 #: set dark_grey (.1, .1, .1, .5)
+#: set blue (0, 0.58, 1, 1)
+#: set dark_blue (0, 0.38, 0.65, 1)
+#: set light_blue (0.25, 0.69,1,1)
+
+<ScreenManager>:
+    size_hint:(1, 1)
 
 <MainScreen>:
     address_bar: address_bar
     grid: grid
     menu_wrapper: menu_wrapper
-    method_button: method_button
     ScrollView:
         effect_cls:ScrollEffect
         do_scroll_x:False
-        size_hint:(None,None)
-        size:(720,1280)
+        bar_color:(0,0,0,0)
         GridLayout:
             id:grid
             size_hint:(1,None)
@@ -30,103 +36,298 @@
                 BoxLayout:
                     id:top_box
                     size_hint_y:None
-                    height:80
+                    height:90
                     orientation:'horizontal'
-                    FlatButton:
-                        id:a_button
-                        background_normal: grey
-                        background_down: light_orange
-                        size_hint_x:0.15
-                        text:"Node"
+                    Button:
+                        background_normal: "atlas://data/aneska/blue_bookmarks"
+                        background_down: "atlas://data/aneska/orange_bookmarks"
+                        size_hint_x: None
+                        width: 90
                         on_release: root.open_nodes_screen()
                     FlatButton:
-                        id:c_button
-                        background_normal: grey
-                        background_down: light_orange
-                        size_hint_x:0.7
+                        background_normal: blue
+                        background_down: blue
+                        bold: True
+                        font_name: "CourierNewBold.ttf"
+                        font_size: 48
                         text:"Aneska"
+                    Button:
+                        background_normal: "atlas://data/aneska/blue_message"
+                        background_down: "atlas://data/aneska/orange_message"
+                        size_hint_x: None
+                        width: 90
+                        on_release: root.toggle_method_chooser()
                 BoxLayout:
                     id:top_box
                     size_hint_y:None
-                    height:88
+                    height:90
                     orientation:'horizontal'
-                    FlatButton:
-                        id:method_button
-                        background_normal: grey
-                        background_down: light_orange
-                        size_hint_x:0.2
-                        text:"GET"
-                        on_release: root.toggle_method_chooser()
                     TextInput:
                         id:address_bar
-                        #background_color: dark_orange
-                        #foreground_color: white
-                        #background_normal: ""
-                        #background_active: ""
-                        size_hint_x:0.6
-                        multiline:True
-                        #text:"coap://127.0.0.1/other/block"
-                        #text:"coap://[::1]/other/block"
-                        #text:"coap://129.132.15.80/obs"
-                        #text:"coap://129.132.15.80/.well-known/core"
-                        #text:"coap://134.102.218.16/.well-known/core"
-                        #text:"coap://134.102.218.16/create1"
-                        text:"coap://coap.me/.well-known/core"
-                        #text: "coap://[2001:5c0:1515:3301:2:2:2:2]/sensors/temp"
-                        #text: "coap://[2001:5c0:1515:3301:11:22ff:fe33:4455]/test/chunks"
-                        #text: "coap://[2001:5c0:1515:3300:224:d2ff:fe41:a8aa]/counter"
-                        #text: "coap://[2001:638:708:30da:219:d1ff:fea4:abc5]/.well-known/core"
-                    FlatButton:
+                        background_normal: "atlas://data/aneska/white_on_blue"
+                        background_active: "atlas://data/aneska/white_on_blue"
+                        border: 32, 32, 32, 32
+                        multiline:False
+                        hint_text: "Enter URI"
+                        padding: 32,(self.parent.height - self.line_height)/2,32,6
+                        text:"coap://"
+                    Button:
+                        background_normal: "atlas://data/aneska/blue_arrow"
+                        background_down: "atlas://data/aneska/orange_arrow"
                         id:send_button
-                        background_normal: grey
-                        background_down: light_orange
-                        size_hint_x:0.2
-                        text:"Send"
+                        size_hint_x: None
+                        width: 90
                         on_release:root.prepare_request()
 
-<NodeLabel>:
+<SpinnerButton>:
+    background_normal: "atlas://data/aneska/blue"
+    background_down: "atlas://data/aneska/blue"
+    border: 0,0,0,0
+
+<-CheckBox>:
+    canvas:
+        Color:
+            rgb: 1, 1, 1
+        Rectangle:
+            source: 'atlas://data/aneska/checkbox_%s' % ('on' if self.active else 'off')
+            size: sp(32), sp(32)
+            pos: int(self.center_x - sp(16)), int(self.center_y - sp(16))
+
+<MethodPanel>:
+    id:method_panel
+    do_default_tab: False
+    size_hint:(1,None)
+    tab_height:60
+    tab_width: 0.25*self.width
+    background_color: light_blue
+    background_image: ""
+    row_force_default:False
+    accept_field: accept_field
+    observe_field: observe_field
+    content_format_put_field: content_format_put_field
+    put_payload_box: put_payload_box
+    content_format_post_field: content_format_post_field
+    post_payload_box: post_payload_box
+    TabbedPanelItem:
+        text: "GET"
+        background_normal: "atlas://data/aneska/blue"
+        background_down: "atlas://data/aneska/light_blue"
+        on_release: root.controller.set_active_method("GET")
+        GridLayout:
+            size_hint:(1,None)
+            height:self.minimum_height
+            cols:1
+            row_force_default:False
+            BoxLayout:
+                size_hint:(1,None)
+                height: 60
+                Label:
+                    text:"Accept option:"
+                Spinner:
+                    id:accept_field
+                    background_normal: "atlas://data/aneska/blue"
+                    background_down: "atlas://data/aneska/blue"
+                    border: 0,0,0,0
+                    option_cls: Factory.get("SpinnerButton")
+                    text: "none"
+                    values: root.accept_field_values
+            BoxLayout:
+                size_hint:(1,None)
+                height: 60
+                Label:
+                    text:"Observe option:"
+                CheckBox:
+                    id:observe_field
+                    active: False
+    TabbedPanelItem:
+        text: "PUT"
+        background_normal: "atlas://data/aneska/blue"
+        background_down: "atlas://data/aneska/light_blue"
+        on_release: root.controller.set_active_method('PUT')
+        GridLayout:
+            size_hint:(1,None)
+            height:self.minimum_height
+            cols:1
+            row_force_default:False
+            BoxLayout:
+                size_hint:(1,None)
+                height: 60
+                Label:
+                    text:"Content format option:"
+                Spinner:
+                    id:content_format_put_field
+                    background_normal: "atlas://data/aneska/blue"
+                    background_down: "atlas://data/aneska/blue"
+                    border: 0,0,0,0
+                    option_cls: Factory.get("SpinnerButton")
+                    text: "none"
+                    values: root.accept_field_values
+            TextInput:
+                id: put_payload_box
+                background_normal: "atlas://data/aneska/white_on_light_blue"
+                background_active: "atlas://data/aneska/white_on_light_blue"
+                border: 32, 32, 32, 32
+                padding: 32, 32, 32, 32
+                height: 120
+                size_hint:(1,None)
+                multiline:True
+                hint_text: "Enter PUT message payload"
+                text: ""
+    TabbedPanelItem:
+        text: "POST"
+        background_normal: "atlas://data/aneska/blue"
+        background_down: "atlas://data/aneska/light_blue"
+        on_release: root.controller.set_active_method('POST')
+        GridLayout:
+            size_hint:(1,None)
+            height:self.minimum_height
+            cols:1
+            row_force_default:False
+            BoxLayout:
+                size_hint:(1,None)
+                height: 60
+                Label:
+                    text:"Content format option:"
+                Spinner:
+                    id:content_format_post_field
+                    background_normal: "atlas://data/aneska/blue"
+                    background_down: "atlas://data/aneska/blue"
+                    border: 0,0,0,0
+                    option_cls: Factory.get("SpinnerButton")
+                    text: "none"
+                    values: root.accept_field_values
+            TextInput:
+                id: post_payload_box
+                background_normal: "atlas://data/aneska/white_on_light_blue"
+                background_active: "atlas://data/aneska/white_on_light_blue"
+                border: 32, 32, 32, 32
+                padding: 32, 32, 32, 32
+                height: 120
+                size_hint:(1,None)
+                multiline:True
+                hint_text: "Enter POST message payload"
+    TabbedPanelItem:
+        text: "DELETE"
+        background_normal: "atlas://data/aneska/blue"
+        background_down: "atlas://data/aneska/light_blue"
+        on_release: root.controller.set_active_method('DELETE')
+        Label:
+            size_hint:(1,None)
+            height: 40
+            text: "No additional options"
+
+#A new style for NodeLabel is necessary because it's not possible to change bullet graphic otherwise
+<-NodeLabel>:
+    canvas.before:
+        Color:
+            rgba: self.color_selected if self.is_selected else self.odd_color if self.odd else self.even_color
+        Rectangle:
+            pos: [self.parent.x, self.y] if self.parent else [0, 0]
+            size: [self.parent.width, self.height] if self.parent else [1, 1]
+        Color:
+            rgba: 1, 1, 1, int(not self.is_leaf)
+        Rectangle:
+            source: 'atlas://data/aneska/bullet_%s' % ('down' if self.is_open else 'right')
+            size: 60, 60
+            pos: self.x - 50, self.center_y - 30
+    canvas:
+        Color:
+            rgba: self.color if not self.markup else (1, 1, 1, 1)
+        Rectangle:
+            texture: self.texture
+            size: self.texture_size
+            pos: int(self.center_x - self.texture_size[0] / 2.), int(self.center_y - self.texture_size[1] / 2.)
+    canvas.after:
+        Color:
+            rgba: .5, .5, .5, .2
+        Line:
+            points: [self.parent.x, self.y, self.parent.right, self.y] if self.parent else []
     text_size: (0.9*self.width, None)
     height: self.texture_size[1] if self.texture_size[1] > 60 else 60
     markup: True
     no_selection: True
+    even_color: 0.1,0.1,0.1,0
+    odd_color: 0.9, 0.9, 0.9, 0.1
+    color_selected: 0.1,0.1,0.1,0
 
 <NodesScreen>:
     tree_view: tree_view
+    bookmarks_tree: bookmarks_tree
     ScrollView:
         effect_cls:ScrollEffect
         do_scroll_x:False
-        size_hint:(None,None)
-        size:(720,1280)
+        bar_color:(0,0,0,0)
         GridLayout:
             id:grid_n
             size_hint:(1,None)
             height:self.minimum_height
-            spacing:(0,20)
+            spacing:(0,0)
             cols:1
             row_force_default:False
             BoxLayout:
                 id:top_box_n
                 size_hint_y:None
-                height:80
+                height:90
                 orientation:'horizontal'
                 FlatButton:
-                    id:y_button
-                    background_normal: grey
-                    background_down: light_orange
-                    size_hint_x:0.85
-                    text:"Aneska"
+                    background_normal: blue
+                    background_down: blue
+                    size_hint_x:None
+                    width: 90
                 FlatButton:
-                    id:z_button
-                    background_normal: grey
-                    background_down: light_orange
-                    size_hint_x:0.15
-                    text:"Browser"
+                    background_normal: blue
+                    background_down: blue
+                    size_hint_x:0.7
+                    bold: True
+                    font_name: "CourierNewBold.ttf"
+                    font_size: 48
+                    text:"Aneska"
+                Button:
+                    background_normal: "atlas://data/aneska/blue_globe"
+                    background_down: "atlas://data/aneska/orange_globe"
+                    size_hint_x: None
+                    width: 90
                     on_release: root.open_main_screen()
-            TreeView:
-                id:tree_view
+            FavouritePanel:
+                id:favourite_panel
+                do_default_tab: False
                 size_hint:(1,None)
-                height:self.minimum_height
-                root_options:dict(text="Discovery results")
+                tab_height:60
+                tab_width: 0.5*self.width
+                row_force_default:False
+                background_color: light_blue
+                background_image: ""
+                TabbedPanelItem:
+                    text: "Discoveries"
+                    background_normal: "atlas://data/aneska/blue"
+                    background_down: "atlas://data/aneska/light_blue"
+                    GridLayout:
+                        size_hint:(1,None)
+                        height:self.minimum_height
+                        cols:1
+                        row_force_default:False
+                        TreeView:
+                            id:tree_view
+                            size_hint:(1,None)
+                            hide_root: True
+                            height:self.minimum_height
+                            root_options:dict(text="Discovery results")
+                TabbedPanelItem:
+                    background_normal: "atlas://data/aneska/blue"
+                    background_down: "atlas://data/aneska/light_blue"
+                    text: "Bookmarks"
+                    GridLayout:
+                        size_hint:(1,None)
+                        height:self.minimum_height
+                        cols:1
+                        row_force_default:False
+                        TreeView:
+                            id:bookmarks_tree
+                            indent_start:10
+                            size_hint:(1,None)
+                            hide_root: True
+                            height:self.minimum_height
+                            root_options:dict(text="Bookmarks")
 
 <TabbedPanelContentGrid>:
     size_hint:(1,None)
@@ -142,100 +343,6 @@
             texture: root.parent._bk_img.texture if root.parent else None
             size: self.size
             pos: self.pos
-
-<MethodPanel>:
-    id:method_panel
-    do_default_tab: False
-    size_hint:(1,None)
-    tab_height:60
-    tab_width: 180
-    row_force_default:False
-    accept_field: accept_field
-    observe_field: observe_field
-    content_format_put_field: content_format_put_field
-    put_payload_box: put_payload_box
-    content_format_post_field: content_format_post_field
-    post_payload_box: post_payload_box
-    TabbedPanelItem:
-        text: "GET"
-        on_release: root.controller.set_active_method("GET")
-        GridLayout:
-            size_hint:(1,None)
-            height:self.minimum_height
-            cols:1
-            row_force_default:False
-            BoxLayout:
-                size_hint:(1,None)
-                height: 60
-                Label:
-                    text:"Accept option:"
-                Spinner:
-                    id:accept_field
-                    text: "none"
-                    values: root.accept_field_values
-            BoxLayout:
-                size_hint:(1,None)
-                height: 60
-                Label:
-                    text:"Observe option:"
-                CheckBox:
-                    id:observe_field
-                    active: False
-    TabbedPanelItem:
-        text: "PUT"
-        on_release: root.controller.set_active_method('PUT')
-        GridLayout:
-            size_hint:(1,None)
-            height:self.minimum_height
-            cols:1
-            row_force_default:False
-            BoxLayout:
-                size_hint:(1,None)
-                height: 60
-                Label:
-                    text:"Content format option:"
-                Spinner:
-                    id:content_format_put_field
-                    text: "none"
-                    values: root.accept_field_values
-            TextInput:
-                id: put_payload_box
-                height: 120
-                size_hint:(1,None)
-                multiline:True
-                hint_text: "Enter PUT message payload"
-                text: "Poland can into space! Poland must into space! Poland will into space!"
-    TabbedPanelItem:
-        text: "POST"
-        on_release: root.controller.set_active_method('POST')
-        GridLayout:
-            size_hint:(1,None)
-            height:self.minimum_height
-            cols:1
-            row_force_default:False
-            BoxLayout:
-                size_hint:(1,None)
-                height: 60
-                Label:
-                    text:"Content format option:"
-                Spinner:
-                    id:content_format_post_field
-                    text: "none"
-                    values: root.accept_field_values
-            TextInput:
-                id: post_payload_box
-                height: 120
-                size_hint:(1,None)
-                multiline:True
-                hint_text: "Enter POST message payload"
-    TabbedPanelItem:
-        text: "DELETE"
-        on_release: root.controller.set_active_method('DELETE')
-        Label:
-            size_hint:(1,None)
-            height: 40
-            text: "No additional options"
-
 
 #Style definition below is modified from kivy/data/style.kv
 #It is a definition of a simple, flat rectangular button with no image
@@ -265,9 +372,6 @@
     height:self.minimum_height
     response_payload: response_payload
     target_uri: target_uri
-    response_code: response_code
-    message_type: message_type
-    option_list: option_list
     GridLayout:
         cols:1
         size_hint:(1,None)
@@ -278,38 +382,11 @@
         FlatButton:
             id:target_uri
             size_hint:(1,None)
-            text:"GET"
+            text:""
             size:self.texture_size
             text_size: (0.9*self.width, None)
-            background_normal: grey
-            background_down: light_orange
-        FlatButton:
-            id: message_type
-            size_hint:(1,None)
-            text: ""
-            size:self.texture_size
-            text_size: (0.9*self.width, None)
-            markup: True
-            background_normal: grey
-            background_down: light_orange
-        FlatButton:
-            id:option_list
-            size_hint:(1,None)
-            text:"Options: "
-            size:self.texture_size
-            text_size: (0.9*self.width, None)
-            markup: True
-            background_normal: grey
-            background_down: light_orange
-        FlatButton:
-            id:response_code
-            size_hint:(1,None)
-            text:"Code: "
-            size:self.texture_size
-            text_size: (0.9*self.width, None)
-            markup: True
-            background_normal: grey
-            background_down: light_orange
+            background_normal: dark_blue
+            background_down: dark_orange
         FlatButton:
             id:response_payload
             size_hint:(1,None)
@@ -317,7 +394,16 @@
             size:self.texture_size
             markup: True
             text_size: (0.9*self.width, None)
-            background_normal: grey
+            background_normal: blue
             background_down: light_orange
             on_release: root.open_message_popup()
 
+<Popup>:
+    background: "atlas://data/aneska/dark_orange"
+    separator_color: white
+    title_color: 0,0,0
+
+<PopupButton>:
+    background_normal: "atlas://data/aneska/orange"
+    background_down: "atlas://data/aneska/blue"
+    border: 0,0,0,0

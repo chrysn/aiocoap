@@ -12,16 +12,12 @@ Currently only plain IPv4 addresses are supported. No URI support.
 
 
 
-#set window size before anything else
-from kivy.config import Config
-Config.set('graphics', 'height', '1280')
-Config.set('graphics', 'width', '720')
-
 import socket
 import sys
 import re
 import copy
-from urlparse import urlsplit as urlsplit, urlunsplit
+import cPickle
+from urlparse import urlsplit, urlunsplit
 
 from kivy.support import install_twisted_reactor
 from kivy.app import App
@@ -32,12 +28,12 @@ from kivy.uix.popup import Popup
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.tabbedpanel import TabbedPanel
-from kivy.uix.spinner import Spinner
+from kivy.uix.spinner import Spinner, SpinnerOption
 from kivy.uix.treeview import TreeView, TreeViewNode
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.properties import ObjectProperty, OptionProperty, ListProperty
 from kivy.core.window import Window
-Window.clearcolor = (0, 0, 0, 1)
+Window.clearcolor = (1, 1, 1, 1)
 # kivy initialization before importing reactor
 install_twisted_reactor()
 
@@ -75,6 +71,12 @@ NETLOC_RE = re.compile(r'''^
                         (?::(\d+))?$
                         ''', re.VERBOSE)
 
+class InvalidURI(Exception):
+    """Raised when URI is not valid."""
+
+class FragmentNotAllowed(Exception):
+    """Raised when URI contains fragment marker."""
+
 def parseURI(uri_string):
     """
     Parse an URI into five components and set appropriate
@@ -88,10 +90,16 @@ def parseURI(uri_string):
         scheme = scheme.encode('ascii')
         netloc = netloc.encode('ascii')
         path = path.encode('ascii')
-        query = query.encode('ascii')
-        fragment = fragment.encode('ascii')
-    if fragment != "":
-        raise ValueError('Error: URI fragment should be ""')
+
+    p_list = path.split("?")
+    if len(p_list) > 0:
+        path = p_list[0]
+    if len(p_list) > 1:
+        query = p_list[1]
+    if len(p_list) > 2:
+        return defer.fail(InvalidURI())
+    if "#" in path or "#" in query:
+        return defer.fail(FragmentNotAllowed())
     match = NETLOC_RE.match(netloc)
     if match:
         if match.group(5):
@@ -108,7 +116,7 @@ def parseURI(uri_string):
             d = threads.deferToThread(socket.getaddrinfo, match.group(4), port, 0, socket.SOCK_DGRAM)
             d.addCallback(process_name, (scheme, port, path, query))
             return d
-    return defer.fail('Error: URI netloc invalid')
+    return defer.fail(InvalidURI())
 
 def process_name(gaiResult, netloc_fragments):
     scheme, port, path, query = netloc_fragments
@@ -119,6 +127,9 @@ def process_name(gaiResult, netloc_fragments):
         if family in [socket.AF_INET]:
             yield (scheme, "::ffff:"+sockaddr[0], port, path, query)
 
+class PopupButton(Button):
+    pass
+
 class ResponseCard(BrowsingCard):
 
     def __init__(self, **kwargs):
@@ -127,18 +138,20 @@ class ResponseCard(BrowsingCard):
 
     def open_message_popup(self):
         if self.response is not None:
+            content = BoxLayout(orientation='vertical', spacing=5)
+            content.add_widget(PopupButton(text='Add bookmark',on_release=self.add_bookmark))
             if self.response.opt.content_format is coap.media_types_rev['application/link-format']:
-                content = BoxLayout(orientation='vertical')
-                content.add_widget(Button(text='Process link format',on_release=self.process_link_format))
-                self.controller.popup.content = content
-                self.controller.popup.open()
+                content.add_widget(PopupButton(text='Process link format',on_release=self.process_link_format))
+            self.controller.popup.content = content
+            self.controller.popup.open()
 
     def process_link_format(self, button):
-        link_list = link_header.parse(self.response.payload)
-        self.controller.screen_manager.get_screen('nodes').add_link_list(link_list, self.request_uri)
+        self.controller.screen_manager.get_screen('nodes').add_link_list(self.response.payload, self.request_uri)
         self.controller.popup.dismiss()
 
-
+    def add_bookmark(self, button):
+        self.controller.screen_manager.get_screen('nodes').add_bookmark(self.request_uri)
+        self.controller.popup.dismiss()
 
 class MainScreen(Screen):
 
@@ -167,7 +180,6 @@ class MainScreen(Screen):
 
     def set_active_method(self, method):
         self.active_method = method
-        self.method_button.text = method
 
     def prepare_request(self, *args):
         card = ResponseCard(controller=self)
@@ -183,7 +195,7 @@ class MainScreen(Screen):
                 request.opt.accept = coap.media_types_rev[accept]
             observe = self.method_chooser.observe_field.active
             if observe is True:
-                request.setObserve(self.process_update, card)
+                request.opt.observe = 0
         if request.code is coap.PUT:
             payload =  self.method_chooser.put_payload_box.text
             payload = payload.encode('utf-8')
@@ -198,14 +210,11 @@ class MainScreen(Screen):
             content_format = self.method_chooser.content_format_post_field.text
             if content_format in coap.media_types_rev:
                 request.opt.content_format = coap.media_types_rev[content_format]
-        d = parseURI(self.address_bar.text).addErrback(self.handle_DNS_failure, card).addCallback(self.send_request, card, request)
+        d = parseURI(self.address_bar.text)
+        d.addCallback(self.send_request, card, request)
         d.addCallback(self.process_response, card)
         d.addErrback(self.print_error, card)
         card.deferred = d
-
-    def handle_DNS_failure(self, failure, card):
-        log.msg("DNS Error - host not found")
-        card.response_payload.text = "DNS error: host not found!!!"
 
     def send_request(self, result, card, request):
 
@@ -273,7 +282,8 @@ class MainScreen(Screen):
                 if query != "":
                     request_copy.opt.uri_query = query.split("&")
                 d = None
-                d = self.protocol.request(request_copy, block1_callback, block2_callback, block1CallbackArgs=[d], block2CallbackArgs=[d])
+                d = self.protocol.request(request_copy, self.observe_callback, block1_callback, block2_callback,
+                                          observeCallbackArgs=[card], block1CallbackArgs=[d], block2CallbackArgs=[d])
                 pending.append(d)
                 d.addBoth(remove_from_pending, d)
                 d.addCallback(set_winner)
@@ -290,11 +300,11 @@ class MainScreen(Screen):
 
     def process_response(self, response, card):
         card.response = response
-        card.response_code.text = '[b]Code:[/b] ' + coap.responses[card.response.code]
-        card.message_type.text = "[b]Type:[/b] " + coap.types[card.response.mtype]
-        card.message_type.text += " [b]ID:[/b] " + str(card.response.mid)
-        card.message_type.text += " [b]Token:[/b] " + card.response.token.encode('hex')
-        formatted_options = "[b]Options:[/b]"
+        card.response_payload.text = '[b]Code:[/b] ' + coap.responses[card.response.code]
+        card.response_payload.text += "\n[b]Type:[/b] " + coap.types[card.response.mtype]
+        card.response_payload.text += "\n[b]ID:[/b] " + hex(card.response.mid)
+        card.response_payload.text += "\n[b]Token:[/b] 0x" + card.response.token.encode('hex')
+        formatted_options = "\n[b]Options:[/b]"
         for option in card.response.opt.optionList():
             formatted_options += "\n- "
             if option.number in coap.options:
@@ -304,15 +314,26 @@ class MainScreen(Screen):
             formatted_options += " (" + str(option.number) + ")"
             if option.value is not None:
                 formatted_options += " : " + str(option.value)
-        card.option_list.text = formatted_options
-        card.response_payload.text = 'Response: ' + card.response.payload
+        card.response_payload.text += formatted_options
+        card.response_payload.text += '\n\n[b]Response:[/b] ' + card.response.payload
 
-    def process_update(self, response, card):
+    def observe_callback(self, response, card):
         self.process_response(response, card)
 
-    def print_error(self, err, card):
-        err.trap(error.RequestTimedOut, card)
-        card.response_payload.text = 'Request failed!'
+    def print_error(self, failure, card):
+        r = failure.trap(InvalidURI, FragmentNotAllowed, socket.gaierror, socket.error, error.RequestTimedOut, defer.CancelledError)
+        if r == InvalidURI:
+            log.msg("Error: invalid URI")
+            card.response_payload.text = "Error: Invalid URI!"
+        elif r == FragmentNotAllowed:
+            log.msg("Error: fragment found")
+            card.response_payload.text = "Error: URI fragment not allowed for CoAP!"
+        elif r == socket.gaierror or r == socket.error:
+            log.msg("Error: hostname not found")
+            card.response_payload.text = "Error: hostname not found!"
+        elif r == error.RequestTimedOut:
+            log.msg("Error: request timed out")
+            card.response_payload.text = 'Error: request timed out!'
 
     def close_card(self, animation, card):
         if hasattr(card, 'deferred') is True:
@@ -333,14 +354,13 @@ class TabbedPanelContentGrid(GridLayout):
     '''
     pass
 
-class MethodPanel(TabbedPanel):
+class GridTabbedPanel(TabbedPanel):
 
     def __init__(self, **kwargs):
         self.accept_field_values = coap.media_types.values()
         self.accept_field_values.append('none')
-        print self.accept_field_values
-        super(MethodPanel, self).__init__(**kwargs)
-        self.controller = kwargs['controller']
+        super(GridTabbedPanel, self).__init__(**kwargs)
+        self.controller = kwargs.get('controller', None)
         #In next line original TabbedPanelContent object is replaced
         #by custom made TabbedPanelContentGrid object
         self.content = TabbedPanelContentGrid()
@@ -352,11 +372,57 @@ class MethodPanel(TabbedPanel):
         #This method is necessary because using kv file does not work properly
         self.height = self.content.height + self.tab_height
 
+    def _update_scrollview(self, scrl_v, *l):
+        #This method is necessary because in TabbedPanel there
+        #is a hidden ScrollView with ugly scroll bars.
+        #That line sets scroll bars transparent.
+        scrl_v.bar_color = [0,0,0,0]
+        super(GridTabbedPanel, self)._update_scrollview(scrl_v, *l)
+
+class MethodPanel(GridTabbedPanel):
+    pass
+
 class FlatButton(Button):
     background_normal = ListProperty([.5, .5, .5, .5])
     background_down = ListProperty([1, 1, 1, 1])
 
+class SpinnerButton(SpinnerOption):
+    pass
+
 class NodeLabel(Label, TreeViewNode):
+
+    def __init__(self, **kwargs):
+        super(NodeLabel, self).__init__(**kwargs)
+        self.controller = kwargs.get('controller', None)
+        self.identifier = kwargs.get('identifier', None)
+
+    def open_node_label_popup(self, link_node, value):
+        if value=='node' and self.level == 1:
+            content = BoxLayout(orientation='vertical', spacing=5)
+            content.add_widget(PopupButton(text='Repeat discovery',on_release=self.open_link))
+            content.add_widget(PopupButton(text='Remove discovery result',on_release=self.remove_node))
+            self.controller.popup.content = content
+            self.controller.popup.open()
+        elif value=='uri':
+            content = BoxLayout(orientation='vertical', spacing=5)
+            content.add_widget(PopupButton(text='Open bookmark',on_release=self.open_link))
+            content.add_widget(PopupButton(text='Remove bookmark',on_release=self.remove_bookmark))
+            self.controller.popup.content = content
+            self.controller.popup.open()
+
+    def remove_node(self, button):
+        self.controller.remove_link_list(self.identifier)
+        self.controller.popup.dismiss()
+
+    def remove_bookmark(self, button):
+        self.controller.remove_bookmark(self.identifier)
+        self.controller.popup.dismiss()
+
+    def open_link(self, button):
+        self.controller.choose_bookmark(self.identifier)
+        self.controller.popup.dismiss()
+
+class FavouritePanel(GridTabbedPanel):
     pass
 
 class NodesScreen(Screen):
@@ -365,13 +431,37 @@ class NodesScreen(Screen):
         super(NodesScreen, self).__init__(**kwargs)
         self.screen_manager = kwargs['screen_manager']
         self.discoveries = {}
+        self.bookmarks = {}
+        self.load_link_list()
+        self.popup = Popup(title='Actions',
+           content=Label(text=''),
+           size_hint=(None, None), size=(400, 400))
 
-    def add_link_list(self, link_list, request_uri):
-        self.discoveries[request_uri] = link_list
-        source_node = self.tree_view.add_node(NodeLabel(text=request_uri))
+    def add_bookmark(self, uri):
+        self.remove_bookmark(uri)
+        bookmark_txt = '[ref=uri]' + uri + '[/ref]'
+        bookmark_node = self.bookmarks_tree.add_node(NodeLabel(text=bookmark_txt, controller=self, identifier=uri))
+        bookmark_node.bind(on_ref_press=bookmark_node.open_node_label_popup)
+        self.bookmarks[uri] = bookmark_node
+
+    def remove_bookmark(self, uri):
+        try:
+            bookmark_node = self.bookmarks.pop(uri)
+        except KeyError:
+            pass
+        else:
+            self.bookmarks_tree.remove_node(bookmark_node)
+
+    def add_link_list(self, rawdata, identifier):
+        self.remove_link_list(identifier)
+        source_txt = '[ref=node]' + identifier + '[/ref]'
+        source_node = self.tree_view.add_node(NodeLabel(text=source_txt, controller=self, identifier=identifier))
+        source_node.bind(on_ref_press=source_node.open_node_label_popup)
+        self.discoveries[identifier] = (source_node, rawdata)
+        link_list = link_header.parse(rawdata)
         for link in link_list.links:
             link_txt = '[ref=world]' + link.href + '[/ref]'
-            link_node = self.tree_view.add_node(NodeLabel(text=link_txt), source_node)
+            link_node = self.tree_view.add_node(NodeLabel(text=link_txt, controller=self), source_node)
             link_node.link = link
             link_node.bind(on_ref_press=self.choose_link)
             for attribute in link.attr_pairs:
@@ -379,15 +469,23 @@ class NodesScreen(Screen):
                     attr_txt = "[color=00ffff][b]" + attribute[0] + " = [/b][/color][color=0066ff]" + attribute[1] + "[/color]"
                 else:
                     attr_txt = "[color=00ffff][b]" + attribute[0] + "[/b][/color]"
-                self.tree_view.add_node(NodeLabel(text=attr_txt), link_node)
+                self.tree_view.add_node(NodeLabel(text=attr_txt, controller=self), link_node)
+
+    def remove_link_list(self, identifier):
+        try:
+            source_node, rawdata = self.discoveries.pop(identifier)
+        except KeyError:
+            pass
+        else:
+            self.tree_view.remove_node(source_node)
 
     def choose_link(self, link_node, value):
         scheme, netloc, path, query, fragment = urlsplit(link_node.link.href)
         if scheme == "" and netloc == "":
             #relative URI
             if link_node.link.rel is None or link_node.link.rel is "hosts":
-                #Using default realtion "hosts"
-                p_scheme, p_netloc, p_path, p_query, p_fragment = urlsplit(link_node.parent_node.text)
+                #Using default relation "hosts"
+                p_scheme, p_netloc, p_path, p_query, p_fragment = urlsplit(link_node.parent_node.identifier)
                 target_uri = urlunsplit((p_scheme, p_netloc, path, query, fragment))
         else:
             target_uri = link_node.link.href
@@ -395,9 +493,44 @@ class NodesScreen(Screen):
         log.msg("Put link %s into browser address box" % target_uri)
         self.open_main_screen()
 
+    def choose_bookmark(self, uri):
+        self.screen_manager.get_screen('controller').address_bar.text = uri
+        log.msg("Put link %s into browser address box" % uri)
+        self.open_main_screen()
+
     def open_main_screen(self):
         self.screen_manager.transition.direction = 'left'
         self.screen_manager.current = 'controller'
+
+    def save_link_list(self):
+        disc = {}
+        for key, value in self.discoveries.iteritems():
+            source_node, rawdata = value
+            disc[key] = rawdata
+        bkmark = {}
+        for key, value in self.bookmarks.iteritems():
+            bkmark[key] = True
+        data = (disc, bkmark)
+        output = open('link_list.dat', 'wb')
+        cPickle.dump(data, output, -1)
+        output.close()
+
+    def load_link_list(self):
+        try:
+            input = open('link_list.dat', 'rb')
+            data = cPickle.load(input)
+            disc, bkmark = data
+        except IOError:
+            log.msg("No link_list.dat found.")
+        except ValueError:
+            log.msg("File link_list.dat incomplete.")
+        except cPickle.UnpicklingError:
+            log.msg("File link_list.dat bad or corrupt.")
+        else:
+            for key, value in disc.iteritems():
+                self.add_link_list(value, key)
+            for key, value in bkmark.iteritems():
+                self.add_bookmark(key)
 
 class CoapBrowserApp(App):
 
@@ -406,19 +539,23 @@ class CoapBrowserApp(App):
         sm = ScreenManager(transition=SlideTransition())
         sm.add_widget(MainScreen(name='controller', protocol=self.protocol, screen_manager=sm))
         sm.add_widget(NodesScreen(name='nodes', screen_manager=sm))
+        print self.get_application_config()
         return sm
 
     def create_protocol(self):
         endpoint = resource.Endpoint(None)
         self.protocol = coap.Coap(endpoint)
-        reactor.listenUDP(61616, self.protocol, interface="::")
-
+        reactor.listenUDP(0, self.protocol, interface="::")
 
     def on_pause(self):
+        self.root.get_screen('nodes').save_link_list()
         return True
 
     def on_resume(self):
         pass
+
+    def on_stop(self):
+        self.root.get_screen('nodes').save_link_list()
 
 if __name__ == '__main__':
     log.startLogging(sys.stdout)
