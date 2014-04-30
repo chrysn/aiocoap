@@ -61,7 +61,7 @@ class BlockResource (resource.CoAPResource):
         return defer.succeed(response)
 
     def render_PUT(self, request):
-        print 'PUT payload: ' + request.payload
+        print('PUT payload: ' + request.payload)
         payload = "Mr. and Mrs. Dursley of number four, Privet Drive, were proud to say that they were perfectly normal, thank you very much."
         response = coap.Message(code=coap.CHANGED, payload=payload)
         return defer.succeed(response)
@@ -93,7 +93,7 @@ class SeparateLargeResource(resource.CoAPResource):
         return d
 
     def responseReady(self, d, request):
-        print 'response ready. sending...'
+        print('response ready. sending...')
         payload = "Three rings for the elven kings under the sky, seven rings for dwarven lords in their halls of stone, nine rings for mortal men doomed to die, one ring for the dark lord on his dark throne."
         response = coap.Message(code=coap.CONTENT, payload=payload)
         d.callback(response)
@@ -107,7 +107,7 @@ class TimeResource(resource.CoAPResource):
         self.notify()
 
     def notify(self):
-        print "i'm trying to send notifications"
+        print("i'm trying to send notifications")
         self.updatedState()
         reactor.callLater(60, self.notify)
 
@@ -139,7 +139,7 @@ class CoreResource(resource.CoAPResource):
         data = []
         self.root.generateResourceList(data, "")
         payload = ",".join(data)
-        print payload
+        print(payload)
         response = coap.Message(code=coap.CONTENT, payload=payload)
         response.opt.content_format = 40
         return defer.succeed(response)

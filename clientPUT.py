@@ -39,7 +39,7 @@ class Agent():
         d.addCallback(self.printResponse)
 
     def printResponse(self, response):
-        print 'Result: ' + response.payload
+        print('Result: ' + response.payload)
 
 logging.basicConfig(level=logging.INFO)
 

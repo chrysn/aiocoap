@@ -72,7 +72,7 @@ class CoreResource(resource.CoAPResource):
         data = []
         self.root.generateResourceList(data, "")
         payload = ",".join(data)
-        print payload
+        print(payload)
         response = coap.Message(code=coap.CONTENT, payload=payload)
         response.opt.content_format = 40
         return defer.succeed(response)

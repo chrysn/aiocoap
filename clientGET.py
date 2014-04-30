@@ -56,19 +56,19 @@ class Agent():
         d.addErrback(self.noResponse)
 
     def printResponse(self, response):
-        print 'Result: ' + response.payload
+        print('Result: ' + response.payload)
         #reactor.stop()
 
     def printLaterResponse(self, response):
-        print 'Newer result: ' + response.payload
+        print('Newer result: ' + response.payload)
 
     def noResponse(self, failure):
-        print 'Failed to fetch resource:'
-        print failure
+        print('Failed to fetch resource:')
+        print(failure)
         #reactor.stop()
 
     def stopObserving(self):
-        print 'Not interested in the resource any more, staying alive for some time to see the observation results bounce back'
+        print('Not interested in the resource any more, staying alive for some time to see the observation results bounce back')
         self.observation.cancel()
 
         reactor.callLater(10, reactor.stop)

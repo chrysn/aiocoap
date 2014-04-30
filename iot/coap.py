@@ -458,7 +458,7 @@ class Options(object):
 
     def _setUriPath(self, segments):
         """Convenience setter: Uri-Path option"""
-        if isinstance(segments, basestring): #For Python >3.1 replace with isinstance(segments,str)
+        if isinstance(segments, str): #For Python >3.1 replace with isinstance(segments,str)
             raise ValueError("URI Path should be passed as a list or tuple of segments")
         self.deleteOption(number=URI_PATH)
         for segment in segments:
@@ -477,7 +477,7 @@ class Options(object):
 
     def _setUriQuery(self, segments):
         """Convenience setter: Uri-Query option"""
-        if isinstance(segments, basestring): #For Python >3.1 replace with isinstance(segments,str)
+        if isinstance(segments, str): #For Python >3.1 replace with isinstance(segments,str)
             raise ValueError("URI Query should be passed as a list or tuple of segments")
         self.deleteOption(number=URI_QUERY)
         for segment in segments:
@@ -736,7 +736,8 @@ class Coap(protocol.DatagramProtocol):
 
         self.log = logging.getLogger(loggername)
 
-    def datagramReceived(self, data, (host, port)):
+    def datagramReceived(self, data, host_and_port):
+        (host, port) = host_and_port
         self.log.debug("received %r from %s:%d" % (data, host, port))
         message = Message.decode(data, (host, port), self)
         if self.deduplicateMessage(message) is True:
@@ -1402,7 +1403,7 @@ class ServerObservation(object):
 
     def trigger(self):
         # bypassing parsing and duplicate detection, pretend the request came in again
-        print "triggering retransmission with original request %r (will set response_type to ACK)"%vars(self.original_request)
+        print("triggering retransmission with original request %r (will set response_type to ACK)"%vars(self.original_request))
         self.original_request.response_type = ACK # trick responder into sending CON
         Responder(self.original_request.protocol, self.original_request)
         ## @TODO pass a callback down to the exchange -- if it gets a RST, we have to unregister
