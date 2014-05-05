@@ -8,8 +8,10 @@ import copy
 import struct
 import collections
 from itertools import chain
+import binascii
 
-from twisted.internet import protocol, defer, reactor
+import asyncio
+
 import logging
 # log levels used:
 # * debug is for things that occur even under perfect conditions.
@@ -272,7 +274,7 @@ media_types_rev = {v:k for k, v in media_types.items()}
 class Message(object):
     """A CoAP Message."""
 
-    def __init__(self, mtype=None, mid=None, code=EMPTY, payload='', token=''):
+    def __init__(self, mtype=None, mid=None, code=EMPTY, payload=b'', token=b''):
         self.version = 1
         self.mtype = mtype
         self.mid = mid
@@ -419,7 +421,7 @@ class Options(object):
             (delta, rawdata) = readExtendedFieldValue(delta, rawdata)
             (length, rawdata) = readExtendedFieldValue(length, rawdata)
             option_number += delta
-            option = option_formats.get(option_number, StringOption)(option_number)
+            option = option_formats.get(option_number, OpaqueOption)(option_number)
             option.decode(rawdata[:length])
             self.addOption(option)
             rawdata = rawdata[length:]
@@ -438,7 +440,7 @@ class Options(object):
             data.append(extended_length)
             data.append(option.encode())
             current_opt_num = option.number
-        return (''.join(data))
+        return (b''.join(data))
 
     def addOption(self, option):
         """Add option into option header."""
@@ -543,7 +545,7 @@ class Options(object):
         """Convenience setter: ETag option"""
         self.deleteOption(number=ETAG)
         if etag is not None:
-            self.addOption(StringOption(number=ETAG, value=etag))
+            self.addOption(OpaqueOption(number=ETAG, value=etag))
 
     def _getETag(self):
         """Convenience getter: ETag option"""
@@ -558,7 +560,7 @@ class Options(object):
     def _setETags(self, etags):
         self.deleteOption(number=ETAG)
         for tag in etags:
-            self.addOption(StringOption(number=ETAG, value=tag))
+            self.addOption(OpaqueOption(number=ETAG, value=tag))
 
     def _getETags(self):
         etag = self.getOption(number=ETAG)
@@ -614,7 +616,7 @@ def writeExtendedFieldValue(value):
        In CoAP option delta and length can be represented by a variable
        number of bytes depending on the value."""
     if value >= 0 and value < 13:
-        return (value, '')
+        return (value, b'')
     elif value >= 13 and value < 269:
         return (13, struct.pack('!B', value - 13))
     elif value >= 269 and value < 65804:
@@ -624,9 +626,28 @@ def writeExtendedFieldValue(value):
 
 
 class StringOption(object):
-    """String CoAP option - used to represent string and opaque options."""
+    """String CoAP option - used to represent string options."""
 
     def __init__(self, number, value=""):
+        self.value = value
+        self.number = number
+
+    def encode(self):
+        # FIXME: actually, this should be utf8 of the net-unicode form (maybe it is)
+        rawdata = self.value.encode('utf-8')
+        return rawdata
+
+    def decode(self, rawdata):
+        self.value = rawdata.decode('utf-8')
+
+    def _length(self):
+        return len(self.value)
+    length = property(_length)
+
+class OpaqueOption(object):
+    """Opaque CoAP option - used to represent opaque options."""
+
+    def __init__(self, number, value=b""):
         self.value = value
         self.number = number
 
@@ -690,13 +711,15 @@ class BlockOption(object):
         self.value = self.BlockwiseTuple(block_number=(as_integer >> 4), more=bool(as_integer & 0x08), size_exponent=(as_integer & 0x07))
 
     def _length(self):
-        return ((self.value[0].bit_length() + 3) / 8 + 1)
+        return ((self.value[0].bit_length() + 3) // 8 + 1)
     length = property(_length)
 
 option_formats = {6: UintOption,
                   7: UintOption,
+                  11: StringOption,
                   12: UintOption,
                   14: UintOption,
+                  15: StringOption,
                   16: UintOption,
                   23: BlockOption,
                   27: BlockOption,
@@ -720,9 +743,9 @@ def uriPathAsString(segment_list):
     return '/' + '/'.join(segment_list)
 
 
-class Coap(protocol.DatagramProtocol):
+class Coap(asyncio.DatagramProtocol):
 
-    def __init__(self, endpoint, loggername="coap"):
+    def __init__(self, endpoint, loop, loggername="coap"):
         """Initialize a CoAP protocol instance."""
         self.message_id = random.randint(0, 65535)
         self.token = random.randint(0, 65535)
@@ -736,7 +759,12 @@ class Coap(protocol.DatagramProtocol):
 
         self.log = logging.getLogger(loggername)
 
-    def datagramReceived(self, data, host_and_port):
+        self.loop = loop
+
+    def connection_made(self, transport):
+        self.transport = transport
+
+    def datagram_received(self, data, host_and_port):
         (host, port) = host_and_port
         self.log.debug("received %r from %s:%d" % (data, host, port))
         message = Message.decode(data, (host, port), self)
@@ -770,7 +798,7 @@ class Coap(protocol.DatagramProtocol):
             return True
         else:
             self.log.debug('New unique message received')
-            expiration = reactor.callLater(EXCHANGE_LIFETIME, self.removeMessageFromRecent, key)
+            expiration = self.loop.call_later(EXCHANGE_LIFETIME, self.removeMessageFromRecent, key)
             self.recent_messages[key] = (message, expiration)
             return False
 
@@ -788,7 +816,7 @@ class Coap(protocol.DatagramProtocol):
                 self.removeExchange(response)
             else:
                 return
-        self.log.debug("Received Response, token: %s, host: %s, port: %s" % (response.token.encode('hex'), response.remote[0], response.remote[1]))
+        self.log.debug("Received Response, token: %s, host: %s, port: %s" % (binascii.b2a_hex(response.token), response.remote[0], response.remote[1]))
         if (response.token, response.remote) in self.outgoing_requests:
             self.outgoing_requests.pop((response.token, response.remote)).handleResponse(response)
             if response.mtype is CON:
@@ -864,7 +892,7 @@ class Coap(protocol.DatagramProtocol):
         if message.mtype is CON:
             self.addExchange(message)
         msg = message.encode()
-        self.transport.write(msg, message.remote)
+        self.transport.sendto(msg, message.remote)
         self.log.debug("Message %r sent successfully" % msg)
 
     def nextMessageID(self):
@@ -878,7 +906,7 @@ class Coap(protocol.DatagramProtocol):
         #TODO: add proper Token handling
         token = self.token
         self.token = (self.token + 1) & 0xffffffffffffffff
-        return ("%08x"%self.token).decode('hex')
+        return binascii.a2b_hex("%08x"%self.token)
 
     def addExchange(self, message):
         """Add an "exchange" for outgoing CON message.
@@ -891,7 +919,7 @@ class Coap(protocol.DatagramProtocol):
 
         timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
         retransmission_counter = 0
-        next_retransmission = reactor.callLater(timeout, self.retransmit, message, timeout, retransmission_counter)
+        next_retransmission = self.loop.call_later(timeout, self.retransmit, message, timeout, retransmission_counter)
         self.active_exchanges[message.mid] = (message, next_retransmission)
         self.log.debug("Exchange added, Message ID: %d." % message.mid)
 
@@ -920,10 +948,10 @@ class Coap(protocol.DatagramProtocol):
         """Retransmit CON message that has not been ACKed or RSTed."""
         self.active_exchanges.pop(message.mid)
         if retransmission_counter < MAX_RETRANSMIT:
-            self.transport.write(message.encode(), message.remote)
+            self.transport.sendto(message.encode(), message.remote)
             retransmission_counter += 1
             timeout *= 2
-            next_retransmission = reactor.callLater(timeout, self.retransmit, message, timeout, retransmission_counter)
+            next_retransmission = self.loop.call_later(timeout, self.retransmit, message, timeout, retransmission_counter)
             self.active_exchanges[message.mid] = (message, next_retransmission)
             self.log.info("Retransmission, Message ID: %d." % message.mid)
         else:
@@ -938,7 +966,7 @@ class Coap(protocol.DatagramProtocol):
            This is a method that should be called by user app."""
         return Requester(self, request, observeCallback, block1Callback, block2Callback,
                          observeCallbackArgs, block1CallbackArgs, block2CallbackArgs,
-                         observeCallbackKeywords, block1CallbackKeywords, block2CallbackKeywords).deferred
+                         observeCallbackKeywords, block1CallbackKeywords, block2CallbackKeywords).response
 
 
 class Requester(object):
@@ -972,11 +1000,11 @@ class Requester(object):
             self.app_request.opt.block1 = request.opt.block1
         else:
             request = self.app_request
-        if request is None:
-            return defer.fail()
-        self.deferred = self.sendRequest(request)
-        self.deferred.addCallback(self.processBlock1InResponse)
-        self.deferred.addCallback(self.processBlock2InResponse)
+
+        self.response = self.sendRequest(request)
+        # ASYNCIO FIXME chained deferreds
+        #self.deferred.add_done_callback(self.processBlock1InResponse)
+        #self.deferred.add_done_callback(self.processBlock2InResponse)
 
     def sendRequest(self, request):
         """Send a request or single request block.
@@ -990,8 +1018,10 @@ class Requester(object):
         def cancelRequest(d):
             """Clean request after cancellation from user application."""
 
-            self.log.debug("Request cancelled")
-            self.protocol.outgoing_requests.pop((request.token, request.remote))
+            if d.cancelled():
+                self.log.debug("Request cancelled")
+                # actually, it might be a good idea to always do this here and nowhere else
+                self.protocol.outgoing_requests.pop((request.token, request.remote))
 
         def timeoutRequest(d):
             """Clean the Request after a timeout."""
@@ -1001,40 +1031,45 @@ class Requester(object):
             d.errback(iot.error.RequestTimedOut())
 
         def gotResult(result):
-            if timeout.active():
-                timeout.cancel()
-            return result
+            timeout.cancel()
 
         if request.mtype is None:
             request.mtype = CON
         request.token = self.protocol.nextToken()
         try:
             self.protocol.sendMessage(request)
-        except:
-            return defer.fail()
+        except Exception as e:
+            f = asyncio.Future()
+            f.set_exception(e)
+            return f
         else:
-            d = defer.Deferred(cancelRequest)
-            timeout = reactor.callLater(REQUEST_TIMEOUT, timeoutRequest, d)
-            d.addBoth(gotResult)
+            d = asyncio.Future()
+            d.add_done_callback(cancelRequest)
+            timeout = self.protocol.loop.call_later(REQUEST_TIMEOUT, timeoutRequest, d)
+            d.add_done_callback(gotResult)
             self.protocol.outgoing_requests[(request.token, request.remote)] = self
-            self.log.debug("Sending request - Token: %s, Host: %s, Port: %s" % (request.token.encode('hex'), request.remote[0], request.remote[1]))
+            self.log.debug("Sending request - Token: %s, Host: %s, Port: %s" % (binascii.b2a_hex(request.token), request.remote[0], request.remote[1]))
             if hasattr(self, 'observation'):
-                d.addCallback(self.registerObservation)
+                d.add_done_callback(self.registerObservation)
             return d
 
     def handleResponse(self, response):
-        d, self.deferred = self.deferred, None
-        d.callback(response)
+        d, self.response = self.response, None
+        d.set_result(response)
 
-    def registerObservation(self, response):
+    def registerObservation(self, response_future):
+        try:
+            response = response_future.result()
+        except Exception as e:
+            observation.error(e)
+            return
+
         if response.opt.observe is None:
             self.observation.error(iot.error.NotObservable())
         else:
             self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
 
-        return response
-
-    def processBlock1InResponse(self, response):
+    def processBlock1InResponse(self, response_future):
         """Process incoming response with regard to Block1 option.
 
            Method is called for all responses, with or without Block1
@@ -1042,6 +1077,8 @@ class Requester(object):
 
            Method is recursive - calls itself until all request blocks
            are sent."""
+
+        raise NotImplementedError("Not ported to asyncio yet")
 
         if response.opt.block1 is not None:
             block1 = response.opt.block1
@@ -1080,10 +1117,10 @@ class Requester(object):
         """Helper method used for sending request blocks."""
         self.log.debug("Sending next block of blockwise request.")
         self.deferred = self.sendRequest(next_block)
-        self.deferred.addCallback(self.processBlock1InResponse)
+        self.deferred.add_done_callback(self.processBlock1InResponse)
         return self.deferred
 
-    def processBlock2InResponse(self, response):
+    def processBlock2InResponse(self, response_future):
         """Process incoming response with regard to Block2 option.
 
            Method is called for all responses, with or without Block2
@@ -1091,6 +1128,9 @@ class Requester(object):
 
            Method is recursive - calls itself until all response blocks
            from server are received."""
+
+        response = response_future.result()
+
         if response.opt.block2 is not None:
             block2 = response.opt.block2
             self.log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
@@ -1109,6 +1149,7 @@ class Requester(object):
             if block2.more is True:
                 request = self.app_request.generateNextBlock2Request(response)
                 block2Callback, args, kw = self.cbs[1]
+                # ASYNCIO FIXME deferred return
                 if block2Callback is None:
                     return self.askForNextResponseBlock(None, request)
                 else:
@@ -1150,9 +1191,11 @@ class Responder(object):
         self.assembled_request = None
         self.app_response = None
         self.log.debug("Request doesn't pertain to earlier blockwise requests.")
-        self.deferred = self.processBlock1InRequest(request)
-        self.deferred.addErrback(self.handleBlock1RequestErrors)
-        self.deferred.addCallback(self.dispatchRequest)
+        self.all_blocks_arrived = asyncio.Future()
+
+        asyncio.Task(self.dispatchRequest(self.all_blocks_arrived))
+
+        self.processBlock1InRequest(request)
 
     def processBlock1InRequest(self, request):
         """Process incoming request with regard to Block1 option.
@@ -1185,26 +1228,41 @@ class Responder(object):
         else:
             if self.assembled_request is not None:
                 self.log.warning("Non-blockwise request received during blockwise transfer. Blockwise transfer cancelled.")
-            return defer.succeed(request)
+            self.all_blocks_arrived.set_result(request)
 
     def acknowledgeRequestBlock(self, request):
         """Helper method used to ask client to send next request block."""
         self.log.debug("Sending block acknowledgement (allowing client to send next block).")
         response = request.generateNextBlock1Response()
         self.deferred = self.sendNonFinalResponse(response, request)
-        self.deferred.addCallback(self.processBlock1InRequest)
+        self.deferred.add_done_callback(self.processBlock1InRequest)
         return self.deferred
 
     def dispatchRequest(self, request):
         """Dispatch incoming request - search endpoint
            resource tree for resource in Uri Path
            and call proper CoAP Method on it."""
+    @asyncio.coroutine
+    def dispatchRequest(self, request_future):
+        """Dispatch incoming request - search endpoint
+           resource tree for resource in Uri Path
+           and call proper CoAP Method on it."""
+
+        try:
+            request = yield from request_future
+        except iot.NotImplementedError as e:
+            """Handle (silently ignore) request errors related
+               to Block1. Currently it's used only to ignore
+               requests which are send non-sequentially"""
+            self.log.error("Block1 assembly on request failed: %r", e)
+            return
+
         #TODO: Request with Block2 option and non-zero block number should get error response
         request.prepath = []
         request.postpath = request.opt.uri_path
         try:
             resource = self.protocol.endpoint.getResourceFor(request)
-            d = resource.render(request)
+            unfinished_response = resource.render(request)
         except iot.error.NoResource:
             self.respondWithError(request, NOT_FOUND, "Error: Resource not found!")
         except iot.error.UnallowedMethod:
@@ -1212,23 +1270,19 @@ class Responder(object):
         except iot.error.UnsupportedMethod:
             self.respondWithError(request, METHOD_NOT_ALLOWED, "Error: Method not recognized!")
         else:
-            delayed_ack = reactor.callLater(EMPTY_ACK_DELAY, self.sendEmptyAck, request)
-            if resource.observable and request.code == GET and request.opt.observe is not None:
-                d.addCallback(self.handleObserve, request, resource)
-            d.addCallback(self.respond, request, delayed_ack)
-            return d
+            delayed_ack = self.protocol.loop.call_later(EMPTY_ACK_DELAY, self.sendEmptyAck, request)
 
-    def handleBlock1RequestErrors(self, err):
-        """Handle (silently ignore) request errors related
-           to Block1. Currently it's used to catch:
-           - NotImplemented - requests which are send non-sequentially
-           - WaitingForClientTimedOut - requests timed out
-        """
-        err.trap(iot.error.NotImplemented, iot.error.WaitingForClientTimedOut)
+            response = yield from unfinished_response
+
+            if resource.observable and request.code == GET and request.opt.observe is not None:
+                self.handleObserve(response, request, resource)
+
+            self.respond(response, request, delayed_ack)
 
     def respondWithError(self, request, code, payload):
         """Helper method to send error response to client."""
-        self.log.info("Sending error response: %s", payload)
+        payload = payload.encode('ascii')
+        self.log.info("Sending error response: %r"%payload)
         response = Message(code=code, payload=payload)
         self.respond(response, request)
         return
@@ -1246,8 +1300,6 @@ class Responder(object):
                 ## @TODO cancel observation
                 pass
 
-            return app_response
-
         if observation_identifier in resource.observers:
             pass ## @TODO renew that observation (but keep in mind that whenever we send a notification, the original message is replayed)
         else:
@@ -1256,8 +1308,6 @@ class Responder(object):
 
         app_response.opt.observe = resource.observe_index
 
-        return app_response
-
 
     def respond(self, app_response, request, delayed_ack=None):
         """Take application-supplied response and prepare it
@@ -1265,25 +1315,24 @@ class Responder(object):
 
         self.log.debug("Preparing response...")
         if delayed_ack is not None:
-            if delayed_ack.active() is True:
-                delayed_ack.cancel()
+            delayed_ack.cancel()
         self.app_response = app_response
         size_exp = min(request.opt.block2.size_exponent if request.opt.block2 is not None else DEFAULT_BLOCK_SIZE_EXP, DEFAULT_BLOCK_SIZE_EXP)
         if len(self.app_response.payload) > (2 ** (size_exp + 4)):
             response = self.app_response.extractBlock(0, size_exp)
             self.app_response.opt.block2 = response.opt.block2
-            return self.sendResponseBlock(response, request)
+            self.sendResponseBlock(response, request)
         else:
             self.sendResponse(app_response, request)
-            return defer.succeed(None)
-        if response is None:
-            return defer.fail()
 
-    def processBlock2InRequest(self, request):
+    def processBlock2InRequest(self, request_future):
         """Process incoming request with regard to Block2 option.
 
            Method is recursive - calls itself until all response blocks
            are sent to client."""
+
+        request = request_future.result()
+
         if request.opt.block2 is not None:
             block2 = request.opt.block2
             self.log.debug("Request with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
@@ -1293,6 +1342,7 @@ class Responder(object):
                 next_block = self.app_response.extractBlock(block2.block_number, block2.size_exponent)
                 if next_block is None:
                     self.log.warning("Block out of range")
+                    # ASYNCIO FIXME deferred return
                     return defer.fail()
                 if next_block.opt.block2.more is True:
                     self.app_response.opt.block2 = next_block.opt.block2
@@ -1310,39 +1360,32 @@ class Responder(object):
         """Helper method to send next response block to client."""
         self.log.debug("Sending response block.")
         self.deferred = self.sendNonFinalResponse(response_block, request)
-        self.deferred.addCallback(self.processBlock2InRequest)
-        self.deferred.addErrback(self.handleBlock2RequestErrors)
+        self.deferred.add_done_callback(self.processBlock2InRequest)
         return self.deferred
-
-    def handleBlock2RequestErrors(self, err):
-        """Handle (silently ignore) request errors related
-           to Block2. Currently it's used only to ignore
-           when client doesn't request next block for a long time"""
-        err.trap(iot.error.WaitingForClientTimedOut)
 
     def sendNonFinalResponse(self, response, request):
         """Helper method to send, a response to client, and setup
            a timeout for client."""
 
         def cancelNonFinalResponse(d):
-            self.log.debug("Waiting for next client request cancelled")
-            self.protocol.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote))
+            if d.cancelled():
+                self.log.debug("Waiting for next client request cancelled")
+                self.protocol.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote))
 
         def timeoutNonFinalResponse(d):
             """Clean the Response after a timeout."""
 
             self.log.info("Waiting for next blockwise request timed out")
             self.protocol.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote))
-            d.errback(iot.error.WaitingForClientTimedOut())
+            d.set_exception(iot.error.WaitingForClientTimedOut())
 
         def gotResult(result):
-            if timeout.active():
-                timeout.cancel()
-            return result
+            timeout.cancel()
 
-        d = defer.Deferred(cancelNonFinalResponse)
-        timeout = reactor.callLater(MAX_TRANSMIT_WAIT, timeoutNonFinalResponse, d)
-        d.addBoth(gotResult)
+        d = asyncio.Future()
+        d.add_done_callback(cancelNonFinalResponse)
+        timeout = self.protocol.loop.call_later(MAX_TRANSMIT_WAIT, timeoutNonFinalResponse, d)
+        d.add_done_callback(gotResult)
         self.protocol.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)] = self
         self.sendResponse(response, request)
         return d

@@ -8,11 +8,9 @@ import random
 import copy
 import sys
 import datetime
+import logging
 
-from twisted.internet import defer
-from twisted.internet.protocol import DatagramProtocol
-from twisted.internet import reactor
-from twisted.python import log
+import asyncio
 
 import iot.resource as resource
 import iot.coap as coap
@@ -35,10 +33,11 @@ class CounterResource (resource.CoAPResource):
         self.visible = True
         self.addParam(resource.LinkParam("title", "Counter resource"))
 
+    @asyncio.coroutine
     def render_GET(self, request):
-        response = coap.Message(code=coap.CONTENT, payload='%d' % (self.counter,))
+        response = coap.Message(code=coap.CONTENT, payload=('%d' % (self.counter,)).encode('ascii'))
         self.counter += 1
-        return defer.succeed(response)
+        return response
 
 
 class BlockResource (resource.CoAPResource):
@@ -55,16 +54,18 @@ class BlockResource (resource.CoAPResource):
         resource.CoAPResource.__init__(self)
         self.visible = True
 
+    @asyncio.coroutine
     def render_GET(self, request):
-        payload=" Now I lay me down to sleep, I pray the Lord my soul to keep, If I shall die before I wake, I pray the Lord my soul to take."
+        payload=" Now I lay me down to sleep, I pray the Lord my soul to keep, If I shall die before I wake, I pray the Lord my soul to take.".encode('ascii')
         response = coap.Message(code=coap.CONTENT, payload=payload)
-        return defer.succeed(response)
+        return response
 
+    @asyncio.coroutine
     def render_PUT(self, request):
         print('PUT payload: ' + request.payload)
-        payload = "Mr. and Mrs. Dursley of number four, Privet Drive, were proud to say that they were perfectly normal, thank you very much."
+        payload = "Mr. and Mrs. Dursley of number four, Privet Drive, were proud to say that they were perfectly normal, thank you very much.".encode('ascii')
         response = coap.Message(code=coap.CHANGED, payload=payload)
-        return defer.succeed(response)
+        return response
 
 
 class SeparateLargeResource(resource.CoAPResource):
@@ -87,16 +88,16 @@ class SeparateLargeResource(resource.CoAPResource):
         self.visible = True
         self.addParam(resource.LinkParam("title", "Large resource."))
 
+    @asyncio.coroutine
     def render_GET(self, request):
-        d = defer.Deferred()
-        reactor.callLater(3, self.responseReady, d, request)
-        return d
+        yield from asyncio.sleep(3)
+        return self.responseReady(request)
 
-    def responseReady(self, d, request):
+    def responseReady(self, request):
         print('response ready. sending...')
-        payload = "Three rings for the elven kings under the sky, seven rings for dwarven lords in their halls of stone, nine rings for mortal men doomed to die, one ring for the dark lord on his dark throne."
+        payload = "Three rings for the elven kings under the sky, seven rings for dwarven lords in their halls of stone, nine rings for mortal men doomed to die, one ring for the dark lord on his dark throne.".encode('ascii')
         response = coap.Message(code=coap.CONTENT, payload=payload)
-        d.callback(response)
+        return response
 
 class TimeResource(resource.CoAPResource):
     def __init__(self):
@@ -109,11 +110,12 @@ class TimeResource(resource.CoAPResource):
     def notify(self):
         print("i'm trying to send notifications")
         self.updatedState()
-        reactor.callLater(60, self.notify)
+        asyncio.get_event_loop().call_later(60, self.notify)
 
+    @asyncio.coroutine
     def render_GET(self, request):
-        response = coap.Message(code=coap.CONTENT, payload=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-        return defer.succeed(response)
+        response = coap.Message(code=coap.CONTENT, payload=datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii'))
+        return response
 
 class CoreResource(resource.CoAPResource):
     """
@@ -135,17 +137,23 @@ class CoreResource(resource.CoAPResource):
         resource.CoAPResource.__init__(self)
         self.root = root
 
+    @asyncio.coroutine
     def render_GET(self, request):
         data = []
         self.root.generateResourceList(data, "")
-        payload = ",".join(data)
-        print(payload)
+        payload = ",".join(data).encode('utf-8')
         response = coap.Message(code=coap.CONTENT, payload=payload)
         response.opt.content_format = 40
-        return defer.succeed(response)
+        return response
+
+# logging setup
+
+logging.getLogger("").setLevel(logging.DEBUG)
+logging.getLogger("asyncio").setLevel(logging.INFO)
+logging.getLogger("coap").setLevel(logging.DEBUG)
+logging.debug("server started")
 
 # Resource tree creation
-log.startLogging(sys.stdout)
 root = resource.CoAPResource()
 
 well_known = resource.CoAPResource()
@@ -168,6 +176,9 @@ other.putChild('block', block)
 separate = SeparateLargeResource()
 other.putChild('separate', separate)
 
+loop = asyncio.get_event_loop()
+
 endpoint = resource.Endpoint(root)
-reactor.listenUDP(coap.COAP_PORT, coap.Coap(endpoint)) #, interface="::")
-reactor.run()
+transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(lambda: coap.Coap(endpoint, loop), ('127.0.0.1', coap.COAP_PORT)))
+
+loop.run_forever()

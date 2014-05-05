@@ -9,13 +9,9 @@ Implementation of the lowest-level Resource class.
 import copy
 import warnings
 
-from zope.interface import Attribute, implements, Interface
-
 import iot.error
 import iot.coap as coap
 from itertools import chain
-from twisted.python.reflect import prefixedMethodNames
-from twisted.web.resource import IResource
 
 
 def getChildForRequest(resource, request):
@@ -34,8 +30,6 @@ class CoAPResource:
     CoAP-accessible resource.
 
     """
-
-    implements(IResource)
 
     #entityType = IResource
 
