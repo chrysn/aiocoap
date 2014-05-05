@@ -754,7 +754,7 @@ class Coap(asyncio.DatagramProtocol):
         self.active_exchanges = {}  # active exchanges i.e. sent CON messages (identified by message ID and remote)
         self.backlogs = {} # per-remote list of backlogged packages (keys exist iff there is an active_exchange with that node)
         self.outgoing_requests = {}  # unfinished outgoing requests (identified by token and remote)
-        self.incoming_requests = {}  # unfinished incoming requests (identified by URL path and remote)
+        self.incoming_requests = {}  # unfinished incoming requests (identified by path tuple and remote)
         self.outgoing_observations = {} # observations where this node is the client. (token, remote) -> ClientObservation
 
         self.log = logging.getLogger(loggername)
@@ -849,9 +849,9 @@ class Coap(asyncio.DatagramProtocol):
             response = Message(code=BAD_REQUEST, payload='Wrong message type for request!')
             self.respond(response, request)
             return
-        if (uriPathAsString(request.opt.uri_path), request.remote) in self.incoming_requests:
+        if (tuple(request.opt.uri_path), request.remote) in self.incoming_requests:
             self.log.debug("Request pertains to earlier blockwise requests.")
-            self.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote)).handleNextRequest(request)
+            self.incoming_requests.pop((tuple(request.opt.uri_path), request.remote)).handleNextRequest(request)
         else:
             responder = Responder(self, request)
 
@@ -1386,7 +1386,7 @@ class Responder(object):
         d.add_done_callback(cancelNonFinalResponse)
         timeout = self.protocol.loop.call_later(MAX_TRANSMIT_WAIT, timeoutNonFinalResponse, d)
         d.add_done_callback(gotResult)
-        self.protocol.incoming_requests[(uriPathAsString(request.opt.uri_path), request.remote)] = self
+        self.protocol.incoming_requests[(tuple(request.opt.uri_path), request.remote)] = self
         self.sendResponse(response, request)
         return d
 
