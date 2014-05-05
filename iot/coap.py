@@ -309,12 +309,12 @@ class Message(object):
         """Create binary representation of message from Message object."""
         if self.mtype is None or self.mid is None:
             raise TypeError("Fatal Error: Message Type and Message ID must not be None.")
-        rawdata = chr((self.version << 6) + ((self.mtype & 0x03) << 4) + (len(self.token) & 0x0F))
+        rawdata = bytes([(self.version << 6) + ((self.mtype & 0x03) << 4) + (len(self.token) & 0x0F)])
         rawdata += struct.pack('!BH', self.code, self.mid)
         rawdata += self.token
         rawdata += self.opt.encode()
         if len(self.payload) > 0:
-            rawdata += chr(0xFF)
+            rawdata += bytes([0xFF])
             rawdata += self.payload
         return rawdata
 
@@ -410,9 +410,9 @@ class Options(object):
         option_number = 0
 
         while len(rawdata) > 0:
-            if ord(rawdata[0]) == 0xFF:
+            if rawdata[0] == 0xFF:
                 return rawdata[1:]
-            dllen = ord(rawdata[0])
+            dllen = rawdata[0]
             delta = (dllen & 0xF0) >> 4
             length = (dllen & 0x0F)
             rawdata = rawdata[1:]
@@ -433,7 +433,7 @@ class Options(object):
         for option in option_list:
             delta, extended_delta = writeExtendedFieldValue(option.number - current_opt_num)
             length, extended_length = writeExtendedFieldValue(option.length)
-            data.append(chr(((delta & 0x0F) << 4) + (length & 0x0F)))
+            data.append(bytes([((delta & 0x0F) << 4) + (length & 0x0F)]))
             data.append(extended_delta)
             data.append(extended_length)
             data.append(option.encode())
@@ -601,7 +601,7 @@ def readExtendedFieldValue(value, rawdata):
     if value >= 0 and value < 13:
         return (value, rawdata)
     elif value == 13:
-        return (ord(rawdata[0]) + 13, rawdata[1:])
+        return (rawdata[0] + 13, rawdata[1:])
     elif value == 14:
         return (struct.unpack('!H', rawdata[:2])[0] + 269, rawdata[2:])
     else:
@@ -651,12 +651,12 @@ class UintOption(object):
 
     def encode(self):
         rawdata = struct.pack("!L", self.value)  # For Python >3.1 replace with int.to_bytes()
-        return rawdata.lstrip(chr(0))
+        return rawdata.lstrip(bytes([0]))
 
     def decode(self, rawdata):  # For Python >3.1 replace with int.from_bytes()
         value = 0
         for byte in rawdata:
-            value = (value * 256) + ord(byte)
+            value = (value * 256) + byte
         self.value = value
         return self
 
@@ -681,12 +681,12 @@ class BlockOption(object):
     def encode(self):
         as_integer = (self.value[0] << 4) + (self.value[1] * 0x08) + self.value[2]
         rawdata = struct.pack("!L", as_integer)  # For Python >3.1 replace with int.to_bytes()
-        return rawdata.lstrip(chr(0))
+        return rawdata.lstrip(bytes([0]))
 
     def decode(self, rawdata):
         as_integer = 0
         for byte in rawdata:
-            as_integer = (as_integer * 256) + ord(byte)
+            as_integer = (as_integer * 256) + byte
         self.value = self.BlockwiseTuple(block_number=(as_integer >> 4), more=bool(as_integer & 0x08), size_exponent=(as_integer & 0x07))
 
     def _length(self):
