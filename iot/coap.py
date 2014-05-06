@@ -218,47 +218,81 @@ responses_rev = {v:k for k, v in responses.items()}
 # txThings conforms to the documents above
 #
 
-IF_MATCH = 1
-URI_HOST = 3
-ETAG = 4
-IF_NONE_MATCH = 5
-OBSERVE = 6
-URI_PORT = 7
-LOCATION_PATH = 8
-URI_PATH = 11
-CONTENT_FORMAT = 12
-MAX_AGE = 14
-URI_QUERY = 15
-ACCEPT = 17
-LOCATION_QUERY = 20
-BLOCK2 = 23
-BLOCK1 = 27
-SIZE2 = 28
-PROXY_URI = 35
-PROXY_SCHEME = 39
-SIZE1 = 60
+# not using the enum module because we might receive unknown options
+class ExtensibleEnumMeta(type):
+    def __init__(self, name, bases, dict):
+        for k, v in dict.items():
+            if k.startswith('_'):
+                continue
+            if callable(v):
+                continue
+            setattr(self, k, self(v))
+        type.__init__(self, name, bases, dict)
 
-options = {1: 'If-Match',
-           3: 'Uri-Host',
-           4: 'ETag',
-           5: 'If-None-Match',
-           6: 'Observe',
-           7: 'Uri-Port',
-           8: 'Location-Path',
-           11: 'Uri-Path',
-           12: 'Content-Format',
-           14: 'Max-Age',
-           15: 'Uri-Query',
-           17: 'Accept',
-           20: 'Location-Query',
-           23: 'Block2',
-           27: 'Block1',
-           28: 'Size2',
-           35: 'Proxy-Uri',
-           39: 'Proxy-Scheme',
-           60: 'Size1'}
+class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
+    def __add__(self, delta):
+        return type(self)(int(self) + delta)
 
-options_rev = {v:k for k, v in options.items()}
+    def __repr__(self):
+        return '<%s %d>'%(type(self).__name__, self)
+
+class OptionNumber(ExtensibleIntEnum):
+    IF_MATCH = 1
+    URI_HOST = 3
+    ETAG = 4
+    IF_NONE_MATCH = 5
+    OBSERVE = 6
+    URI_PORT = 7
+    LOCATION_PATH = 8
+    URI_PATH = 11
+    CONTENT_FORMAT = 12
+    MAX_AGE = 14
+    URI_QUERY = 15
+    ACCEPT = 17
+    LOCATION_QUERY = 20
+    BLOCK2 = 23
+    BLOCK1 = 27
+    SIZE2 = 28
+    PROXY_URI = 35
+    PROXY_SCHEME = 39
+    SIZE1 = 60
+
+    def is_critical(self):
+        return self & 0x01 == 0x01
+
+    def is_elective(self):
+        return not self.is_critical()
+
+    def is_unsafe(self):
+        return self & 0x02 == 0x02
+
+    def is_safetoforward(self):
+        return not self.is_unsafe()
+
+    def is_nocachekey(self):
+        return self & 0x1e != 0x1c
+
+    def is_cachekey(self):
+        return not self.is_nocachekey()
+
+    def _get_format(self):
+        # FIXME: option_formats should be a class attribute or similar, but
+        # currently can't be for initialization sequence reasons
+        return option_formats.get(self, OpaqueOption)
+
+    def create_option(self, decode=None, value=None):
+        """Return an Option element of the appropriate class from this option
+        number.
+
+        An initial value may be set using the decode or value options, and will
+        be fed to the resulting object's decode method or value property,
+        respectively."""
+        option = self._get_format()(self)
+        if decode is not None:
+            option.decode(decode)
+        if value is not None:
+            option.value = value
+        return option
 
 media_types = {0: 'text/plain',
                40: 'application/link-format',
@@ -409,7 +443,7 @@ class Options(object):
 
     def decode(self, rawdata):
         """Decode all options in message from raw binary data."""
-        option_number = 0
+        option_number = OptionNumber(0)
 
         while len(rawdata) > 0:
             if rawdata[0] == 0xFF:
@@ -421,8 +455,7 @@ class Options(object):
             (delta, rawdata) = readExtendedFieldValue(delta, rawdata)
             (length, rawdata) = readExtendedFieldValue(length, rawdata)
             option_number += delta
-            option = option_formats.get(option_number, OpaqueOption)(option_number)
-            option.decode(rawdata[:length])
+            option = option_number.create_option(decode=rawdata[:length])
             self.addOption(option)
             rawdata = rawdata[length:]
         return ''
@@ -462,14 +495,14 @@ class Options(object):
         """Convenience setter: Uri-Path option"""
         if isinstance(segments, str): #For Python >3.1 replace with isinstance(segments,str)
             raise ValueError("URI Path should be passed as a list or tuple of segments")
-        self.deleteOption(number=URI_PATH)
+        self.deleteOption(number=OptionNumber.URI_PATH)
         for segment in segments:
-            self.addOption(StringOption(number=URI_PATH, value=str(segment)))
+            self.addOption(OptionNumber.URI_PATH.create_option(value=str(segment)))
 
     def _getUriPath(self):
         """Convenience getter: Uri-Path option"""
         segment_list = []
-        uri_path = self.getOption(number=URI_PATH)
+        uri_path = self.getOption(number=OptionNumber.URI_PATH)
         if uri_path is not None:
             for segment in uri_path:
                 segment_list.append(segment.value)
@@ -481,14 +514,14 @@ class Options(object):
         """Convenience setter: Uri-Query option"""
         if isinstance(segments, str): #For Python >3.1 replace with isinstance(segments,str)
             raise ValueError("URI Query should be passed as a list or tuple of segments")
-        self.deleteOption(number=URI_QUERY)
+        self.deleteOption(number=OptionNumber.URI_QUERY)
         for segment in segments:
-            self.addOption(StringOption(number=URI_QUERY, value=str(segment)))
+            self.addOption(OptionNumber.URI_QUERY.create_option(value=str(segment)))
 
     def _getUriQuery(self):
         """Convenience getter: Uri-Query option"""
         segment_list = []
-        uri_query = self.getOption(number=URI_QUERY)
+        uri_query = self.getOption(number=OptionNumber.URI_QUERY)
         if uri_query is not None:
             for segment in uri_query:
                 segment_list.append(segment.value)
@@ -498,12 +531,12 @@ class Options(object):
 
     def _setBlock2(self, block_tuple):
         """Convenience setter: Block2 option"""
-        self.deleteOption(number=BLOCK2)
-        self.addOption(BlockOption(number=BLOCK2, value=block_tuple))
+        self.deleteOption(number=OptionNumber.BLOCK2)
+        self.addOption(BlockOption(number=OptionNumber.BLOCK2, value=block_tuple))
 
     def _getBlock2(self):
         """Convenience getter: Block2 option"""
-        block2 = self.getOption(number=BLOCK2)
+        block2 = self.getOption(number=OptionNumber.BLOCK2)
         if block2 is not None:
             return block2[0].value
         else:
@@ -513,12 +546,12 @@ class Options(object):
 
     def _setBlock1(self, block_tuple):
         """Convenience setter: Block1 option"""
-        self.deleteOption(number=BLOCK1)
-        self.addOption(BlockOption(number=BLOCK1, value=block_tuple))
+        self.deleteOption(number=OptionNumber.BLOCK1)
+        self.addOption(OptionNumber.BLOCK1.create_option(value=block_tuple))
 
     def _getBlock1(self):
         """Convenience getter: Block1 option"""
-        block1 = self.getOption(number=BLOCK1)
+        block1 = self.getOption(number=OptionNumber.BLOCK1)
         if block1 is not None:
             return block1[0].value
         else:
@@ -528,12 +561,12 @@ class Options(object):
 
     def _setContentFormat(self, content_format):
         """Convenience setter: Content-Format option"""
-        self.deleteOption(number=CONTENT_FORMAT)
-        self.addOption(UintOption(number=CONTENT_FORMAT, value=content_format))
+        self.deleteOption(number=OptionNumber.CONTENT_FORMAT)
+        self.addOption(OptionNumber.CONTENT_FORMAT.create_option(value=content_format))
 
     def _getContentFormat(self):
         """Convenience getter: Content-Format option"""
-        content_format = self.getOption(number=CONTENT_FORMAT)
+        content_format = self.getOption(number=OptionNumber.CONTENT_FORMAT)
         if content_format is not None:
             return content_format[0].value
         else:
@@ -543,13 +576,13 @@ class Options(object):
 
     def _setETag(self, etag):
         """Convenience setter: ETag option"""
-        self.deleteOption(number=ETAG)
+        self.deleteOption(number=OptionNumber.ETAG)
         if etag is not None:
-            self.addOption(OpaqueOption(number=ETAG, value=etag))
+            self.addOption(OptionNumber.ETAG.create_option(value=etag))
 
     def _getETag(self):
         """Convenience getter: ETag option"""
-        etag = self.getOption(number=ETAG)
+        etag = self.getOption(number=OptionNumber.ETAG)
         if etag is not None:
             return etag[0].value
         else:
@@ -558,23 +591,23 @@ class Options(object):
     etag = property(_getETag, _setETag, None, "Access to a single ETag on the message (as used in responses)")
 
     def _setETags(self, etags):
-        self.deleteOption(number=ETAG)
+        self.deleteOption(number=OptionNumber.ETAG)
         for tag in etags:
-            self.addOption(OpaqueOption(number=ETAG, value=tag))
+            self.addOption(OptionNumber.ETAG.create_option(value=tag))
 
     def _getETags(self):
-        etag = self.getOption(number=ETAG)
+        etag = self.getOption(number=OptionNumber.ETAG)
         return [] if etag is None else [tag.value for tag in etag]
 
     etags = property(_getETags, _setETags, None, "Access to a list of ETags on the message (as used in requests)")
 
     def _setObserve(self, observe):
-        self.deleteOption(number=OBSERVE)
+        self.deleteOption(number=OptionNumber.OBSERVE)
         if observe is not None:
-            self.addOption(UintOption(number=OBSERVE, value=observe))
+            self.addOption(OptionNumber.OBSERVE.create_option(value=observe))
 
     def _getObserve(self):
-        observe = self.getOption(number=OBSERVE)
+        observe = self.getOption(number=OptionNumber.OBSERVE)
         if observe is not None:
             return observe[0].value
         else:
@@ -714,16 +747,16 @@ class BlockOption(object):
         return ((self.value[0].bit_length() + 3) // 8 + 1)
     length = property(_length)
 
-option_formats = {6: UintOption,
-                  7: UintOption,
-                  11: StringOption,
-                  12: UintOption,
-                  14: UintOption,
-                  15: StringOption,
-                  16: UintOption,
-                  23: BlockOption,
-                  27: BlockOption,
-                  28: UintOption}
+option_formats = {OptionNumber.OBSERVE: UintOption,
+                  OptionNumber.URI_PORT: UintOption,
+                  OptionNumber.URI_PATH: StringOption,
+                  OptionNumber.CONTENT_FORMAT: UintOption,
+                  OptionNumber.MAX_AGE: UintOption,
+                  OptionNumber.URI_QUERY: StringOption,
+                  OptionNumber.ACCEPT: UintOption,
+                  OptionNumber.BLOCK2: BlockOption,
+                  OptionNumber.BLOCK1: BlockOption,
+                  OptionNumber.SIZE2: UintOption}
 """Dictionary used to assign option type to option numbers."""
 
 
