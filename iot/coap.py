@@ -93,7 +93,7 @@ EXCHANGE_LIFETIME = MAX_TRANSMIT_SPAN + MAX_RTT
  message to the time when an acknowledgement is no longer expected,
 i.e. message layer information about the message exchange can be purged"""
 
-DEFAULT_BLOCK_SIZE_EXP = 2  # Block size 64
+DEFAULT_BLOCK_SIZE_EXP = 6 # maximum block size 1024
 """Default size exponent for blockwise transfers."""
 
 EMPTY_ACK_DELAY = 0.1
@@ -1029,6 +1029,7 @@ class Requester(object):
             raise ValueError("Message code is not valid for request")
         size_exp = DEFAULT_BLOCK_SIZE_EXP
         if len(self.app_request.payload) > (2 ** (size_exp + 4)):
+            raise Exception("multiblock handling broken, length %s"%len(self.app_request.payload))
             request = self.app_request.extractBlock(0, size_exp)
             self.app_request.opt.block1 = request.opt.block1
         else:
