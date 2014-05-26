@@ -14,7 +14,6 @@ from zope.interface import Attribute, implements, Interface
 import iot.error
 import iot.coap as coap
 from itertools import chain
-from twisted.python import log
 from twisted.python.reflect import prefixedMethodNames
 from twisted.web.resource import IResource
 
