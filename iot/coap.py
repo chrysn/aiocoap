@@ -729,6 +729,7 @@ class Coap(protocol.DatagramProtocol):
         self.endpoint = endpoint
         self.recent_messages = {}  # recently received messages (identified by message ID and remote)
         self.active_exchanges = {}  # active exchanges i.e. sent CON messages (identified by message ID and remote)
+        self.backlogs = {} # per-remote list of backlogged packages (keys exist iff there is an active_exchange with that node)
         self.outgoing_requests = {}  # unfinished outgoing requests (identified by token and remote)
         self.incoming_requests = {}  # unfinished incoming requests (identified by URL path and remote)
         self.observations = {} # outgoing observations. (token, remote) -> callback
@@ -851,10 +852,21 @@ class Coap(protocol.DatagramProtocol):
 
         if message.mid is None:
             message.mid = self.nextMessageID()
-        msg = message.encode()
-        self.transport.write(msg, message.remote)
+
+        self.enqueueForSending(message)
+
+    def enqueueForSending(self, message):
+        if message.remote in self.backlogs:
+            self.log.debug("Message to %s put into backlog"%(message.remote,))
+            self.backlogs[message.remote].append(message)
+        else:
+            self.send(message)
+
+    def send(self, message):
         if message.mtype is CON:
             self.addExchange(message)
+        msg = message.encode()
+        self.transport.write(msg, message.remote)
         self.log.debug("Message %r sent successfully" % msg)
 
     def nextMessageID(self):
@@ -877,6 +889,8 @@ class Coap(protocol.DatagramProtocol):
            retransmitted by protocol until ACK or RST message
            with the same Message ID is received from target host."""
 
+        self.backlogs.setdefault(message.remote, [])
+
         timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
         retransmission_counter = 0
         next_retransmission = reactor.callLater(timeout, self.retransmit, message, timeout, retransmission_counter)
@@ -888,6 +902,21 @@ class Coap(protocol.DatagramProtocol):
            to next retransmission."""
         self.active_exchanges.pop(message.mid)[1].cancel()
         self.log.debug("Exchange removed, Message ID: %d." % message.mid)
+
+        if message.remote not in self.backlogs:
+            # if active exchanges were something we could do a
+            # .register_finally() on, we could chain them like that; if we
+            # implemented anything but NSTART=1, we'll need a more elaborate
+            # system anyway
+            raise AssertionError("backlogs/active_exchange relation violated (implementation error)")
+
+        while not any(m.remote == message.remote for m, t in self.active_exchanges.values()):
+            if self.backlogs[message.remote] != []:
+                next_message = self.backlogs[message.remote].pop(0)
+                self.send(next_message)
+            else:
+                del self.backlogs[message.remote]
+                break
 
     def retransmit(self, message, timeout, retransmission_counter):
         """Retransmit CON message that has not been ACKed or RSTed."""
