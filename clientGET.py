@@ -43,8 +43,8 @@ class Agent():
         #request.opt.uri_path = ('other', 'separate')
         request.opt.uri_path = ('time',)
         request.remote = ("127.0.0.1", coap.COAP_PORT)
-        request.setObserve(self.printLaterResponse)
-        d = protocol.request(request)
+        request.opt.observe = 0
+        d = protocol.request(request, observeCallback=self.printLaterResponse)
         d.addCallback(self.printResponse)
         d.addErrback(self.noResponse)
 
