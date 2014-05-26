@@ -8,11 +8,11 @@ import random
 import copy
 import sys
 
+import logging
 
 from twisted.internet.defer import Deferred
 from twisted.internet.protocol import DatagramProtocol
 from twisted.internet import reactor
-from twisted.python import log
 
 import iot.coap as coap
 import iot.resource as resource
@@ -60,7 +60,7 @@ class Agent():
         print failure
         #reactor.stop()
 
-log.startLogging(sys.stdout)
+logging.basicConfig(level=logging.INFO)
 
 endpoint = resource.Endpoint(None)
 protocol = coap.Coap(endpoint)
