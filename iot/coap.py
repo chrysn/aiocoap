@@ -732,7 +732,7 @@ class Coap(protocol.DatagramProtocol):
         self.backlogs = {} # per-remote list of backlogged packages (keys exist iff there is an active_exchange with that node)
         self.outgoing_requests = {}  # unfinished outgoing requests (identified by token and remote)
         self.incoming_requests = {}  # unfinished incoming requests (identified by URL path and remote)
-        self.observations = {} # outgoing observations. (token, remote) -> callback
+        self.observations = {} # outgoing observations. (token, remote) -> ClientObservation
 
         self.log = logging.getLogger(loggername)
 
@@ -798,10 +798,7 @@ class Coap(protocol.DatagramProtocol):
         elif (response.token, response.remote) in self.observations:
             ## @TODO: deduplication based on observe option value, collecting
             # the rest of the resource if blockwise
-            callback, args, kw = self.observations[(response.token, response.remote)]
-            args = args or ()
-            kw = kw or {}
-            callback(response, *args, **kw)
+            self.observations[(response.token, response.remote)].callback(response)
 
             if response.mtype is CON:
                 #TODO: Some variation of sendEmptyACK should be used (as above)
@@ -810,6 +807,7 @@ class Coap(protocol.DatagramProtocol):
                 self.sendMessage(ack)
 
             if response.opt.observe is None:
+                self.observations[(response.token, response.remote)].error(iot.error.ObservationCancelled())
                 del self.observations[(response.token, response.remote)]
         else:
             self.log.info("Response not recognized - sending RST.")
@@ -960,9 +958,12 @@ class Requester(object):
         assert observeCallback == None or callable(observeCallback)
         assert block1Callback == None or callable(block1Callback)
         assert block2Callback == None or callable(block2Callback)
-        self.cbs = ((observeCallback, observeCallbackArgs, observeCallbackKeywords),
-                    (block1Callback, block1CallbackArgs, block1CallbackKeywords),
+        self.cbs = ((block1Callback, block1CallbackArgs, block1CallbackKeywords),
                     (block2Callback, block2CallbackArgs, block2CallbackKeywords))
+        if app_request.opt.observe is not None:
+            self.observation = ClientObservation(app_request)
+            if observeCallback is not None:
+                self.observation.register_callback(lambda result, cb=observeCallback, args=observeCallbackArgs or (), kwargs=observeCallbackKeywords or {}: cb(result, *args, **kwargs))
         if isRequest(self.app_request.code) is False:
             raise ValueError("Message code is not valid for request")
         size_exp = DEFAULT_BLOCK_SIZE_EXP
@@ -1017,17 +1018,19 @@ class Requester(object):
             d.addBoth(gotResult)
             self.protocol.outgoing_requests[(request.token, request.remote)] = self
             self.log.debug("Sending request - Token: %s, Host: %s, Port: %s" % (request.token.encode('hex'), request.remote[0], request.remote[1]))
-            if request.opt.observe is not None and self.cbs[0][0] is not None:
-                d.addCallback(self.registerObservation, self.cbs[0])
+            if hasattr(self, 'observation'):
+                d.addCallback(self.registerObservation)
             return d
 
     def handleResponse(self, response):
         d, self.deferred = self.deferred, None
         d.callback(response)
 
-    def registerObservation(self, response, callback):
-        if response.opt.observe is not None:
-            self.protocol.observations[(response.token, response.remote)] = callback
+    def registerObservation(self, response):
+        if response.opt.observe is None:
+            self.observation.error(iot.error.NotObservable())
+        else:
+            self.protocol.observations[(response.token, response.remote)] = self.observation
         return response
 
     def processBlock1InResponse(self, response):
@@ -1050,7 +1053,7 @@ class Requester(object):
                     next_block = self.app_request.extractBlock(self.app_request.opt.block1.block_number + 1, block1.size_exponent)
                 if next_block is not None:
                     self.app_request.opt.block1 = next_block.opt.block1
-                    block1Callback, args, kw = self.cbs[1]
+                    block1Callback, args, kw = self.cbs[0]
                     if block1Callback is None:
                         return self.sendNextRequestBlock(None, next_block)
                     else:
@@ -1104,7 +1107,7 @@ class Requester(object):
                     return defer.fail()
             if block2.more is True:
                 request = self.app_request.generateNextBlock2Request(response)
-                block2Callback, args, kw = self.cbs[2]
+                block2Callback, args, kw = self.cbs[1]
                 if block2Callback is None:
                     return self.askForNextResponseBlock(None, request)
                 else:
@@ -1247,7 +1250,7 @@ class Responder(object):
         if observation_identifier in resource.observers:
             pass ## @TODO renew that observation (but keep in mind that whenever we send a notification, the original message is replayed)
         else:
-            obs = Observation(request)
+            obs = ServerObservation(request)
             resource.observers[observation_identifier] = obs
 
         app_response.opt.observe = resource.observe_index
@@ -1386,9 +1389,10 @@ class Responder(object):
         ack = Message(mtype=ACK, code=EMPTY, payload="")
         self.respond(ack, request)
 
-class Observation(object):
-    """An active CoAP observation is described as an Observation object
-    attached to a Resource in .observers[(address, token)].
+class ServerObservation(object):
+    """An active CoAP observation inside a server is described as a
+    ServerObservation object attached to a Resource in .observers[(address,
+    token)].
 
     It keeps a complete copy of the original request for simplicity (while it
     actually would only need parts of that request, like the accept option)."""
@@ -1402,3 +1406,31 @@ class Observation(object):
         self.original_request.response_type = ACK # trick responder into sending CON
         Responder(self.original_request.protocol, self.original_request)
         ## @TODO pass a callback down to the exchange -- if it gets a RST, we have to unregister
+
+class ClientObservation(object):
+    def __init__(self, original_request):
+        self.original_request = original_request
+        self.callbacks = []
+        self.errbacks = []
+
+    def register_callback(self, callback):
+        """Call the callback whenever a response to the message comes in, and
+        pass the response to it."""
+        self.callbacks.append(callback)
+
+    def register_errback(self, callback):
+        """Call the callback whenever something goes wrong with the
+        observation, and pass an exception to the callback."""
+        self.errbacks.append(callback)
+
+    def callback(self, response):
+        """Notify all listeners of an incoming response"""
+
+        for c in self.callbacks:
+            c(response)
+
+    def error(self, exception):
+        """Notify registered listeners that the observation went wrong."""
+
+        for c in self.errbacks:
+            c(exception)

@@ -68,6 +68,16 @@ class MissingBlock2Option(Error):
     but response without Block2 option is received.
     """
 
+class NotObservable(Error):
+    """
+    The server did not accept the request to observe the resource.
+    """
+
+class ObservationCancelled(Error):
+    """
+    The server claimed that it will no longer sustain the observation.
+    """
+
 __all__ = ['Error',
            'NoResource',
            'UnallowedMethod',
