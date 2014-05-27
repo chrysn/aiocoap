@@ -732,7 +732,7 @@ class Coap(protocol.DatagramProtocol):
         self.backlogs = {} # per-remote list of backlogged packages (keys exist iff there is an active_exchange with that node)
         self.outgoing_requests = {}  # unfinished outgoing requests (identified by token and remote)
         self.incoming_requests = {}  # unfinished incoming requests (identified by URL path and remote)
-        self.observations = {} # outgoing observations. (token, remote) -> ClientObservation
+        self.outgoing_observations = {} # observations where this node is the client. (token, remote) -> ClientObservation
 
         self.log = logging.getLogger(loggername)
 
@@ -795,10 +795,10 @@ class Coap(protocol.DatagramProtocol):
                 ack = Message(mtype=ACK, mid=response.mid, code=EMPTY, payload="")
                 ack.remote = response.remote
                 self.sendMessage(ack)
-        elif (response.token, response.remote) in self.observations:
+        elif (response.token, response.remote) in self.outgoing_observations:
             ## @TODO: deduplication based on observe option value, collecting
             # the rest of the resource if blockwise
-            self.observations[(response.token, response.remote)].callback(response)
+            self.outgoing_observations[(response.token, response.remote)].callback(response)
 
             if response.mtype is CON:
                 #TODO: Some variation of sendEmptyACK should be used (as above)
@@ -807,8 +807,7 @@ class Coap(protocol.DatagramProtocol):
                 self.sendMessage(ack)
 
             if response.opt.observe is None:
-                self.observations[(response.token, response.remote)].error(iot.error.ObservationCancelled())
-                del self.observations[(response.token, response.remote)]
+                self.outgoing_observations[(response.token, response.remote)].error(iot.error.ObservationCancelled())
         else:
             self.log.info("Response not recognized - sending RST.")
             rst = Message(mtype=RST, mid=response.mid, code=EMPTY, payload='')
@@ -1030,7 +1029,8 @@ class Requester(object):
         if response.opt.observe is None:
             self.observation.error(iot.error.NotObservable())
         else:
-            self.protocol.observations[(response.token, response.remote)] = self.observation
+            self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
+
         return response
 
     def processBlock1InResponse(self, response):
@@ -1413,6 +1413,8 @@ class ClientObservation(object):
         self.callbacks = []
         self.errbacks = []
 
+        self._registry_data = None
+
     def register_callback(self, callback):
         """Call the callback whenever a response to the message comes in, and
         pass the response to it."""
@@ -1420,7 +1422,8 @@ class ClientObservation(object):
 
     def register_errback(self, callback):
         """Call the callback whenever something goes wrong with the
-        observation, and pass an exception to the callback."""
+        observation, and pass an exception to the callback. After such a
+        callback is called, no more callbacks will be issued."""
         self.errbacks.append(callback)
 
     def callback(self, response):
@@ -1430,7 +1433,40 @@ class ClientObservation(object):
             c(response)
 
     def error(self, exception):
-        """Notify registered listeners that the observation went wrong."""
+        """Notify registered listeners that the observation went wrong. This
+        can only be called once."""
 
         for c in self.errbacks:
             c(exception)
+
+        self.cancel()
+
+    def cancel(self):
+        """Cease to generate observation or error events. This will not
+        generate an error by itself."""
+
+        # make sure things go wrong when someone tries to continue this
+        self.errbacks = None
+        self.callbacks = None
+
+        self._unregister()
+
+    def _register(self, observation_dict, key):
+        """Insert the observation into a dict (observation_dict) at the given
+        key, and store those details for use during cancellation."""
+
+        if key in observation_dict:
+            raise ValueError("Observation conflicts with a registered observation.")
+
+        if self._registry_data is not None:
+            raise ValueError("Already registered.")
+
+        self._registry_data = (observation_dict, key)
+
+        observation_dict[key] = self
+
+    def _unregister(self):
+        """Undo the registration done in _register if it was ever done."""
+
+        if self._registry_data is not None:
+            del self._registry_data[0][self._registry_data[1]]
