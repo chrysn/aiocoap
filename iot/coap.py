@@ -1411,13 +1411,13 @@ class Responder(object):
         def cancelNonFinalResponse(d):
             if d.cancelled():
                 self.log.debug("Waiting for next client request cancelled")
-                self.protocol.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote))
+                self.protocol.incoming_requests.pop((tuple(request.opt.uri_path), request.remote))
 
         def timeoutNonFinalResponse(d):
             """Clean the Response after a timeout."""
 
             self.log.info("Waiting for next blockwise request timed out")
-            self.protocol.incoming_requests.pop((uriPathAsString(request.opt.uri_path), request.remote))
+            self.protocol.incoming_requests.pop((tuple(request.opt.uri_path), request.remote))
             d.set_exception(iot.error.WaitingForClientTimedOut())
 
         def gotResult(result):
