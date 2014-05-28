@@ -328,10 +328,13 @@ class Message(object):
     @classmethod
     def decode(cls, rawdata, remote=None, protocol=None):
         """Create Message object from binary representation of message."""
-        (vttkl, code, mid) = struct.unpack('!BBH', rawdata[:4])
+        try:
+            (vttkl, code, mid) = struct.unpack('!BBH', rawdata[:4])
+        except struct.error:
+            raise iot.error.UnparsableMessage("Incoming message too short for CoAP")
         version = (vttkl & 0xC0) >> 6
         if version is not 1:
-            raise ValueError("Fatal Error: Protocol Version must be 1")
+            raise iot.error.UnparsableMessage("Fatal Error: Protocol Version must be 1")
         mtype = (vttkl & 0x30) >> 4
         token_length = (vttkl & 0x0F)
         msg = Message(mtype=mtype, mid=mid, code=code)
@@ -800,7 +803,11 @@ class Coap(asyncio.DatagramProtocol):
     def datagram_received(self, data, host_and_port):
         (host, port) = host_and_port
         self.log.debug("received %r from %s:%d" % (data, host, port))
-        message = Message.decode(data, (host, port), self)
+        try:
+            message = Message.decode(data, (host, port), self)
+        except iot.error.UnparsableMessage:
+            logging.warning("Ignoring unparsable message from %s:%d"%(host, port))
+            return
         if self.deduplicateMessage(message) is True:
             return
         if isRequest(message.code):

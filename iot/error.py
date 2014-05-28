@@ -78,6 +78,14 @@ class ObservationCancelled(Error):
     The server claimed that it will no longer sustain the observation.
     """
 
+class UnparsableMessage(Error):
+    """
+    An incoming message does not look like CoAP.
+
+    Note that this happens rarely -- the requirements are just two bit at the
+    beginning of the message, and a minimum length.
+    """
+
 __all__ = ['Error',
            'NoResource',
            'UnallowedMethod',
