@@ -619,12 +619,12 @@ class Options(object):
     observe = property(_getObserve, _setObserve)
 
     def _setAccept(self, accept):
-        self.deleteOption(number=ACCEPT)
+        self.deleteOption(number=OptionNumber.ACCEPT)
         if accept is not None:
-            self.addOption(UintOption(number=ACCEPT, value=accept))
+            self.addOption(UintOption(number=OptionNumber.ACCEPT, value=accept))
 
     def _getAccept(self):
-        accept = self.getOption(number=ACCEPT)
+        accept = self.getOption(number=OptionNumber.ACCEPT)
         if accept is not None:
             return accept[0].value
         else:
