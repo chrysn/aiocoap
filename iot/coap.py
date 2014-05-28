@@ -1313,7 +1313,11 @@ class Responder(object):
         else:
             delayed_ack = self.protocol.loop.call_later(EMPTY_ACK_DELAY, self.sendEmptyAck, request)
 
-            response = yield from unfinished_response
+            try:
+                response = yield from unfinished_response
+            except Exception as e:
+                self.log.error("An exception occurred while rendering a resource: %r"%e)
+                response = Message(code=iot.coap.INTERNAL_SERVER_ERROR)
 
             if resource.observable and request.code == GET and request.opt.observe is not None:
                 self.handleObserve(response, request, resource)
