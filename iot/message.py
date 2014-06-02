@@ -10,7 +10,11 @@ class Message(object):
 
     def __init__(self, mtype=None, mid=None, code=EMPTY, payload=b'', token=b''):
         self.version = 1
-        self.mtype = Type(mtype)
+        if mtype is None:
+            # leave it unspecified for convenience, sending functions will know what to do
+            self.mtype = None
+        else:
+            self.mtype = Type(mtype)
         self.mid = mid
         self.code = Code(code)
         self.token = token
