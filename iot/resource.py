@@ -155,9 +155,9 @@ class CoAPResource:
         Old code that overrides render() directly is likewise expected
         to return a string or NOT_DONE_YET.
         """
-        if request.code not in coap.requests:
+        if not request.code.is_request():
             raise iot.error.UnsupportedMethod()
-        m = getattr(self, 'render_' + coap.requests[request.code], None)
+        m = getattr(self, 'render_%s' % request.code, None)
         if not m:
             raise iot.error.UnallowedMethod()
         return m(request)

@@ -608,7 +608,7 @@ class Responder(object):
 
         #TODO: Request with Block2 option and non-zero block number should get error response
         request.prepath = []
-        request.postpath = request.opt.uri_path
+        request.postpath = list(request.opt.uri_path)
         try:
             resource = self.protocol.endpoint.getResourceFor(request)
             unfinished_response = resource.render(request)
