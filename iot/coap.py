@@ -374,11 +374,13 @@ class Requester(object):
         try:
             response = response_future.result()
         except Exception as e:
-            self.observation.error(e)
+            if not self.observation.cancelled:
+                self.observation.error(e)
             return
 
         if response.opt.observe is None:
-            self.observation.error(iot.error.NotObservable())
+            if not self.observation.cancelled:
+                self.observation.error(iot.error.NotObservable())
         else:
             self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
 
@@ -808,6 +810,12 @@ class ClientObservation(object):
         self.callbacks = []
         self.errbacks = []
 
+        # the _register and _unregister pair take care that no responses come
+        # in after cancellation, but they only start after the initial response
+        # (to take care of "resource not observable" errors). while we have
+        # those early errors, we need an explicit cancellation indication.
+        self.cancelled = False
+
         self._registry_data = None
 
     def register_callback(self, callback):
@@ -843,6 +851,8 @@ class ClientObservation(object):
         # make sure things go wrong when someone tries to continue this
         self.errbacks = None
         self.callbacks = None
+
+        self.cancelled = True
 
         self._unregister()
 
