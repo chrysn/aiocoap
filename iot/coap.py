@@ -28,6 +28,7 @@ import logging
 #   changed between blocks).
 
 import iot.error
+from enum import IntEnum
 from .util import ExtensibleIntEnum
 
 COAP_PORT = 5683
@@ -115,85 +116,76 @@ DEFAULT_LEISURE = 5
 
 MULTICAST_REQUEST_TIMEOUT = REQUEST_TIMEOUT + DEFAULT_LEISURE
 
-CON = 0
-"""Confirmable message type."""
+class Type(IntEnum):
+    CON = 0 # Confirmable
+    NON = 1 # Non-confirmable
+    ACK = 2 # Acknowledgement
+    RST = 3 # Reset
 
-NON = 1
-"""Non-confirmable message type."""
+CON, NON, ACK, RST = Type.CON, Type.NON, Type.ACK, Type.RST
 
-ACK = 2
-"""Acknowledgement message type."""
+class Code(ExtensibleIntEnum):
+    EMPTY = 0
+    GET = 1
+    POST = 2
+    PUT = 3
+    DELETE = 4
+    CREATED = 65
+    DELETED = 66
+    VALID = 67
+    CHANGED = 68
+    CONTENT = 69
+    CONTINUE = 95
+    BAD_REQUEST = 128
+    UNAUTHORIZED = 129
+    BAD_OPTION = 130
+    FORBIDDEN = 131
+    NOT_FOUND = 132
+    METHOD_NOT_ALLOWED = 133
+    NOT_ACCEPTABLE = 134
+    REQUEST_ENTITY_INCOMPLETE = 136
+    PRECONDITION_FAILED = 140
+    REQUEST_ENTITY_TOO_LARGE = 141
+    UNSUPPORTED_MEDIA_TYPE = 143
+    INTERNAL_SERVER_ERROR = 160
+    NOT_IMPLEMENTED = 161
+    BAD_GATEWAY = 162
+    SERVICE_UNAVAILABLE = 163
+    GATEWAY_TIMEOUT = 164
+    PROXYING_NOT_SUPPORTED = 165
 
-RST = 3
-"""Reset message type"""
-
-types = {0: 'CON',
-         1: 'NON',
-         2: 'ACK',
-         3: 'RST'}
+    def is_request(code):
+        return True if (code >= 1 and code < 32) else False
 
 
-EMPTY = 0
-GET = 1
-POST = 2
-PUT = 3
-DELETE = 4
-CREATED = 65
-DELETED = 66
-VALID = 67
-CHANGED = 68
-CONTENT = 69
-CONTINUE = 95
-BAD_REQUEST = 128
-UNAUTHORIZED = 129
-BAD_OPTION = 130
-FORBIDDEN = 131
-NOT_FOUND = 132
-METHOD_NOT_ALLOWED = 133
-NOT_ACCEPTABLE = 134
-REQUEST_ENTITY_INCOMPLETE = 136
-PRECONDITION_FAILED = 140
-REQUEST_ENTITY_TOO_LARGE = 141
-UNSUPPORTED_MEDIA_TYPE = 143
-INTERNAL_SERVER_ERROR = 160
-NOT_IMPLEMENTED = 161
-BAD_GATEWAY = 162
-SERVICE_UNAVAILABLE = 163
-GATEWAY_TIMEOUT = 164
-PROXYING_NOT_SUPPORTED = 165
+    def is_response(code):
+        return True if (code >= 64 and code < 192) else False
 
-requests = {1: 'GET',
-            2: 'POST',
-            3: 'PUT',
-            4: 'DELETE'}
 
-requests_rev = {v:k for k, v in requests.items()}
+    def is_successful(code):
+        return True if (code >= 64 and code < 96) else False
 
-responses = {65: '2.01 Created',
-             66: '2.02 Deleted',
-             67: '2.03 Valid',
-             68: '2.04 Changed',
-             69: '2.05 Content',
-             95: '2.31 Continue',
-             128: '4.00 Bad Request',
-             129: '4.01 Unauthorized',
-             130: '4.02 Bad Option',
-             131: '4.03 Forbidden',
-             132: '4.04 Not Found',
-             133: '4.05 Method Not Allowed',
-             134: '4.06 Not Acceptable',
-             136: '4.08 Request Entity Incomplete',
-             140: '4.12 Precondition Failed',
-             141: '4.13 Request Entity Too Large',
-             143: '4.15 Unsupported Media Type',
-             160: '5.00 Internal Server Error',
-             161: '5.01 Not Implemented',
-             162: '5.02 Bad Gateway',
-             163: '5.03 Service Unavailable',
-             164: '5.04 Gateway Timeout',
-             165: '5.05 Proxying Not Supported'}
+    @property
+    def dotted(self):
+        return "%d.%02d"%divmod(self, 32)
 
-responses_rev = {v:k for k, v in responses.items()}
+    @property
+    def name_printable(self):
+        return self.name.replace('_', ' ').title()
+
+    def __str__(self):
+        if self.is_request():
+            return self.name
+        elif self.is_response():
+            return "%s %s"%(self.dotted, self.name_printable)
+        else:
+            return "<Code %d>"%self
+
+    name = property(lambda self: self._name if hasattr(self, "_name") else "(unknown)", lambda self, value: setattr(self, "_name", value))
+
+for k in vars(Code):
+    if isinstance(getattr(Code, k), Code):
+        locals()[k] = getattr(Code, k)
 
 #=============================================================================
 # coap-18, block-14, observe-11
@@ -306,9 +298,9 @@ class Message(object):
 
     def __init__(self, mtype=None, mid=None, code=EMPTY, payload=b'', token=b''):
         self.version = 1
-        self.mtype = mtype
+        self.mtype = Type(mtype)
         self.mid = mid
-        self.code = code
+        self.code = Code(code)
         self.token = token
         self.payload = payload
         self.opt = Options()
@@ -372,7 +364,7 @@ class Message(object):
             block.payload = block.payload[start:end]
             block.mid = None
             more = True if end < len(self.payload) else False
-            if isRequest(block.code):
+            if block.code.is_request():
                 block.opt.block1 = (number, more, size_exp)
             else:
                 block.opt.block2 = (number, more, size_exp)
@@ -381,7 +373,7 @@ class Message(object):
     def appendRequestBlock(self, next_block):
         """Append next block to current request message.
            Used when assembling incoming blockwise requests."""
-        if isRequest(self.code):
+        if self.code.is_request():
             block1 = next_block.opt.block1
             if block1.block_number * (2 ** (block1.size_exponent + 4)) == len(self.payload):
                 self.payload += next_block.payload
@@ -397,7 +389,7 @@ class Message(object):
     def appendResponseBlock(self, next_block):
         """Append next block to current response message.
            Used when assembling incoming blockwise responses."""
-        if isResponse(self.code):
+        if self.code.is_response():
             ## @TODO: check etags for consistency
             block2 = next_block.opt.block2
             if block2.block_number * (2 ** (block2.size_exponent + 4)) != len(self.payload):
@@ -846,17 +838,6 @@ option_formats = {OptionNumber.OBSERVE: UintOption,
 """Dictionary used to assign option type to option numbers."""
 
 
-def isRequest(code):
-    return True if (code >= 1 and code < 32) else False
-
-
-def isResponse(code):
-    return True if (code >= 64 and code < 192) else False
-
-
-def isSuccessful(code):
-    return True if (code >= 64 and code < 96) else False
-
 
 def uriPathAsString(segment_list):
     return '/' + '/'.join(segment_list)
@@ -893,9 +874,9 @@ class Coap(asyncio.DatagramProtocol):
             return
         if self.deduplicateMessage(message) is True:
             return
-        if isRequest(message.code):
+        if message.code.is_request():
             self.processRequest(message)
-        elif isResponse(message.code):
+        elif message.code.is_response():
             self.processResponse(message)
         elif message.code is EMPTY:
             self.processEmpty(message)
@@ -1125,7 +1106,7 @@ class Requester(object):
             self.observation = ClientObservation(app_request)
             if observeCallback is not None:
                 self.observation.register_callback(lambda result, cb=observeCallback, args=observeCallbackArgs or (), kwargs=observeCallbackKeywords or {}: cb(result, *args, **kwargs))
-        if isRequest(self.app_request.code) is False:
+        if self.app_request.code.is_request() is False:
             raise ValueError("Message code is not valid for request")
         size_exp = DEFAULT_BLOCK_SIZE_EXP
         if len(self.app_request.payload) > (2 ** (size_exp + 4)):
@@ -1578,7 +1559,7 @@ class Responder(object):
            - sending blockwise (Block2) response block
            - sending any error response
         """
-        #if isResponse(response.code) is False:
+        #if response.code.is_response() is False:
             #raise ValueError("Message code is not valid for a response.")
         response.token = request.token
         self.log.debug("Sending token: %s" % (response.token))
@@ -1599,7 +1580,7 @@ class Responder(object):
         if response.mid is None:
             if response.mtype in (ACK, RST):
                 response.mid = request.mid
-        self.log.debug("Sending response, type = %s (request type = %s)" % (types[response.mtype], types[request.mtype]))
+        self.log.debug("Sending response, type = %s (request type = %s)" % (response.mtype.name, request.mtype.name))
         self.protocol.sendMessage(response)
 
     def sendEmptyAck(self, request):
