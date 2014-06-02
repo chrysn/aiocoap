@@ -26,8 +26,9 @@ import logging
 #   necessarily indicate a client bug, though; things like requesting a
 #   nonexistent block can just as well happen when a resource's content has
 #   changed between blocks).
-import iot.error
 
+import iot.error
+from .util import ExtensibleIntEnum
 
 COAP_PORT = 5683
 """The IANA-assigned standard port for COAP services."""
@@ -225,24 +226,6 @@ responses_rev = {v:k for k, v in responses.items()}
 # This table should serve as a reference only. It does not confirm that
 # txThings conforms to the documents above
 #
-
-# not using the enum module because we might receive unknown options
-class ExtensibleEnumMeta(type):
-    def __init__(self, name, bases, dict):
-        for k, v in dict.items():
-            if k.startswith('_'):
-                continue
-            if callable(v):
-                continue
-            setattr(self, k, self(v))
-        type.__init__(self, name, bases, dict)
-
-class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
-    def __add__(self, delta):
-        return type(self)(int(self) + delta)
-
-    def __repr__(self):
-        return '<%s %d>'%(type(self).__name__, self)
 
 class OptionNumber(ExtensibleIntEnum):
     IF_MATCH = 1
