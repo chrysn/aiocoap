@@ -338,7 +338,7 @@ class Requester(object):
 
             self.log.info("Request timed out")
             del self.protocol.outgoing_requests[(request.token, request.remote)]
-            d.errback(iot.error.RequestTimedOut())
+            d.set_exception(iot.error.RequestTimedOut())
 
         def gotResult(result):
             timeout.cancel()
@@ -374,7 +374,7 @@ class Requester(object):
         try:
             response = response_future.result()
         except Exception as e:
-            observation.error(e)
+            self.observation.error(e)
             return
 
         if response.opt.observe is None:
