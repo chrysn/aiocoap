@@ -182,7 +182,7 @@ class Message(object):
             path = self.requested_path
         else:
             path = self.opt.uri_path
-        path = '/'.join([""] + path) or '/'
+        path = '/'.join(("",) + path) or '/'
 
         params = "" # are they not there at all?
 
