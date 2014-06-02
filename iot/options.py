@@ -143,3 +143,4 @@ class Options(object):
     accept = _single_value_view(OptionNumber.ACCEPT)
     uri_host = _single_value_view(OptionNumber.URI_HOST)
     uri_port = _single_value_view(OptionNumber.URI_PORT)
+    proxy_uri = _single_value_view(OptionNumber.PROXY_URI)

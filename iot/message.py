@@ -169,7 +169,7 @@ class Message(object):
         # maybe it needs completely separate implementations for requests and
         # responses
 
-        proxy_uri = self.opt.getOption(OptionNumber.PROXY_URI)
+        proxy_uri = self.opt.proxy_uri
 
         if proxy_uri is not None:
             return proxy_uri
