@@ -289,7 +289,7 @@ class Requester(object):
                        observeCallbackArgs, block1CallbackArgs, block2CallbackArgs,
                        observeCallbackKeywords, block1CallbackKeywords, block2CallbackKeywords):
         self.protocol = protocol
-        self.log = self.protocol.log.get_child("requester")
+        self.log = self.protocol.log.getChild("requester")
         self.app_request = app_request
         self.assembled_response = None
         assert observeCallback == None or callable(observeCallback)
@@ -491,7 +491,7 @@ class Requester(object):
 class MulticastRequester(object):
     def __init__(self, protocol, request):
         self.protocol = protocol
-        self.log = self.protocol.log.get_child("requester")
+        self.log = self.protocol.log.getChild("requester")
         self.request = request
 
         if self.request.mtype != NON or self.request.code != GET or self.request.payload:
@@ -536,7 +536,7 @@ class Responder(object):
 
     def __init__(self, protocol, request):
         self.protocol = protocol
-        self.log = self.protocol.log.get_child("requester")
+        self.log = self.protocol.log.getChild("requester")
         self.assembled_request = None
         self.app_response = None
         self.log.debug("Request doesn't pertain to earlier blockwise requests.")
