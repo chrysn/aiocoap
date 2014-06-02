@@ -259,9 +259,15 @@ class OptionNumber(ExtensibleIntEnum):
         return not self.is_nocachekey()
 
     def _get_format(self):
-        # FIXME: option_formats should be a class attribute or similar, but
-        # currently can't be for initialization sequence reasons
-        return option_formats.get(self, OpaqueOption)
+        if hasattr(self, "_format"):
+            return self._format
+        else:
+            return OpaqueOption
+
+    def _set_format(self, value):
+        self._format = value
+
+    format = property(_get_format, _set_format)
 
     def create_option(self, decode=None, value=None):
         """Return an Option element of the appropriate class from this option
@@ -270,7 +276,7 @@ class OptionNumber(ExtensibleIntEnum):
         An initial value may be set using the decode or value options, and will
         be fed to the resulting object's decode method or value property,
         respectively."""
-        option = self._get_format()(self)
+        option = self.format(self)
         if decode is not None:
             option.decode(decode)
         if value is not None:
@@ -825,17 +831,16 @@ class BlockOption(object):
         return ((self.value[0].bit_length() + 3) // 8 + 1)
     length = property(_length)
 
-option_formats = {OptionNumber.OBSERVE: UintOption,
-                  OptionNumber.URI_PORT: UintOption,
-                  OptionNumber.URI_PATH: StringOption,
-                  OptionNumber.CONTENT_FORMAT: UintOption,
-                  OptionNumber.MAX_AGE: UintOption,
-                  OptionNumber.URI_QUERY: StringOption,
-                  OptionNumber.ACCEPT: UintOption,
-                  OptionNumber.BLOCK2: BlockOption,
-                  OptionNumber.BLOCK1: BlockOption,
-                  OptionNumber.SIZE2: UintOption}
-"""Dictionary used to assign option type to option numbers."""
+OptionNumber.OBSERVE.format = UintOption
+OptionNumber.URI_PORT.format = UintOption
+OptionNumber.URI_PATH.format = StringOption
+OptionNumber.CONTENT_FORMAT.format = UintOption
+OptionNumber.MAX_AGE.format = UintOption
+OptionNumber.URI_QUERY.format = StringOption
+OptionNumber.ACCEPT.format = UintOption
+OptionNumber.BLOCK2.format = BlockOption
+OptionNumber.BLOCK1.format = BlockOption
+OptionNumber.SIZE2.format = UintOption
 
 
 
