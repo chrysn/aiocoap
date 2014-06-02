@@ -9,8 +9,12 @@ import struct
 import collections
 from itertools import chain
 import binascii
+import ipaddress
+import urllib
 
 import asyncio
+
+from queuewithend import QueueWithEnd
 
 import logging
 # log levels used:
@@ -105,6 +109,10 @@ REQUEST_TIMEOUT = MAX_TRANSMIT_WAIT
    For human-operated devices it might be preferable to set some small value
    (for example 10 seconds)
    For M2M it's application dependent."""
+
+DEFAULT_LEISURE = 5
+
+MULTICAST_REQUEST_TIMEOUT = REQUEST_TIMEOUT + DEFAULT_LEISURE
 
 CON = 0
 """Confirmable message type."""
@@ -304,6 +312,11 @@ media_types = {0: 'text/plain',
 
 media_types_rev = {v:k for k, v in media_types.items()}
 
+def is_multicast_remote(remote):
+    """Return True if the described remote (typically a (host, port) tuple) needs to be considered a multicast remote."""
+    host = remote[0]
+    address = ipaddress.ip_address(remote[0])
+    return address.is_multicast
 
 class Message(object):
     """A CoAP Message."""
@@ -321,6 +334,15 @@ class Message(object):
         self.remote = None
         self.prepath = None
         self.postpath = None
+
+        # attributes that indicate which request path the response belongs to.
+        # their main purpose is allowing .get_request_uri() to work smoothly, a
+        # feature that is required to resolve links relative to the message.
+        #
+        # both are stored as lists, as they would be accessed for example by
+        # self.opt.uri_path
+        self.requested_path = None
+        self.requested_query = None
 
         if self.payload is None:
             raise TypeError("Payload must not be None. Use empty string instead.")
@@ -437,6 +459,54 @@ class Message(object):
         else:
             response.opt.block1 = (self.opt.block1.block_number, True, self.opt.block1.size_exponent)
         return response
+
+    def get_request_uri(self):
+        """The absolute URI this message belongs to. For requests, this is
+        composed from the remote and options (FIXME: or configured proxy data).
+        For responses, this is stored by the Requester object not only to
+        preserve the request information (which could have been kept by the
+        requesting application), but also because the Requester can know about
+        multicast responses (which would update the host component) and
+        redirects (FIXME do they exist?)."""
+
+        # maybe this function does not belong exactly *here*, but it belongs to
+        # the results of .request(message), which is currently a message itself.
+
+        # FIXME this should follow coap section 6.5 more closely
+
+        # FIXME this tries to look up request-specific attributes in responses,
+        # maybe it needs completely separate implementations for requests and
+        # responses
+
+        proxy_uri = self.opt.getOption(OptionNumber.PROXY_URI)
+
+        if proxy_uri is not None:
+            return proxy_uri
+
+        scheme = self.opt.getOption(OptionNumber.PROXY_SCHEME) or 'coap'
+        host = self.opt.uri_host or self.remote[0]
+        port = self.opt.uri_port or self.remote[1]
+        if port == COAP_PORT:
+            netloc = host
+        else:
+            netloc = "%s:%s"%(host, port)
+
+        if self.requested_path is not None:
+            path = self.requested_path
+        else:
+            path = self.opt.uri_path
+        path = '/'.join([""] + path) or '/'
+
+        params = "" # are they not there at all?
+
+        if self.requested_query is not None:
+            query = self.requested_query
+        else:
+            query = self.opt.getOption(OptionNumber.URI_QUERY) or ()
+        query = "?" + "&".join(query) if query else ""
+        fragment = None
+
+        return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
 
 
 class Options(object):
@@ -604,6 +674,8 @@ class Options(object):
 
     etags = property(_getETags, _setETags, None, "Access to a list of ETags on the message (as used in requests)")
 
+    # FIXME this is largely copy/paste
+
     def _setObserve(self, observe):
         self.deleteOption(number=OptionNumber.OBSERVE)
         if observe is not None:
@@ -631,6 +703,34 @@ class Options(object):
             return None
 
     accept = property(_getAccept, _setAccept)
+
+    def _setUriHost(self, uri_host):
+        self.deleteOption(number=OptionNumber.URI_HOST)
+        if uri_host is not None:
+            self.addOption(StringOption(number=OptionNumber.URI_HOST, value=uri_host))
+
+    def _getUriHost(self):
+        uri_host = self.getOption(number=OptionNumber.URI_HOST)
+        if uri_host is not None:
+            return uri_host[0].value
+        else:
+            return None
+
+    uri_host = property(_getUriHost, _setUriHost)
+
+    def _setUriPort(self, uri_port):
+        self.deleteOption(number=OptionNumber.URI_PORT)
+        if uri_port is not None:
+            self.addOption(IntOption(number=OptionNumber.URI_PORT, value=uri_port))
+
+    def _getUriPort(self):
+        uri_port = self.getOption(number=OptionNumber.URI_PORT)
+        if uri_port is not None:
+            return uri_port[0].value
+        else:
+            return None
+
+    uri_port = property(_getUriPort, _setUriPort)
 
 
 def readExtendedFieldValue(value, rawdata):
@@ -864,6 +964,9 @@ class Coap(asyncio.DatagramProtocol):
                 ack = Message(mtype=ACK, mid=response.mid, code=EMPTY, payload="")
                 ack.remote = response.remote
                 self.sendMessage(ack)
+        elif (response.token, None) in self.outgoing_requests:
+            # that's exactly the `MulticastRequester`s so far
+            self.outgoing_requests[(response.token, None)].handleResponse(response)
         elif (response.token, response.remote) in self.outgoing_observations:
             ## @TODO: deduplication based on observe option value, collecting
             # the rest of the resource if blockwise
@@ -910,6 +1013,10 @@ class Coap(asyncio.DatagramProtocol):
         """Set Message ID, encode and send message.
            Also if message is Confirmable (CON) add Exchange"""
         host, port = message.remote
+
+        if message.mtype == CON and is_multicast_remote(message.remote):
+            raise ValueError("Refusing to send CON message to multicast address")
+
         self.log.debug("Sending message to %s:%d" % (host, port))
         recent_key = (message.mid, message.remote)
         if recent_key in self.recent_messages:
@@ -1008,6 +1115,9 @@ class Coap(asyncio.DatagramProtocol):
                          observeCallbackArgs, block1CallbackArgs, block2CallbackArgs,
                          observeCallbackKeywords, block1CallbackKeywords, block2CallbackKeywords).response
 
+    def multicast_request(self, request):
+        return MulticastRequester(self, request).responses
+
 
 class Requester(object):
     """Class used to handle single outgoing request.
@@ -1095,6 +1205,9 @@ class Requester(object):
             return d
 
     def handleResponse(self, response):
+        response.requested_path = self.app_request.opt.uri_path
+        response.requested_query = self.app_request.opt.getOption(OptionNumber.URI_QUERY) or ()
+
         d, self.response = self.response, None
         d.set_result(response)
 
@@ -1214,8 +1327,42 @@ class Requester(object):
         self.deferred.addCallback(self.processBlock2InResponse)
         return self.deferred
 
+class MulticastRequester(object):
+    def __init__(self, protocol, request):
+        self.protocol = protocol
+        self.log = self.protocol.log.getChild("requester")
+        self.request = request
 
+        if self.request.mtype != NON or self.request.code != GET or self.request.payload:
+            raise ValueError("Multicast currently only supportet for NON GET")
 
+        self.responses = QueueWithEnd()
+        self.sendRequest(request)
+
+    def sendRequest(self, request):
+        request.token = self.protocol.nextToken()
+
+        try:
+            self.protocol.sendMessage(request)
+        except Exception as e:
+            self.responses.set_exception(e)
+            return
+
+        self.protocol.outgoing_requests[(request.token, None)] = self
+        self.log.debug("Sending multicast request - Token: %s, Remote: %s" % (binascii.b2a_hex(request.token), request.remote))
+
+        self.protocol.loop.call_later(MULTICAST_REQUEST_TIMEOUT, self._timeout)
+
+    def handleResponse(self, response):
+        response.requested_path = self.request.opt.uri_path
+        response.requested_query = self.request.opt.getOption(OptionNumber.URI_QUERY) or ()
+
+        # FIXME this should somehow backblock, but it's udp
+        asyncio.async(self.responses.put(response))
+
+    def _timeout(self):
+        self.protocol.outgoing_requests.pop(self.request.token, None)
+        self.responses.finish()
 
 class Responder(object):
     """Class used to handle single incoming request.
