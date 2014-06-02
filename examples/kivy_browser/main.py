@@ -77,7 +77,7 @@ class InvalidURI(Exception):
 class FragmentNotAllowed(Exception):
     """Raised when URI contains fragment marker."""
 
-def parseURI(uri_string):
+def parse_u_r_i(uri_string):
     """
     Parse an URI into five components and set appropriate
     options.
@@ -210,7 +210,7 @@ class MainScreen(Screen):
             content_format = self.method_chooser.content_format_post_field.text
             if content_format in coap.media_types_rev:
                 request.opt.content_format = coap.media_types_rev[content_format]
-        d = parseURI(self.address_bar.text)
+        d = parse_u_r_i(self.address_bar.text)
         d.addCallback(self.send_request, card, request)
         d.addCallback(self.process_response, card)
         d.addErrback(self.print_error, card)
@@ -305,7 +305,7 @@ class MainScreen(Screen):
         card.response_payload.text += "\n[b]ID:[/b] " + hex(card.response.mid)
         card.response_payload.text += "\n[b]Token:[/b] 0x" + card.response.token.encode('hex')
         formatted_options = "\n[b]Options:[/b]"
-        for option in card.response.opt.optionList():
+        for option in card.response.opt.option_list():
             formatted_options += "\n- "
             if option.number in coap.options:
                 formatted_options += coap.options[option.number]

@@ -40,7 +40,7 @@ class TestMessage(unittest.TestCase):
 
 class TestReadExtendedFieldValue(unittest.TestCase):
 
-    def test_readExtendedFieldValue(self):
+    def test_read_extended_field_value(self):
         arguments = ((0, "aaaa"),
                      (0, ""),
                      (1, "aaaa"),
@@ -59,7 +59,7 @@ class TestReadExtendedFieldValue(unittest.TestCase):
                    (25198,""))
 
         for argument, result in zip(arguments, results):
-            self.assertEqual(coap.readExtendedFieldValue(argument[0], argument[1]), result,'wrong result for value : '+ str(argument[0]) + ' , rawdata : ' + argument[1])
+            self.assertEqual(coap.read_extended_field_value(argument[0], argument[1]), result,'wrong result for value : '+ str(argument[0]) + ' , rawdata : ' + argument[1])
 
 
 class TestUintOption(unittest.TestCase):     
@@ -127,16 +127,16 @@ class TestUintOption(unittest.TestCase):
 
 class TestOptions(unittest.TestCase):
                 
-    def test_setUriPath(self):
+    def test_set_uri_path(self):
         opt1 = coap.Options()
         opt1.uri_path = ["core"]
-        self.assertEqual(len(opt1.getOption(coap.URI_PATH)), 1, 'wrong uri_path setter operation for single string argument')
-        self.assertEqual(opt1.getOption(coap.URI_PATH)[0].value, "core", 'wrong uri_path setter operation for single string argument')
+        self.assertEqual(len(opt1.get_option(coap.URI_PATH)), 1, 'wrong uri_path setter operation for single string argument')
+        self.assertEqual(opt1.get_option(coap.URI_PATH)[0].value, "core", 'wrong uri_path setter operation for single string argument')
         opt2 = coap.Options()
         opt2.uri_path = ("core",".well-known")
-        self.assertEqual(len(opt2.getOption(coap.URI_PATH)), 2, 'wrong uri_path setter operation for 2-element tuple argument')
-        self.assertEqual(opt2.getOption(coap.URI_PATH)[0].value, "core", 'wrong uri_path setter operation for 2-element tuple argument')
-        self.assertEqual(opt2.getOption(coap.URI_PATH)[1].value, ".well-known", 'wrong uri_path setter operation for 2-element tuple argument')             
+        self.assertEqual(len(opt2.get_option(coap.URI_PATH)), 2, 'wrong uri_path setter operation for 2-element tuple argument')
+        self.assertEqual(opt2.get_option(coap.URI_PATH)[0].value, "core", 'wrong uri_path setter operation for 2-element tuple argument')
+        self.assertEqual(opt2.get_option(coap.URI_PATH)[1].value, ".well-known", 'wrong uri_path setter operation for 2-element tuple argument')             
         opt3 = coap.Options()
         self.assertRaises(ValueError, setattr, opt3, "uri_path", "core")
                                 

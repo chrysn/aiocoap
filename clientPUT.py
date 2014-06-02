@@ -28,17 +28,17 @@ class Agent():
 
     def __init__(self, protocol):
         self.protocol = protocol
-        reactor.callLater(2, self.putResource)
+        reactor.callLater(2, self.put_resource)
 
-    def putResource(self):
+    def put_resource(self):
         payload = "Poland CAN into space!!! Poland MUST into space!!! Poland WILL into space!!!!"
         request = coap.Message(code=coap.PUT, payload=payload)
         request.opt.uri_path = ("other", "block")
         request.remote = ('127.0.0.1', coap.COAP_PORT)
         d = protocol.request(request)
-        d.addCallback(self.printResponse)
+        d.addCallback(self.print_response)
 
-    def printResponse(self, response):
+    def print_response(self, response):
         print('Result: ' + response.payload)
 
 logging.basicConfig(level=logging.INFO)

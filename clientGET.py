@@ -21,13 +21,13 @@ class Agent():
     port 5683 (official IANA assigned CoAP port), URI "/other/separate".
     Request is sent 2 seconds after initialization.
 
-    Method requestResource constructs the request message to
+    Method request_resource constructs the request message to
     remote endpoint. Then it sends the message using protocol.request().
     A deferred 'd' is returned from this operation.
 
     Deferred 'd' is fired internally by protocol, when complete response is received.
 
-    Method printResponse is added as a callback to the deferred 'd'. This
+    Method print_response is added as a callback to the deferred 'd'. This
     method's main purpose is to act upon received response (here it's simple print).
     """
 
@@ -37,14 +37,14 @@ class Agent():
     @asyncio.coroutine
     def run(self):
         self.completed = asyncio.Future()
-        self.protocol.loop.call_later(2, self.requestResource)
+        self.protocol.loop.call_later(2, self.request_resource)
 
         yield from self.completed
 
         print("Waiting for other results to our observation to arrive")
         yield from asyncio.sleep(40)
 
-    def requestResource(self):
+    def request_resource(self):
         request = coap.Message(code=coap.GET)
         #request.opt.uri_path = ('other', 'separate')
         request.opt.uri_path = ('time',)
@@ -53,32 +53,32 @@ class Agent():
 
         # this would be usually done as self.protocol.request(request, o...),
         # but we need to access the observation to cancel it
-        requester = coap.Requester(self.protocol, request, observeCallback=self.printLaterResponse, block1Callback=None, block2Callback=None, observeCallbackArgs=None, block1CallbackArgs=None, block2CallbackArgs=None, observeCallbackKeywords=None, block1CallbackKeywords=None, block2CallbackKeywords=None)
+        requester = coap.Requester(self.protocol, request, observeCallback=self.print_later_response, block1Callback=None, block2Callback=None, observeCallbackArgs=None, block1CallbackArgs=None, block2CallbackArgs=None, observeCallbackKeywords=None, block1CallbackKeywords=None, block2CallbackKeywords=None)
         self.observation = requester.observation
-        self.protocol.loop.call_later(15, self.stopObserving)
+        self.protocol.loop.call_later(15, self.stop_observing)
         d = requester.response
 
-        d.add_done_callback(self.printResponse)
+        d.add_done_callback(self.print_response)
 
-    def printResponse(self, response_future):
+    def print_response(self, response_future):
         try:
             response = response_future.result()
         except Exception as e:
-            self.noResponse(e)
+            self.no_response(e)
             return
 
         print('Result: %r'%response.payload)
         self.completed.set_result(None)
 
-    def printLaterResponse(self, response):
+    def print_later_response(self, response):
         print('Newer result: %r'%response.payload)
 
-    def noResponse(self, failure):
+    def no_response(self, failure):
         print('Failed to fetch resource:')
         print(failure)
         self.completed.set_result(None)
 
-    def stopObserving(self):
+    def stop_observing(self):
         print('Not interested in the resource any more.')
         self.observation.cancel()
 

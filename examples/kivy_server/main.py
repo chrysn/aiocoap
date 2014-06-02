@@ -39,7 +39,7 @@ class MOTDResource (resource.CoAPResource):
         self.app = app
         self.counter = start
         self.visible = True
-        self.addParam(resource.LinkParam("title", "MOTD resource"))
+        self.add_param(resource.LinkParam("title", "MOTD resource"))
 
     def render_GET(self, request):
         response = coap.Message(code=coap.CONTENT, payload='%s' % str(self.app.messagebox.text))
@@ -70,7 +70,7 @@ class CoreResource(resource.CoAPResource):
 
     def render_GET(self, request):
         data = []
-        self.root.generateResourceList(data, "")
+        self.root.generate_resource_list(data, "")
         payload = ",".join(data)
         print(payload)
         response = coap.Message(code=coap.CONTENT, payload=payload)
@@ -85,12 +85,12 @@ class TwistedServerApp(App):
         root = resource.CoAPResource()
 
         well_known = resource.CoAPResource()
-        root.putChild('.well-known', well_known)
+        root.put_child('.well-known', well_known)
         core = CoreResource(root)
-        well_known.putChild('core', core)
+        well_known.put_child('core', core)
 
         counter = MOTDResource(self, 0)
-        root.putChild('motd', counter)
+        root.put_child('motd', counter)
 
         endpoint = resource.Endpoint(root)
         reactor.listenUDP(coap.COAP_PORT, coap.Coap(endpoint))

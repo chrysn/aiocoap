@@ -14,14 +14,14 @@ import iot.coap as coap
 from itertools import chain
 
 
-def getChildForRequest(resource, request):
+def get_child_for_request(resource, request):
     """
     Traverse resource tree to find who will handle the request.
     """
     while request.postpath and not resource.isLeaf:
         pathElement = request.postpath.pop(0)
         request.prepath.append(pathElement)
-        resource = resource.getChildWithDefault(pathElement, request)
+        resource = resource.get_child_with_default(pathElement, request)
     return resource
 
 
@@ -49,47 +49,47 @@ class CoAPResource:
 
     ### Abstract Collection Interface
 
-    def listStaticNames(self):
+    def list_static_names(self):
         return self.children.keys()
 
-    def listStaticEntities(self):
+    def list_static_entities(self):
         return self.children.items()
 
-    def listNames(self):
-        return self.listStaticNames() + self.listDynamicNames()
+    def list_names(self):
+        return self.list_static_names() + self.list_dynamic_names()
 
-    def listEntities(self):
-        return self.listStaticEntities() + self.listDynamicEntities()
+    def list_entities(self):
+        return self.list_static_entities() + self.list_dynamic_entities()
 
-    def listDynamicNames(self):
+    def list_dynamic_names(self):
         return []
 
-    def listDynamicEntities(self, request=None):
+    def list_dynamic_entities(self, request=None):
         return []
 
-    def getStaticEntity(self, name):
+    def get_static_entity(self, name):
         return self.children.get(name)
 
-    def getDynamicEntity(self, name, request):
+    def get_dynamic_entity(self, name, request):
         if name not in self.children:
-            return self.getChild(name, request)
+            return self.get_child(name, request)
         else:
             return None
 
-    def delEntity(self, name):
+    def del_entity(self, name):
         del self.children[name]
 
-    def reallyPutEntity(self, name, entity):
+    def really_put_entity(self, name, entity):
         self.children[name] = entity
 
     # Concrete HTTP interface
 
-    def getChild(self, path, request):
+    def get_child(self, path, request):
         """
         Retrieve a 'child' resource from me.
 
         Implement this to create dynamic resource generation -- resources which
-        are always available may be registered with self.putChild().
+        are always available may be registered with self.put_child().
 
         This will not be called if the class-level variable 'isLeaf' is set in
         your subclass; instead, the 'postpath' attribute of the request will be
@@ -97,10 +97,10 @@ class CoAPResource:
 
         For example, the URL /foo/bar/baz will normally be::
 
-          | site.resource.getChild('foo').getChild('bar').getChild('baz').
+          | site.resource.get_child('foo').get_child('bar').get_child('baz').
 
         However, if the resource returned by 'bar' has isLeaf set to true, then
-        the getChild call will never be made on it.
+        the get_child call will never be made on it.
 
         @param path: a string, describing the child
 
@@ -109,23 +109,23 @@ class CoAPResource:
         """
         raise iot.error.NoResource
 
-    def getChildWithDefault(self, path, request):
+    def get_child_with_default(self, path, request):
         """
         Retrieve a static or dynamically generated child resource from me.
 
-        First checks if a resource was added manually by putChild, and then
-        call getChild to check for dynamic resources. Only override if you want
+        First checks if a resource was added manually by put_child, and then
+        call get_child to check for dynamic resources. Only override if you want
         to affect behaviour of all child lookups, rather than just dynamic
         ones.
 
         This will check to see if I have a pre-registered child resource of the
-        given name, and call getChild if I do not.
+        given name, and call get_child if I do not.
         """
         if path in self.children:
             return self.children[path]
-        return self.getChild(path, request)
+        return self.get_child(path, request)
 
-    def putChild(self, path, child):
+    def put_child(self, path, child):
         """
         Register a static child.
 
@@ -162,14 +162,14 @@ class CoAPResource:
             raise iot.error.UnallowedMethod()
         return m(request)
 
-    def addParam(self, param):
+    def add_param(self, param):
         self.params.setdefault(param.name, []).append(param)
 
-    def deleteParam(self, name):
+    def delete_param(self, name):
         if name in self.params:
             self.params.pop(name)
 
-    def getParam(self, name):
+    def get_param(self, name):
         return self.params.get(name)
 
     def encode_params(self):
@@ -179,7 +179,7 @@ class CoAPResource:
             data.append(param.encode())
         return (';'.join(data))
 
-    def generateResourceList(self, data, path=""):
+    def generate_resource_list(self, data, path=""):
         params = self.encode_params() + (";obs" if self.observable else "")
         if self.visible is True:
             if path is "":
@@ -187,9 +187,9 @@ class CoAPResource:
             else:
                 data.append('<' + path + '>' + params)
         for key in self.children:
-            self.children[key].generateResourceList(data, path + "/" + key)
+            self.children[key].generate_resource_list(data, path + "/" + key)
 
-    def updatedState(self):
+    def updated_state(self):
         """Call this whenever the resource was updated, and a notification
         should be sent to observers."""
 
@@ -217,7 +217,7 @@ class LinkParam(object):
         return '%s="%s"' % (self.name, self.value)
 
 __all__ = [
-    'IResource', 'getChildForRequest', 'Resource', 'LinkParam']
+    'IResource', 'get_child_for_request', 'Resource', 'LinkParam']
 
 
 class Endpoint():
@@ -238,26 +238,26 @@ class Endpoint():
         #TODO: check this finish method
         request.finish()
 
-    def getChildWithDefault(self, pathEl, request):
+    def get_child_with_default(self, pathEl, request):
         """
-        Emulate a resource's getChild method.
+        Emulate a resource's get_child method.
         """
         request.site = self
-        return self.resource.getChildWithDefault(pathEl, request)
+        return self.resource.get_child_with_default(pathEl, request)
 
-    def getResourceFor(self, request):
+    def get_resource_for(self, request):
         """
         Get a resource for a request.
 
         This iterates through the resource heirarchy, calling
-        getChildWithDefault on each resource it finds for a path element,
+        get_child_with_default on each resource it finds for a path element,
         stopping when it hits an element where isLeaf is true.
         """
         #request.en = self
         # Sitepath is used to determine cookie names between distributed
         # servers and disconnected sites.
         request.sitepath = copy.copy(request.prepath)
-        return getChildForRequest(self.resource, request)
+        return get_child_for_request(self.resource, request)
 
 
 

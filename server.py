@@ -31,7 +31,7 @@ class CounterResource (resource.CoAPResource):
         resource.CoAPResource.__init__(self)
         self.counter = start
         self.visible = True
-        self.addParam(resource.LinkParam("title", "Counter resource"))
+        self.add_param(resource.LinkParam("title", "Counter resource"))
 
     @asyncio.coroutine
     def render_GET(self, request):
@@ -78,7 +78,7 @@ class SeparateLargeResource(resource.CoAPResource):
     Method render_GET returns a deferred. This allows the protocol to
     do other things, while the answer is prepared.
 
-    Method responseReady uses d.callback(response) to "fire" the deferred,
+    Method response_ready uses d.callback(response) to "fire" the deferred,
     and send the response.
     """
     #isLeaf = wTrue
@@ -86,14 +86,14 @@ class SeparateLargeResource(resource.CoAPResource):
     def __init__(self):
         resource.CoAPResource.__init__(self)
         self.visible = True
-        self.addParam(resource.LinkParam("title", "Large resource."))
+        self.add_param(resource.LinkParam("title", "Large resource."))
 
     @asyncio.coroutine
     def render_GET(self, request):
         yield from asyncio.sleep(3)
-        return self.responseReady(request)
+        return self.response_ready(request)
 
-    def responseReady(self, request):
+    def response_ready(self, request):
         print('response ready. sending...')
         payload = "Three rings for the elven kings under the sky, seven rings for dwarven lords in their halls of stone, nine rings for mortal men doomed to die, one ring for the dark lord on his dark throne.".encode('ascii')
         response = coap.Message(code=coap.CONTENT, payload=payload)
@@ -109,7 +109,7 @@ class TimeResource(resource.CoAPResource):
 
     def notify(self):
         print("i'm trying to send notifications")
-        self.updatedState()
+        self.updated_state()
         asyncio.get_event_loop().call_later(60, self.notify)
 
     @asyncio.coroutine
@@ -140,7 +140,7 @@ class CoreResource(resource.CoAPResource):
     @asyncio.coroutine
     def render_GET(self, request):
         data = []
-        self.root.generateResourceList(data, "")
+        self.root.generate_resource_list(data, "")
         payload = ",".join(data).encode('utf-8')
         response = coap.Message(code=coap.CONTENT, payload=payload)
         response.opt.content_format = 40
@@ -157,24 +157,24 @@ logging.debug("server started")
 root = resource.CoAPResource()
 
 well_known = resource.CoAPResource()
-root.putChild('.well-known', well_known)
+root.put_child('.well-known', well_known)
 core = CoreResource(root)
-well_known.putChild('core', core)
+well_known.put_child('core', core)
 
 counter = CounterResource(5000)
-root.putChild('counter', counter)
+root.put_child('counter', counter)
 
 time = TimeResource()
-root.putChild('time', time)
+root.put_child('time', time)
 
 other = resource.CoAPResource()
-root.putChild('other', other)
+root.put_child('other', other)
 
 block = BlockResource()
-other.putChild('block', block)
+other.put_child('block', block)
 
 separate = SeparateLargeResource()
-other.putChild('separate', separate)
+other.put_child('separate', separate)
 
 loop = asyncio.get_event_loop()
 

@@ -70,7 +70,7 @@ class Message(object):
             rawdata += self.payload
         return rawdata
 
-    def extractBlock(self, number, size_exp):
+    def extract_block(self, number, size_exp):
         """Extract block from current message."""
         size = 2 ** (size_exp + 4)
         start = number * size
@@ -86,7 +86,7 @@ class Message(object):
                 block.opt.block2 = (number, more, size_exp)
             return block
 
-    def appendRequestBlock(self, next_block):
+    def append_request_block(self, next_block):
         """Append next block to current request message.
            Used when assembling incoming blockwise requests."""
         if self.code.is_request():
@@ -100,9 +100,9 @@ class Message(object):
             else:
                 raise iot.error.NotImplemented()
         else:
-            raise ValueError("Fatal Error: called appendRequestBlock on non-request message!!!")
+            raise ValueError("Fatal Error: called append_request_block on non-request message!!!")
 
-    def appendResponseBlock(self, next_block):
+    def append_response_block(self, next_block):
         """Append next block to current response message.
            Used when assembling incoming blockwise responses."""
         if self.code.is_response():
@@ -119,9 +119,9 @@ class Message(object):
             self.token = next_block.token
             self.mid = next_block.mid
         else:
-            raise ValueError("Fatal Error: called appendResponseBlock on non-response message!!!")
+            raise ValueError("Fatal Error: called append_response_block on non-response message!!!")
 
-    def generateNextBlock2Request(self, response):
+    def generate_next_block2_request(self, response):
         """Generate a request for next response block.
            This method is used by client after receiving
            blockwise response from server with "more" flag set."""
@@ -134,11 +134,11 @@ class Message(object):
             request.opt.block2 = (new_block_number, False, new_size_exponent)
         else:
             request.opt.block2 = (response.opt.block2.block_number + 1, False, response.opt.block2.size_exponent)
-        request.opt.deleteOption(BLOCK1)
-        request.opt.deleteOption(OBSERVE)
+        request.opt.delete_option(BLOCK1)
+        request.opt.delete_option(OBSERVE)
         return request
 
-    def generateNextBlock1Response(self):
+    def generate_next_block1_response(self):
         """Generate a response to acknowledge incoming request block.
            This method is used by server after receiving
            blockwise request from client with "more" flag set."""
@@ -174,7 +174,7 @@ class Message(object):
         if proxy_uri is not None:
             return proxy_uri
 
-        scheme = self.opt.getOption(OptionNumber.PROXY_SCHEME) or 'coap'
+        scheme = self.opt.get_option(OptionNumber.PROXY_SCHEME) or 'coap'
         host = self.opt.uri_host or self.remote[0]
         port = self.opt.uri_port or self.remote[1]
         if port == COAP_PORT:
@@ -193,7 +193,7 @@ class Message(object):
         if self.requested_query is not None:
             query = self.requested_query
         else:
-            query = self.opt.getOption(OptionNumber.URI_QUERY) or ()
+            query = self.opt.get_option(OptionNumber.URI_QUERY) or ()
         query = "?" + "&".join(query) if query else ""
         fragment = None
 
