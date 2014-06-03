@@ -83,7 +83,9 @@ class Options(object):
         self._options = {}
 
     def decode(self, rawdata):
-        """Decode all options in message from raw binary data."""
+        """Passed a CoAP message body after the token as rawdata, fill self
+        with the options starting at the beginning of rawdata, an return the
+        rest of the message (the body)."""
         option_number = OptionNumber(0)
 
         while len(rawdata) > 0:
@@ -99,7 +101,7 @@ class Options(object):
             option = option_number.create_option(decode=rawdata[:length])
             self.add_option(option)
             rawdata = rawdata[length:]
-        return ''
+        return b''
 
     def encode(self):
         """Encode all options in option header into string of bytes."""
