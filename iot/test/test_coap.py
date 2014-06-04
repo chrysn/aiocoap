@@ -1,8 +1,11 @@
-'''
-Created on 16-10-2012
+# This file is part of the txThings project.
+#
+# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
+#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+#
+# txThings is free software, this file is published under the MIT license as
+# described in the accompanying LICENSE file.
 
-@author: Maciek
-'''
 from twisted.trial import unittest
 import iot.coap as coap
 import struct
