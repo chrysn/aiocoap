@@ -15,6 +15,7 @@ setup(
     author_email=", c.amsuess@energyharvesting.at",
 
     command_options={
+        # currently does not do the apidoc automatic stuff; run `python3.4 =sphinx-apidoc -f -e -o doc iot` to add the .rst files but don't check them in
         'build_sphinx': {
             'project': ('setup.py', name),
             'version': ('setup.py', version),
