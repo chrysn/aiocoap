@@ -10,7 +10,7 @@ import ipaddress
 
 import asyncio
 
-from queuewithend import QueueWithEnd
+from .util.queuewithend import QueueWithEnd
 
 import logging
 # log levels used:
