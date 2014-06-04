@@ -1,7 +1,40 @@
+import abc
 import collections
 import struct
 
-class StringOption(object):
+class OptionType(metaclass=abc.ABCMeta):
+    """Interface for decoding and encoding option values
+
+    Instances of `OptionType`s are collected in a list in a Message.opt Options
+    object, and provide a translation between the CoAP octet-stream (accessed
+    using the `encode()`/`decode()` method pair) and the interpreted value
+    (accessed via the `value` attribute).
+
+    Note that OptionType objects usually don't need to be handled by library
+    users; the recommended way to read and set options is via the Options
+    object'sproperties (eg. `message.opt.uri_path = ('.well-known',
+    'core')`)."""
+
+    @abc.abstractmethod
+    def __init__(self, number, value):
+        self.name = name
+        self.value = value
+
+    @abc.abstractmethod
+    def encode(self):
+        """Return the option's value in serialzied form"""
+
+    @abc.abstractmethod
+    def decode(self, rawdata):
+        """Set the option's value from the bytes in rawdata"""
+
+    @property
+    def length(self):
+        """Indicate the length of the encoded value"""
+
+        return len(self.encode())
+
+class StringOption(OptionType):
     """String CoAP option - used to represent string options."""
 
     def __init__(self, number, value=""):
@@ -17,10 +50,10 @@ class StringOption(object):
         self.value = rawdata.decode('utf-8')
 
     def _length(self):
-        return len(self.value)
+        return len(self.value.encode('utf-8'))
     length = property(_length)
 
-class OpaqueOption(object):
+class OpaqueOption(OptionType):
     """Opaque CoAP option - used to represent opaque options."""
 
     def __init__(self, number, value=b""):
@@ -39,7 +72,7 @@ class OpaqueOption(object):
     length = property(_length)
 
 
-class UintOption(object):
+class UintOption(OptionType):
     """Uint CoAP option - used to represent uint options."""
 
     def __init__(self, number, value=0):
@@ -65,7 +98,7 @@ class UintOption(object):
     length = property(_length)
 
 
-class BlockOption(object):
+class BlockOption(OptionType):
     """Block CoAP option - special option used only for Block1 and Block2 options.
        Currently it is the only type of CoAP options that has
        internal structure."""
