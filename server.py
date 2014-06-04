@@ -179,6 +179,6 @@ other.put_child('separate', separate)
 loop = asyncio.get_event_loop()
 
 endpoint = resource.Endpoint(root)
-transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(lambda: coap.Coap(endpoint, loop), ('127.0.0.1', coap.COAP_PORT)))
+transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(lambda: coap.CoAP(endpoint, loop), ('127.0.0.1', coap.COAP_PORT)))
 
 loop.run_forever()

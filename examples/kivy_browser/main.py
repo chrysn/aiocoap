@@ -532,7 +532,7 @@ class NodesScreen(Screen):
             for key, value in bkmark.iteritems():
                 self.add_bookmark(key)
 
-class CoapBrowserApp(App):
+class CoAPBrowserApp(App):
 
     def build(self):
         self.create_protocol()
@@ -544,7 +544,7 @@ class CoapBrowserApp(App):
 
     def create_protocol(self):
         endpoint = resource.Endpoint(None)
-        self.protocol = coap.Coap(endpoint)
+        self.protocol = coap.CoAP(endpoint)
         reactor.listenUDP(0, self.protocol, interface="::")
 
     def on_pause(self):
@@ -559,7 +559,7 @@ class CoapBrowserApp(App):
 
 if __name__ == '__main__':
     log.startLogging(sys.stdout)
-    CoapBrowserApp().run()
+    CoAPBrowserApp().run()
 
 
 

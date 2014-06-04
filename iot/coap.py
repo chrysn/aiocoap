@@ -29,7 +29,7 @@ from .numbers import *
 from .message import Message
 
 
-class Coap(asyncio.DatagramProtocol):
+class CoAP(asyncio.DatagramProtocol):
 
     def __init__(self, endpoint, loop, loggername="coap"):
         """Initialize a CoAP protocol instance."""
