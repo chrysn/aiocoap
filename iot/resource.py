@@ -223,9 +223,6 @@ class LinkParam(object):
     def encode(self):
         return '%s="%s"' % (self.name, self.value)
 
-__all__ = [
-    'IResource', 'get_child_for_request', 'Resource', 'LinkParam']
-
 
 class Endpoint():
 
