@@ -6,6 +6,14 @@
 # txThings is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
+"""This module contains the classes that are responsible for keeping track of messages:
+
+* :class:`CoAP` represents the CoAP endpoint (basically a UDP socket)
+* a :class:`Requester` gets generated whenever a request gets sent to keep
+  track of the response
+* a :class:`Responder` keeps track of a single incoming request
+"""
+
 import random
 import struct
 import binascii
