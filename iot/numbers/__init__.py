@@ -1,3 +1,6 @@
+"""Module in which all meaningful numbers are collected. Most of the submodules
+correspond to IANA registries."""
+
 from . import constants, types, codes
 from .constants import *
 from .types import *

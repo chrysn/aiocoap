@@ -1,6 +1,21 @@
+"""List of known values for the CoAP "Code" field.
+
+The values in this module correspond to the IANA registry "CoRE Parameters",
+subregistries "CoAP Method Codes" and "CoAP Response Codes".
+
+The codes come with methods that can be used to get their rough meaning, see
+the `Code` class for details.
+"""
+
 from ..util import ExtensibleIntEnum
 
 class Code(ExtensibleIntEnum):
+    """Value for the CoAP "Code" field.
+
+    As the number range for the code values is separated, the rough meaning of
+    a code can be determined using the `is_request`, `is_response` and
+    `is_successful` methods."""
+
     EMPTY = 0
     GET = 1
     POST = 2

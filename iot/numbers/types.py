@@ -1,3 +1,9 @@
+"""List of known values for the CoAP "Type" field.
+
+As this field is only 2 bits, its valid values are comprehensively enumerated
+in the `Type` object.
+"""
+
 from enum import IntEnum
 
 class Type(IntEnum):

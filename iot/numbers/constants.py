@@ -1,3 +1,8 @@
+"""Constants either defined in the CoAP protocol (often default values for lack
+of ways to determine eg. the estimated round trip time). Some parameters are
+invented here for practical purposes of the implementation (eg.
+DEFAULT_BLOCK_SIZE_EXP, EMPTY_ACK_DELAY)."""
+
 COAP_PORT = 5683
 """The IANA-assigned standard port for COAP services."""
 

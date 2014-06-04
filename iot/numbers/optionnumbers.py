@@ -1,3 +1,12 @@
+"""Known values for CoAP option numbers
+
+The values defined in `OptionNumber` correspond to the IANA registry "CoRE
+Parameters", subregistries "CoAP Method Codes" and "CoAP Response Codes".
+
+The option numbers come with methods that can be used to evaluate their
+properties, see the `OptionNumber` class for details.
+"""
+
 from ..util import ExtensibleIntEnum
 from .. import optiontypes
 
@@ -34,6 +43,15 @@ from .. import optiontypes
 #
 
 class OptionNumber(ExtensibleIntEnum):
+    """A CoAP option number.
+
+    As the option number contains information on whether the option is
+    critical, and whether it is safe-to-forward, those properties can be
+    queried using the `is_*` group of methods.
+
+    Note that whether an option may be repeated or not does not only depend on
+    the option, but also on the context, and is thus handled in the `Options`
+    object instead."""
     IF_MATCH = 1
     URI_HOST = 3
     ETAG = 4
@@ -96,6 +114,11 @@ class OptionNumber(ExtensibleIntEnum):
         if value is not None:
             option.value = value
         return option
+
+# TODO: set format OpaqueOption for options where it is expected to be used
+# even though it is the default value; thus, developers can rely on it to
+# persist (as opposed to formats of unknown options, which might later be
+# added).
 
 OptionNumber.OBSERVE.format = optiontypes.UintOption
 OptionNumber.URI_PORT.format = optiontypes.UintOption
