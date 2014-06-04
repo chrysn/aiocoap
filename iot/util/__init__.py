@@ -1,3 +1,5 @@
+"""Tools not directly related with CoAP that are needed to provide the API"""
+
 class ExtensibleEnumMeta(type):
     """Metaclass for ExtensibleIntEnum, see there for detailed explanations"""
     def __init__(self, name, bases, dict):
