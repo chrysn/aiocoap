@@ -30,7 +30,7 @@ def _write_extended_field_value(value):
         raise ValueError("Value out of range.")
 
 
-def _single_value_view(option_number):
+def _single_value_view(option_number, doc=None):
     """Generate a property for a given option number, where the option is not
     repeatable. For getting, it will return the value of the first option
     object with matching number. For setting, it will remove all options with
@@ -56,9 +56,9 @@ def _single_value_view(option_number):
     def _deleter(self, value, option_number=option_number):
         self.delete_option(option_number)
 
-    return property(_getter, _setter, _deleter, "Single-value view on the %s option."%option_number)
+    return property(_getter, _setter, _deleter, doc or "Single-value view on the %s option."%option_number)
 
-def _items_view(option_number):
+def _items_view(option_number, doc=None):
     """Generate a property for a given option number, where the option is
     repeatable. For getting, it will return a tuple of the values of the option
     objects with matching number. For setting, it will remove all options with
@@ -75,7 +75,7 @@ def _items_view(option_number):
     def _deleter(self, value, option_number=option_number):
         self.delete_option(option_number)
 
-    return property(_getter, _setter, doc="Iterable view on the %s option."%option_number)
+    return property(_getter, _setter, doc=doc or "Iterable view on the %s option."%option_number)
 
 class Options(object):
     """Represent CoAP Header Options."""
@@ -139,8 +139,8 @@ class Options(object):
     block2 = _single_value_view(OptionNumber.BLOCK2)
     block1 = _single_value_view(OptionNumber.BLOCK1)
     content_format = _single_value_view(OptionNumber.CONTENT_FORMAT)
-    etag = _single_value_view(OptionNumber.ETAG) # used in responses
-    etags = _items_view(OptionNumber.ETAG) # used in requests
+    etag = _single_value_view(OptionNumber.ETAG, "Single ETag as used in responses")
+    etags = _items_view(OptionNumber.ETAG, "List of ETags as used in requests")
     observe = _single_value_view(OptionNumber.OBSERVE)
     accept = _single_value_view(OptionNumber.ACCEPT)
     uri_host = _single_value_view(OptionNumber.URI_HOST)

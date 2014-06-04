@@ -1,4 +1,5 @@
 class ExtensibleEnumMeta(type):
+    """Metaclass for ExtensibleIntEnum, see there for detailed explanations"""
     def __init__(self, name, bases, dict):
         self._value2member_map_ = {}
         for k, v in dict.items():
