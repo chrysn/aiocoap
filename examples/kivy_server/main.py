@@ -92,7 +92,7 @@ class TwistedServerApp(App):
         counter = MOTDResource(self, 0)
         root.put_child('motd', counter)
 
-        endpoint = resource.Endpoint(root)
+        endpoint = resource.Site(root)
         reactor.listenUDP(coap.COAP_PORT, coap.CoAP(endpoint))
 
         # Kivy screen initialization

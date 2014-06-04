@@ -46,7 +46,7 @@ class Agent():
 
 logging.basicConfig(level=logging.INFO)
 
-endpoint = resource.Endpoint(None)
+endpoint = resource.Site(None)
 protocol = coap.CoAP(endpoint)
 client = Agent(protocol)
 

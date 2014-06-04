@@ -224,14 +224,12 @@ class LinkParam(object):
         return '%s="%s"' % (self.name, self.value)
 
 
-class Endpoint():
-
-    counter = 0
+class Site():
+    """Root element that gets passed to a :class:`CoAP` endpoint and contains
+    all the resources that can be found when the endpoint gets accessed as a
+    server."""
 
     def __init__(self, root_resource):
-        """
-        Initialize endpoint.
-        """
         self.resource = root_resource
 
     def render(self, request):

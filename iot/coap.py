@@ -42,11 +42,11 @@ from .message import Message
 
 class CoAP(asyncio.DatagramProtocol):
 
-    def __init__(self, endpoint, loop, loggername="coap"):
+    def __init__(self, serversite, loop, loggername="coap"):
         """Initialize a CoAP protocol instance."""
         self.message_id = random.randint(0, 65535)
         self.token = random.randint(0, 65535)
-        self.endpoint = endpoint
+        self.serversite = serversite
         self.recent_messages = {}  # recently received messages (identified by message ID and remote)
         self.active_exchanges = {}  # active exchanges i.e. sent CON messages (identified by message ID and remote)
         self.backlogs = {} # per-remote list of backlogged packages (keys exist iff there is an active_exchange with that node)
@@ -612,7 +612,7 @@ class Responder(object):
         request.prepath = []
         request.postpath = list(request.opt.uri_path)
         try:
-            resource = self.protocol.endpoint.get_resource_for(request)
+            resource = self.protocol.serversite.get_resource_for(request)
             unfinished_response = resource.render(request)
         except iot.error.NoResource:
             self.respond_with_error(request, NOT_FOUND, "Error: Resource not found!")

@@ -543,7 +543,7 @@ class CoAPBrowserApp(App):
         return sm
 
     def create_protocol(self):
-        endpoint = resource.Endpoint(None)
+        endpoint = resource.Site(None)
         self.protocol = coap.CoAP(endpoint)
         reactor.listenUDP(0, self.protocol, interface="::")
 
