@@ -198,3 +198,8 @@ class Message(object):
         fragment = None
 
         return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
+
+    def has_multicast_remote(remote):
+        """Return True if the message's remote needs to be considered a multicast remote."""
+        address = ipaddress.ip_address(self.remote[0])
+        return address.is_multicast

@@ -28,15 +28,6 @@ import iot.error
 from .numbers import *
 from .message import Message
 
-def is_multicast_remote(remote):
-    """Return True if the described remote (typically a (host, port) tuple) needs to be considered a multicast remote."""
-    host = remote[0]
-    address = ipaddress.ip_address(remote[0])
-    return address.is_multicast
-
-def uri_path_as_string(segment_list):
-    return '/' + '/'.join(segment_list)
-
 
 class Coap(asyncio.DatagramProtocol):
 
@@ -173,7 +164,7 @@ class Coap(asyncio.DatagramProtocol):
            Also if message is Confirmable (CON) add Exchange"""
         host, port = message.remote
 
-        if message.mtype == CON and is_multicast_remote(message.remote):
+        if message.mtype == CON and message.has_multicast_remote():
             raise ValueError("Refusing to send CON message to multicast address")
 
         self.log.debug("Sending message to %s:%d" % (host, port))
