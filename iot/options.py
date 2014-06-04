@@ -2,7 +2,7 @@ from itertools import chain
 
 from .numbers import *
 
-def read_extended_field_value(value, rawdata):
+def _read_extended_field_value(value, rawdata):
     """Used to decode large values of option delta and option length
        from raw binary form."""
     if value >= 0 and value < 13:
@@ -15,7 +15,7 @@ def read_extended_field_value(value, rawdata):
         raise ValueError("Value out of range.")
 
 
-def write_extended_field_value(value):
+def _write_extended_field_value(value):
     """Used to encode large values of option delta and option length
        into raw binary form.
        In CoAP option delta and length can be represented by a variable
@@ -95,8 +95,8 @@ class Options(object):
             delta = (dllen & 0xF0) >> 4
             length = (dllen & 0x0F)
             rawdata = rawdata[1:]
-            (delta, rawdata) = read_extended_field_value(delta, rawdata)
-            (length, rawdata) = read_extended_field_value(length, rawdata)
+            (delta, rawdata) = _read_extended_field_value(delta, rawdata)
+            (length, rawdata) = _read_extended_field_value(length, rawdata)
             option_number += delta
             option = option_number.create_option(decode=rawdata[:length])
             self.add_option(option)
@@ -109,8 +109,8 @@ class Options(object):
         current_opt_num = 0
         option_list = self.option_list()
         for option in option_list:
-            delta, extended_delta = write_extended_field_value(option.number - current_opt_num)
-            length, extended_length = write_extended_field_value(option.length)
+            delta, extended_delta = _write_extended_field_value(option.number - current_opt_num)
+            length, extended_length = _write_extended_field_value(option.length)
             data.append(bytes([((delta & 0x0F) << 4) + (length & 0x0F)]))
             data.append(extended_delta)
             data.append(extended_length)
