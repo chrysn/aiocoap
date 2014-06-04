@@ -50,8 +50,10 @@ class RequestTimedOut(Error):
 class WaitingForClientTimedOut(Error):
     """
     Raised when server expects some client action:
+
         - sending next PUT/POST request with block1 or block2 option
         - sending next GET request with block2 option
+
     but client does nothing.
     """
 
@@ -63,7 +65,7 @@ class ResourceChanged(Error):
 
 class MissingBlock2Option(Error):
     """
-    Raised when response with Block2 option is expected 
+    Raised when response with Block2 option is expected
     (previous response had Block2 option with More flag set),
     but response without Block2 option is received.
     """

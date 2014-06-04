@@ -67,9 +67,9 @@ MAX_RTT = 2 * MAX_LATENCY + PROCESSING_DELAY
 """Maximum round-trip time."""
 
 EXCHANGE_LIFETIME = MAX_TRANSMIT_SPAN + MAX_RTT
-"""time from starting to send a confirmable
- message to the time when an acknowledgement is no longer expected,
-i.e. message layer information about the message exchange can be purged"""
+"""time from starting to send a confirmable message to the time when an
+acknowledgement is no longer expected, i.e. message layer information about the
+message exchange can be purged"""
 
 DEFAULT_BLOCK_SIZE_EXP = 6 # maximum block size 1024
 """Default size exponent for blockwise transfers."""
