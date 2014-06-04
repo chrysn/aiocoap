@@ -9,6 +9,7 @@
 import urllib
 import struct
 import copy
+import ipaddress
 
 from .numbers import *
 from .options import Options
@@ -207,7 +208,7 @@ class Message(object):
 
         return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
 
-    def has_multicast_remote(remote):
+    def has_multicast_remote(self):
         """Return True if the message's remote needs to be considered a multicast remote."""
         address = ipaddress.ip_address(self.remote[0])
         return address.is_multicast

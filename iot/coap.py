@@ -17,7 +17,6 @@
 import random
 import struct
 import binascii
-import ipaddress
 
 import asyncio
 
@@ -801,7 +800,7 @@ class ServerObservation(object):
 
     def trigger(self):
         # bypassing parsing and duplicate detection, pretend the request came in again
-        print("triggering retransmission with original request %r (will set response_type to ACK)"%vars(self.original_request))
+        logging.debug("Server observation triggered, injecting original request %r again"%self.original_request)
         self.original_request.response_type = ACK # trick responder into sending CON
         Responder(self.original_request.protocol, self.original_request)
         ## @TODO pass a callback down to the exchange -- if it gets a RST, we have to unregister
