@@ -109,9 +109,9 @@ class CoAPResource:
         However, if the resource returned by 'bar' has isLeaf set to true, then
         the get_child call will never be made on it.
 
-        @param path: a string, describing the child
+        :param path: a string, describing the child
 
-        @param request: a twisted.web.server.Request specifying meta-information
+        :param request: a twisted.web.server.Request specifying meta-information
                         about the request that is being made for this child.
         """
         raise iot.error.NoResource
