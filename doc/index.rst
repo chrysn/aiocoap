@@ -1,5 +1,5 @@
-txThings (asyncio branch) documentation
-=======================================
+aiohttp library documentation
+=============================
 
 .. including both iot.__doc__ and parts of README, for together they give a good overview.
 

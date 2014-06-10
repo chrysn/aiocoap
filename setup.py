@@ -10,8 +10,8 @@
 
 from setuptools import setup, find_packages
 
-name = "txThings asyncio branch"
-version = "0.0"
+name = "aiocoap"
+version = "0.1-development"
 
 setup(
     name=name,

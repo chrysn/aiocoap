@@ -7,13 +7,11 @@
 # described in the accompanying LICENSE file.
 
 """
-txThings
-========
+aiohttp
+=======
 
-The txThings package is a library that implements CoAP, the Constrained
-Application Protocol (`RFC pending`_). The current implementation is not based
-on twisted but on Python 3.4's asyncio module. (This is the asyncio branch of
-txThings).
+The aiohttp package is a library that implements CoAP, the Constrained
+Application Protocol (`RFC pending`_).
 
 .. _`RFC pending`: https://datatracker.ietf.org/doc/draft-ietf-core-coap/
 
