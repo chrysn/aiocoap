@@ -1,4 +1,4 @@
-# This file is part of the txThings project.
+# This file is part of the Python aiocoap library project.
 #
 # Copyright (c) Twisted Matrix Laboratories,
 #               2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
