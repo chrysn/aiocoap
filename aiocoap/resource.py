@@ -16,8 +16,7 @@ Implementation of the lowest-level Resource class.
 import copy
 import warnings
 
-import iot.error
-import iot.coap as coap
+from . import error
 from itertools import chain
 
 

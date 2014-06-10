@@ -30,3 +30,11 @@ With a server, a resource tree gets built from :class:`iot.resource.Resurce`
 objects, whose root gets passed to the :class:`iot.coap.CoAP` object on
 initialization.
 """
+
+## Using those imports is deprecated. Instead, it is recommended to `from
+## aiocoap.numbers import *` and explicitly import what you need from
+## everything else.
+
+from .numbers import *
+from .message import Message
+from .protocol import CoAP

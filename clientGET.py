@@ -15,8 +15,8 @@ import logging
 
 import asyncio
 
-import iot.coap as coap
-import iot.resource as resource
+import aiocoap
+import aiocoap.resource as resource
 
 class Agent():
     """
@@ -48,15 +48,15 @@ class Agent():
         yield from asyncio.sleep(40)
 
     def request_resource(self):
-        request = coap.Message(code=coap.GET)
+        request = aiocoap.Message(code=aiocoap.GET)
         #request.opt.uri_path = ('other', 'separate')
         request.opt.uri_path = ('time',)
-        request.remote = ("127.0.0.1", coap.COAP_PORT)
+        request.remote = ("127.0.0.1", aiocoap.COAP_PORT)
         request.opt.observe = 0
 
         # this would be usually done as self.protocol.request(request, o...),
         # but we need to access the observation to cancel it
-        requester = coap.Requester(self.protocol, request, observeCallback=self.print_later_response, block1Callback=None, block2Callback=None, observeCallbackArgs=None, block1CallbackArgs=None, block2CallbackArgs=None, observeCallbackKeywords=None, block1CallbackKeywords=None, block2CallbackKeywords=None)
+        requester = aiocoap.protocol.Requester(self.protocol, request, observeCallback=self.print_later_response, block1Callback=None, block2Callback=None, observeCallbackArgs=None, block1CallbackArgs=None, block2CallbackArgs=None, observeCallbackKeywords=None, block1CallbackKeywords=None, block2CallbackKeywords=None)
         self.observation = requester.observation
         self.protocol.loop.call_later(15, self.stop_observing)
         d = requester.response
@@ -93,7 +93,7 @@ logging.debug("clientGET started")
 loop = asyncio.get_event_loop()
 
 endpoint = resource.Site(None)
-transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(lambda: coap.CoAP(endpoint, loop), ('127.0.0.1', 61616)))
+transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(lambda: aiocoap.CoAP(endpoint, loop), ('127.0.0.1', 61616)))
 client = Agent(protocol)
 
 loop.run_until_complete(client.run())

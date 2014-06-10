@@ -33,11 +33,9 @@ import logging
 #   nonexistent block can just as well happen when a resource's content has
 #   changed between blocks).
 
-import iot.error
-
+from . import error
 from .numbers import *
 from .message import Message
-
 
 class CoAP(asyncio.DatagramProtocol):
 
@@ -65,7 +63,7 @@ class CoAP(asyncio.DatagramProtocol):
         self.log.debug("received %r from %s:%d" % (data, host, port))
         try:
             message = Message.decode(data, (host, port), self)
-        except iot.error.UnparsableMessage:
+        except error.UnparsableMessage:
             logging.warning("Ignoring unparsable message from %s:%d"%(host, port))
             return
         if self.deduplicate_message(message) is True:
@@ -139,7 +137,7 @@ class CoAP(asyncio.DatagramProtocol):
                 self.send_message(ack)
 
             if response.opt.observe is None:
-                self.outgoing_observations[(response.token, response.remote)].error(iot.error.ObservationCancelled())
+                self.outgoing_observations[(response.token, response.remote)].error(error.ObservationCancelled())
         else:
             self.log.info("Response not recognized - sending RST.")
             rst = Message(mtype=RST, mid=response.mid, code=EMPTY, payload='')
@@ -339,7 +337,7 @@ class Requester(object):
 
             self.log.info("Request timed out")
             del self.protocol.outgoing_requests[(request.token, request.remote)]
-            d.set_exception(iot.error.RequestTimedOut())
+            d.set_exception(error.RequestTimedOut())
 
         def got_result(result):
             timeout.cancel()
@@ -381,7 +379,7 @@ class Requester(object):
 
         if response.opt.observe is None:
             if not self.observation.cancelled:
-                self.observation.error(iot.error.NotObservable())
+                self.observation.error(error.NotObservable())
         else:
             self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
 
@@ -453,7 +451,7 @@ class Requester(object):
             if self.assembled_response is not None:
                 try:
                     self.assembled_response.append_response_block(response)
-                except iot.error.Error as e:
+                except error.Error as e:
                     return defer.fail(e)
             else:
                 if block2.block_number is 0:
@@ -480,7 +478,7 @@ class Requester(object):
             if self.assembled_response is None:
                 return defer.succeed(response)
             else:
-                return defer.fail(iot.error.MissingBlock2Option)
+                return defer.fail(error.MissingBlock2Option)
 
     def ask_for_next_response_block(self, result, request):
         """Helper method used to ask server to send next response block."""
@@ -563,10 +561,10 @@ class Responder(object):
             else:
                 try:
                     self.assembled_request.append_request_block(request)
-                except (iot.error.NotImplemented, AttributeError):
+                except (error.NotImplemented, AttributeError):
                     self.respond_with_error(request, NOT_IMPLEMENTED, "Error: Request block received out of order!")
-                    return defer.fail(iot.error.NotImplemented())
-                    #raise iot.error.NotImplemented
+                    return defer.fail(error.NotImplemented())
+                    #raise error.NotImplemented
             if block1.more is True:
                 #TODO: SUCCES_CODE Code should be either Changed or Created - Resource check needed
                 #TODO: SIZE_CHECK1 should check if the size of incoming payload is still acceptable
@@ -613,11 +611,11 @@ class Responder(object):
         try:
             resource = self.protocol.serversite.get_resource_for(request)
             unfinished_response = resource.render(request)
-        except iot.error.NoResource:
+        except error.NoResource:
             self.respond_with_error(request, NOT_FOUND, "Error: Resource not found!")
-        except iot.error.UnallowedMethod:
+        except error.UnallowedMethod:
             self.respond_with_error(request, METHOD_NOT_ALLOWED, "Error: Method not allowed!")
-        except iot.error.UnsupportedMethod:
+        except error.UnsupportedMethod:
             self.respond_with_error(request, METHOD_NOT_ALLOWED, "Error: Method not recognized!")
         else:
             delayed_ack = self.protocol.loop.call_later(EMPTY_ACK_DELAY, self.send_empty_ack, request)
@@ -731,7 +729,7 @@ class Responder(object):
 
             self.log.info("Waiting for next blockwise request timed out")
             self.protocol.incoming_requests.pop((tuple(request.opt.uri_path), request.remote))
-            d.set_exception(iot.error.WaitingForClientTimedOut())
+            d.set_exception(error.WaitingForClientTimedOut())
 
         def got_result(result):
             timeout.cancel()

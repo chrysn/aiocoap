@@ -15,8 +15,8 @@ import logging
 
 import asyncio
 
-import iot.resource as resource
-import iot.coap as coap
+import aiocoap.resource as resource
+import aiocoap
 
 
 class CounterResource (resource.CoAPResource):
@@ -38,7 +38,7 @@ class CounterResource (resource.CoAPResource):
 
     @asyncio.coroutine
     def render_GET(self, request):
-        response = coap.Message(code=coap.CONTENT, payload=('%d' % (self.counter,)).encode('ascii'))
+        response = aiocoap.Message(code=aiocoap.CONTENT, payload=('%d' % (self.counter,)).encode('ascii'))
         self.counter += 1
         return response
 
@@ -60,14 +60,14 @@ class BlockResource (resource.CoAPResource):
     @asyncio.coroutine
     def render_GET(self, request):
         payload=" Now I lay me down to sleep, I pray the Lord my soul to keep, If I shall die before I wake, I pray the Lord my soul to take.".encode('ascii')
-        response = coap.Message(code=coap.CONTENT, payload=payload)
+        response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
         return response
 
     @asyncio.coroutine
     def render_PUT(self, request):
         print('PUT payload: ' + request.payload)
         payload = "Mr. and Mrs. Dursley of number four, Privet Drive, were proud to say that they were perfectly normal, thank you very much.".encode('ascii')
-        response = coap.Message(code=coap.CHANGED, payload=payload)
+        response = aiocoap.Message(code=aiocoap.CHANGED, payload=payload)
         return response
 
 
@@ -75,7 +75,7 @@ class SeparateLargeResource(resource.CoAPResource):
     """
     Example Resource which supports GET method. It uses callLater
     to force the protocol to send empty ACK first and separate response
-    later. Sending empty ACK happens automatically after coap.EMPTY_ACK_DELAY.
+    later. Sending empty ACK happens automatically after aiocoap.EMPTY_ACK_DELAY.
     No special instructions are necessary.
 
     Method render_GET returns a deferred. This allows the protocol to
@@ -99,7 +99,7 @@ class SeparateLargeResource(resource.CoAPResource):
     def response_ready(self, request):
         print('response ready. sending...')
         payload = "Three rings for the elven kings under the sky, seven rings for dwarven lords in their halls of stone, nine rings for mortal men doomed to die, one ring for the dark lord on his dark throne.".encode('ascii')
-        response = coap.Message(code=coap.CONTENT, payload=payload)
+        response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
         return response
 
 class TimeResource(resource.CoAPResource):
@@ -117,7 +117,7 @@ class TimeResource(resource.CoAPResource):
 
     @asyncio.coroutine
     def render_GET(self, request):
-        response = coap.Message(code=coap.CONTENT, payload=datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii'))
+        response = aiocoap.Message(code=aiocoap.CONTENT, payload=datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii'))
         return response
 
 class CoreResource(resource.CoAPResource):
@@ -145,7 +145,7 @@ class CoreResource(resource.CoAPResource):
         data = []
         self.root.generate_resource_list(data, "")
         payload = ",".join(data).encode('utf-8')
-        response = coap.Message(code=coap.CONTENT, payload=payload)
+        response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
         response.opt.content_format = 40
         return response
 
@@ -182,6 +182,6 @@ other.put_child('separate', separate)
 loop = asyncio.get_event_loop()
 
 endpoint = resource.Site(root)
-transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(lambda: coap.CoAP(endpoint, loop), ('127.0.0.1', coap.COAP_PORT)))
+transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(lambda: aiocoap.CoAP(endpoint, loop), ('127.0.0.1', aiocoap.COAP_PORT)))
 
 loop.run_forever()
