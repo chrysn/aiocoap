@@ -79,6 +79,11 @@ class Endpoint(asyncio.DatagramProtocol):
         elif message.code is EMPTY:
             self.process_empty(message)
 
+    def error_received(self, exc):
+        # TODO: set IP_RECVERR to receive icmp "destination unreachable (port
+        # unreachable)" & co to stop retransmitting and err back quickly
+        self.log.error("Error received: %s"%exc)
+
     # pause_writing and resume_writing are not implemented, as the protocol
     # should take care of not flooding the output itself anyway (NSTART etc).
 
