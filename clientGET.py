@@ -40,14 +40,12 @@ class Agent():
 
     @asyncio.coroutine
     def run(self):
-        self.completed = asyncio.Future()
-        self.protocol.loop.call_later(2, self.request_resource)
-
-        yield from self.completed
+        yield from self.request_resource()
 
         print("Waiting for other results to our observation to arrive")
         yield from asyncio.sleep(40)
 
+    @asyncio.coroutine
     def request_resource(self):
         request = aiocoap.Message(code=aiocoap.GET)
         #request.opt.uri_path = ('other', 'separate')
@@ -60,27 +58,17 @@ class Agent():
         requester = aiocoap.protocol.Requester(self.protocol, request, observeCallback=self.print_later_response, block1Callback=None, block2Callback=None, observeCallbackArgs=None, block1CallbackArgs=None, block2CallbackArgs=None, observeCallbackKeywords=None, block1CallbackKeywords=None, block2CallbackKeywords=None)
         self.observation = requester.observation
         self.protocol.loop.call_later(15, self.stop_observing)
-        d = requester.response
 
-        d.add_done_callback(self.print_response)
-
-    def print_response(self, response_future):
         try:
-            response = response_future.result()
+            response = yield from requester.response
         except Exception as e:
-            self.no_response(e)
-            return
-
-        print('Result: %r'%response.payload)
-        self.completed.set_result(None)
+            print('Failed to fetch resource:')
+            print(e)
+        else:
+            print('Result: %r'%response.payload)
 
     def print_later_response(self, response):
         print('Newer result: %r'%response.payload)
-
-    def no_response(self, failure):
-        print('Failed to fetch resource:')
-        print(failure)
-        self.completed.set_result(None)
 
     def stop_observing(self):
         print('Not interested in the resource any more.')
