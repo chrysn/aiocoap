@@ -92,8 +92,7 @@ logging.debug("clientGET started")
 
 loop = asyncio.get_event_loop()
 
-site = resource.Site(None)
-transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(lambda: aiocoap.Endpoint(site, loop), ('127.0.0.1', 61616)))
+transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(lambda: aiocoap.Endpoint(None, loop), ('127.0.0.1', 61616)))
 client = Agent(protocol)
 
 loop.run_until_complete(client.run())

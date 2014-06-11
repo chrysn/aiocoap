@@ -596,6 +596,10 @@ class Responder(object):
            resource tree for resource in Uri Path
            and call proper CoAP Method on it."""
 
+        if self.protocol.serversite is None:
+            self.respond_with_error(request, NOT_FOUND, "Endpoint is not a server")
+            return
+
         try:
             request = yield from request_future
         except iot.NotImplementedError as e:
