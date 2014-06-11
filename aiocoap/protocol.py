@@ -8,7 +8,7 @@
 
 """This module contains the classes that are responsible for keeping track of messages:
 
-* :class:`CoAP` represents the CoAP endpoint (basically a UDP socket)
+* :class:`Endpoint` represents the CoAP endpoint (basically a UDP socket)
 * a :class:`Requester` gets generated whenever a request gets sent to keep
   track of the response
 * a :class:`Responder` keeps track of a single incoming request
@@ -37,7 +37,7 @@ from . import error
 from .numbers import *
 from .message import Message
 
-class CoAP(asyncio.DatagramProtocol):
+class Endpoint(asyncio.DatagramProtocol):
 
     def __init__(self, serversite, loop, loggername="coap"):
         """Initialize a CoAP protocol instance."""

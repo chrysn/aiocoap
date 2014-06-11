@@ -37,4 +37,4 @@ initialization.
 
 from .numbers import *
 from .message import Message
-from .protocol import CoAP
+from .protocol import Endpoint
