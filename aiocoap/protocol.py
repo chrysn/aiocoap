@@ -586,10 +586,6 @@ class Responder(object):
         self.deferred.add_done_callback(self.process_block1_in_request)
         return self.deferred
 
-    def dispatch_request(self, request):
-        """Dispatch incoming request - search endpoint
-           resource tree for resource in Uri Path
-           and call proper CoAP Method on it."""
     @asyncio.coroutine
     def dispatch_request(self, request_future):
         """Dispatch incoming request - search endpoint
