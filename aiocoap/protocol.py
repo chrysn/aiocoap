@@ -38,8 +38,7 @@ from .numbers import *
 from .message import Message
 
 class Endpoint(asyncio.DatagramProtocol):
-
-    def __init__(self, serversite, loop, loggername="coap"):
+    def __init__(self, loop=None, serversite=None, loggername="coap"):
         """Initialize a CoAP protocol instance."""
         self.message_id = random.randint(0, 65535)
         self.token = random.randint(0, 65535)
@@ -53,18 +52,23 @@ class Endpoint(asyncio.DatagramProtocol):
 
         self.log = logging.getLogger(loggername)
 
-        self.loop = loop
+        self.loop = loop or asyncio.get_event_loop()
+
+    #
+    # implementing the typical DatagramProtocol interfaces.
+    #
+    # note from the documentation: we may rely on connection_made to be called
+    # before datagram_received.
 
     def connection_made(self, transport):
         self.transport = transport
 
-    def datagram_received(self, data, host_and_port):
-        (host, port) = host_and_port
-        self.log.debug("received %r from %s:%d" % (data, host, port))
+    def datagram_received(self, data, address):
+        self.log.debug("received %r from %s" % (data, address))
         try:
-            message = Message.decode(data, (host, port), self)
+            message = Message.decode(data, address, self)
         except error.UnparsableMessage:
-            logging.warning("Ignoring unparsable message from %s:%d"%(host, port))
+            self.log.warning("Ignoring unparsable message from %s"%(address,))
             return
         if self.deduplicate_message(message) is True:
             return
@@ -74,6 +78,13 @@ class Endpoint(asyncio.DatagramProtocol):
             self.process_response(message)
         elif message.code is EMPTY:
             self.process_empty(message)
+
+    # pause_writing and resume_writing are not implemented, as the protocol
+    # should take care of not flooding the output itself anyway (NSTART etc).
+
+    #
+    # coap dispatch
+    #
 
     def deduplicate_message(self, message):
         """Check incoming message if it's a duplicate.
@@ -357,7 +368,7 @@ class Requester(object):
             timeout = self.protocol.loop.call_later(REQUEST_TIMEOUT, timeout_request, d)
             d.add_done_callback(got_result)
             self.protocol.outgoing_requests[(request.token, request.remote)] = self
-            self.log.debug("Sending request - Token: %s, Host: %s, Port: %s" % (binascii.b2a_hex(request.token), request.remote[0], request.remote[1]))
+            self.log.debug("Sending request - Token: %s, Remote: %s" % (binascii.b2a_hex(request.token), request.remote))
             if hasattr(self, 'observation'):
                 d.add_done_callback(self.register_observation)
             return d

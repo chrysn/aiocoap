@@ -13,6 +13,7 @@ import sys
 
 import logging
 
+import socket
 import asyncio
 
 import aiocoap
@@ -92,7 +93,7 @@ logging.debug("clientGET started")
 
 loop = asyncio.get_event_loop()
 
-transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(lambda: aiocoap.Endpoint(None, loop), ('127.0.0.1', 61616)))
+transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(aiocoap.Endpoint, family=socket.AF_INET))
 client = Agent(protocol)
 
 loop.run_until_complete(client.run())
