@@ -635,10 +635,6 @@ class Responder(object):
            resource tree for resource in Uri Path
            and call proper CoAP Method on it."""
 
-        if self.protocol.serversite is None:
-            self.respond_with_error(request, NOT_FOUND, "Endpoint is not a server")
-            return
-
         try:
             request = yield from request_future
         except iot.NotImplementedError as e:
@@ -646,6 +642,10 @@ class Responder(object):
                to Block1. Currently it's used only to ignore
                requests which are send non-sequentially"""
             self.log.error("Block1 assembly on request failed: %r", e)
+            return
+
+        if self.protocol.serversite is None:
+            self.respond_with_error(request, NOT_FOUND, "Endpoint is not a server")
             return
 
         #TODO: Request with Block2 option and non-zero block number should get error response
