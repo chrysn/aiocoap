@@ -17,6 +17,7 @@
 import random
 import struct
 import binascii
+import functools
 
 import asyncio
 
@@ -43,9 +44,9 @@ class Endpoint(asyncio.DatagramProtocol):
         self.message_id = random.randint(0, 65535)
         self.token = random.randint(0, 65535)
         self.serversite = serversite
-        self.recent_messages = {}  # recently received messages (identified by message ID and remote)
-        self.active_exchanges = {}  # active exchanges i.e. sent CON messages (identified by message ID and remote)
-        self.backlogs = {} # per-remote list of backlogged packages (keys exist iff there is an active_exchange with that node)
+        self._recent_messages = {}  # recently received messages (remote, message-id): None or result-message
+        self._active_exchanges = {}  # active exchanges i.e. sent CON messages (remote, message-id): cancellable timeout
+        self._backlogs = {} # per-remote list of backlogged packages (keys exist iff there is an active_exchange with that node)
         self.outgoing_requests = {}  # unfinished outgoing requests (identified by token and remote)
         self.incoming_requests = {}  # unfinished incoming requests (identified by path tuple and remote)
         self.outgoing_observations = {} # observations where this node is the client. (token, remote) -> ClientObservation
@@ -70,14 +71,16 @@ class Endpoint(asyncio.DatagramProtocol):
         except error.UnparsableMessage:
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return
-        if self.deduplicate_message(message) is True:
+        self.log.debug("Incoming Message ID: %d" % message.mid)
+        if self._deduplicate_message(message) is True:
             return
-        if message.code.is_request():
-            self.process_request(message)
+
+        if message.code is EMPTY:
+            self._process_empty(message)
         elif message.code.is_response():
-            self.process_response(message)
-        elif message.code is EMPTY:
-            self.process_empty(message)
+            self._process_response(message)
+        elif message.code.is_request():
+            self._process_request(message)
 
     def error_received(self, exc):
         # TODO: set IP_RECVERR to receive icmp "destination unreachable (port
@@ -91,46 +94,142 @@ class Endpoint(asyncio.DatagramProtocol):
     # coap dispatch
     #
 
-    def deduplicate_message(self, message):
-        """Check incoming message if it's a duplicate.
+    # duplicates handling (message-id level)
 
-           Duplicate is a message with the same Message ID (mid)
-           and sender (remote), as message received within last
-           EXCHANGE_LIFETIME seconds (usually 247 seconds)."""
+    def _deduplicate_message(self, message):
+        """Return True if a message is a duplicate, and re-send the stored
+        response if available.
 
-        key = (message.mid, message.remote)
-        self.log.debug("Incoming Message ID: %d" % message.mid)
-        if key in self.recent_messages:
+        Duplicate is a message with the same Message ID (mid) and sender
+        (remote), as message received within last EXCHANGE_LIFETIME seconds
+        (usually 247 seconds)."""
+
+        key = (message.remote, message.mid)
+        if key in self._recent_messages:
             if message.mtype is CON:
-                if len(self.recent_messages[key]) == 3:
+                if self._recent_messages[key] is not None:
                     self.log.info('Duplicate CON received, sending old response again')
-                    self.send_message(self.recent_messages[key][2])
+                    self.send_message(self._recent_messages[key])
                 else:
-                    self.log.info('Duplicate CON received, no response to send')
+                    self.log.info('Duplicate CON received, no response to send yet')
             else:
                 self.log.info('Duplicate NON, ACK or RST received')
             return True
         else:
             self.log.debug('New unique message received')
-            expiration = self.loop.call_later(EXCHANGE_LIFETIME, self.remove_message_from_recent, key)
-            self.recent_messages[key] = (message, expiration)
+            self.loop.call_later(EXCHANGE_LIFETIME, functools.partial(self._recent_messages.pop, key))
+            self._recent_messages[key] = None
             return False
 
-    def remove_message_from_recent(self, key):
-        """Remove Message ID+Remote combination from
-           recent messages cache."""
-        self.recent_messages.pop(key)
+    def _store_response_for_duplicates(self, message):
+        """If the message is the response can be used to satisfy a future
+        duplicate message, store it."""
 
-    def process_response(self, response):
+        key = (message.remote, message.mid)
+        if key in self._recent_messages:
+            self._recent_messages[key] = message
+
+    # retransmission handling (message-type level)
+
+    def _add_exchange(self, message):
+        """Add an "exchange" for outgoing CON message.
+
+        CON (Confirmable) messages are automatically retransmitted by protocol
+        until ACK or RST message with the same Message ID is received from
+        target host."""
+
+        key = (message.remote, message.mid)
+
+        assert message.remote not in self._backlogs
+        self._backlogs[message.remote] = []
+
+        timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
+        retransmission_counter = 0
+        next_retransmission = self.loop.call_later(timeout, self._retransmit, message, timeout, retransmission_counter)
+        self._active_exchanges[key] = next_retransmission
+        self.log.debug("Exchange added, Message ID: %d." % message.mid)
+
+    def _remove_exchange(self, message):
+        """Remove exchange from active exchanges and cancel the timeout to next
+        retransmission."""
+        key = (message.remote, message.mid)
+
+        self._active_exchanges.pop(key).cancel()
+        self.log.debug("Exchange removed, Message ID: %d." % message.mid)
+
+        if message.remote not in self._backlogs:
+            # if active exchanges were something we could do a
+            # .register_finally() on, we could chain them like that; if we
+            # implemented anything but NSTART=1, we'll need a more elaborate
+            # system anyway
+            raise AssertionError("backlogs/active_exchange relation violated (implementation error)")
+
+        # first iteration is sure to happen, others happen only if the enqueued
+        # messages were NONs
+        while not any(remote == message.remote for remote, mid in self._active_exchanges.keys()):
+            if self._backlogs[message.remote] != []:
+                next_message = self._backlogs[message.remote].pop(0)
+                self._send(next_message)
+            else:
+                del self._backlogs[message.remote]
+                break
+
+    def _retransmit(self, message, timeout, retransmission_counter):
+        """Retransmit CON message that has not been ACKed or RSTed."""
+        key = (message.remote, message.mid)
+
+        self._active_exchanges.pop(key)
+        if retransmission_counter < MAX_RETRANSMIT:
+            self.transport.sendto(message.encode(), message.remote)
+            retransmission_counter += 1
+            timeout *= 2
+            next_retransmission = self.loop.call_later(timeout, self._retransmit, message, timeout, retransmission_counter)
+            self._active_exchanges[key] = next_retransmission
+            self.log.info("Retransmission, Message ID: %d." % message.mid)
+        else:
+            pass
+            #TODO: error handling (especially for requests)
+
+    # triggering custom actions based on incoming messages (message-code level)
+
+    def _process_empty(self, message):
+        if message.mtype is CON:
+            self.log.info('Empty CON message received (CoAP Ping) - replying with RST.')
+            rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b'')
+            rst.remote = message.remote
+            self.send_message(rst)
+
+        #TODO: passing ACK/RESET info to application
+        #Currently it doesn't matter if empty ACK or RST is received - in both cases exchange has to be removed
+        if message.mtype in (ACK, RST) and (message.remote, message.mid) in self._active_exchanges:
+            self._remove_exchange(message)
+
+    def _process_request(self, request):
+        """Method used for incoming request processing."""
+        if request.mtype not in (CON, NON):
+            self.log.info("Ignoring request of type %s from %s"%(request.mtype, request.remote))
+            return
+        if (tuple(request.opt.uri_path), request.remote) in self.incoming_requests:
+            self.log.debug("Request pertains to earlier blockwise requests.")
+            self.incoming_requests.pop((tuple(request.opt.uri_path), request.remote)).handle_next_request(request)
+        else:
+            responder = Responder(self, request)
+
+    def _process_response(self, response):
         """Method used for incoming response processing."""
         if response.mtype is RST:
+            self.log.info("Ignoring response of type RST from %s"%(request.remote,))
             return
+
         if response.mtype is ACK:
-            if response.mid in self.active_exchanges:
-                self.remove_exchange(response)
+            if (response.remote, response.mid) in self._active_exchanges:
+                self._remove_exchange(response)
             else:
+                self.log.info("Ignoring ACK response that is not part of an active exchange (MID %s, remote %s)"%(request.mid, request.remote))
                 return
+
         self.log.debug("Received Response, token: %s, host: %s, port: %s" % (binascii.b2a_hex(response.token), response.remote[0], response.remote[1]))
+
         if (response.token, response.remote) in self.outgoing_requests:
             self.outgoing_requests.pop((response.token, response.remote)).handle_response(response)
             if response.mtype is CON:
@@ -160,28 +259,7 @@ class Endpoint(asyncio.DatagramProtocol):
             rst.remote = response.remote
             self.send_message(rst)
 
-    def process_request(self, request):
-        """Method used for incoming request processing."""
-        if request.mtype not in (CON, NON):
-            response = Message(code=BAD_REQUEST, payload='Wrong message type for request!')
-            self.respond(response, request)
-            return
-        if (tuple(request.opt.uri_path), request.remote) in self.incoming_requests:
-            self.log.debug("Request pertains to earlier blockwise requests.")
-            self.incoming_requests.pop((tuple(request.opt.uri_path), request.remote)).handle_next_request(request)
-        else:
-            responder = Responder(self, request)
-
-    def process_empty(self, message):
-        if message.mtype is CON:
-            self.log.info('Empty CON message received (CoAP Ping) - replying with RST.')
-            rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload='')
-            rst.remote = message.remote
-            self.send_message(rst)
-        #TODO: passing ACK/RESET info to application
-        #Currently it doesn't matter if empty ACK or RST is received - in both cases exchange has to be removed
-        if message.mid in self.active_exchanges and message.mtype in (ACK, RST):
-            self.remove_exchange(message)
+    # outgoing messages
 
     def send_message(self, message):
         """Set Message ID, encode and send message.
@@ -192,31 +270,28 @@ class Endpoint(asyncio.DatagramProtocol):
             raise ValueError("Refusing to send CON message to multicast address")
 
         self.log.debug("Sending message to %s:%d" % (host, port))
-        recent_key = (message.mid, message.remote)
-        if recent_key in self.recent_messages:
-            if len(self.recent_messages[recent_key]) != 3:
-                self.recent_messages[recent_key] = self.recent_messages[recent_key] + (message,)
 
         if message.mid is None:
-            message.mid = self.next_message_i_d()
+            message.mid = self._next_message_id()
 
-        self.enqueue_for_sending(message)
-
-    def enqueue_for_sending(self, message):
-        if message.remote in self.backlogs:
+        if message.remote in self._backlogs:
             self.log.debug("Message to %s put into backlog"%(message.remote,))
-            self.backlogs[message.remote].append(message)
+            self._backlogs[message.remote].append(message)
         else:
-            self.send(message)
+            self._send(message)
 
-    def send(self, message):
+    def _send(self, message):
+        """Put the message on the wire, starting retransmission timeouts"""
         if message.mtype is CON:
-            self.add_exchange(message)
+            self._add_exchange(message)
+
+        self._store_response_for_duplicates(message)
+
         msg = message.encode()
         self.transport.sendto(msg, message.remote)
         self.log.debug("Message %r sent successfully" % msg)
 
-    def next_message_i_d(self):
+    def _next_message_id(self):
         """Reserve and return a new message ID."""
         message_id = self.message_id
         self.message_id = 0xFFFF & (1 + self.message_id)
@@ -229,55 +304,7 @@ class Endpoint(asyncio.DatagramProtocol):
         self.token = (self.token + 1) & 0xffffffffffffffff
         return binascii.a2b_hex("%08x"%self.token)
 
-    def add_exchange(self, message):
-        """Add an "exchange" for outgoing CON message.
-
-           CON (Confirmable) messages are automatically
-           retransmitted by protocol until ACK or RST message
-           with the same Message ID is received from target host."""
-
-        self.backlogs.setdefault(message.remote, [])
-
-        timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
-        retransmission_counter = 0
-        next_retransmission = self.loop.call_later(timeout, self.retransmit, message, timeout, retransmission_counter)
-        self.active_exchanges[message.mid] = (message, next_retransmission)
-        self.log.debug("Exchange added, Message ID: %d." % message.mid)
-
-    def remove_exchange(self, message):
-        """Remove exchange from active exchanges and cancel the timeout
-           to next retransmission."""
-        self.active_exchanges.pop(message.mid)[1].cancel()
-        self.log.debug("Exchange removed, Message ID: %d." % message.mid)
-
-        if message.remote not in self.backlogs:
-            # if active exchanges were something we could do a
-            # .register_finally() on, we could chain them like that; if we
-            # implemented anything but NSTART=1, we'll need a more elaborate
-            # system anyway
-            raise AssertionError("backlogs/active_exchange relation violated (implementation error)")
-
-        while not any(m.remote == message.remote for m, t in self.active_exchanges.values()):
-            if self.backlogs[message.remote] != []:
-                next_message = self.backlogs[message.remote].pop(0)
-                self.send(next_message)
-            else:
-                del self.backlogs[message.remote]
-                break
-
-    def retransmit(self, message, timeout, retransmission_counter):
-        """Retransmit CON message that has not been ACKed or RSTed."""
-        self.active_exchanges.pop(message.mid)
-        if retransmission_counter < MAX_RETRANSMIT:
-            self.transport.sendto(message.encode(), message.remote)
-            retransmission_counter += 1
-            timeout *= 2
-            next_retransmission = self.loop.call_later(timeout, self.retransmit, message, timeout, retransmission_counter)
-            self.active_exchanges[message.mid] = (message, next_retransmission)
-            self.log.info("Retransmission, Message ID: %d." % message.mid)
-        else:
-            pass
-            #TODO: error handling (especially for requests)
+    # public interface for sending requests
 
     def request(self, request, observeCallback=None, block1Callback=None, block2Callback=None,
                 observeCallbackArgs=None, block1CallbackArgs=None, block2CallbackArgs=None,
