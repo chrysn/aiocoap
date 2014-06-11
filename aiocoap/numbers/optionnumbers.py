@@ -102,7 +102,7 @@ class OptionNumber(ExtensibleIntEnum):
         if hasattr(self, "_format"):
             return self._format
         else:
-            return options.OpaqueOption
+            return optiontypes.OpaqueOption
 
     def _set_format(self, value):
         self._format = value
