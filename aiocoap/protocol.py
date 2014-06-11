@@ -801,7 +801,7 @@ class Responder(object):
         #if response.code.is_response() is False:
             #raise ValueError("Message code is not valid for a response.")
         response.token = request.token
-        self.log.debug("Sending token: %s" % (response.token))
+        self.log.debug("Sending token: %s" % (binascii.b2a_hex(response.token),))
         response.remote = request.remote
         if request.opt.block1 is not None:
             response.opt.block1 = request.opt.block1
