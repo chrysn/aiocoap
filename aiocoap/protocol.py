@@ -244,7 +244,7 @@ class Endpoint(asyncio.DatagramProtocol):
     #
 
     def _process_ping(self, message):
-        self.log.info('Received CoAP Ping from %s, replying with RST.'%message.remote)
+        self.log.info('Received CoAP Ping from %s, replying with RST.'%(message.remote,))
         rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b'')
         rst.remote = message.remote
         self.send_message(rst)
