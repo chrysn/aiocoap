@@ -452,7 +452,7 @@ class Requester(object):
 
         size_exp = DEFAULT_BLOCK_SIZE_EXP
         if len(self.app_request.payload) > (2 ** (size_exp + 4)):
-            request = self.app_request.extract_block(0, size_exp)
+            request = self.app_request._extract_block(0, size_exp)
             self.app_request.opt.block1 = request.opt.block1
         else:
             request = self.app_request
@@ -529,9 +529,9 @@ class Requester(object):
 
         if block1.size_exponent < self.app_request.opt.block1.size_exponent:
             next_number = (self.app_request.opt.block1.block_number + 1) * 2 ** (self.app_request.opt.block1.size_exponent - block1.size_exponent)
-            next_block = self.app_request.extract_block(next_number, block1.size_exponent)
+            next_block = self.app_request._extract_block(next_number, block1.size_exponent)
         else:
-            next_block = self.app_request.extract_block(self.app_request.opt.block1.block_number + 1, block1.size_exponent)
+            next_block = self.app_request._extract_block(self.app_request.opt.block1.block_number + 1, block1.size_exponent)
 
         if next_block is not None:
             self.app_request.opt.block1 = next_block.opt.block1
@@ -555,7 +555,7 @@ class Requester(object):
             self.log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
             if self._assembled_response is not None:
                 try:
-                    self._assembled_response.append_response_block(response)
+                    self._assembled_response._append_response_block(response)
                 except error.Error as e:
                     self.result.set_exception(e)
             else:
@@ -565,7 +565,7 @@ class Requester(object):
                 else:
                     self.response.set_exception(UnexpectedBlock2())
             if block2.more is True:
-                self.send_request(self.app_request.generate_next_block2_request(response))
+                self.send_request(self.app_request._generate_next_block2_request(response))
             else:
                 self.handle_final_response(self._assembled_response)
         else:
@@ -698,7 +698,7 @@ class Responder(object):
                     return
 
                 try:
-                    self._assembled_request.append_request_block(request)
+                    self._assembled_request._append_request_block(request)
                 except error.NotImplemented:
                     self.respond_with_error(request, NOT_IMPLEMENTED, "Error: Request block received out of order!")
                     return
@@ -709,7 +709,7 @@ class Responder(object):
 
                 self.log.debug("Sending block acknowledgement (allowing client to send next block).")
 
-                self.send_non_final_response(request.generate_next_block1_response(), request)
+                self.send_non_final_response(request._generate_next_block1_response(), request)
             else:
                 self.log.debug("Complete blockwise request received.")
                 self.app_request.set_result(self._assembled_request)
@@ -779,7 +779,7 @@ class Responder(object):
         self.app_response = app_response
         size_exp = min(request.opt.block2.size_exponent if request.opt.block2 is not None else DEFAULT_BLOCK_SIZE_EXP, DEFAULT_BLOCK_SIZE_EXP)
         if len(self.app_response.payload) > (2 ** (size_exp + 4)):
-            first_block = self.app_response.extract_block(0, size_exp)
+            first_block = self.app_response._extract_block(0, size_exp)
             self.app_response.opt.block2 = first_block.opt.block2
             self.send_non_final_response(first_block, request)
         else:
@@ -795,7 +795,7 @@ class Responder(object):
             block2 = request.opt.block2
             self.log.debug("Request with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
 
-            next_block = self.app_response.extract_block(block2.block_number, block2.size_exponent)
+            next_block = self.app_response._extract_block(block2.block_number, block2.size_exponent)
             if next_block is None:
                 # TODO is this the right error code here?
                 self.respond_with_error(request, REQUEST_ENTITY_INCOMPLETE, "Request out of range")

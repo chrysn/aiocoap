@@ -82,7 +82,7 @@ class Message(object):
     # splitting and merging messages into and from message blocks
     #
 
-    def extract_block(self, number, size_exp):
+    def _extract_block(self, number, size_exp):
         """Extract block from current message."""
         size = 2 ** (size_exp + 4)
         start = number * size
@@ -98,10 +98,10 @@ class Message(object):
                 block.opt.block2 = (number, more, size_exp)
             return block
 
-    def append_request_block(self, next_block):
+    def _append_request_block(self, next_block):
         """Modify message by appending another block"""
         if not self.code.is_request():
-            raise ValueError("append_request_block only works on requests.")
+            raise ValueError("_append_request_block only works on requests.")
 
         block1 = next_block.opt.block1
         if block1.start == len(self.payload):
@@ -112,11 +112,11 @@ class Message(object):
         else:
             raise iot.error.NotImplemented()
 
-    def append_response_block(self, next_block):
+    def _append_response_block(self, next_block):
         """Append next block to current response message.
            Used when assembling incoming blockwise responses."""
         if not self.code.is_response():
-            raise ValueError("append_response_block only works on responses.")
+            raise ValueError("_append_response_block only works on responses.")
 
         block2 = next_block.opt.block2
         if block2.start != len(self.payload):
@@ -130,7 +130,7 @@ class Message(object):
         self.token = next_block.token
         self.mid = next_block.mid
 
-    def generate_next_block2_request(self, response):
+    def _generate_next_block2_request(self, response):
         """Generate a request for next response block.
 
         This method is used by client after receiving blockwise response from
@@ -148,7 +148,7 @@ class Message(object):
         del request.opt.observe
         return request
 
-    def generate_next_block1_response(self):
+    def _generate_next_block1_response(self):
         """Generate a response to acknowledge incoming request block.
 
         This method is used by server after receiving blockwise request from
