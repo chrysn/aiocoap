@@ -415,7 +415,7 @@ class Requester(object):
             timeout = self.protocol.loop.call_later(REQUEST_TIMEOUT, timeout_request, d)
             d.add_done_callback(got_result)
             self.protocol.outgoing_requests[(request.token, request.remote)] = self
-            self.log.debug("Sending request - Token: %s, Remote: %s" % (binascii.b2a_hex(request.token), request.remote))
+            self.log.debug("Sending request - Token: %s, Remote: %s" % (binascii.b2a_hex(request.token).decode('ascii'), request.remote))
             if hasattr(self, 'observation'):
                 d.add_done_callback(self.register_observation)
             return d
@@ -567,7 +567,7 @@ class MulticastRequester(object):
             return
 
         self.protocol.outgoing_requests[(request.token, None)] = self
-        self.log.debug("Sending multicast request - Token: %s, Remote: %s" % (binascii.b2a_hex(request.token), request.remote))
+        self.log.debug("Sending multicast request - Token: %s, Remote: %s" % (binascii.b2a_hex(request.token).decode('ascii'), request.remote))
 
         self.protocol.loop.call_later(MULTICAST_REQUEST_TIMEOUT, self._timeout)
 
@@ -816,7 +816,7 @@ class Responder(object):
         #if response.code.is_response() is False:
             #raise ValueError("Message code is not valid for a response.")
         response.token = request.token
-        self.log.debug("Sending token: %s" % (binascii.b2a_hex(response.token),))
+        self.log.debug("Sending token: %s" % (binascii.b2a_hex(response.token).decode('ascii'),))
         response.remote = request.remote
         if request.opt.block1 is not None:
             response.opt.block1 = request.opt.block1
