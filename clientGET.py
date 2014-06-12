@@ -55,9 +55,9 @@ class Agent():
 
         # this would be usually done as self.protocol.request(request, o...),
         # but we need to access the observation to cancel it
-        requester = aiocoap.protocol.Requester(self.protocol, request, observeCallback=self.print_later_response, block1Callback=None, block2Callback=None, observeCallbackArgs=None, block1CallbackArgs=None, block2CallbackArgs=None, observeCallbackKeywords=None, block1CallbackKeywords=None, block2CallbackKeywords=None)
+        requester = aiocoap.protocol.Requester(self.protocol, request)
         self.observation = requester.observation
-        self.protocol.loop.call_later(15, self.stop_observing)
+        self.observation.register_callback(self.print_later_response)
 
         try:
             response = yield from requester.response
@@ -65,7 +65,8 @@ class Agent():
             print('Failed to fetch resource:')
             print(e)
         else:
-            print('Result: %r'%response.payload)
+            print('Result: %s %r'%(response.code, response.payload))
+            self.protocol.loop.call_later(15, self.stop_observing)
 
     def print_later_response(self, response):
         print('Newer result: %r'%response.payload)

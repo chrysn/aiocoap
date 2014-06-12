@@ -673,7 +673,7 @@ class Responder(object):
                 response = yield from unfinished_response
             except Exception as e:
                 self.log.error("An exception occurred while rendering a resource: %r"%e)
-                response = Message(code=iot.coap.INTERNAL_SERVER_ERROR)
+                response = Message(code=INTERNAL_SERVER_ERROR)
 
             if resource.observable and request.code == GET and request.opt.observe is not None:
                 self.handle_observe(response, request, resource)
@@ -792,7 +792,7 @@ class Responder(object):
         # not going via send_response because it's all only about the message id
         ack.remote = request.remote
         ack.mid = request.mid
-        self.protocol.send_message(ack, request)
+        self.protocol.send_message(ack)
         self._sent_empty_ack = True
 
     def handle_observe(self, app_response, request, resource):

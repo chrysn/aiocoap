@@ -7,6 +7,7 @@
 # described in the accompanying LICENSE file.
 
 from itertools import chain
+import struct
 
 from .numbers import *
 

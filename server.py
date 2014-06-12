@@ -65,7 +65,7 @@ class BlockResource (resource.CoAPResource):
 
     @asyncio.coroutine
     def render_PUT(self, request):
-        print('PUT payload: ' + request.payload)
+        print('PUT payload: %s' % request.payload)
         payload = "Mr. and Mrs. Dursley of number four, Privet Drive, were proud to say that they were perfectly normal, thank you very much.".encode('ascii')
         response = aiocoap.Message(code=aiocoap.CHANGED, payload=payload)
         return response
