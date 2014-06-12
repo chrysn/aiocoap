@@ -61,7 +61,7 @@ def _single_value_view(option_number, doc=None):
         if value is not None:
             self.add_option(option_number.create_option(value=value))
 
-    def _deleter(self, value, option_number=option_number):
+    def _deleter(self, option_number=option_number):
         self.delete_option(option_number)
 
     return property(_getter, _setter, _deleter, doc or "Single-value view on the %s option."%option_number)

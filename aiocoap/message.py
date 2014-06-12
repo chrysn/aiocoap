@@ -78,6 +78,10 @@ class Message(object):
             rawdata += self.payload
         return rawdata
 
+    #
+    # splitting and merging messages into and from message blocks
+    #
+
     def extract_block(self, number, size_exp):
         """Extract block from current message."""
         size = 2 ** (size_exp + 4)
@@ -95,45 +99,44 @@ class Message(object):
             return block
 
     def append_request_block(self, next_block):
-        """Append next block to current request message.
-           Used when assembling incoming blockwise requests."""
-        if self.code.is_request():
-            block1 = next_block.opt.block1
-            if block1.block_number * (2 ** (block1.size_exponent + 4)) == len(self.payload):
-                self.payload += next_block.payload
-                self.opt.block1 = block1
-                self.token = next_block.token
-                self.mid = next_block.mid
-            else:
-                raise iot.error.NotImplemented()
+        """Modify message by appending another block"""
+        if not self.code.is_request():
+            raise ValueError("append_request_block only works on requests.")
+
+        block1 = next_block.opt.block1
+        if block1.block_number * (2 ** (block1.size_exponent + 4)) == len(self.payload):
+            self.payload += next_block.payload
+            self.opt.block1 = block1
+            self.token = next_block.token
+            self.mid = next_block.mid
         else:
-            raise ValueError("Fatal Error: called append_request_block on non-request message!!!")
+            raise iot.error.NotImplemented()
 
     def append_response_block(self, next_block):
         """Append next block to current response message.
            Used when assembling incoming blockwise responses."""
-        if self.code.is_response():
-            ## @TODO: check etags for consistency
-            block2 = next_block.opt.block2
-            if block2.block_number * (2 ** (block2.size_exponent + 4)) != len(self.payload):
-                raise iot.error.NotImplemented()
+        if not self.code.is_response():
+            raise ValueError("append_response_block only works on responses.")
 
-            if next_block.opt.etag != self.opt.etag:
-                raise iot.error.ResourceChanged()
+        block2 = next_block.opt.block2
+        if block2.block_number * (2 ** (block2.size_exponent + 4)) != len(self.payload):
+            raise iot.error.NotImplemented()
 
-            self.payload += next_block.payload
-            self.opt.block2 = block2
-            self.token = next_block.token
-            self.mid = next_block.mid
-        else:
-            raise ValueError("Fatal Error: called append_response_block on non-response message!!!")
+        if next_block.opt.etag != self.opt.etag:
+            raise iot.error.ResourceChanged()
+
+        self.payload += next_block.payload
+        self.opt.block2 = block2
+        self.token = next_block.token
+        self.mid = next_block.mid
 
     def generate_next_block2_request(self, response):
         """Generate a request for next response block.
-           This method is used by client after receiving
-           blockwise response from server with "more" flag set."""
+
+        This method is used by client after receiving blockwise response from
+        server with "more" flag set."""
         request = copy.deepcopy(self)
-        request.payload = ""
+        request.payload = b""
         request.mid = None
         if response.opt.block2.block_number == 0 and response.opt.block2.size_exponent > DEFAULT_BLOCK_SIZE_EXP:
             new_size_exponent = DEFAULT_BLOCK_SIZE_EXP
@@ -141,15 +144,16 @@ class Message(object):
             request.opt.block2 = (new_block_number, False, new_size_exponent)
         else:
             request.opt.block2 = (response.opt.block2.block_number + 1, False, response.opt.block2.size_exponent)
-        request.opt.delete_option(BLOCK1)
-        request.opt.delete_option(OBSERVE)
+        del request.opt.block1
+        del request.opt.observe
         return request
 
     def generate_next_block1_response(self):
         """Generate a response to acknowledge incoming request block.
-           This method is used by server after receiving
-           blockwise request from client with "more" flag set."""
-        response = Message(code=CHANGED, token=self.token )
+
+        This method is used by server after receiving blockwise request from
+        client with "more" flag set."""
+        response = Message(code=CHANGED, token=self.token)
         response.remote = self.remote
         if self.opt.block1.block_number == 0 and self.opt.block1.size_exponent > DEFAULT_BLOCK_SIZE_EXP:
             new_size_exponent = DEFAULT_BLOCK_SIZE_EXP
@@ -157,6 +161,10 @@ class Message(object):
         else:
             response.opt.block1 = (self.opt.block1.block_number, True, self.opt.block1.size_exponent)
         return response
+
+    #
+    # the message in the context of network and addresses
+    #
 
     def get_request_uri(self):
         """The absolute URI this message belongs to. For requests, this is
