@@ -6,7 +6,8 @@
 # txThings is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-import urllib
+import asyncio
+import urllib.parse
 import struct
 import copy
 import ipaddress
@@ -183,10 +184,8 @@ class Message(object):
         # maybe it needs completely separate implementations for requests and
         # responses
 
-        proxy_uri = self.opt.proxy_uri
-
-        if proxy_uri is not None:
-            return proxy_uri
+        if self.opt.proxy_uri is not None:
+            return self.opt.proxy_uri
 
         scheme = self.opt.get_option(OptionNumber.PROXY_SCHEME) or 'coap'
         host = self.opt.uri_host or self.remote[0]
@@ -212,6 +211,37 @@ class Message(object):
         fragment = None
 
         return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
+
+    @asyncio.coroutine
+    def set_request_uri(self, uri):
+        """Parse a given URI into the uri_ fields of the options, and set the
+        remote accordingly.
+
+        This needs to be a coroutine as it involves a ``getaddrinfo`` call."""
+
+        parsed = urllib.parse.urlparse(uri, allow_fragments='blah')
+
+        if parsed.scheme != 'coap':
+            raise ValueError("Can not use other schemes than 'coap' without configured proxy.")
+
+        if parsed.username or parsed.password:
+            raise ValueError("User name and password not supported.")
+
+        # FIXME as with get_request_uri, this hould do encoding/decoding and section 6.5 etc
+
+        if parsed.path not in ('', '/'):
+            self.opt.uri_path = parsed.path.split('/')[1:]
+        else:
+            self.opt.uri_path = []
+        if parsed.query:
+            self.opt.uri_query = parsed.query.split('&')
+        else:
+            self.opt.uri_query = []
+
+        # FIXME have to select remote now, that's not nice (happy eyeballs anyone?)
+        self.remote = (yield from asyncio.get_event_loop().getaddrinfo(parsed.hostname, parsed.port or COAP_PORT))[0][-1]
+
+        self.opt.uri_host = parsed.hostname
 
     def has_multicast_remote(self):
         """Return True if the message's remote needs to be considered a multicast remote."""
