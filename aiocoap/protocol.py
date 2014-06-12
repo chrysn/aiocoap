@@ -346,15 +346,9 @@ class Endpoint(asyncio.DatagramProtocol):
 
     # public interface for sending requests
 
-    def request(self, request, observeCallback=None, block1Callback=None, block2Callback=None,
-                observeCallbackArgs=None, block1CallbackArgs=None, block2CallbackArgs=None,
-                observeCallbackKeywords=None, block1CallbackKeywords=None, block2CallbackKeywords=None):
-        """Send a request.
-
-           This is a method that should be called by user app."""
-        return Requester(self, request, observeCallback, block1Callback, block2Callback,
-                         observeCallbackArgs, block1CallbackArgs, block2CallbackArgs,
-                         observeCallbackKeywords, block1CallbackKeywords, block2CallbackKeywords).response
+    def request(self, request):
+        """Convenience method for spawning a request, in case only the response is needed."""
+        return Requester(self, request).response
 
     def multicast_request(self, request):
         return MulticastRequester(self, request).responses
@@ -363,38 +357,44 @@ class Endpoint(asyncio.DatagramProtocol):
 class Requester(object):
     """Class used to handle single outgoing request.
 
-       Class includes methods that handle sending
-       outgoing blockwise requests and receiving incoming
-       blockwise responses."""
+    Class includes methods that handle sending outgoing blockwise requests and
+    receiving incoming blockwise responses."""
 
     def __init__(self, protocol, app_request):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("requester")
         self.app_request = app_request
-        self.assembled_response = None
-        assert observeCallback == None or callable(observeCallback)
-        assert block1Callback == None or callable(block1Callback)
-        assert block2Callback == None or callable(block2Callback)
-        self.cbs = ((block1Callback, block1CallbackArgs, block1CallbackKeywords),
-                    (block2Callback, block2CallbackArgs, block2CallbackKeywords))
-        if app_request.opt.observe is not None:
-            self.observation = ClientObservation(app_request)
-            if observeCallback is not None:
-                self.observation.register_callback(lambda result, cb=observeCallback, args=observeCallbackArgs or (), kwargs=observeCallbackKeywords or {}: cb(result, *args, **kwargs))
+        self._assembled_response = None
+
+        self._request_transmitted_completely = False
+
         if self.app_request.code.is_request() is False:
             raise ValueError("Message code is not valid for request")
+
         size_exp = DEFAULT_BLOCK_SIZE_EXP
         if len(self.app_request.payload) > (2 ** (size_exp + 4)):
-            raise Exception("multiblock handling broken, length %s"%len(self.app_request.payload))
             request = self.app_request.extract_block(0, size_exp)
             self.app_request.opt.block1 = request.opt.block1
         else:
             request = self.app_request
+            self._request_transmitted_completely = True
 
-        self.response = self.send_request(request)
-        # ASYNCIO FIXME chained deferreds
-        #self.deferred.add_done_callback(self.process_block1_in_response)
-        #self.deferred.add_done_callback(self.process_block2_in_response)
+        self.response = asyncio.Future()
+        self.response.add_done_callback(self._response_cancellation_handler)
+
+        if app_request.opt.observe is not None:
+            self.observation = ClientObservation(app_request)
+            self.response.add_done_callback(self.register_observation)
+
+        self.send_request(request)
+
+    def cancel(self):
+        # TODO cancel ongoing exchanges
+        self.response.cancel()
+
+    def _response_cancellation_handler(self, response_future):
+        if self.response.cancelled():
+            self.cancel()
 
     def send_request(self, request):
         """Send a request or single request block.
@@ -405,52 +405,106 @@ class Requester(object):
            - asking server to send blockwise (Block2) response block
         """
 
-        def cancel_request(d):
-            """Clean request after cancellation from user application."""
-
-            if d.cancelled():
-                self.log.debug("Request cancelled")
-                # actually, it might be a good idea to always do this here and nowhere else
-                self.protocol.outgoing_requests.pop((request.token, request.remote))
-
-        def timeout_request(d):
+        def timeout_request(self=self):
             """Clean the Request after a timeout."""
 
             self.log.info("Request timed out")
             del self.protocol.outgoing_requests[(request.token, request.remote)]
-            d.set_exception(error.RequestTimedOut())
-
-        def got_result(result):
-            timeout.cancel()
+            self.response.set_exception(error.RequestTimedOut())
 
         if request.mtype is None:
             request.mtype = CON
         request.token = self.protocol.next_token()
+
         try:
             self.protocol.send_message(request)
         except Exception as e:
-            f = asyncio.Future()
-            f.set_exception(e)
-            return f
+            self.response.set_exception(e)
         else:
-            d = asyncio.Future()
-            d.add_done_callback(cancel_request)
-            timeout = self.protocol.loop.call_later(REQUEST_TIMEOUT, timeout_request, d)
-            d.add_done_callback(got_result)
+            timeout = self.protocol.loop.call_later(REQUEST_TIMEOUT, timeout_request)
             self.protocol.outgoing_requests[(request.token, request.remote)] = self
+
             self.log.debug("Sending request - Token: %s, Remote: %s" % (binascii.b2a_hex(request.token).decode('ascii'), request.remote))
-            if hasattr(self, 'observation'):
-                d.add_done_callback(self.register_observation)
-            return d
 
     def handle_response(self, response):
+        if not self._request_transmitted_completely:
+            self.process_block1_in_response(response)
+        else:
+            self.process_block2_in_response(response)
+
+    def process_block1_in_response(self, response):
+        """Process incoming response with regard to Block1 option."""
+
+        if response.opt.block1 is None:
+            # it's not up to us here to 
+            if response.code.is_successful(): # an error like "unsupported option" would be ok to return, but success?
+                self.log.warn("Block1 option completely ignored by server, assuming it knows what it is doing.")
+            self.process_block2_in_response(response)
+            return
+
+        block1 = response.opt.block1
+        self.log.debug("Response with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
+
+        if block1.block_number != self.app_request.opt.block1.block_number:
+            self.response.set_exception(UnexpectedBlock1Option())
+
+        if block1.size_exponent < self.app_request.opt.block1.size_exponent:
+            next_number = (self.app_request.opt.block1.block_number + 1) * 2 ** (self.app_request.opt.block1.size_exponent - block1.size_exponent)
+            next_block = self.app_request.extract_block(next_number, block1.size_exponent)
+        else:
+            next_block = self.app_request.extract_block(self.app_request.opt.block1.block_number + 1, block1.size_exponent)
+
+        if next_block is not None:
+            self.app_request.opt.block1 = next_block.opt.block1
+
+            # TODO: ignoring block1.more so far -- if it is False, we might use
+            # the information about what has been done so far.
+
+            self.send_request(next_block)
+        else:
+            if block1.more is False:
+                self.process_block2_in_response(response)
+            else:
+                self.response.set_exception(UnexpectedBlock1Option())
+
+    def process_block2_in_response(self, response):
+        """Process incoming response with regard to Block2 option."""
+
+        if response.opt.block2 is not None:
+            block2 = response.opt.block2
+            self.log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
+            if self._assembled_response is not None:
+                try:
+                    self._assembled_response.append_response_block(response)
+                except error.Error as e:
+                    self.result.set_exception(e)
+            else:
+                if block2.block_number == 0:
+                    self.log.debug("Receiving blockwise response")
+                    self._assembled_response = response
+                else:
+                    self.response.set_exception(UnexpectedBlock2())
+            if block2.more is True:
+                self.send_request(self.app_request.generate_next_block2_request(response))
+            else:
+                self.handle_final_response(self._assembled_response)
+        else:
+            if self._assembled_response is not None:
+                self.log.warning("Server sent non-blockwise response after having started a blockwise transfer. Blockwise transfer cancelled, accepting single response.")
+            self.handle_final_response(response)
+
+    def handle_final_response(self, response):
         response.requested_path = self.app_request.opt.uri_path
         response.requested_query = self.app_request.opt.get_option(OptionNumber.URI_QUERY) or ()
 
-        d, self.response = self.response, None
-        d.set_result(response)
+        self.response.set_result(response)
 
     def register_observation(self, response_future):
+        # we could have this be a coroutine, then it would be launched
+        # immediately instead of as add_done_callback to self.response, but it
+        # doesn't give an advantage, we'd still have to check for whether the
+        # observation has been cancelled before setting an error, and we'd just
+        # one more task around
         try:
             response = response_future.result()
         except Exception as e:
@@ -463,110 +517,6 @@ class Requester(object):
                 self.observation.error(error.NotObservable())
         else:
             self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
-
-    def process_block1_in_response(self, response_future):
-        """Process incoming response with regard to Block1 option.
-
-           Method is called for all responses, with or without Block1
-           option.
-
-           Method is recursive - calls itself until all request blocks
-           are sent."""
-
-        raise NotImplementedError("Not ported to asyncio yet")
-
-        if response.opt.block1 is not None:
-            block1 = response.opt.block1
-            self.log.debug("Response with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
-            if block1.block_number == self.app_request.opt.block1.block_number:
-                if block1.size_exponent < self.app_request.opt.block1.size_exponent:
-                    next_number = (self.app_request.opt.block1.block_number + 1) * 2 ** (self.app_request.opt.block1.size_exponent - block1.size_exponent)
-                    next_block = self.app_request.extract_block(next_number, block1.size_exponent)
-                else:
-                    next_block = self.app_request.extract_block(self.app_request.opt.block1.block_number + 1, block1.size_exponent)
-                if next_block is not None:
-                    self.app_request.opt.block1 = next_block.opt.block1
-                    block1Callback, args, kw = self.cbs[0]
-                    if block1Callback is None:
-                        return self.send_next_request_block(None, next_block)
-                    else:
-                        args = args or ()
-                        kw = kw or {}
-                        d = block1Callback(response, *args, **kw)
-                        d.addCallback(self.send_next_request_block, next_block)
-                        return d
-                else:
-                    if block1.more is False:
-                        return defer.succeed(response)
-                    else:
-                        return defer.fail()
-            else:
-                return defer.fail()
-        else:
-            if self.app_request.opt.block1 is None:
-                return defer.succeed(response)
-            else:
-                return defer.fail()
-
-    def send_next_request_block(self, result, next_block):
-        """Helper method used for sending request blocks."""
-        self.log.debug("Sending next block of blockwise request.")
-        self.deferred = self.send_request(next_block)
-        self.deferred.add_done_callback(self.process_block1_in_response)
-        return self.deferred
-
-    def process_block2_in_response(self, response_future):
-        """Process incoming response with regard to Block2 option.
-
-           Method is called for all responses, with or without Block2
-           option.
-
-           Method is recursive - calls itself until all response blocks
-           from server are received."""
-
-        response = response_future.result()
-
-        if response.opt.block2 is not None:
-            block2 = response.opt.block2
-            self.log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
-            if self.assembled_response is not None:
-                try:
-                    self.assembled_response.append_response_block(response)
-                except error.Error as e:
-                    return defer.fail(e)
-            else:
-                if block2.block_number is 0:
-                    self.log.debug("Receiving blockwise response")
-                    self.assembled_response = response
-                else:
-                    self.log.warning("ProcessBlock2 error: transfer started with nonzero block number.")
-                    return defer.fail()
-            if block2.more is True:
-                request = self.app_request.generate_next_block2_request(response)
-                block2Callback, args, kw = self.cbs[1]
-                # ASYNCIO FIXME deferred return
-                if block2Callback is None:
-                    return self.ask_for_next_response_block(None, request)
-                else:
-                    args = args or ()
-                    kw = kw or {}
-                    d = block2Callback(response, *args, **kw)
-                    d.addCallback(self.ask_for_next_response_block, request)
-                    return d
-            else:
-                return defer.succeed(self.assembled_response)
-        else:
-            if self.assembled_response is None:
-                return defer.succeed(response)
-            else:
-                return defer.fail(error.MissingBlock2Option)
-
-    def ask_for_next_response_block(self, result, request):
-        """Helper method used to ask server to send next response block."""
-        self.log.debug("Requesting next block of blockwise response.")
-        self.deferred = self.send_request(request)
-        self.deferred.addCallback(self.process_block2_in_response)
-        return self.deferred
 
 class MulticastRequester(object):
     def __init__(self, protocol, request):
@@ -627,7 +577,7 @@ class Responder(object):
         # that will be passed the single request. take care that this does not
         # linger -- either enqueue with incoming_requests (and a timeout), or
         # send a response which cancels the future.
-        self._all_blocks_arrived = asyncio.Future()
+        self.app_request = asyncio.Future()
         # used to track whether to reply with ACK or CON
         self._sent_empty_ack = False
 
@@ -643,7 +593,7 @@ class Responder(object):
         if self._next_block_timeout is not None: # that'd be the case only for the first time
             self._next_block_timeout.cancel()
 
-        if self._all_blocks_arrived.done() == False:
+        if self.app_request.done() == False:
             self.process_block1_in_request(request)
         else:
             self.process_block2_in_request(request)
@@ -651,7 +601,7 @@ class Responder(object):
     def process_block1_in_request(self, request):
         """Process an incoming request while in block1 phase.
 
-        This method is responsible for finishing the _all_blocks_arrived future
+        This method is responsible for finishing the app_request future
         and thus indicating that it should not be called any more, or
         scheduling itself again."""
         if request.opt.block1 is not None:
@@ -682,11 +632,11 @@ class Responder(object):
                 self.send_non_final_response(request.generate_next_block1_response(), request)
             else:
                 self.log.debug("Complete blockwise request received.")
-                self._all_blocks_arrived.set_result(self._assembled_request)
+                self.app_request.set_result(self._assembled_request)
         else:
             if self._assembled_request is not None:
                 self.log.warning("Non-blockwise request received during blockwise transfer. Blockwise transfer cancelled, responding to single request.")
-            self._all_blocks_arrived.set_result(request)
+            self.app_request.set_result(request)
 
     @asyncio.coroutine
     def dispatch_request(self):
@@ -694,7 +644,7 @@ class Responder(object):
         resource in Uri Path and call proper CoAP Method on it."""
 
         try:
-            request = yield from self._all_blocks_arrived
+            request = yield from self.app_request
         except asyncio.CancelledError:
             # error has been handled somewhere else
             return
@@ -741,7 +691,7 @@ class Responder(object):
         """Take application-supplied response and prepare it for sending."""
 
         # if there was an error, make sure nobody hopes to get a result any more
-        self._all_blocks_arrived.cancel()
+        self.app_request.cancel()
 
         self.log.debug("Preparing response...")
         if delayed_ack is not None:
@@ -789,7 +739,7 @@ class Responder(object):
         def timeout_non_final_response(self, key):
             self.log.info("Waiting for next blockwise request timed out")
             self.protocol.incoming_requests.pop(key)
-            self._all_blocks_arrived.cancel()
+            self.app_request.cancel()
 
         # we don't want to have this incoming request around forever
         self._next_block_timeout = self.protocol.loop.call_later(MAX_TRANSMIT_WAIT, timeout_non_final_response, self, key)

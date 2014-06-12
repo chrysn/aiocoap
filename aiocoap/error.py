@@ -67,6 +67,16 @@ class ResourceChanged(Error):
     not be received in a consistent state.
     """
 
+class UnexpectedBlock1Option(Error):
+    """
+    Raised when a server responds with block1 options that just don't match.
+    """
+
+class UnexpectedBlock2(Error):
+    """
+    Raised when a server responds with another block2 than expected.
+    """
+
 class MissingBlock2Option(Error):
     """
     Raised when response with Block2 option is expected
