@@ -367,9 +367,7 @@ class Requester(object):
        outgoing blockwise requests and receiving incoming
        blockwise responses."""
 
-    def __init__(self, protocol, app_request, observeCallback, block1Callback, block2Callback,
-                       observeCallbackArgs, block1CallbackArgs, block2CallbackArgs,
-                       observeCallbackKeywords, block1CallbackKeywords, block2CallbackKeywords):
+    def __init__(self, protocol, app_request):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("requester")
         self.app_request = app_request
@@ -766,23 +764,17 @@ class Responder(object):
         if request.opt.block2 is not None:
             block2 = request.opt.block2
             self.log.debug("Request with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
-            sent_length = (2 ** (self.app_response.opt.block2.size_exponent + 4)) * (self.app_response.opt.block2.block_number + 1)
-            #TODO: compare block size of request and response - calculate new block_number if necessary
-            if (2 ** (block2.size_exponent + 4)) * block2.block_number == sent_length:
-                next_block = self.app_response.extract_block(block2.block_number, block2.size_exponent)
-                if next_block is None:
-                    self.log.warning("Block out of range")
-                    # ASYNCIO FIXME deferred return
-                    return defer.fail()
-                if next_block.opt.block2.more is True:
-                    self.app_response.opt.block2 = next_block.opt.block2
-                    return self.send_non_final_response(next_block, request)
-                else:
-                    self.send_final_response(next_block, request)
-                    return defer.succeed(None)
+
+            next_block = self.app_response.extract_block(block2.block_number, block2.size_exponent)
+            if next_block is None:
+                # TODO is this the right error code here?
+                self.respond_with_error(request, REQUEST_ENTITY_INCOMPLETE, "Request out of range")
+                return
+            if next_block.opt.block2.more is True:
+                self.app_response.opt.block2 = next_block.opt.block2
+                self.send_non_final_response(next_block, request)
             else:
-                self.log.warning("Incorrect block number requested")
-                return defer.fail()
+                self.send_final_response(next_block, request)
         else:
             # TODO is this the right error code here?
             self.respond_with_error(request, REQUEST_ENTITY_INCOMPLETE, "Requests after a block2 response must carry the block2 option.")
