@@ -113,7 +113,7 @@ class CoAPResource:
         :param request: a twisted.web.server.Request specifying meta-information
                         about the request that is being made for this child.
         """
-        raise iot.error.NoResource
+        raise error.NoResource
 
     def get_child_with_default(self, path, request):
         """
@@ -162,10 +162,10 @@ class CoAPResource:
         to return a string or NOT_DONE_YET.
         """
         if not request.code.is_request():
-            raise iot.error.UnsupportedMethod()
+            raise error.UnsupportedMethod()
         m = getattr(self, 'render_%s' % request.code, None)
         if not m:
-            raise iot.error.UnallowedMethod()
+            raise error.UnallowedMethod()
         return m(request)
 
     def add_param(self, param):

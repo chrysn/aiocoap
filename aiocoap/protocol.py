@@ -18,7 +18,7 @@ import random
 import struct
 import binascii
 import functools
-
+import socket
 import asyncio
 
 from .util.queuewithend import QueueWithEnd
@@ -39,8 +39,35 @@ from .numbers import *
 from .message import Message
 
 class Endpoint(asyncio.DatagramProtocol):
+    """A single local CoAP endpoint
+
+    An :class:`.Endpoint` gets bound to a network interface as an asyncio
+    protocol. It manages the basic CoAP network mechanisms like message
+    deduplication and retransmissions, and delegates management of blockwise
+    transfer as well as the details of matching requests with responses to the
+    :class:`Requester` and :class:`Responder` classes.
+
+    Instead of passing a protocol factory to the asyncio loop's
+    create_datagram_endpoint method, the following convenience functions are
+    recommended for creating an endpoint:
+
+    .. automethod:: create_client_endpoint
+    .. automethod:: create_server_endpoint
+
+    An endpoint's public API consists of the :meth:`send_message` function and
+    the :attr:`outgoing_requests`, :attr:`incoming_requests` and
+    :attr:`outgoing_obvservations` dictionaries, but those are not stabilized
+    yet, and for most applications the following convenience functions are
+    more suitable:
+
+    .. automethod:: request
+
+    .. automethod:: multicast_request
+
+    If more control is needed, eg. with observations, create a
+    :class:`Requester` yourself and pass the endpoint to it.
+    """
     def __init__(self, loop=None, serversite=None, loggername="coap"):
-        """Initialize a CoAP protocol instance."""
         self.message_id = random.randint(0, 65535)
         self.token = random.randint(0, 65535)
         self.serversite = serversite
@@ -55,19 +82,25 @@ class Endpoint(asyncio.DatagramProtocol):
 
         self.loop = loop or asyncio.get_event_loop()
 
+        self.ready = asyncio.Future() # fullfilled by connection_made
+
     #
     # implementing the typical DatagramProtocol interfaces.
     #
     # note from the documentation: we may rely on connection_made to be called
-    # before datagram_received.
+    # before datagram_received -- but sending immediately after endpoint
+    # creation will still fail
 
     def connection_made(self, transport):
+        """Implementation of the DatagramProtocol interface, called by the transport."""
+        self.ready.set_result(True)
         self.transport = transport
 
     def datagram_received(self, data, address):
+        """Implementation of the DatagramProtocol interface, called by the transport."""
         self.log.debug("received %r from %s" % (data, address))
         try:
-            message = Message.decode(data, address, self)
+            message = Message.decode(data, address)
         except error.UnparsableMessage:
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return
@@ -75,6 +108,7 @@ class Endpoint(asyncio.DatagramProtocol):
         self._dispatch_message(message)
 
     def error_received(self, exc):
+        """Implementation of the DatagramProtocol interface, called by the transport."""
         # TODO: set IP_RECVERR to receive icmp "destination unreachable (port
         # unreachable)" & co to stop retransmitting and err back quickly
         self.log.error("Error received: %s"%exc)
@@ -344,15 +378,58 @@ class Endpoint(asyncio.DatagramProtocol):
         self.token = (self.token + 1) & 0xffffffffffffffff
         return binascii.a2b_hex("%08x"%self.token)
 
-    # public interface for sending requests
+    #
+    # convenience methods for class instanciation
+    #
 
+    @asyncio.coroutine
     def request(self, request):
         """Convenience method for spawning a request, in case only the response is needed."""
-        return Requester(self, request).response
+        # we could just as well return the future, but having this as a
+        # coroutine should be easier to follow in the documentation.
+        return (yield from Requester(self, request).response)
 
     def multicast_request(self, request):
         return MulticastRequester(self, request).responses
 
+    @classmethod
+    @asyncio.coroutine
+    def create_client_endpoint(cls):
+        """Create an endpoint bound to all addresses on a random listening
+        port.
+
+        This is the easiest way to get an endpoint suitable for sending client
+        requests.
+        """
+
+        loop = asyncio.get_event_loop()
+
+        transport, protocol = yield from loop.create_datagram_endpoint(cls, family=socket.AF_INET)
+
+        # use the following lines instead, and change the address to `::ffff:127.0.0.1`
+        # in order to see acknowledgement handling fail with hybrid stack operation
+        #transport, protocol = yield from loop.create_datagram_endpoint(cls, family=socket.AF_INET6)
+        #transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+
+        yield from protocol.ready
+
+        return protocol
+
+    @classmethod
+    @asyncio.coroutine
+    def create_server_endpoint(cls, site):
+        """Create an endpoint bound to all addresses on the CoAP port.
+
+        This is the easiest way to get an endpoint suitable both for sending
+        client and acceptin server requests."""
+
+        loop = asyncio.get_event_loop()
+
+        transport, protocol = yield from loop.create_datagram_endpoint(lambda: cls(loop, site, loggername="coap-server"), ('127.0.0.1', COAP_PORT))
+
+        yield from protocol.ready
+
+        return protocol
 
 class Requester(object):
     """Class used to handle single outgoing request.
@@ -360,11 +437,13 @@ class Requester(object):
     Class includes methods that handle sending outgoing blockwise requests and
     receiving incoming blockwise responses."""
 
-    def __init__(self, protocol, app_request):
+    def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None)):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("requester")
         self.app_request = app_request
         self._assembled_response = None
+
+        self._exchange_monitor_factory = exchange_monitor_factory
 
         self._request_transmitted_completely = False
 
@@ -373,7 +452,7 @@ class Requester(object):
 
         size_exp = DEFAULT_BLOCK_SIZE_EXP
         if len(self.app_request.payload) > (2 ** (size_exp + 4)):
-            request = self.app_request.extract_block(0, size_exp)
+            request = self.app_request._extract_block(0, size_exp)
             self.app_request.opt.block1 = request.opt.block1
         else:
             request = self.app_request
@@ -417,7 +496,7 @@ class Requester(object):
         request.token = self.protocol.next_token()
 
         try:
-            self.protocol.send_message(request)
+            self.protocol.send_message(request, self._exchange_monitor_factory(request))
         except Exception as e:
             self.response.set_exception(e)
         else:
@@ -438,7 +517,7 @@ class Requester(object):
         if response.opt.block1 is None:
             # it's not up to us here to 
             if response.code.is_successful(): # an error like "unsupported option" would be ok to return, but success?
-                self.log.warn("Block1 option completely ignored by server, assuming it knows what it is doing.")
+                self.log.warning("Block1 option completely ignored by server, assuming it knows what it is doing.")
             self.process_block2_in_response(response)
             return
 
@@ -450,9 +529,9 @@ class Requester(object):
 
         if block1.size_exponent < self.app_request.opt.block1.size_exponent:
             next_number = (self.app_request.opt.block1.block_number + 1) * 2 ** (self.app_request.opt.block1.size_exponent - block1.size_exponent)
-            next_block = self.app_request.extract_block(next_number, block1.size_exponent)
+            next_block = self.app_request._extract_block(next_number, block1.size_exponent)
         else:
-            next_block = self.app_request.extract_block(self.app_request.opt.block1.block_number + 1, block1.size_exponent)
+            next_block = self.app_request._extract_block(self.app_request.opt.block1.block_number + 1, block1.size_exponent)
 
         if next_block is not None:
             self.app_request.opt.block1 = next_block.opt.block1
@@ -463,6 +542,7 @@ class Requester(object):
             self.send_request(next_block)
         else:
             if block1.more is False:
+                self._request_transmitted_completely = True
                 self.process_block2_in_response(response)
             else:
                 self.response.set_exception(UnexpectedBlock1Option())
@@ -475,7 +555,7 @@ class Requester(object):
             self.log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
             if self._assembled_response is not None:
                 try:
-                    self._assembled_response.append_response_block(response)
+                    self._assembled_response._append_response_block(response)
                 except error.Error as e:
                     self.result.set_exception(e)
             else:
@@ -485,7 +565,7 @@ class Requester(object):
                 else:
                     self.response.set_exception(UnexpectedBlock2())
             if block2.more is True:
-                self.send_request(self.app_request.generate_next_block2_request(response))
+                self.send_request(self.app_request._generate_next_block2_request(response))
             else:
                 self.handle_final_response(self._assembled_response)
         else:
@@ -618,7 +698,7 @@ class Responder(object):
                     return
 
                 try:
-                    self._assembled_request.append_request_block(request)
+                    self._assembled_request._append_request_block(request)
                 except error.NotImplemented:
                     self.respond_with_error(request, NOT_IMPLEMENTED, "Error: Request block received out of order!")
                     return
@@ -629,7 +709,7 @@ class Responder(object):
 
                 self.log.debug("Sending block acknowledgement (allowing client to send next block).")
 
-                self.send_non_final_response(request.generate_next_block1_response(), request)
+                self.send_non_final_response(request._generate_next_block1_response(), request)
             else:
                 self.log.debug("Complete blockwise request received.")
                 self.app_request.set_result(self._assembled_request)
@@ -699,7 +779,7 @@ class Responder(object):
         self.app_response = app_response
         size_exp = min(request.opt.block2.size_exponent if request.opt.block2 is not None else DEFAULT_BLOCK_SIZE_EXP, DEFAULT_BLOCK_SIZE_EXP)
         if len(self.app_response.payload) > (2 ** (size_exp + 4)):
-            first_block = self.app_response.extract_block(0, size_exp)
+            first_block = self.app_response._extract_block(0, size_exp)
             self.app_response.opt.block2 = first_block.opt.block2
             self.send_non_final_response(first_block, request)
         else:
@@ -715,7 +795,7 @@ class Responder(object):
             block2 = request.opt.block2
             self.log.debug("Request with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
 
-            next_block = self.app_response.extract_block(block2.block_number, block2.size_exponent)
+            next_block = self.app_response._extract_block(block2.block_number, block2.size_exponent)
             if next_block is None:
                 # TODO is this the right error code here?
                 self.respond_with_error(request, REQUEST_ENTITY_INCOMPLETE, "Request out of range")
@@ -751,6 +831,11 @@ class Responder(object):
         # no need to unregister anything; the incoming_requests registrations
         # only live from one request to the next anyway
         self.send_response(response, request)
+
+        # break reference. TODO: this helps the protocol free itself, but not
+        # the responder, which seems to be kept alive by lingering timeout
+        # handlers.
+        self.protocol = None
 
     def send_response(self, response, request):
         """Send a response or single response block.
@@ -812,7 +897,7 @@ class Responder(object):
         if observation_identifier in resource.observers:
             pass ## @TODO renew that observation (but keep in mind that whenever we send a notification, the original message is replayed)
         else:
-            ServerObservation(request, self.log, observation_identifier, resource)
+            ServerObservation(self.protocol, request, self.log, observation_identifier, resource)
 
         app_response.opt.observe = resource.observe_index
 
@@ -844,7 +929,8 @@ class ServerObservation(object):
     It keeps a complete copy of the original request for simplicity (while it
     actually would only need parts of that request, like the accept option)."""
 
-    def __init__(self, original_request, requester_log, identifier, resource):
+    def __init__(self, original_protocol, original_request, requester_log, identifier, resource):
+        self.original_protocol = original_protocol
         self.original_request = original_request
         self.log = requester_log.getChild("observation")
 
@@ -861,7 +947,7 @@ class ServerObservation(object):
 
         # the prediction is that the factory will be called exactly once, as no
         # blockwise is involved
-        Responder(self.original_request.protocol, self.original_request, lambda message: self.ObservationExchangeMonitor(self))
+        Responder(self.original_protocol, self.original_request, lambda message: self.ObservationExchangeMonitor(self))
 
     def cancel(self):
         # this should lead to the object being garbage collected pretty soon,

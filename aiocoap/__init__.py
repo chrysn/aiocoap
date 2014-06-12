@@ -7,10 +7,10 @@
 # described in the accompanying LICENSE file.
 
 """
-aiohttp
+aiocoap
 =======
 
-The aiohttp package is a library that implements CoAP, the Constrained
+The aiocoap package is a library that implements CoAP, the Constrained
 Application Protocol (`RFC pending`_).
 
 .. _`RFC pending`: https://datatracker.ietf.org/doc/draft-ietf-core-coap/
@@ -19,21 +19,20 @@ Usage
 -----
 
 In all but the most exotic applications, you will want to create a single
-:class:`iot.coap.CoAP` instance that binds to the network. Depending on whether
-you are implementing a server or a client, it binds to the default CoAP port
-5683 or to a high port.
+:class:`.Endpoint` instance that binds to the network. The
+:meth:`.Endpoint.create_client_endpoint` and
+:meth:`.Endpoint.create_server_endpoint` coroutines give you a readily connected
+endpoint.
 
-With a client, requests get sent by assembling a :class:`iot.message.Message`,
-and requesting it to be handled using the :meth:`iot.coap.CoAP.request` method.
+On the client side, you can request resources by assembling a
+:class:`.Message` and passing it to your endpoint's
+:meth:`.Endpoint.request` coroutine, which returns the response message.
 
-With a server, a resource tree gets built from :class:`iot.resource.Resurce`
-objects, whose root gets passed to the :class:`iot.coap.CoAP` object on
-initialization.
+On the server side, a resource tree gets built from
+:class:`aiocoap.resource.CoAPResource` objects into a
+:class:`aiocoap.resource.Site`, which is assigned to the endpoint at creation
+time.
 """
-
-## Using those imports is deprecated. Instead, it is recommended to `from
-## aiocoap.numbers import *` and explicitly import what you need from
-## everything else.
 
 from .numbers import *
 from .message import Message

@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+
+# This file is part of the Python aiocoap library project.
+#
+# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
+#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+#
+# txThings is free software, this file is published under the MIT license as
+# described in the accompanying LICENSE file.
+
+"""coap-client is a simple command-line tool for interacting with CoAP servers"""
+
+import sys
+import asyncio
+import argparse
+import logging
+import subprocess
+
+import aiocoap
+
+def parse_commandline(args):
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--observe', help="Register an observation on the resource", action='store_true')
+    p.add_argument('--observe-exec', help="Run the specified program whenever the observed resource changes, feeding the response data to its stdin", metavar='CMD')
+    p.add_argument('--accept', help="Content format to request", metavar="MIME")
+    p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
+    p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
+    p.add_argument('url', help="CoAP address to fetch")
+
+    return p, p.parse_args(args)
+
+def configure_logging(verbosity):
+    logging.basicConfig()
+
+    if verbosity <= -2:
+        logging.getLogger('coap').setLevel(logging.CRITICAL + 1)
+    elif verbosity == -1:
+        logging.getLogger('coap').setLevel(logging.ERROR)
+    elif verbosity == 0:
+        logging.getLogger('coap').setLevel(logging.WARNING)
+    elif verbosity == 1:
+        logging.getLogger('coap').setLevel(logging.INFO)
+    elif verbosity >= 2:
+        logging.getLogger('coap').setLevel(logging.DEBUG)
+
+def incoming_observation(options, response):
+    if options.observe_exec:
+        p = subprocess.Popen(options.observe_exec, shell=True, stdin=subprocess.PIPE)
+        # FIXME this blocks
+        p.communicate(response.payload)
+    else:
+        sys.stdout.buffer.write(b'\f')
+        sys.stdout.buffer.write(response.payload)
+        sys.stdout.buffer.flush()
+
+@asyncio.coroutine
+def main(args):
+    parser, options = parse_commandline(args)
+
+    configure_logging((options.verbose or 0) - (options.quiet or 0))
+
+    endpoint = yield from aiocoap.Endpoint.create_client_endpoint()
+
+    request = aiocoap.Message(code=aiocoap.GET)
+    try:
+        yield from request.set_request_uri(options.url)
+    except ValueError as e:
+        raise parser.error(e)
+
+    if options.accept:
+        try:
+            request.opt.accept = int(options.accept)
+        except ValueError:
+            try:
+                request.opt.accept = aiocoap.numbers.media_types_rev[options.accept]
+            except KeyError:
+                parser.error("Unknown media type")
+
+    if options.observe:
+        request.opt.observe = 0
+        observation_is_over = asyncio.Future()
+
+    requester = aiocoap.protocol.Requester(endpoint, request)
+
+    if options.observe:
+        requester.observation.register_errback(observation_is_over.set_result)
+        requester.observation.register_callback(lambda data, options=options: incoming_observation(options, data))
+
+    response_data = yield from requester.response
+    if response_data.code.is_successful():
+        sys.stdout.buffer.write(response_data.payload)
+        sys.stdout.buffer.flush()
+    else:
+        print(response_data.code, file=sys.stderr)
+        if response_data.payload:
+            print(response_data.payload.decode('utf-8'), file=sys.stderr)
+        sys.exit(1)
+
+    if options.observe:
+        exit_reason = yield from observation_is_over
+        print(exit_reason, file=sys.stderr)
+
+if __name__ == "__main__":
+    try:
+        asyncio.get_event_loop().run_until_complete(main(sys.argv[1:]))
+    except KeyboardInterrupt:
+        sys.exit(3)

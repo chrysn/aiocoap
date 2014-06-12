@@ -6,7 +6,8 @@
 # txThings is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-import urllib
+import asyncio
+import urllib.parse
 import struct
 import copy
 import ipaddress
@@ -47,7 +48,7 @@ class Message(object):
             raise TypeError("Payload must not be None. Use empty string instead.")
 
     @classmethod
-    def decode(cls, rawdata, remote=None, protocol=None):
+    def decode(cls, rawdata, remote=None):
         """Create Message object from binary representation of message."""
         try:
             (vttkl, code, mid) = struct.unpack('!BBH', rawdata[:4])
@@ -62,7 +63,6 @@ class Message(object):
         msg.token = rawdata[4:4 + token_length]
         msg.payload = msg.opt.decode(rawdata[4 + token_length:])
         msg.remote = remote
-        msg.protocol = protocol
         return msg
 
     def encode(self):
@@ -82,7 +82,7 @@ class Message(object):
     # splitting and merging messages into and from message blocks
     #
 
-    def extract_block(self, number, size_exp):
+    def _extract_block(self, number, size_exp):
         """Extract block from current message."""
         size = 2 ** (size_exp + 4)
         start = number * size
@@ -98,10 +98,10 @@ class Message(object):
                 block.opt.block2 = (number, more, size_exp)
             return block
 
-    def append_request_block(self, next_block):
+    def _append_request_block(self, next_block):
         """Modify message by appending another block"""
         if not self.code.is_request():
-            raise ValueError("append_request_block only works on requests.")
+            raise ValueError("_append_request_block only works on requests.")
 
         block1 = next_block.opt.block1
         if block1.start == len(self.payload):
@@ -112,11 +112,11 @@ class Message(object):
         else:
             raise iot.error.NotImplemented()
 
-    def append_response_block(self, next_block):
+    def _append_response_block(self, next_block):
         """Append next block to current response message.
            Used when assembling incoming blockwise responses."""
         if not self.code.is_response():
-            raise ValueError("append_response_block only works on responses.")
+            raise ValueError("_append_response_block only works on responses.")
 
         block2 = next_block.opt.block2
         if block2.start != len(self.payload):
@@ -130,7 +130,7 @@ class Message(object):
         self.token = next_block.token
         self.mid = next_block.mid
 
-    def generate_next_block2_request(self, response):
+    def _generate_next_block2_request(self, response):
         """Generate a request for next response block.
 
         This method is used by client after receiving blockwise response from
@@ -148,7 +148,7 @@ class Message(object):
         del request.opt.observe
         return request
 
-    def generate_next_block1_response(self):
+    def _generate_next_block1_response(self):
         """Generate a response to acknowledge incoming request block.
 
         This method is used by server after receiving blockwise request from
@@ -184,10 +184,8 @@ class Message(object):
         # maybe it needs completely separate implementations for requests and
         # responses
 
-        proxy_uri = self.opt.proxy_uri
-
-        if proxy_uri is not None:
-            return proxy_uri
+        if self.opt.proxy_uri is not None:
+            return self.opt.proxy_uri
 
         scheme = self.opt.get_option(OptionNumber.PROXY_SCHEME) or 'coap'
         host = self.opt.uri_host or self.remote[0]
@@ -213,6 +211,37 @@ class Message(object):
         fragment = None
 
         return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
+
+    @asyncio.coroutine
+    def set_request_uri(self, uri):
+        """Parse a given URI into the uri_ fields of the options, and set the
+        remote accordingly.
+
+        This needs to be a coroutine as it involves a ``getaddrinfo`` call."""
+
+        parsed = urllib.parse.urlparse(uri, allow_fragments='blah')
+
+        if parsed.scheme != 'coap':
+            raise ValueError("Can not use other schemes than 'coap' without configured proxy.")
+
+        if parsed.username or parsed.password:
+            raise ValueError("User name and password not supported.")
+
+        # FIXME as with get_request_uri, this hould do encoding/decoding and section 6.5 etc
+
+        if parsed.path not in ('', '/'):
+            self.opt.uri_path = parsed.path.split('/')[1:]
+        else:
+            self.opt.uri_path = []
+        if parsed.query:
+            self.opt.uri_query = parsed.query.split('&')
+        else:
+            self.opt.uri_query = []
+
+        # FIXME have to select remote now, that's not nice (happy eyeballs anyone?)
+        self.remote = (yield from asyncio.get_event_loop().getaddrinfo(parsed.hostname, parsed.port or COAP_PORT))[0][-1]
+
+        self.opt.uri_host = parsed.hostname
 
     def has_multicast_remote(self):
         """Return True if the message's remote needs to be considered a multicast remote."""
