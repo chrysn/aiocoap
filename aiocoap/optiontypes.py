@@ -110,7 +110,14 @@ class BlockOption(OptionType):
     """Block CoAP option - special option used only for Block1 and Block2 options.
        Currently it is the only type of CoAP options that has
        internal structure."""
-    BlockwiseTuple = collections.namedtuple('BlockwiseTuple', ['block_number', 'more', 'size_exponent'])
+    class BlockwiseTuple(collections.namedtuple('_BlockwiseTuple', ['block_number', 'more', 'size_exponent'])):
+        @property
+        def size(self):
+            return 2 ** (self.size_exponent + 4)
+
+        @property
+        def start(self):
+            return self.block_number * self.size
 
     def __init__(self, number, value=None):
         if value is not None:

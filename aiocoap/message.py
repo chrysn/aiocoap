@@ -104,7 +104,7 @@ class Message(object):
             raise ValueError("append_request_block only works on requests.")
 
         block1 = next_block.opt.block1
-        if block1.block_number * (2 ** (block1.size_exponent + 4)) == len(self.payload):
+        if block1.start == len(self.payload):
             self.payload += next_block.payload
             self.opt.block1 = block1
             self.token = next_block.token
@@ -119,7 +119,7 @@ class Message(object):
             raise ValueError("append_response_block only works on responses.")
 
         block2 = next_block.opt.block2
-        if block2.block_number * (2 ** (block2.size_exponent + 4)) != len(self.payload):
+        if block2.start != len(self.payload):
             raise iot.error.NotImplemented()
 
         if next_block.opt.etag != self.opt.etag:
