@@ -27,14 +27,18 @@ class BlockResource(resource.CoAPResource):
 
     @asyncio.coroutine
     def render_GET(self, request):
-        payload="Now I lay me down to sleep, I pray the Lord my soul to keep, If I shall die before I wake, I pray the Lord my soul to take.".encode('ascii')
+        payload = "Now I lay me down to sleep, I pray the Lord my soul to keep,"\
+                "If I shall die before I wake, I pray the Lord my soul to"\
+                "take.".encode('ascii')
         response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
         return response
 
     @asyncio.coroutine
     def render_PUT(self, request):
         print('PUT payload: %s' % request.payload)
-        payload = "Mr. and Mrs. Dursley of number four, Privet Drive, were proud to say that they were perfectly normal, thank you very much.".encode('ascii')
+        payload = "Mr. and Mrs. Dursley of number four, Privet Drive, were proud"\
+                "to say that they were perfectly normal, thank you very"\
+                "much.".encode('ascii')
         return aiocoap.Message(code=aiocoap.CHANGED, payload=payload)
 
 
@@ -54,7 +58,10 @@ class SeparateLargeResource(resource.CoAPResource):
     def render_GET(self, request):
         yield from asyncio.sleep(3)
 
-        payload = "Three rings for the elven kings under the sky, seven rings for dwarven lords in their halls of stone, nine rings for mortal men doomed to die, one ring for the dark lord on his dark throne.".encode('ascii')
+        payload = "Three rings for the elven kings under the sky, seven rings"\
+                "for dwarven lords in their halls of stone, nine rings for"\
+                "mortal men doomed to die, one ring for the dark lord on his"\
+                "dark throne.".encode('ascii')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
 class TimeResource(resource.CoAPResource):
