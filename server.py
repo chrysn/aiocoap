@@ -156,32 +156,36 @@ logging.getLogger("asyncio").setLevel(logging.INFO)
 logging.getLogger("coap").setLevel(logging.DEBUG)
 logging.debug("server started")
 
-# Resource tree creation
-root = resource.CoAPResource()
+def main():
+    # Resource tree creation
+    root = resource.CoAPResource()
 
-well_known = resource.CoAPResource()
-root.put_child('.well-known', well_known)
-core = CoreResource(root)
-well_known.put_child('core', core)
+    well_known = resource.CoAPResource()
+    root.put_child('.well-known', well_known)
+    core = CoreResource(root)
+    well_known.put_child('core', core)
 
-counter = CounterResource(5000)
-root.put_child('counter', counter)
+    counter = CounterResource(5000)
+    root.put_child('counter', counter)
 
-time = TimeResource()
-root.put_child('time', time)
+    time = TimeResource()
+    root.put_child('time', time)
 
-other = resource.CoAPResource()
-root.put_child('other', other)
+    other = resource.CoAPResource()
+    root.put_child('other', other)
 
-block = BlockResource()
-other.put_child('block', block)
+    block = BlockResource()
+    other.put_child('block', block)
 
-separate = SeparateLargeResource()
-other.put_child('separate', separate)
+    separate = SeparateLargeResource()
+    other.put_child('separate', separate)
 
-loop = asyncio.get_event_loop()
+    site = resource.Site(root)
 
-site = resource.Site(root)
-transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(lambda: aiocoap.Endpoint(loop, site), ('127.0.0.1', aiocoap.COAP_PORT)))
+    asyncio.async(aiocoap.Endpoint.create_server_endpoint(site))
 
-loop.run_forever()
+    asyncio.get_event_loop().run_forever()
+
+if __name__ == "__main__":
+    main()
+

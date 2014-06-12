@@ -18,7 +18,7 @@ import random
 import struct
 import binascii
 import functools
-
+import socket
 import asyncio
 
 from .util.queuewithend import QueueWithEnd
@@ -55,13 +55,17 @@ class Endpoint(asyncio.DatagramProtocol):
 
         self.loop = loop or asyncio.get_event_loop()
 
+        self.ready = asyncio.Future() # fullfilled by connection_made
+
     #
     # implementing the typical DatagramProtocol interfaces.
     #
     # note from the documentation: we may rely on connection_made to be called
-    # before datagram_received.
+    # before datagram_received -- but sending immediately after endpoint
+    # creation will still fail
 
     def connection_made(self, transport):
+        self.ready.set_result(True)
         self.transport = transport
 
     def datagram_received(self, data, address):
@@ -344,7 +348,9 @@ class Endpoint(asyncio.DatagramProtocol):
         self.token = (self.token + 1) & 0xffffffffffffffff
         return binascii.a2b_hex("%08x"%self.token)
 
-    # public interface for sending requests
+    #
+    # convenience methods for class instanciation
+    #
 
     def request(self, request):
         """Convenience method for spawning a request, in case only the response is needed."""
@@ -353,6 +359,44 @@ class Endpoint(asyncio.DatagramProtocol):
     def multicast_request(self, request):
         return MulticastRequester(self, request).responses
 
+    @classmethod
+    @asyncio.coroutine
+    def create_client_endpoint(cls):
+        """Create an endpoint bound to all addresses on a random listening
+        port.
+
+        This is the easiest way to get an endpoint suitable for sending client
+        requests.
+        """
+
+        loop = asyncio.get_event_loop()
+
+        transport, protocol = yield from loop.create_datagram_endpoint(cls, family=socket.AF_INET)
+
+        # use the following lines instead, and change the address to `::ffff:127.0.0.1`
+        # in order to see acknowledgement handling fail with hybrid stack operation
+        #transport, protocol = yield from loop.create_datagram_endpoint(cls, family=socket.AF_INET6)
+        #transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+
+        yield from protocol.ready
+
+        return protocol
+
+    @classmethod
+    @asyncio.coroutine
+    def create_server_endpoint(cls, site):
+        """Create an endpoint bound to all addresses on the CoAP port.
+
+        This is the easiest way to get an endpoint suitable both for sending
+        client and acceptin server requests."""
+
+        loop = asyncio.get_event_loop()
+
+        transport, protocol = yield from loop.create_datagram_endpoint(lambda: cls(loop, site), ('127.0.0.1', COAP_PORT))
+
+        yield from protocol.ready
+
+        return protocol
 
 class Requester(object):
     """Class used to handle single outgoing request.

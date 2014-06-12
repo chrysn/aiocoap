@@ -80,13 +80,12 @@ logging.getLogger("asyncio").setLevel(logging.INFO)
 logging.getLogger("coap").setLevel(logging.INFO)
 logging.debug("clientGET started")
 
-loop = asyncio.get_event_loop()
+@asyncio.coroutine
+def main():
+    protocol = yield from aiocoap.Endpoint.create_client_endpoint()
 
-transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(aiocoap.Endpoint, family=socket.AF_INET))
-# use the following lines instead, and change the address to `::ffff:127.0.0.1`
-# in order to see acknowledgement handling fail with hybrid stack operation
-#transport, protocol = loop.run_until_complete(loop.create_datagram_endpoint(aiocoap.Endpoint, family=socket.AF_INET6))
-#transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-client = Agent(protocol)
+    client = Agent(protocol)
+    yield from client.run()
 
-loop.run_until_complete(client.run())
+if __name__ == "__main__":
+    asyncio.get_event_loop().run_until_complete(main())
