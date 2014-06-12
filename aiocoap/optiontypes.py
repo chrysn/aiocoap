@@ -120,7 +120,7 @@ class BlockOption(OptionType):
     value = property(lambda self: self._value, lambda self, value: setattr(self, '_value', self.BlockwiseTuple._make(value)))
 
     def encode(self):
-        as_integer = (self.value[0] << 4) + (self.value[1] * 0x08) + self.value[2]
+        as_integer = (self.value.block_number << 4) + (self.value.more * 0x08) + self.value.size_exponent
         rawdata = struct.pack("!L", as_integer)  # For Python >3.1 replace with int.to_bytes()
         return rawdata.lstrip(bytes([0]))
 
