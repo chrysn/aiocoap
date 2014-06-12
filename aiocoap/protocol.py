@@ -897,7 +897,7 @@ class Responder(object):
         if observation_identifier in resource.observers:
             pass ## @TODO renew that observation (but keep in mind that whenever we send a notification, the original message is replayed)
         else:
-            ServerObservation(request, self.log, observation_identifier, resource)
+            ServerObservation(self.protocol, request, self.log, observation_identifier, resource)
 
         app_response.opt.observe = resource.observe_index
 
@@ -929,7 +929,8 @@ class ServerObservation(object):
     It keeps a complete copy of the original request for simplicity (while it
     actually would only need parts of that request, like the accept option)."""
 
-    def __init__(self, original_request, requester_log, identifier, resource):
+    def __init__(self, original_protocol, original_request, requester_log, identifier, resource):
+        self.original_protocol = original_protocol
         self.original_request = original_request
         self.log = requester_log.getChild("observation")
 
@@ -946,7 +947,7 @@ class ServerObservation(object):
 
         # the prediction is that the factory will be called exactly once, as no
         # blockwise is involved
-        Responder(self.original_request.protocol, self.original_request, lambda message: self.ObservationExchangeMonitor(self))
+        Responder(self.original_protocol, self.original_request, lambda message: self.ObservationExchangeMonitor(self))
 
     def cancel(self):
         # this should lead to the object being garbage collected pretty soon,
