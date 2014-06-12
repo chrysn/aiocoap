@@ -1,7 +1,7 @@
 in order to have auto-buildable documentation with sphinx (using `./setup.py
 build_sphinx`), you must first run
 
-    python3.4 =sphinx-apidoc -f -e -o doc aiocoap
+    python3.4 =sphinx-apidoc -f -T -e -o doc aiocoap
 
 for readthedocs to work, a branch `for-readthedocs` has been generated that
 contains those files statically checked in.
