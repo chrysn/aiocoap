@@ -45,5 +45,7 @@ setup(
             'version': ('setup.py', version),
             'release': ('setup.py', version),
             }
-        }
+        },
+
+    test_suite='tests.test_coap',
 )
