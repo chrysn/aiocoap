@@ -45,8 +45,8 @@ class Endpoint(asyncio.DatagramProtocol):
         self.token = random.randint(0, 65535)
         self.serversite = serversite
         self._recent_messages = {}  # recently received messages (remote, message-id): None or result-message
-        self._active_exchanges = {}  # active exchanges i.e. sent CON messages (remote, message-id): cancellable timeout
-        self._backlogs = {} # per-remote list of backlogged packages (keys exist iff there is an active_exchange with that node)
+        self._active_exchanges = {}  # active exchanges i.e. sent CON messages (remote, message-id): (exchange monitor, cancellable timeout)
+        self._backlogs = {} # per-remote list of (backlogged package, exchange-monitor) tupless (keys exist iff there is an active_exchange with that node)
         self.outgoing_requests = {}  # unfinished outgoing requests (identified by token and remote)
         self.incoming_requests = {}  # unfinished incoming requests (path-tuple, remote): Requester
         self.outgoing_observations = {} # observations where this node is the client. (token, remote) -> ClientObservation
@@ -95,8 +95,6 @@ class Endpoint(asyncio.DatagramProtocol):
             return
 
         if message.mtype in (ACK, RST):
-            #TODO: passing ACK/RESET info to application
-            #Currently it doesn't matter if empty ACK or RST is received - in both cases exchange has to be removed
             self._remove_exchange(message)
 
         if message.code is EMPTY and message.mtype is CON:
@@ -164,7 +162,7 @@ class Endpoint(asyncio.DatagramProtocol):
     # coap dispatch, message-type sublayer: retransmission handling
     #
 
-    def _add_exchange(self, message):
+    def _add_exchange(self, message, exchange_monitor=None):
         """Add an "exchange" for outgoing CON message.
 
         CON (Confirmable) messages are automatically retransmitted by protocol
@@ -178,8 +176,10 @@ class Endpoint(asyncio.DatagramProtocol):
 
         timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
         retransmission_counter = 0
+
         next_retransmission = self.loop.call_later(timeout, self._retransmit, message, timeout, retransmission_counter)
-        self._active_exchanges[key] = next_retransmission
+        self._active_exchanges[key] = (exchange_monitor, next_retransmission)
+
         self.log.debug("Exchange added, Message ID: %d." % message.mid)
 
     def _remove_exchange(self, message):
@@ -191,7 +191,13 @@ class Endpoint(asyncio.DatagramProtocol):
             self.log.info("Received %s from %s, but could not match it to a running exchange."%(message.mtype, message.remote))
             return
 
-        self._active_exchanges.pop(key).cancel()
+        exchange_monitor, next_retransmission = self._active_exchanges.pop(key)
+        next_retransmission.cancel()
+        if exchange_monitor is not None:
+            if message.mtype is RST:
+                exchange_monitor.rst()
+            else:
+                exchange_monitor.response(message)
         self.log.debug("Exchange removed, Message ID: %d." % message.mid)
 
         if message.remote not in self._backlogs:
@@ -205,8 +211,8 @@ class Endpoint(asyncio.DatagramProtocol):
         # messages were NONs
         while not any(remote == message.remote for remote, mid in self._active_exchanges.keys()):
             if self._backlogs[message.remote] != []:
-                next_message = self._backlogs[message.remote].pop(0)
-                self._send(next_message)
+                next_message, exchange_monitor = self._backlogs[message.remote].pop(0)
+                self._send(next_message, exchange_monitor)
             else:
                 del self._backlogs[message.remote]
                 break
@@ -215,17 +221,23 @@ class Endpoint(asyncio.DatagramProtocol):
         """Retransmit CON message that has not been ACKed or RSTed."""
         key = (message.remote, message.mid)
 
-        self._active_exchanges.pop(key)
+        exchange_monitor, next_retransmission = self._active_exchanges.pop(key)
+        next_retransmission.cancel()
+
         if retransmission_counter < MAX_RETRANSMIT:
             self.transport.sendto(message.encode(), message.remote)
             retransmission_counter += 1
             timeout *= 2
+
             next_retransmission = self.loop.call_later(timeout, self._retransmit, message, timeout, retransmission_counter)
-            self._active_exchanges[key] = next_retransmission
+            self._active_exchanges[key] = (exchange_monitor, next_retransmission)
+            if exchange_monitor is not None:
+                exchange_monitor.retransmitted()
             self.log.info("Retransmission, Message ID: %d." % message.mid)
         else:
-            pass
-            #TODO: error handling (especially for requests)
+            if exchange_monitor is not None:
+                exchange_monitor.timeout()
+            self.log.info("Exchange timed out")
 
     #
     # coap dispatch, message-code sublayer: triggering custom actions based on incoming messages
@@ -279,11 +291,15 @@ class Endpoint(asyncio.DatagramProtocol):
     # outgoing messages
     #
 
-    def send_message(self, message):
+    def send_message(self, message, exchange_monitor=None):
         """Encode and send message. This takes care of retransmissions (if
         CON), message IDs and rate limiting, but does not hook any events to
         responses. (Use the :class:`Requester` class or responding resources
-        instead; those are the typical callers of this function.)"""
+        instead; those are the typical callers of this function.)
+
+        If notification about the progress of the exchange is required, an
+        ExchangeMonitor can be passed in, which will receive the appropriate
+        callbacks."""
 
         if message.mtype == CON and message.has_multicast_remote():
             raise ValueError("Refusing to send CON message to multicast address")
@@ -293,17 +309,22 @@ class Endpoint(asyncio.DatagramProtocol):
 
         if message.remote in self._backlogs:
             self.log.debug("Message to %s put into backlog"%(message.remote,))
-            self._backlogs[message.remote].append(message)
+            if exchange_monitor is not None:
+                exchange_monitor.enqueued()
+            self._backlogs[message.remote].append((message, exchange_monitor))
         else:
-            self._send(message)
+            self._send(message, exchange_monitor)
 
-    def _send(self, message):
+    def _send(self, message, exchange_monitor=None):
         """Put the message on the wire, starting retransmission timeouts"""
 
         self.log.debug("Sending message to %s" % (message.remote,))
 
         if message.mtype is CON:
-            self._add_exchange(message)
+            self._add_exchange(message, exchange_monitor)
+
+        if exchange_monitor is not None:
+            exchange_monitor.sent()
 
         self._store_response_for_duplicates(message)
 
@@ -591,9 +612,13 @@ class Responder(object):
 
     Class includes methods that handle receiving incoming blockwise requests
     (only atomic operation on complete requests), searching for target
-    resources, preparing responses and sending outgoing blockwise responses."""
+    resources, preparing responses and sending outgoing blockwise responses.
 
-    def __init__(self, protocol, request):
+    To keep an eye on exchanges going on, a factory for ExchangeMonitor can be
+    passed in that generates a monitor for every single message exchange
+    created during the response."""
+
+    def __init__(self, protocol, request, exchange_monitor_factory=(lambda message: None)):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("responder")
         self.log.debug("New responder created")
@@ -607,6 +632,8 @@ class Responder(object):
         self._all_blocks_arrived = asyncio.Future()
         # used to track whether to reply with ACK or CON
         self._sent_empty_ack = False
+
+        self._exchange_monitor_factory = exchange_monitor_factory
 
         self._next_block_timeout = None
 
@@ -809,7 +836,7 @@ class Responder(object):
         if response.mid is None and response.mtype in (ACK, RST):
                 response.mid = request.mid
         self.log.debug("Sending response, type = %s (request type = %s)" % (response.mtype, request.mtype))
-        self.protocol.send_message(response)
+        self.protocol.send_message(response, self._exchange_monitor_factory(request))
 
     def send_empty_ack(self, request):
         """Send separate empty ACK when response preparation takes too long.
@@ -843,14 +870,29 @@ class Responder(object):
         if observation_identifier in resource.observers:
             pass ## @TODO renew that observation (but keep in mind that whenever we send a notification, the original message is replayed)
         else:
-            obs = ServerObservation(request)
-            resource.observers[observation_identifier] = obs
+            ServerObservation(request, self.log, observation_identifier, resource)
 
         app_response.opt.observe = resource.observe_index
 
         if request.mtype is None:
             # this is the indicator that the request was just injected
             app_response.mtype = CON
+
+class ExchangeMonitor(object):
+    """Callback collection interface to keep track of what happens to an
+    exchange.
+
+    Callbacks will be called in sequence: ``enqueued{0,1} sent
+    retransmitted{0,MAX_RETRANSMIT} (timeout | rst | response)``; everything
+    after ``sent`` only gets called if the messae that initiated the exchange
+    was a CON."""
+
+    def enqueued(self): pass
+    def sent(self): pass
+    def retransmitted(self): pass
+    def timeout(self): pass
+    def rst(self): pass
+    def response(self, message): pass
 
 class ServerObservation(object):
     """An active CoAP observation inside a server is described as a
@@ -860,17 +902,55 @@ class ServerObservation(object):
     It keeps a complete copy of the original request for simplicity (while it
     actually would only need parts of that request, like the accept option)."""
 
-    def __init__(self, original_request):
+    def __init__(self, original_request, requester_log, identifier, resource):
         self.original_request = original_request
+        self.log = requester_log.getChild("observation")
+
+        self._identifier = identifier
+        self._resource = resource
+        self._resource.observers[self._identifier] = self
 
     def trigger(self):
         # bypassing parsing and duplicate detection, pretend the request came in again
-        logging.debug("Server observation triggered, injecting original request %r again"%self.original_request)
-        # TODO this indicates that the request is injected
+        self.log.debug("Server observation triggered, injecting original request %r again"%self.original_request)
+        # TODO this indicates that the request is injected -- overloading .mtype is not the cleanest thing to do hee
         self.original_request.mtype = None
         self.original_request.mid = None
-        Responder(self.original_request.protocol, self.original_request)
-        ## @TODO pass a callback down to the exchange -- if it gets a RST, we have to unregister
+
+        # the prediction is that the factory will be called exactly once, as no
+        # blockwise is involved
+        Responder(self.original_request.protocol, self.original_request, lambda message: self.ObservationExchangeMonitor(self))
+
+    def cancel(self):
+        # this should lead to the object being garbage collected pretty soon,
+        # as the caller (typically ObservationExchangeMonitor in its
+        # rst/timeout method) gets deref'd when the exchange ends, and the
+        # resource's observers list is the only place the observation is stored
+
+        if self._resource.observers.get(self._identifier, None) != self:
+            # we accept both duplicate removals (eg if two notifications are in
+            # the air and both get cancelled); it's ok if another observation
+            # took our place, we won't drop that.
+            pass
+        else:
+            del self._resource.observers[self._identifier]
+
+    class ObservationExchangeMonitor(ExchangeMonitor):
+        def __init__(self, observation):
+            self.observation = observation
+            self.observation.log.info("creating exchange observation monitor")
+
+        # TODO: this should pause/resume furter notifications
+        def enqueued(self): pass
+        def sent(self): pass
+
+        def rst(self):
+            self.observation.log.debug("Observation received RST, cancelling")
+            self.observation.cancel()
+
+        def timeout(self):
+            self.observation.log.debug("Observation received timeout, cancelling")
+            self.observation.cancel()
 
 class ClientObservation(object):
     def __init__(self, original_request):
