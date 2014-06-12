@@ -47,5 +47,5 @@ setup(
             }
         },
 
-    test_suite='tests.test_coap',
+    test_suite='tests',
 )
