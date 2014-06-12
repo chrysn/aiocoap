@@ -112,9 +112,12 @@ class BlockOption(OptionType):
        internal structure."""
     BlockwiseTuple = collections.namedtuple('BlockwiseTuple', ['block_number', 'more', 'size_exponent'])
 
-    def __init__(self, number, value=(0, None, 0)):
-        self.value = self.BlockwiseTuple._make(value)
+    def __init__(self, number, value=None):
+        if value is not None:
+            self._value = self.BlockwiseTuple._make(value)
         self.number = number
+
+    value = property(lambda self: self._value, lambda self, value: setattr(self, '_value', self.BlockwiseTuple._make(value)))
 
     def encode(self):
         as_integer = (self.value[0] << 4) + (self.value[1] * 0x08) + self.value[2]
