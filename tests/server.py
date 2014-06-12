@@ -14,6 +14,11 @@ import unittest
 import weakref
 import gc
 
+# time granted to asyncio to receive datagrams sent via loopback, and to close
+# connections. if tearDown checks fail erratically, tune this up -- but it
+# causes per-fixture delays.
+CLEANUPTIME = 0.01
+
 class MultiRepresentationResource(aiocoap.resource.CoAPResource):
     @asyncio.coroutine
     def render_GET(self, request):
@@ -75,11 +80,17 @@ class WithTestServer(WithAsyncLoop):
         self.server = self.loop.run_until_complete(aiocoap.Endpoint.create_server_endpoint(ts))
 
     def tearDown(self):
+        # let the server receive the acks we just sent
+        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
         self.server.transport.close()
         weakproto = weakref.ref(self.server)
         del self.server
-        self.loop.run_until_complete(asyncio.sleep(0.1))
-        self.assertEqual(weakproto(), None, "Protocol did not get garbage collected (holders: %s)"%gc.get_referrers(weakproto()))
+        # let everything that gets async-triggered by close() happen
+        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
+        proto = weakproto()
+        if proto is not None:
+            # if-clause so string formatting can assume proto is not None
+            self.fail("Protocol was not garbage collected.\n\nHolders: %s\n\nProperties: %s"%(gc.get_referrers(proto), vars(proto)))
 
 class WithClient(WithAsyncLoop):
     def setUp(self):
@@ -160,6 +171,11 @@ class TestServer(WithTestServer, WithClient):
 
         self.assertEqual(response.code, aiocoap.CONTENT, "Slow request did not succede")
         self.assertEqual(counter.empty_ack_count, 1, "Slow resource was not handled in two exchanges")
+
+#import logging
+#logging.basicConfig()
+#logging.getLogger("coap").setLevel(logging.DEBUG)
+#logging.getLogger("coap-server").setLevel(logging.DEBUG)
 
 # for testing the server standalone
 if __name__ == "__main__":
