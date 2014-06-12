@@ -11,6 +11,8 @@ import aiocoap
 import aiocoap.resource
 import unittest
 
+import logging
+
 import pprint
 import weakref
 import gc
@@ -74,6 +76,8 @@ class TestingSite(aiocoap.resource.Site):
 
         super(TestingSite, self).__init__(root)
 
+# helpers
+
 class TypeCounter(object):
     """This is an ExchangeMonitor factory and counts the outcomes of all
     exchanges"""
@@ -91,19 +95,35 @@ class TypeCounter(object):
             if message.mtype == aiocoap.ACK and message.code == aiocoap.EMPTY:
                 self.counter.empty_ack_count += 1
 
+def no_warnings(function):
+    def wrapped(self, *args, function=function):
+        dummy = "ignore this"
+        dummy_formatted = "WARNING:root:%s"%dummy
+        with self.assertLogs(level=logging.WARNING) as messages:
+            logging.warning(dummy) # assertLogs can't work as assertDoesntLog
+            result = function(self, *args)
+        self.assertEqual(messages.output, [dummy_formatted], "Function %s had warnings: %s"%(function.__name__, [m for m in messages.output if m != dummy_formatted]))
+        return result
+    wrapped.__name__ = function.__name__
+    wrapped.__doc__ = function.__doc__
+    return wrapped
+
 # fixtures
 
 class WithAsyncLoop(unittest.TestCase):
+    @no_warnings
     def setUp(self):
         self.loop = asyncio.get_event_loop()
 
 class WithTestServer(WithAsyncLoop):
+    @no_warnings
     def setUp(self):
         super(WithTestServer, self).setUp()
 
         ts = TestingSite()
         self.server = self.loop.run_until_complete(aiocoap.Endpoint.create_server_endpoint(ts))
 
+    @no_warnings
     def tearDown(self):
         # let the server receive the acks we just sent
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
@@ -119,28 +139,33 @@ class WithTestServer(WithAsyncLoop):
             self.fail("Protocol was not garbage collected.\n\nReferrers: %s\n\nProperties: %s"%(pprint.pformat(referrers), pprint.pformat(vars(proto))))
 
 class WithClient(WithAsyncLoop):
+    @no_warnings
     def setUp(self):
         super(WithClient, self).setUp()
 
         self.client = self.loop.run_until_complete(aiocoap.Endpoint.create_client_endpoint())
 
+    @no_warnings
     def tearDown(self):
         self.client.transport.close()
 
 # test cases
 
 class TestServer(WithTestServer, WithClient):
+    @no_warnings
     def build_request(self):
         request = aiocoap.Message(code=aiocoap.GET)
         request.remote = ('127.0.0.1', aiocoap.COAP_PORT)
         return request
 
+    @no_warnings
     def fetch_response(self, request, exchange_monitor_factory=lambda x:None):
         #return self.loop.run_until_complete(self.client.request(request))
 
         requester = aiocoap.protocol.Requester(self.client, request, exchange_monitor_factory)
         return self.loop.run_until_complete(requester.response)
 
+    @no_warnings
     def test_empty_accept(self):
         request = self.build_request()
         request.opt.uri_path = ['empty']
@@ -148,6 +173,7 @@ class TestServer(WithTestServer, WithClient):
         self.assertEqual(response.code, aiocoap.CONTENT, "Simple request did not succede")
         self.assertEqual(response.payload, b'', "Simple request gave unexpected result")
 
+    @no_warnings
     def test_unacceptable_accept(self):
         request = self.build_request()
         request.opt.uri_path = ['empty']
@@ -155,6 +181,7 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.NOT_ACCEPTABLE, "Inacceptable request was not not accepted")
 
+    @no_warnings
     def test_js_accept(self):
         request = self.build_request()
         request.opt.uri_path = ['empty']
@@ -163,12 +190,14 @@ class TestServer(WithTestServer, WithClient):
         self.assertEqual(response.code, aiocoap.CONTENT, "JSON request did not succede")
         self.assertEqual(response.payload, b'{}', "JSON request gave unexpected result")
 
+    @no_warnings
     def test_nonexisting_resource(self):
         request = self.build_request()
         request.opt.uri_path = ['nonexisting']
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.NOT_FOUND, "Nonexisting resource was not not found")
 
+    @no_warnings
     def test_spurious_resource(self):
         request = self.build_request()
         request.opt.uri_path = ['..', 'empty']
@@ -176,6 +205,7 @@ class TestServer(WithTestServer, WithClient):
         # different behavior would be ok-ish, as the .. in the request is forbidden, but returning 4.04 is sane here
         self.assertEqual(response.code, aiocoap.NOT_FOUND, "'..' component in path did not get ignored the way it was expected")
 
+    @no_warnings
     def test_fast_resource(self):
         request = self.build_request()
         request.opt.uri_path = ['empty']
@@ -187,6 +217,7 @@ class TestServer(WithTestServer, WithClient):
         self.assertEqual(response.code, aiocoap.CONTENT, "Fast request did not succede")
         self.assertEqual(counter.empty_ack_count, 0, "Fast resource had an empty ack")
 
+    @no_warnings
     def test_slow_resource(self):
         request = self.build_request()
         request.opt.uri_path = ['slow']
@@ -198,6 +229,7 @@ class TestServer(WithTestServer, WithClient):
         self.assertEqual(response.code, aiocoap.CONTENT, "Slow request did not succede")
         self.assertEqual(counter.empty_ack_count, 1, "Slow resource was not handled in two exchanges")
 
+    @no_warnings
     def test_big_resource(self):
         request = self.build_request()
         request.opt.uri_path = ['big']
@@ -205,6 +237,7 @@ class TestServer(WithTestServer, WithClient):
         self.assertEqual(response.code, aiocoap.CONTENT, "Big resource request did not succede")
         self.assertEqual(len(response.payload), 10240, "Big resource is not as big as expected")
 
+    @no_warnings
     def test_replacing_resource(self):
         testpattern = b"01" * 1024
 
@@ -231,10 +264,9 @@ class TestServer(WithTestServer, WithClient):
         self.assertEqual(response.code, aiocoap.CONTENT, "Replacing resource could not be POSTed to successfully")
         self.assertEqual(response.payload, testpattern.replace(b"0", b"O"), "Replacing resource did not replace as expected when POSTed")
 
-#import logging
 #logging.basicConfig()
 #logging.getLogger("coap").setLevel(logging.DEBUG)
-#logging.getLogger("coap-server").setLevel(logging.DEBUG)
+#logging.getLogger("coap-server").setLevel(logging.INFO)
 
 # for testing the server standalone
 if __name__ == "__main__":
