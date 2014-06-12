@@ -30,7 +30,6 @@ class Message(object):
         self.payload = payload
         self.opt = Options()
 
-        self.response_type = None
         self.remote = None
         self.prepath = None
         self.postpath = None
@@ -105,7 +104,6 @@ class Message(object):
                 self.opt.block1 = block1
                 self.token = next_block.token
                 self.mid = next_block.mid
-                self.response_type = None
             else:
                 raise iot.error.NotImplemented()
         else:

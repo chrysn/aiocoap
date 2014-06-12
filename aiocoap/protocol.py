@@ -48,7 +48,7 @@ class Endpoint(asyncio.DatagramProtocol):
         self._active_exchanges = {}  # active exchanges i.e. sent CON messages (remote, message-id): cancellable timeout
         self._backlogs = {} # per-remote list of backlogged packages (keys exist iff there is an active_exchange with that node)
         self.outgoing_requests = {}  # unfinished outgoing requests (identified by token and remote)
-        self.incoming_requests = {}  # unfinished incoming requests (identified by path tuple and remote)
+        self.incoming_requests = {}  # unfinished incoming requests (path-tuple, remote): Requester
         self.outgoing_observations = {} # observations where this node is the client. (token, remote) -> ClientObservation
 
         self.log = logging.getLogger(loggername)
@@ -101,6 +101,8 @@ class Endpoint(asyncio.DatagramProtocol):
 
         if message.code is EMPTY and message.mtype is CON:
             self._process_ping(message)
+        elif message.code is EMPTY and message.mtype in (ACK, RST):
+            pass # empty ack has already been handled above
         elif message.code.is_request() and message.mtype in (CON, NON):
             # the request handler will have to deal with sending ACK itself, as
             # it might be timeout-related
@@ -239,9 +241,11 @@ class Endpoint(asyncio.DatagramProtocol):
         """Spawn a Responder for an incoming request, or feed a long-running
         responder if one exists."""
 
-        if (tuple(request.opt.uri_path), request.remote) in self.incoming_requests:
-            self.log.debug("Request pertains to earlier blockwise requests.")
-            self.incoming_requests.pop((tuple(request.opt.uri_path), request.remote)).handle_next_request(request)
+        key = tuple(request.opt.uri_path), request.remote
+
+        if key in self.incoming_requests:
+            self.log.debug("Delivering request to existing responder.")
+            self.incoming_requests.pop(key).handle_next_request(request)
         else:
             responder = Responder(self, request)
 
@@ -583,31 +587,48 @@ class MulticastRequester(object):
         self.responses.finish()
 
 class Responder(object):
-    """Class used to handle single incoming request.
+    """Handler for an incoming request or (in blockwise) a group thereof
 
-       Class includes methods that handle receiving
-       incoming blockwise requests, searching for target
-       resources, preparing responses and sending outgoing
-       blockwise responses.
-       """
+    Class includes methods that handle receiving incoming blockwise requests
+    (only atomic operation on complete requests), searching for target
+    resources, preparing responses and sending outgoing blockwise responses."""
 
     def __init__(self, protocol, request):
         self.protocol = protocol
-        self.log = self.protocol.log.getChild("requester")
-        self.assembled_request = None
+        self.log = self.protocol.log.getChild("responder")
+        self.log.debug("New responder created")
+
+        # partial request while more block1 messages are incoming
+        self._assembled_request = None
         self.app_response = None
-        self.log.debug("Request doesn't pertain to earlier blockwise requests.")
-        self.all_blocks_arrived = asyncio.Future()
+        # that will be passed the single request. take care that this does not
+        # linger -- either enqueue with incoming_requests (and a timeout), or
+        # send a response which cancels the future.
+        self._all_blocks_arrived = asyncio.Future()
+        # used to track whether to reply with ACK or CON
+        self._sent_empty_ack = False
 
-        asyncio.Task(self.dispatch_request(self.all_blocks_arrived))
+        self._next_block_timeout = None
 
-        self.process_block1_in_request(request)
+        self.handle_next_request(request)
+
+        asyncio.Task(self.dispatch_request())
+
+    def handle_next_request(self, request):
+        if self._next_block_timeout is not None: # that'd be the case only for the first time
+            self._next_block_timeout.cancel()
+
+        if self._all_blocks_arrived.done() == False:
+            self.process_block1_in_request(request)
+        else:
+            self.process_block2_in_request(request)
 
     def process_block1_in_request(self, request):
-        """Process incoming request with regard to Block1 option.
+        """Process an incoming request while in block1 phase.
 
-           Method is recursive - calls itself until all request blocks
-           are received."""
+        This method is responsible for finishing the _all_blocks_arrived future
+        and thus indicating that it should not be called any more, or
+        scheduling itself again."""
         if request.opt.block1 is not None:
             block1 = request.opt.block1
             self.log.debug("Request with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
@@ -615,48 +636,42 @@ class Responder(object):
                 #TODO: Check if resource is available - if not send error immediately
                 #TODO: Check if method is allowed - if not send error immediately
                 self.log.debug("New or restarted incoming blockwise request.")
-                self.assembled_request = request
+                self._assembled_request = request
             else:
+                if self._assembled_request is None:
+                    self.respond_with_error(request, REQUEST_ENTITY_INCOMPLETE, "Beginning of block1 transaction unknown to server")
+                    return
+
                 try:
-                    self.assembled_request.append_request_block(request)
-                except (error.NotImplemented, AttributeError):
+                    self._assembled_request.append_request_block(request)
+                except error.NotImplemented:
                     self.respond_with_error(request, NOT_IMPLEMENTED, "Error: Request block received out of order!")
-                    return defer.fail(error.NotImplemented())
-                    #raise error.NotImplemented
+                    return
             if block1.more is True:
                 #TODO: SUCCES_CODE Code should be either Changed or Created - Resource check needed
                 #TODO: SIZE_CHECK1 should check if the size of incoming payload is still acceptable
                 #TODO: SIZE_CHECK2 should check if Size option is present, and reject the resource if size too large
-                return self.acknowledge_request_block(request)
+
+                self.log.debug("Sending block acknowledgement (allowing client to send next block).")
+
+                self.send_non_final_response(request.generate_next_block1_response(), request)
             else:
                 self.log.debug("Complete blockwise request received.")
-                return defer.succeed(self.assembled_request)
+                self._all_blocks_arrived.set_result(self._assembled_request)
         else:
-            if self.assembled_request is not None:
-                self.log.warning("Non-blockwise request received during blockwise transfer. Blockwise transfer cancelled.")
-            self.all_blocks_arrived.set_result(request)
-
-    def acknowledge_request_block(self, request):
-        """Helper method used to ask client to send next request block."""
-        self.log.debug("Sending block acknowledgement (allowing client to send next block).")
-        response = request.generate_next_block1_response()
-        self.deferred = self.send_non_final_response(response, request)
-        self.deferred.add_done_callback(self.process_block1_in_request)
-        return self.deferred
+            if self._assembled_request is not None:
+                self.log.warning("Non-blockwise request received during blockwise transfer. Blockwise transfer cancelled, responding to single request.")
+            self._all_blocks_arrived.set_result(request)
 
     @asyncio.coroutine
-    def dispatch_request(self, request_future):
-        """Dispatch incoming request - search endpoint
-           resource tree for resource in Uri Path
-           and call proper CoAP Method on it."""
+    def dispatch_request(self):
+        """Dispatch incoming request - search endpoint resource tree for
+        resource in Uri Path and call proper CoAP Method on it."""
 
         try:
-            request = yield from request_future
-        except iot.NotImplementedError as e:
-            """Handle (silently ignore) request errors related
-               to Block1. Currently it's used only to ignore
-               requests which are send non-sequentially"""
-            self.log.error("Block1 assembly on request failed: %r", e)
+            request = yield from self._all_blocks_arrived
+        except asyncio.CancelledError:
+            # error has been handled somewhere else
             return
 
         if self.protocol.serversite is None:
@@ -667,6 +682,7 @@ class Responder(object):
         request.prepath = []
         request.postpath = list(request.opt.uri_path)
         try:
+            # TODO: if tree is not known beforehand, this get_resource_for might require yielding from
             resource = self.protocol.serversite.get_resource_for(request)
             unfinished_response = resource.render(request)
         except error.NoResource:
@@ -695,33 +711,12 @@ class Responder(object):
         self.log.info("Sending error response: %r"%payload)
         response = Message(code=code, payload=payload)
         self.respond(response, request)
-        return
-
-    def handle_observe(self, app_response, request, resource):
-        """Intermediate state of sending a response that the response will go
-        through if it might need to be processed for observation. This both
-        handles the implications for notification sending and adds the observe
-        response option."""
-
-        observation_identifier = (request.remote, request.token)
-
-        if app_response.code not in (VALID, CONTENT):
-            if observation_identifier in resource.observers:
-                ## @TODO cancel observation
-                pass
-
-        if observation_identifier in resource.observers:
-            pass ## @TODO renew that observation (but keep in mind that whenever we send a notification, the original message is replayed)
-        else:
-            obs = ServerObservation(request)
-            resource.observers[observation_identifier] = obs
-
-        app_response.opt.observe = resource.observe_index
-
 
     def respond(self, app_response, request, delayed_ack=None):
-        """Take application-supplied response and prepare it
-           for sending."""
+        """Take application-supplied response and prepare it for sending."""
+
+        # if there was an error, make sure nobody hopes to get a result any more
+        self._all_blocks_arrived.cancel()
 
         self.log.debug("Preparing response...")
         if delayed_ack is not None:
@@ -729,19 +724,17 @@ class Responder(object):
         self.app_response = app_response
         size_exp = min(request.opt.block2.size_exponent if request.opt.block2 is not None else DEFAULT_BLOCK_SIZE_EXP, DEFAULT_BLOCK_SIZE_EXP)
         if len(self.app_response.payload) > (2 ** (size_exp + 4)):
-            response = self.app_response.extract_block(0, size_exp)
-            self.app_response.opt.block2 = response.opt.block2
-            self.send_response_block(response, request)
+            first_block = self.app_response.extract_block(0, size_exp)
+            self.app_response.opt.block2 = first_block.opt.block2
+            self.send_non_final_response(first_block, request)
         else:
-            self.send_response(app_response, request)
+            self.send_final_response(app_response, request)
 
-    def process_block2_in_request(self, request_future):
-        """Process incoming request with regard to Block2 option.
+    def process_block2_in_request(self, request):
+        """Process incoming request with regard to Block2 option
 
-           Method is recursive - calls itself until all response blocks
-           are sent to client."""
-
-        request = request_future.result()
+        Method is recursive - calls itself until all response blocks are sent
+        to client."""
 
         if request.opt.block2 is not None:
             block2 = request.opt.block2
@@ -756,53 +749,39 @@ class Responder(object):
                     return defer.fail()
                 if next_block.opt.block2.more is True:
                     self.app_response.opt.block2 = next_block.opt.block2
-                    return self.send_response_block(next_block, request)
+                    return self.send_non_final_response(next_block, request)
                 else:
-                    self.send_response(next_block, request)
+                    self.send_final_response(next_block, request)
                     return defer.succeed(None)
             else:
                 self.log.warning("Incorrect block number requested")
                 return defer.fail()
         else:
-            return defer.fail()
-
-    def send_response_block(self, response_block, request):
-        """Helper method to send next response block to client."""
-        self.log.debug("Sending response block.")
-        self.deferred = self.send_non_final_response(response_block, request)
-        self.deferred.add_done_callback(self.process_block2_in_request)
-        return self.deferred
+            # TODO is this the right error code here?
+            self.respond_with_error(request, REQUEST_ENTITY_INCOMPLETE, "Requests after a block2 response must carry the block2 option.")
 
     def send_non_final_response(self, response, request):
-        """Helper method to send, a response to client, and setup
-           a timeout for client."""
+        """Helper method to send a response to client, and setup a timeout for
+        client. This also registers the responder with the protocol again to
+        receive the next message."""
 
-        def cancel_non_final_response(d):
-            if d.cancelled():
-                self.log.debug("Waiting for next client request cancelled")
-                self.protocol.incoming_requests.pop((tuple(request.opt.uri_path), request.remote))
+        key = tuple(request.opt.uri_path), request.remote
 
-        def timeout_non_final_response(d):
-            """Clean the Response after a timeout."""
-
+        def timeout_non_final_response(self, key):
             self.log.info("Waiting for next blockwise request timed out")
-            self.protocol.incoming_requests.pop((tuple(request.opt.uri_path), request.remote))
-            d.set_exception(error.WaitingForClientTimedOut())
+            self.protocol.incoming_requests.pop(key)
+            self._all_blocks_arrived.cancel()
 
-        def got_result(result):
-            timeout.cancel()
+        # we don't want to have this incoming request around forever
+        self._next_block_timeout = self.protocol.loop.call_later(MAX_TRANSMIT_WAIT, timeout_non_final_response, self, key)
+        self.protocol.incoming_requests[key] = self
 
-        d = asyncio.Future()
-        d.add_done_callback(cancel_non_final_response)
-        timeout = self.protocol.loop.call_later(MAX_TRANSMIT_WAIT, timeout_non_final_response, d)
-        d.add_done_callback(got_result)
-        self.protocol.incoming_requests[(tuple(request.opt.uri_path), request.remote)] = self
         self.send_response(response, request)
-        return d
 
-    def handle_next_request(self, request):
-        d, self.deferred = self.deferred, None
-        d.callback(request)
+    def send_final_response(self, response, request):
+        # no need to unregister anything; the incoming_requests registrations
+        # only live from one request to the next anyway
+        self.send_response(response, request)
 
     def send_response(self, response, request):
         """Send a response or single response block.
@@ -813,35 +792,65 @@ class Responder(object):
            - sending blockwise (Block2) response block
            - sending any error response
         """
-        #if response.code.is_response() is False:
-            #raise ValueError("Message code is not valid for a response.")
+
         response.token = request.token
         self.log.debug("Sending token: %s" % (binascii.b2a_hex(response.token).decode('ascii'),))
         response.remote = request.remote
         if request.opt.block1 is not None:
             response.opt.block1 = request.opt.block1
+            # response.opt.block1.more does not need to be touched as we'll
+            # always send "more" if the client has "more" to say
         if response.mtype is None:
-            if request.response_type is None:
-                if request.mtype is CON:
-                    response.mtype = ACK
-                else:
-                    response.mtype = NON
-            elif request.response_type is ACK:
+            if self._sent_empty_ack:
                 response.mtype = CON
+                self._sent_empty_ack = False
             else:
-                raise Exception()
-        request.response_type = response.mtype
-        if response.mid is None:
-            if response.mtype in (ACK, RST):
+                response.mtype = ACK
+        if response.mid is None and response.mtype in (ACK, RST):
                 response.mid = request.mid
-        self.log.debug("Sending response, type = %s (request type = %s)" % (response.mtype.name, request.mtype.name))
+        self.log.debug("Sending response, type = %s (request type = %s)" % (response.mtype, request.mtype))
         self.protocol.send_message(response)
 
     def send_empty_ack(self, request):
-        """Send separate empty ACK when response preparation takes too long."""
+        """Send separate empty ACK when response preparation takes too long.
+
+        Currently, this can happen only once per Responder, that is, when the
+        last block1 has been transferred and the first block2 is not ready
+        yet."""
+
         self.log.debug("Response preparation takes too long - sending empty ACK.")
-        ack = Message(mtype=ACK, code=EMPTY, payload="")
-        self.respond(ack, request)
+        ack = Message(mtype=ACK, code=EMPTY, payload=b"")
+        # not going via send_response because it's all only about the message id
+        ack.remote = request.remote
+        ack.mid = request.mid
+        self.protocol.send_message(ack, request)
+        self._sent_empty_ack = True
+
+    def handle_observe(self, app_response, request, resource):
+        """Intermediate state of sending a response that the response will go
+        through if it might need to be processed for observation. This both
+        handles the implications for notification sending and adds the observe
+        response option."""
+
+        observation_identifier = (request.remote, request.token)
+
+        if app_response.code not in (VALID, CONTENT):
+            if observation_identifier in resource.observers:
+                ## @TODO cancel observation
+                pass
+            return
+
+        if observation_identifier in resource.observers:
+            pass ## @TODO renew that observation (but keep in mind that whenever we send a notification, the original message is replayed)
+        else:
+            obs = ServerObservation(request)
+            resource.observers[observation_identifier] = obs
+
+        app_response.opt.observe = resource.observe_index
+
+        if request.mtype is None:
+            # this is the indicator that the request was just injected
+            app_response.mtype = CON
 
 class ServerObservation(object):
     """An active CoAP observation inside a server is described as a
@@ -857,7 +866,9 @@ class ServerObservation(object):
     def trigger(self):
         # bypassing parsing and duplicate detection, pretend the request came in again
         logging.debug("Server observation triggered, injecting original request %r again"%self.original_request)
-        self.original_request.response_type = ACK # trick responder into sending CON
+        # TODO this indicates that the request is injected
+        self.original_request.mtype = None
+        self.original_request.mid = None
         Responder(self.original_request.protocol, self.original_request)
         ## @TODO pass a callback down to the exchange -- if it gets a RST, we have to unregister
 
