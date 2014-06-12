@@ -100,7 +100,7 @@ class Endpoint(asyncio.DatagramProtocol):
         """Implementation of the DatagramProtocol interface, called by the transport."""
         self.log.debug("received %r from %s" % (data, address))
         try:
-            message = Message.decode(data, address, self)
+            message = Message.decode(data, address)
         except error.UnparsableMessage:
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return

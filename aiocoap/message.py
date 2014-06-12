@@ -47,7 +47,7 @@ class Message(object):
             raise TypeError("Payload must not be None. Use empty string instead.")
 
     @classmethod
-    def decode(cls, rawdata, remote=None, protocol=None):
+    def decode(cls, rawdata, remote=None):
         """Create Message object from binary representation of message."""
         try:
             (vttkl, code, mid) = struct.unpack('!BBH', rawdata[:4])
@@ -62,7 +62,6 @@ class Message(object):
         msg.token = rawdata[4:4 + token_length]
         msg.payload = msg.opt.decode(rawdata[4 + token_length:])
         msg.remote = remote
-        msg.protocol = protocol
         return msg
 
     def encode(self):
