@@ -437,11 +437,13 @@ class Requester(object):
     Class includes methods that handle sending outgoing blockwise requests and
     receiving incoming blockwise responses."""
 
-    def __init__(self, protocol, app_request):
+    def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None)):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("requester")
         self.app_request = app_request
         self._assembled_response = None
+
+        self._exchange_monitor_factory = exchange_monitor_factory
 
         self._request_transmitted_completely = False
 
@@ -494,7 +496,7 @@ class Requester(object):
         request.token = self.protocol.next_token()
 
         try:
-            self.protocol.send_message(request)
+            self.protocol.send_message(request, self._exchange_monitor_factory(request))
         except Exception as e:
             self.response.set_exception(e)
         else:
