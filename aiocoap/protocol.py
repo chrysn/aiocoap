@@ -425,7 +425,7 @@ class Endpoint(asyncio.DatagramProtocol):
 
         loop = asyncio.get_event_loop()
 
-        transport, protocol = yield from loop.create_datagram_endpoint(lambda: cls(loop, site), ('127.0.0.1', COAP_PORT))
+        transport, protocol = yield from loop.create_datagram_endpoint(lambda: cls(loop, site, loggername="coap-server"), ('127.0.0.1', COAP_PORT))
 
         yield from protocol.ready
 
