@@ -517,7 +517,7 @@ class Requester(object):
         if response.opt.block1 is None:
             # it's not up to us here to 
             if response.code.is_successful(): # an error like "unsupported option" would be ok to return, but success?
-                self.log.warn("Block1 option completely ignored by server, assuming it knows what it is doing.")
+                self.log.warning("Block1 option completely ignored by server, assuming it knows what it is doing.")
             self.process_block2_in_response(response)
             return
 
