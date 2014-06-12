@@ -542,6 +542,7 @@ class Requester(object):
             self.send_request(next_block)
         else:
             if block1.more is False:
+                self._request_transmitted_completely = True
                 self.process_block2_in_response(response)
             else:
                 self.response.set_exception(UnexpectedBlock1Option())
