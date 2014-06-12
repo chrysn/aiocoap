@@ -49,12 +49,28 @@ class BigResource(aiocoap.resource.CoAPResource):
         payload = b"0123456789----------" * 512
         return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
+class ReplacingResource(aiocoap.resource.CoAPResource):
+    @asyncio.coroutine
+    def render_GET(self, request):
+        return aiocoap.Message(code=aiocoap.CONTENT, payload=self.value)
+
+    @asyncio.coroutine
+    def render_PUT(self, request):
+        self.value = request.payload.replace(b'0', b'O')
+        return aiocoap.Message(code=aiocoap.CHANGED)
+
+    @asyncio.coroutine
+    def render_POST(self, request):
+        response = request.payload.replace(b'0', b'O')
+        return aiocoap.Message(code=aiocoap.CONTENT, payload=response)
+
 class TestingSite(aiocoap.resource.Site):
     def __init__(self):
         root = aiocoap.resource.CoAPResource()
         root.put_child('empty', MultiRepresentationResource())
         root.put_child('slow', SlowResource())
         root.put_child('big', BigResource())
+        root.put_child('replacing', ReplacingResource())
 
         super(TestingSite, self).__init__(root)
 
@@ -188,6 +204,32 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Big resource request did not succede")
         self.assertEqual(len(response.payload), 10240, "Big resource is not as big as expected")
+
+    def test_replacing_resource(self):
+        testpattern = b"01" * 1024
+
+        request = self.build_request()
+        request.code = aiocoap.PUT
+        request.payload = testpattern
+        request.opt.uri_path = ['replacing']
+        response = self.fetch_response(request)
+        self.assertEqual(response.code, aiocoap.CHANGED, "PUT did not result in CHANGED")
+        self.assertEqual(response.payload, b"", "PUT has unexpected payload")
+
+        request = self.build_request()
+        request.code = aiocoap.GET
+        request.opt.uri_path = ['replacing']
+        response = self.fetch_response(request)
+        self.assertEqual(response.code, aiocoap.CONTENT, "Replacing resource could not be GOT (GET'd?) successfully")
+        self.assertEqual(response.payload, testpattern.replace(b"0", b"O"), "Replacing resource did not replace as expected between PUT and GET")
+
+        request = self.build_request()
+        request.code = aiocoap.POST
+        request.payload = testpattern
+        request.opt.uri_path = ['replacing']
+        response = self.fetch_response(request)
+        self.assertEqual(response.code, aiocoap.CONTENT, "Replacing resource could not be POSTed to successfully")
+        self.assertEqual(response.payload, testpattern.replace(b"0", b"O"), "Replacing resource did not replace as expected when POSTed")
 
 #import logging
 #logging.basicConfig()
