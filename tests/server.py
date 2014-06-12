@@ -11,6 +11,7 @@ import aiocoap
 import aiocoap.resource
 import unittest
 
+import pprint
 import weakref
 import gc
 
@@ -41,11 +42,19 @@ class SlowResource(aiocoap.resource.CoAPResource):
         yield from asyncio.sleep(0.2)
         return aiocoap.Message(code=aiocoap.CONTENT)
 
+class BigResource(aiocoap.resource.CoAPResource):
+    @asyncio.coroutine
+    def render_GET(self, request):
+        # 10kb
+        payload = b"0123456789----------" * 512
+        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+
 class TestingSite(aiocoap.resource.Site):
     def __init__(self):
         root = aiocoap.resource.CoAPResource()
         root.put_child('empty', MultiRepresentationResource())
         root.put_child('slow', SlowResource())
+        root.put_child('big', BigResource())
 
         super(TestingSite, self).__init__(root)
 
@@ -87,10 +96,11 @@ class WithTestServer(WithAsyncLoop):
         del self.server
         # let everything that gets async-triggered by close() happen
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
+        gc.collect()
         proto = weakproto()
         if proto is not None:
             # if-clause so string formatting can assume proto is not None
-            self.fail("Protocol was not garbage collected.\n\nHolders: %s\n\nProperties: %s"%(gc.get_referrers(proto), vars(proto)))
+            self.fail("Protocol was not garbage collected.\n\nReferrers: %s\n\nProperties: %s"%(pprint.pformat(referrers), pprint.pformat(vars(proto))))
 
 class WithClient(WithAsyncLoop):
     def setUp(self):
@@ -143,7 +153,7 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.NOT_FOUND, "Nonexisting resource was not not found")
 
-    def test_nonexisting_resource(self):
+    def test_spurious_resource(self):
         request = self.build_request()
         request.opt.uri_path = ['..', 'empty']
         response = self.fetch_response(request)
@@ -171,6 +181,13 @@ class TestServer(WithTestServer, WithClient):
 
         self.assertEqual(response.code, aiocoap.CONTENT, "Slow request did not succede")
         self.assertEqual(counter.empty_ack_count, 1, "Slow resource was not handled in two exchanges")
+
+    def test_big_resource(self):
+        request = self.build_request()
+        request.opt.uri_path = ['big']
+        response = self.fetch_response(request)
+        self.assertEqual(response.code, aiocoap.CONTENT, "Big resource request did not succede")
+        self.assertEqual(len(response.payload), 10240, "Big resource is not as big as expected")
 
 #import logging
 #logging.basicConfig()
