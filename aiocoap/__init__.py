@@ -7,10 +7,10 @@
 # described in the accompanying LICENSE file.
 
 """
-aiohttp
+aiocoap
 =======
 
-The aiohttp package is a library that implements CoAP, the Constrained
+The aiocoap package is a library that implements CoAP, the Constrained
 Application Protocol (`RFC pending`_).
 
 .. _`RFC pending`: https://datatracker.ietf.org/doc/draft-ietf-core-coap/
@@ -19,9 +19,9 @@ Usage
 -----
 
 In all but the most exotic applications, you will want to create a single
-:class:`iot.coap.CoAP` instance that binds to the network. Depending on whether
-you are implementing a server or a client, it binds to the default CoAP port
-5683 or to a high port.
+:class:`aiocoap.protocol.Endpoint` instance that binds to the network.
+Depending on whether you are implementing a server or a client, it binds to the
+default CoAP port 5683 or to a high port.
 
 With a client, requests get sent by assembling a :class:`iot.message.Message`,
 and requesting it to be handled using the :meth:`iot.coap.CoAP.request` method.
