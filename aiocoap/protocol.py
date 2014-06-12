@@ -71,16 +71,8 @@ class Endpoint(asyncio.DatagramProtocol):
         except error.UnparsableMessage:
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return
-        self.log.debug("Incoming Message ID: %d" % message.mid)
-        if self._deduplicate_message(message) is True:
-            return
 
-        if message.code is EMPTY:
-            self._process_empty(message)
-        elif message.code.is_response():
-            self._process_response(message)
-        elif message.code.is_request():
-            self._process_request(message)
+        self._dispatch_message(message)
 
     def error_received(self, exc):
         # TODO: set IP_RECVERR to receive icmp "destination unreachable (port
@@ -94,7 +86,44 @@ class Endpoint(asyncio.DatagramProtocol):
     # coap dispatch
     #
 
-    # duplicates handling (message-id level)
+    def _dispatch_message(self, message):
+        """Feed a message through the message-id, message-type and message-code
+        sublayers of CoAP"""
+
+        self.log.debug("Incoming Message ID: %d" % message.mid)
+        if self._deduplicate_message(message) is True:
+            return
+
+        if message.mtype in (ACK, RST):
+            #TODO: passing ACK/RESET info to application
+            #Currently it doesn't matter if empty ACK or RST is received - in both cases exchange has to be removed
+            self._remove_exchange(message)
+
+        if message.code is EMPTY and message.mtype is CON:
+            self._process_ping(message)
+        elif message.code.is_request() and message.mtype in (CON, NON):
+            # the request handler will have to deal with sending ACK itself, as
+            # it might be timeout-related
+            self._process_request(message)
+        elif message.code.is_response() and message.mtype in (CON, NON, ACK):
+            success = self._process_response(message)
+            if success:
+                if message.mtype is CON:
+                    #TODO: Some variation of send_empty_ack should be used
+                    ack = Message(mtype=ACK, mid=message.mid, code=EMPTY, payload=b"")
+                    ack.remote = message.remote
+                    self.send_message(ack)
+            else:
+                self.log.info("Response not recognized - sending RST.")
+                rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload='')
+                rst.remote = message.remote
+                self.send_message(rst)
+        else:
+            self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it."%(message.code, message.mtype, message.remote))
+
+    #
+    # coap dispatch, message-id sublayer: duplicate handling
+    #
 
     def _deduplicate_message(self, message):
         """Return True if a message is a duplicate, and re-send the stored
@@ -129,7 +158,9 @@ class Endpoint(asyncio.DatagramProtocol):
         if key in self._recent_messages:
             self._recent_messages[key] = message
 
-    # retransmission handling (message-type level)
+    #
+    # coap dispatch, message-type sublayer: retransmission handling
+    #
 
     def _add_exchange(self, message):
         """Add an "exchange" for outgoing CON message.
@@ -153,6 +184,10 @@ class Endpoint(asyncio.DatagramProtocol):
         """Remove exchange from active exchanges and cancel the timeout to next
         retransmission."""
         key = (message.remote, message.mid)
+
+        if key not in self._active_exchanges:
+            self.log.info("Received %s from %s, but could not match it to a running exchange."%(message.mtype, message.remote))
+            return
 
         self._active_exchanges.pop(key).cancel()
         self.log.debug("Exchange removed, Message ID: %d." % message.mid)
@@ -190,25 +225,20 @@ class Endpoint(asyncio.DatagramProtocol):
             pass
             #TODO: error handling (especially for requests)
 
-    # triggering custom actions based on incoming messages (message-code level)
+    #
+    # coap dispatch, message-code sublayer: triggering custom actions based on incoming messages
+    #
 
-    def _process_empty(self, message):
-        if message.mtype is CON:
-            self.log.info('Empty CON message received (CoAP Ping) - replying with RST.')
-            rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b'')
-            rst.remote = message.remote
-            self.send_message(rst)
-
-        #TODO: passing ACK/RESET info to application
-        #Currently it doesn't matter if empty ACK or RST is received - in both cases exchange has to be removed
-        if message.mtype in (ACK, RST) and (message.remote, message.mid) in self._active_exchanges:
-            self._remove_exchange(message)
+    def _process_ping(self, message):
+        self.log.info('Received CoAP Ping from %s, replying with RST.'%message.remote)
+        rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b'')
+        rst.remote = message.remote
+        self.send_message(rst)
 
     def _process_request(self, request):
-        """Method used for incoming request processing."""
-        if request.mtype not in (CON, NON):
-            self.log.info("Ignoring request of type %s from %s"%(request.mtype, request.remote))
-            return
+        """Spawn a Responder for an incoming request, or feed a long-running
+        responder if one exists."""
+
         if (tuple(request.opt.uri_path), request.remote) in self.incoming_requests:
             self.log.debug("Request pertains to earlier blockwise requests.")
             self.incoming_requests.pop((tuple(request.opt.uri_path), request.remote)).handle_next_request(request)
@@ -216,27 +246,16 @@ class Endpoint(asyncio.DatagramProtocol):
             responder = Responder(self, request)
 
     def _process_response(self, response):
-        """Method used for incoming response processing."""
-        if response.mtype is RST:
-            self.log.info("Ignoring response of type RST from %s"%(request.remote,))
-            return
+        """Feed a response back to whatever might expect it.
 
-        if response.mtype is ACK:
-            if (response.remote, response.mid) in self._active_exchanges:
-                self._remove_exchange(response)
-            else:
-                self.log.info("Ignoring ACK response that is not part of an active exchange (MID %s, remote %s)"%(request.mid, request.remote))
-                return
+        Returns True if the response was expected (and should be ACK'd
+        depending on mtype), ans False if it was not expected (and should be
+        RST'd)."""
 
         self.log.debug("Received Response, token: %s, host: %s, port: %s" % (binascii.b2a_hex(response.token), response.remote[0], response.remote[1]))
 
         if (response.token, response.remote) in self.outgoing_requests:
             self.outgoing_requests.pop((response.token, response.remote)).handle_response(response)
-            if response.mtype is CON:
-                #TODO: Some variation of sendEmptyACK should be used
-                ack = Message(mtype=ACK, mid=response.mid, code=EMPTY, payload="")
-                ack.remote = response.remote
-                self.send_message(ack)
         elif (response.token, None) in self.outgoing_requests:
             # that's exactly the `MulticastRequester`s so far
             self.outgoing_requests[(response.token, None)].handle_response(response)
@@ -245,31 +264,25 @@ class Endpoint(asyncio.DatagramProtocol):
             # the rest of the resource if blockwise
             self.outgoing_observations[(response.token, response.remote)].callback(response)
 
-            if response.mtype is CON:
-                #TODO: Some variation of sendEmptyACK should be used (as above)
-                ack = Message(mtype=ACK, mid=response.mid, code=EMPTY, payload="")
-                ack.remote = response.remote
-                self.send_message(ack)
-
             if response.opt.observe is None:
                 self.outgoing_observations[(response.token, response.remote)].error(error.ObservationCancelled())
         else:
-            self.log.info("Response not recognized - sending RST.")
-            rst = Message(mtype=RST, mid=response.mid, code=EMPTY, payload='')
-            rst.remote = response.remote
-            self.send_message(rst)
+            return False
 
+        return True
+
+    #
     # outgoing messages
+    #
 
     def send_message(self, message):
-        """Set Message ID, encode and send message.
-           Also if message is Confirmable (CON) add Exchange"""
-        host, port = message.remote
+        """Encode and send message. This takes care of retransmissions (if
+        CON), message IDs and rate limiting, but does not hook any events to
+        responses. (Use the :class:`Requester` class or responding resources
+        instead; those are the typical callers of this function.)"""
 
         if message.mtype == CON and message.has_multicast_remote():
             raise ValueError("Refusing to send CON message to multicast address")
-
-        self.log.debug("Sending message to %s:%d" % (host, port))
 
         if message.mid is None:
             message.mid = self._next_message_id()
@@ -282,14 +295,16 @@ class Endpoint(asyncio.DatagramProtocol):
 
     def _send(self, message):
         """Put the message on the wire, starting retransmission timeouts"""
+
+        self.log.debug("Sending message to %s" % (message.remote,))
+
         if message.mtype is CON:
             self._add_exchange(message)
 
         self._store_response_for_duplicates(message)
 
-        msg = message.encode()
-        self.transport.sendto(msg, message.remote)
-        self.log.debug("Message %r sent successfully" % msg)
+        encoded = message.encode()
+        self.transport.sendto(encoded, message.remote)
 
     def _next_message_id(self):
         """Reserve and return a new message ID."""
