@@ -831,6 +831,11 @@ class Responder(object):
         # only live from one request to the next anyway
         self.send_response(response, request)
 
+        # break reference. TODO: this helps the protocol free itself, but not
+        # the responder, which seems to be kept alive by lingering timeout
+        # handlers.
+        self.protocol = None
+
     def send_response(self, response, request):
         """Send a response or single response block.
 
