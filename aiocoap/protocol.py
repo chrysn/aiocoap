@@ -39,8 +39,35 @@ from .numbers import *
 from .message import Message
 
 class Endpoint(asyncio.DatagramProtocol):
+    """A single local CoAP endpoint
+
+    An :class:`.Endpoint` gets bound to a network interface as an asyncio
+    protocol. It manages the basic CoAP network mechanisms like message
+    deduplication and retransmissions, and delegates management of blockwise
+    transfer as well as the details of matching requests with responses to the
+    :class:`Requester` and :class:`Responder` classes.
+
+    Instead of passing a protocol factory to the asyncio loop's
+    create_datagram_endpoint method, the following convenience functions are
+    recommended for creating an endpoint:
+
+    .. automethod:: create_client_endpoint
+    .. automethod:: create_server_endpoint
+
+    An endpoint's public API consists of the :meth:`send_message` function and
+    the :attr:`outgoing_requests`, :attr:`incoming_requests` and
+    :attr:`outgoing_obvservations` dictionaries, but those are not stabilized
+    yet, and for most applications the following convenience functions are
+    more suitable:
+
+    .. automethod:: request
+
+    .. automethod:: multicast_request
+
+    If more control is needed, eg. with observations, create a
+    :class:`Requester` yourself and pass the endpoint to it.
+    """
     def __init__(self, loop=None, serversite=None, loggername="coap"):
-        """Initialize a CoAP protocol instance."""
         self.message_id = random.randint(0, 65535)
         self.token = random.randint(0, 65535)
         self.serversite = serversite
@@ -65,10 +92,12 @@ class Endpoint(asyncio.DatagramProtocol):
     # creation will still fail
 
     def connection_made(self, transport):
+        """Implementation of the DatagramProtocol interface, called by the transport."""
         self.ready.set_result(True)
         self.transport = transport
 
     def datagram_received(self, data, address):
+        """Implementation of the DatagramProtocol interface, called by the transport."""
         self.log.debug("received %r from %s" % (data, address))
         try:
             message = Message.decode(data, address, self)
@@ -79,6 +108,7 @@ class Endpoint(asyncio.DatagramProtocol):
         self._dispatch_message(message)
 
     def error_received(self, exc):
+        """Implementation of the DatagramProtocol interface, called by the transport."""
         # TODO: set IP_RECVERR to receive icmp "destination unreachable (port
         # unreachable)" & co to stop retransmitting and err back quickly
         self.log.error("Error received: %s"%exc)
@@ -352,9 +382,12 @@ class Endpoint(asyncio.DatagramProtocol):
     # convenience methods for class instanciation
     #
 
+    @asyncio.coroutine
     def request(self, request):
         """Convenience method for spawning a request, in case only the response is needed."""
-        return Requester(self, request).response
+        # we could just as well return the future, but having this as a
+        # coroutine should be easier to follow in the documentation.
+        return (yield from Requester(self, request).response)
 
     def multicast_request(self, request):
         return MulticastRequester(self, request).responses
