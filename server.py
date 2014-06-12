@@ -6,10 +6,6 @@
 # txThings is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-import struct
-import random
-import copy
-import sys
 import datetime
 import logging
 
@@ -19,47 +15,19 @@ import aiocoap.resource as resource
 import aiocoap
 
 
-class CounterResource (resource.CoAPResource):
+class BlockResource(resource.CoAPResource):
     """
-    Example Resource which supports only GET method. Response is a
-    simple counter value.
-
-    Name render_<METHOD> is required by convention. Such method should
-    return a Deferred. If the result is available immediately it's best
-    to use Twisted method defer.succeed(msg).
+    Example resource which supports GET and PUT methods. It sends large
+    responses, which trigger blockwise transfer.
     """
-   #isLeaf = True
-
-    def __init__(self, start=0):
-        resource.CoAPResource.__init__(self)
-        self.counter = start
-        self.visible = True
-        self.add_param(resource.LinkParam("title", "Counter resource"))
-
-    @asyncio.coroutine
-    def render_GET(self, request):
-        response = aiocoap.Message(code=aiocoap.CONTENT, payload=('%d' % (self.counter,)).encode('ascii'))
-        self.counter += 1
-        return response
-
-
-class BlockResource (resource.CoAPResource):
-    """
-    Example Resource which supports GET, and PUT methods. It sends large
-    responses, which trigger blockwise transfer (>64 bytes for normal
-    settings).
-
-    As before name render_<METHOD> is required by convention.
-    """
-    #isLeaf = True
 
     def __init__(self):
-        resource.CoAPResource.__init__(self)
+        super(BlockResource, self).__init__()
         self.visible = True
 
     @asyncio.coroutine
     def render_GET(self, request):
-        payload=" Now I lay me down to sleep, I pray the Lord my soul to keep, If I shall die before I wake, I pray the Lord my soul to take.".encode('ascii')
+        payload="Now I lay me down to sleep, I pray the Lord my soul to keep, If I shall die before I wake, I pray the Lord my soul to take.".encode('ascii')
         response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
         return response
 
@@ -67,42 +35,33 @@ class BlockResource (resource.CoAPResource):
     def render_PUT(self, request):
         print('PUT payload: %s' % request.payload)
         payload = "Mr. and Mrs. Dursley of number four, Privet Drive, were proud to say that they were perfectly normal, thank you very much.".encode('ascii')
-        response = aiocoap.Message(code=aiocoap.CHANGED, payload=payload)
-        return response
+        return aiocoap.Message(code=aiocoap.CHANGED, payload=payload)
 
 
 class SeparateLargeResource(resource.CoAPResource):
     """
-    Example Resource which supports GET method. It uses callLater
-    to force the protocol to send empty ACK first and separate response
-    later. Sending empty ACK happens automatically after aiocoap.EMPTY_ACK_DELAY.
-    No special instructions are necessary.
-
-    Method render_GET returns a deferred. This allows the protocol to
-    do other things, while the answer is prepared.
-
-    Method response_ready uses d.callback(response) to "fire" the deferred,
-    and send the response.
+    Example resource which supports GET method. It uses asyncio.sleep to
+    simulate a long-running operation, and thus forces the protocol to send
+    empty ACK first.
     """
-    #isLeaf = wTrue
 
     def __init__(self):
-        resource.CoAPResource.__init__(self)
+        super(SeparateLargeResource, self).__init__()
         self.visible = True
         self.add_param(resource.LinkParam("title", "Large resource."))
 
     @asyncio.coroutine
     def render_GET(self, request):
         yield from asyncio.sleep(3)
-        return self.response_ready(request)
 
-    def response_ready(self, request):
-        print('response ready. sending...')
         payload = "Three rings for the elven kings under the sky, seven rings for dwarven lords in their halls of stone, nine rings for mortal men doomed to die, one ring for the dark lord on his dark throne.".encode('ascii')
-        response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
-        return response
+        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
 class TimeResource(resource.CoAPResource):
+    """
+    Example resource that can be observed. The `notify` method keeps scheduling
+    itself, and calles `update_state` to trigger sending notifications.
+    """
     def __init__(self):
         resource.CoAPResource.__init__(self)
         self.visible = True
@@ -111,26 +70,18 @@ class TimeResource(resource.CoAPResource):
         self.notify()
 
     def notify(self):
-        print("i'm trying to send notifications")
         self.updated_state()
         asyncio.get_event_loop().call_later(60, self.notify)
 
     @asyncio.coroutine
     def render_GET(self, request):
-        response = aiocoap.Message(code=aiocoap.CONTENT, payload=datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii'))
-        return response
+        payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii')
+        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
 class CoreResource(resource.CoAPResource):
     """
     Example Resource that provides list of links hosted by a server.
     Normally it should be hosted at /.well-known/core
-
-    Resource should be initialized with "root" resource, which can be used
-    to generate the list of links.
-
-    For the response, an option "Content-Format" is set to value 40,
-    meaning "application/link-format". Without it most clients won't
-    be able to automatically interpret the link format.
 
     Notice that self.visible is not set - that means that resource won't
     be listed in the link format it hosts.
@@ -151,10 +102,8 @@ class CoreResource(resource.CoAPResource):
 
 # logging setup
 
-logging.getLogger("").setLevel(logging.DEBUG)
-logging.getLogger("asyncio").setLevel(logging.INFO)
-logging.getLogger("coap").setLevel(logging.DEBUG)
-logging.debug("server started")
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("coap-server").setLevel(logging.DEBUG)
 
 def main():
     # Resource tree creation
@@ -164,9 +113,6 @@ def main():
     root.put_child('.well-known', well_known)
     core = CoreResource(root)
     well_known.put_child('core', core)
-
-    counter = CounterResource(5000)
-    root.put_child('counter', counter)
 
     time = TimeResource()
     root.put_child('time', time)
@@ -188,4 +134,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
