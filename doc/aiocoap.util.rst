@@ -1,15 +1,5 @@
-aiocoap.util package
-====================
-
-Submodules
-----------
-
-.. toctree::
-
-   aiocoap.util.queuewithend
-
-Module contents
----------------
+aiocoap.util module
+=========================================
 
 .. automodule:: aiocoap.util
     :members:

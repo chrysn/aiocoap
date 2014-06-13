@@ -1,5 +1,5 @@
 aiocoap.resource module
-=======================
+=========================================
 
 .. automodule:: aiocoap.resource
     :members:

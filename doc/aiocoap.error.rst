@@ -1,5 +1,5 @@
 aiocoap.error module
-====================
+=========================================
 
 .. automodule:: aiocoap.error
     :members:

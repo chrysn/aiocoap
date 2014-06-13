@@ -1,5 +1,5 @@
 aiocoap.optiontypes module
-==========================
+=========================================
 
 .. automodule:: aiocoap.optiontypes
     :members:

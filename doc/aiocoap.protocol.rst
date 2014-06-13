@@ -1,5 +1,5 @@
 aiocoap.protocol module
-=======================
+=========================================
 
 .. automodule:: aiocoap.protocol
     :members:
