@@ -1,7 +1,19 @@
 in order to have auto-buildable documentation with sphinx (using `./setup.py
 build_sphinx`), you must first run
 
-    python3.4 =sphinx-apidoc -f -T -e -o doc aiocoap
+    for x in $(find aiocoap -name '*.py' | sed -e 's@.py$@@' -e 's@/__init__$@@' -e 's@/@.@g')
+    do
+        rm doc/$x.rst
+        echo "$x module\n=========================================\n\n.. automodule:: $x" > doc/$x.rst
+        if [[ $x != "aiocoap.numbers" ]]
+        then
+           echo "    :members:\n    :undoc-members:\n    :show-inheritance:" >> doc/$x.rst
+        else
+           echo ".. toctree::\n    :glob:\n\n    aiocoap.numbers.*\n" >> doc/$x.rst
+        fi
+    done
+
+(sphinx-apidoc is less customizable and does not seem to do more).
 
 for readthedocs to work, a branch `for-readthedocs` has been generated that
 contains those files statically checked in.
