@@ -24,8 +24,8 @@ module documentation, or at the :doc:`examples` provided.
 Relevant URLs
 -------------
 
-* https://github.com/chrysn/txThings -- current home of the asyncio branch
-* http://txthings-asyncio.readthedocs.org/ -- online documentation of the asyncio branch
+* https://github.com/chrysn/aiocoap -- this is where the latest source code can be found
+* http://aiocoap.readthedocs.org/ -- online documentation
 
 
 Licensing
