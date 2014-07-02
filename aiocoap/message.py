@@ -12,6 +12,7 @@ import struct
 import copy
 import ipaddress
 
+from . import error
 from .numbers import *
 from .options import Options
 
@@ -53,10 +54,10 @@ class Message(object):
         try:
             (vttkl, code, mid) = struct.unpack('!BBH', rawdata[:4])
         except struct.error:
-            raise iot.error.UnparsableMessage("Incoming message too short for CoAP")
+            raise error.UnparsableMessage("Incoming message too short for CoAP")
         version = (vttkl & 0xC0) >> 6
         if version is not 1:
-            raise iot.error.UnparsableMessage("Fatal Error: Protocol Version must be 1")
+            raise error.UnparsableMessage("Fatal Error: Protocol Version must be 1")
         mtype = (vttkl & 0x30) >> 4
         token_length = (vttkl & 0x0F)
         msg = Message(mtype=mtype, mid=mid, code=code)
@@ -110,7 +111,7 @@ class Message(object):
             self.token = next_block.token
             self.mid = next_block.mid
         else:
-            raise iot.error.NotImplemented()
+            raise error.NotImplemented()
 
     def _append_response_block(self, next_block):
         """Append next block to current response message.
@@ -120,10 +121,10 @@ class Message(object):
 
         block2 = next_block.opt.block2
         if block2.start != len(self.payload):
-            raise iot.error.NotImplemented()
+            raise error.NotImplemented()
 
         if next_block.opt.etag != self.opt.etag:
-            raise iot.error.ResourceChanged()
+            raise error.ResourceChanged()
 
         self.payload += next_block.payload
         self.opt.block2 = block2
