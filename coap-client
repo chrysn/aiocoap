@@ -15,6 +15,7 @@ import asyncio
 import argparse
 import logging
 import subprocess
+import socket
 
 import aiocoap
 
@@ -63,9 +64,12 @@ def main(args):
 
     request = aiocoap.Message(code=aiocoap.GET)
     try:
-        yield from request.set_request_uri(options.url)
+        request.set_request_uri(options.url)
     except ValueError as e:
         raise parser.error(e)
+
+    if not request.opt.uri_host:
+        raise parser.error("Request URLs need to be absolute.")
 
     if options.accept:
         try:
@@ -86,7 +90,12 @@ def main(args):
         requester.observation.register_errback(observation_is_over.set_result)
         requester.observation.register_callback(lambda data, options=options: incoming_observation(options, data))
 
-    response_data = yield from requester.response
+    try:
+        response_data = yield from requester.response
+    except socket.gaierror as  e:
+        print("Name resolution error:", e, file=sys.stderr)
+        sys.exit(1)
+
     if response_data.code.is_successful():
         sys.stdout.buffer.write(response_data.payload)
         sys.stdout.buffer.flush()
