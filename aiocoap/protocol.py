@@ -22,6 +22,7 @@ import socket
 import asyncio
 
 from .util.queuewithend import QueueWithEnd
+from .util.asyncio import cancel_thoroughly
 
 import logging
 # log levels used:
@@ -84,6 +85,15 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
         self.loop = loop or asyncio.get_event_loop()
 
         self.ready = asyncio.Future() # fullfilled by connection_made
+
+    def shutdown(self):
+        self.log.debug("Shutting down endpoint")
+        for exchange_monitor, cancellable in self._active_exchanges.values():
+            if exchange_monitor is not None:
+                exchange_monitor.cancelled()
+            cancellable.cancel()
+        self._active_exchanges = None
+        self.transport.close()
 
     #
     # implementing the typical DatagramProtocol interfaces.
@@ -210,9 +220,8 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
         self._backlogs[message.remote] = []
 
         timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
-        retransmission_counter = 0
 
-        next_retransmission = self.loop.call_later(timeout, self._retransmit, message, timeout, retransmission_counter)
+        next_retransmission = self._schedule_retransmit(message, timeout, 0)
         self._active_exchanges[key] = (exchange_monitor, next_retransmission)
 
         self.log.debug("Exchange added, message ID: %d." % message.mid)
@@ -227,7 +236,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
             return
 
         exchange_monitor, next_retransmission = self._active_exchanges.pop(key)
-        next_retransmission.cancel()
+        cancel_thoroughly(next_retransmission)
         if exchange_monitor is not None:
             if message.mtype is RST:
                 exchange_monitor.rst()
@@ -252,12 +261,32 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
                 del self._backlogs[message.remote]
                 break
 
+    def _schedule_retransmit(self, message, timeout, retransmission_counter):
+        """Create and return a call_later for first or subsequent
+        retransmissions."""
+
+        # while this could just as well be done in a lambda or with the
+        # arguments passed to call_later, in this form makes the test cases
+        # easier to debug (it's about finding where references to an Endpoint
+        # are kept around; endpoints should be able to shut down in an orderly
+        # way without littering references in the loop)
+
+        def retr(self=self,
+                message=message,
+                timeout=timeout,
+                retransmission_counter=retransmission_counter,
+                doc="If you read this, have a look at _schedule_retransmit",
+                id=object()):
+            self._retransmit(message, timeout, retransmission_counter)
+        return self.loop.call_later(timeout, retr)
+
     def _retransmit(self, message, timeout, retransmission_counter):
         """Retransmit CON message that has not been ACKed or RSTed."""
         key = (message.remote, message.mid)
 
         exchange_monitor, next_retransmission = self._active_exchanges.pop(key)
-        next_retransmission.cancel()
+        # this should be a no-op, but let's be sure
+        cancel_thoroughly(next_retransmission)
 
         if retransmission_counter < MAX_RETRANSMIT:
             self.log.info("Retransmission, Message ID: %d." % message.mid)
@@ -265,7 +294,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
             retransmission_counter += 1
             timeout *= 2
 
-            next_retransmission = self.loop.call_later(timeout, self._retransmit, message, timeout, retransmission_counter)
+            next_retransmission = self._schedule_retransmit(message, timeout, retransmission_counter)
             self._active_exchanges[key] = (exchange_monitor, next_retransmission)
             if exchange_monitor is not None:
                 exchange_monitor.retransmitted()
@@ -465,6 +494,8 @@ class Request(BaseRequest, interfaces.Request):
 
         self._request_transmitted_completely = False
 
+        self._requesttimeout = None
+
         if self.app_request.code.is_request() is False:
             raise ValueError("Message code is not valid for request")
 
@@ -502,9 +533,13 @@ class Request(BaseRequest, interfaces.Request):
 
     def cancel(self):
         # TODO cancel ongoing exchanges
+        if self._requesttimeout:
+            cancel_thoroughly(self._requesttimeout)
         self.response.cancel()
 
     def _response_cancellation_handler(self, response_future):
+        if self._requesttimeout:
+            cancel_thoroughly(self._requesttimeout)
         if self.response.cancelled():
             self.cancel()
 
@@ -533,7 +568,9 @@ class Request(BaseRequest, interfaces.Request):
         except Exception as e:
             self.response.set_exception(e)
         else:
-            timeout = self.protocol.loop.call_later(REQUEST_TIMEOUT, timeout_request)
+            if self._requesttimeout:
+                cancel_thoroughly(self._requesttimeout)
+            self._requesttimeout = self.protocol.loop.call_later(REQUEST_TIMEOUT, timeout_request)
             self.protocol.outgoing_requests[(request.token, request.remote)] = self
 
             self.log.debug("Sending request - Token: %s, Remote: %s" % (binascii.b2a_hex(request.token).decode('ascii'), request.remote))
@@ -718,7 +755,7 @@ class Responder(object):
 
     def handle_next_request(self, request):
         if self._next_block_timeout is not None: # that'd be the case only for the first time
-            self._next_block_timeout.cancel()
+            cancel_thoroughly(self._next_block_timeout)
 
         if self.app_request.done() == False:
             self.process_block1_in_request(request)
@@ -822,7 +859,7 @@ class Responder(object):
 
         self.log.debug("Preparing response...")
         if delayed_ack is not None:
-            delayed_ack.cancel()
+            cancel_thoroughly(delayed_ack)
         self.app_response = app_response
         size_exp = min(request.opt.block2.size_exponent if request.opt.block2 is not None else DEFAULT_BLOCK_SIZE_EXP, DEFAULT_BLOCK_SIZE_EXP)
         if len(self.app_response.payload) > (2 ** (size_exp + 4)):
@@ -957,7 +994,7 @@ class ExchangeMonitor(object):
     exchange.
 
     Callbacks will be called in sequence: ``enqueued{0,1} sent
-    retransmitted{0,MAX_RETRANSMIT} (timeout | rst | response)``; everything
+    retransmitted{0,MAX_RETRANSMIT} (timeout | rst | cancelled | response)``; everything
     after ``sent`` only gets called if the messae that initiated the exchange
     was a CON."""
 
@@ -966,6 +1003,7 @@ class ExchangeMonitor(object):
     def retransmitted(self): pass
     def timeout(self): pass
     def rst(self): pass
+    def cancelled(self): pass
     def response(self, message): pass
 
 class ServerObservation(object):
