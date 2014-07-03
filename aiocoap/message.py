@@ -194,9 +194,9 @@ class Message(object):
         """The absolute URI this message belongs to.
 
         For requests, this is composed from the options (falling back to the
-        remote). For responses, this is stored by the Requester object not only
+        remote). For responses, this is stored by the Request object not only
         to preserve the request information (which could have been kept by the
-        requesting application), but also because the Requester can know about
+        requesting application), but also because the Request can know about
         multicast responses (which would update the host component) and
         redirects (FIXME do they exist?)."""
 

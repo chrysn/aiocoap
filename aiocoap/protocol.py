@@ -9,7 +9,7 @@
 """This module contains the classes that are responsible for keeping track of messages:
 
 * :class:`Endpoint` represents the CoAP endpoint (basically a UDP socket)
-* a :class:`Requester` gets generated whenever a request gets sent to keep
+* a :class:`Request` gets generated whenever a request gets sent to keep
   track of the response
 * a :class:`Responder` keeps track of a single incoming request
 """
@@ -46,7 +46,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
     protocol. It manages the basic CoAP network mechanisms like message
     deduplication and retransmissions, and delegates management of blockwise
     transfer as well as the details of matching requests with responses to the
-    :class:`Requester` and :class:`Responder` classes.
+    :class:`Request` and :class:`Responder` classes.
 
     Instead of passing a protocol factory to the asyncio loop's
     create_datagram_endpoint method, the following convenience functions are
@@ -66,7 +66,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
     .. automethod:: multicast_request
 
     If more control is needed, eg. with observations, create a
-    :class:`Requester` yourself and pass the endpoint to it.
+    :class:`Request` yourself and pass the endpoint to it.
     """
     def __init__(self, loop=None, serversite=None, loggername="coap"):
         self.message_id = random.randint(0, 65535)
@@ -76,7 +76,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
         self._active_exchanges = {}  # active exchanges i.e. sent CON messages (remote, message-id): (exchange monitor, cancellable timeout)
         self._backlogs = {} # per-remote list of (backlogged package, exchange-monitor) tupless (keys exist iff there is an active_exchange with that node)
         self.outgoing_requests = {}  # unfinished outgoing requests (identified by token and remote)
-        self.incoming_requests = {}  # unfinished incoming requests (path-tuple, remote): Requester
+        self.incoming_requests = {}  # unfinished incoming requests (path-tuple, remote): Request
         self.outgoing_observations = {} # observations where this node is the client. (token, remote) -> ClientObservation
 
         self.log = logging.getLogger(loggername)
@@ -308,7 +308,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
         if (response.token, response.remote) in self.outgoing_requests:
             self.outgoing_requests.pop((response.token, response.remote)).handle_response(response)
         elif (response.token, None) in self.outgoing_requests:
-            # that's exactly the `MulticastRequester`s so far
+            # that's exactly the `MulticastRequest`s so far
             self.outgoing_requests[(response.token, None)].handle_response(response)
         elif (response.token, response.remote) in self.outgoing_observations:
             ## @TODO: deduplication based on observe option value, collecting
@@ -329,7 +329,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
     def send_message(self, message, exchange_monitor=None):
         """Encode and send message. This takes care of retransmissions (if
         CON), message IDs and rate limiting, but does not hook any events to
-        responses. (Use the :class:`Requester` class or responding resources
+        responses. (Use the :class:`Request` class or responding resources
         instead; those are the typical callers of this function.)
 
         If notification about the progress of the exchange is required, an
@@ -385,10 +385,10 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     def request(self, request):
         """TODO: create a proper interface to implement and deprecate direct instanciation again"""
-        return Requester(self, request)
+        return Request(self, request)
 
     def multicast_request(self, request):
-        return MulticastRequester(self, request).responses
+        return MulticastRequest(self, request).responses
 
     #
     # convenience methods for class instanciation
@@ -433,8 +433,8 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         return protocol
 
-class BaseRequester(object):
-    """Common mechanisms of :class:`Requester` and :class:`MulticastRequester`"""
+class BaseRequest(object):
+    """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
 
     @asyncio.coroutine
     def _fill_remote(self, request):
@@ -449,7 +449,7 @@ class BaseRequester(object):
             else:
                 raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-class Requester(BaseRequester, interfaces.Request):
+class Request(BaseRequest, interfaces.Request):
     """Class used to handle single outgoing request.
 
     Class includes methods that handle sending outgoing blockwise requests and
@@ -633,7 +633,7 @@ class Requester(BaseRequester, interfaces.Request):
         else:
             self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
 
-class MulticastRequester(BaseRequester):
+class MulticastRequest(BaseRequest):
     def __init__(self, protocol, request):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("requester")
@@ -648,7 +648,7 @@ class MulticastRequester(BaseRequester):
 
     @asyncio.coroutine
     def _init_phase2(self):
-        """See :meth:`Requester._init_phase2`"""
+        """See :meth:`Request._init_phase2`"""
         try:
             yield from self._fill_remote(self.request)
 

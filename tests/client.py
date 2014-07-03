@@ -15,25 +15,27 @@ from .server import WithTestServer, WithClient, no_warnings
 class TestClient(WithTestServer, WithClient):
     @no_warnings
     def test_uri_parser(self):
+        yieldfrom = lambda f: self.loop.run_until_complete(f)
+
         request = aiocoap.Message(code=aiocoap.GET)
         request.set_request_uri("coap://127.0.0.1/empty")
-        response = self.loop.run_until_complete(self.client.request(request))
+        response = yieldfrom(self.client.request(request).response)
         self.assertEqual(response.code, aiocoap.CONTENT, "Request URL building failed")
 
         request = aiocoap.Message(code=aiocoap.GET)
         request.set_request_uri("coap://localhost/empty")
         self.assertEqual(request.get_request_uri(), "coap://localhost/empty")
-        response = self.loop.run_until_complete(self.client.request(request))
+        response = yieldfrom(self.client.request(request).response)
         self.assertEqual(response.code, aiocoap.CONTENT, "Resolving localhost failed")
         self.assertEqual(response.get_request_uri(), "coap://localhost/empty", "Host name did not get round-tripped")
 
         request = aiocoap.Message(code=aiocoap.GET)
         request.set_request_uri("coap://127.0.0.1:9999/empty")
-        t = asyncio.Task(self.client.request(request))
+        resp = self.client.request(request).response
         try:
             # give the request some time to finish getaddrinfo
-            self.loop.run_until_complete(asyncio.as_completed([t], timeout=0.01).__next__())
+            yieldfrom(asyncio.as_completed([resp], timeout=0.01).__next__())
         except asyncio.TimeoutError:
             pass
         self.assertEqual(request.remote[1], 9999, "Remote port was not parsed")
-        t.cancel()
+        resp.cancel()

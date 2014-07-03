@@ -162,7 +162,7 @@ class TestServer(WithTestServer, WithClient):
     def fetch_response(self, request, exchange_monitor_factory=lambda x:None):
         #return self.loop.run_until_complete(self.client.request(request))
 
-        requester = aiocoap.protocol.Requester(self.client, request, exchange_monitor_factory)
+        requester = aiocoap.protocol.Request(self.client, request, exchange_monitor_factory)
         return self.loop.run_until_complete(requester.response)
 
     @no_warnings
