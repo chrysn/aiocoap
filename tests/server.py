@@ -97,12 +97,12 @@ class TypeCounter(object):
 
 def no_warnings(function):
     def wrapped(self, *args, function=function):
-        dummy = "ignore this"
-        dummy_formatted = "WARNING:root:%s"%dummy
-        with self.assertLogs(level=logging.WARNING) as messages:
-            logging.warning(dummy) # assertLogs can't work as assertDoesntLog
-            result = function(self, *args)
-        self.assertEqual(messages.output, [dummy_formatted], "Function %s had warnings: %s"%(function.__name__, [m for m in messages.output if m != dummy_formatted]))
+        # assertLogs does not work as assertDoesntLog anyway without major
+        # tricking, and it interacts badly with WithLogMonitoring as they both
+        # try to change the root logger's level.
+        result = function(self, *args)
+        messages = [m.message for m in self.handler if m.levelno >= logging.WARNING]
+        self.assertEqual(messages, [], "Function %s had warnings: %s"%(function.__name__, messages))
         return result
     wrapped.__name__ = function.__name__
     wrapped.__doc__ = function.__doc__
@@ -110,12 +110,32 @@ def no_warnings(function):
 
 # fixtures
 
+class WithLogMonitoring(unittest.TestCase):
+    def setUp(self):
+        super(WithLogMonitoring, self).setUp()
+
+        self.handler = self.ListHandler()
+
+        logging.root.setLevel(0)
+        logging.root.addHandler(self.handler)
+
+    def tearDown(self):
+        logging.root.removeHandler(self.handler)
+
+        super(WithLogMonitoring, self).tearDown()
+
+    class ListHandler(logging.Handler, list):
+        def emit(self, record):
+            self.append(record)
+
 class WithAsyncLoop(unittest.TestCase):
     @no_warnings
     def setUp(self):
+        super(WithAsyncLoop, self).setUp()
+
         self.loop = asyncio.get_event_loop()
 
-class WithTestServer(WithAsyncLoop):
+class WithTestServer(WithAsyncLoop, WithLogMonitoring):
     @no_warnings
     def setUp(self):
         super(WithTestServer, self).setUp()
@@ -136,7 +156,16 @@ class WithTestServer(WithAsyncLoop):
         proto = weakproto()
         if proto is not None:
             # if-clause so string formatting can assume proto is not None
-            self.fail("Protocol was not garbage collected.\n\nReferrers: %s\n\nProperties: %s"%(pprint.pformat(referrers), pprint.pformat(vars(proto))))
+            snapshot = lambda: "Referrers: %s\n\nProperties: %s"%(pprint.pformat(gc.get_referrers(proto)), pprint.pformat(vars(proto)))
+            snapshot1 = snapshot()
+            logging.root.info("Starting extended grace period")
+            self.loop.run_until_complete(asyncio.sleep(10))
+            snapshot2 = snapshot()
+            formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
+            errormessage = "Protocol was not garbage collected.\n\nBefore extended grace period:\n" + snapshot1 + "\n\nAfter extended grace period:\n" + snapshot2 + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
+            self.fail(errormessage)
+
+        super(WithTestServer, self).tearDown()
 
 class WithClient(WithAsyncLoop):
     @no_warnings
