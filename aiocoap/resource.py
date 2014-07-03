@@ -231,21 +231,6 @@ class Site():
     def __init__(self, root_resource):
         self.resource = root_resource
 
-    def render(self, request):
-        """
-        Redirect because a Site is always a directory.
-        """
-        request.redirect(request.prePathURL() + '/')
-        #TODO: check this finish method
-        request.finish()
-
-    def get_child_with_default(self, pathEl, request):
-        """
-        Emulate a resource's get_child method.
-        """
-        request.site = self
-        return self.resource.get_child_with_default(pathEl, request)
-
     def get_resource_for(self, request):
         """
         Get a resource for a request.
