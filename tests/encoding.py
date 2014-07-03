@@ -7,8 +7,10 @@
 # described in the accompanying LICENSE file.
 
 import struct
+import copy
 
 import aiocoap
+import aiocoap.optiontypes
 
 import unittest
 
@@ -23,9 +25,36 @@ class TestMessage(unittest.TestCase):
         msg2.opt.etag = b"abcd"
         binary2 = bytes((97,69,188,144,113,68))+b"abcd"+bytes((255,))+b"temp = 22.5 C"
         self.assertEqual(msg2.encode(), binary2, "wrong encode operation for ACK message with payload, and Etag option")
+        msg2short = binary2[0:5] + binary2[10:] # header, token, marker, data
+        msg2a = copy.deepcopy(msg2)
+        del msg2a.opt.etag
+        self.assertEqual(msg2a.encode(), msg2short, "deleting single property did not succeed")
+        msg2b = copy.deepcopy(msg2)
+        del msg2b.opt.etags
+        self.assertEqual(msg2b.encode(), msg2short, "deleting list property did not succeed")
+        msg2c = copy.deepcopy(msg2)
+        msg2c.opt.etags = []
+        self.assertEqual(msg2c.encode(), msg2short, "emptying list property did not succeed")
+        msg2d = copy.deepcopy(msg2)
+        msg2d.opt.etag = None
+        self.assertEqual(msg2d.encode(), msg2short, "setting single property to None did not succeed")
 
         msg3 = aiocoap.Message()
         self.assertRaises(TypeError, msg3.encode)
+
+        msg4 = aiocoap.Message(mtype=aiocoap.CON, mid=2<<16)
+        self.assertRaises(Exception, msg4.encode)
+
+        msg5 = aiocoap.Message(mtype=aiocoap.CON, mid=0)
+        o = aiocoap.optiontypes.OpaqueOption(1234, value=b"abcd")
+        msg5.opt.add_option(o)
+        binary5 = binary1 + bytes((0xe4, 0x03, 0xc5)) + b"abcd"
+        self.assertEqual(msg5.encode(), binary5, "wrong encoding for high option numbers")
+
+        msg6 = aiocoap.Message(mtype=aiocoap.CON, mid=0)
+        o = aiocoap.optiontypes.OpaqueOption(12345678, value=b"abcd")
+        msg6.opt.add_option(o)
+        self.assertRaises(ValueError, msg6.encode)
 
     def test_decode(self):
         rawdata1 = bytes((64,0,0,0))
@@ -42,6 +71,8 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(aiocoap.Message.decode(rawdata2).payload, b'temp = 22.5 C', "wrong message payload for decode operation")
         self.assertEqual(aiocoap.Message.decode(rawdata2).opt.etags, (b"abcd",), "problem with etag option decoding for decode operation")
         self.assertEqual(len(aiocoap.Message.decode(rawdata2).opt._options), 1, "wrong number of options after decode operation")
+        rawdata3 = rawdata1 + bytes((0xf0,))
+        self.assertRaises(ValueError, aiocoap.Message.decode, rawdata3) # message with option delta reserved for payload marker
 
 class TestReadExtendedFieldValue(unittest.TestCase):
 
@@ -145,3 +176,26 @@ class TestOptions(unittest.TestCase):
         self.assertRaises(ValueError, setattr, opt3, "uri_path", "core")
 
 
+class TestOptiontypes(unittest.TestCase):
+    def test_optiontypes(self):
+        # from rfc725 table 4
+        on = aiocoap.numbers.OptionNumber
+        options = {
+                on.IF_MATCH: "C",
+                on.URI_HOST: "CU",
+                on.ETAG: "",
+                on.MAX_AGE: "U",
+                on.SIZE1: "N"
+                }
+
+        for o, expected in options.items():
+            self.assertEqual("C" in expected, o.is_critical(), "Unexpected criticalness of %r"%o)
+            self.assertEqual("C" not in expected, o.is_elective(), "Unexpected electiveness of %r"%o)
+            self.assertEqual("U" in expected, o.is_unsafe(), "Unexpected unsafeness of %r"%o)
+            self.assertEqual("U" not in expected, o.is_safetoforward(), "Unexpected safetoforwardness of %r"%o)
+            if o.is_safetoforward():
+                self.assertEqual("N" in expected, o.is_nocachekey(), "Unexpected nocachekeyness of %r"%o)
+                self.assertEqual("N" not in expected, o.is_cachekey(), "Unexpected cachekeyness of %r"%o)
+            else:
+                self.assertRaises(ValueError, o.is_nocachekey)
+                self.assertRaises(ValueError, o.is_cachekey)

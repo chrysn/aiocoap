@@ -6,6 +6,12 @@
 # txThings is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""Module that contains the various test scenarios.
+import unittest
+import doctest
+import aiocoap
+import glob
 
-Can be used most easily from setup.py as `./setup.py test`."""
+def load_tests(loader, tests, ignore):
+    for p in glob.glob("aiocoap/**/*.py"):
+        tests.addTests(doctest.DocTestSuite(p[:-3].replace('/', '.')))
+    return tests
