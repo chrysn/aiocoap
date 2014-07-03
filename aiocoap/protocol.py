@@ -35,10 +35,11 @@ import logging
 #   changed between blocks).
 
 from . import error
+from . import interfaces
 from .numbers import *
 from .message import Message
 
-class Endpoint(asyncio.DatagramProtocol):
+class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
     """A single local CoAP endpoint
 
     An :class:`.Endpoint` gets bound to a network interface as an asyncio
@@ -379,18 +380,19 @@ class Endpoint(asyncio.DatagramProtocol):
         return binascii.a2b_hex("%08x"%self.token)
 
     #
-    # convenience methods for class instanciation
+    # request interfaces
     #
 
-    @asyncio.coroutine
     def request(self, request):
-        """Convenience method for spawning a request, in case only the response is needed."""
-        # we could just as well return the future, but having this as a
-        # coroutine should be easier to follow in the documentation.
-        return (yield from Requester(self, request).response)
+        """TODO: create a proper interface to implement and deprecate direct instanciation again"""
+        return Requester(self, request)
 
     def multicast_request(self, request):
         return MulticastRequester(self, request).responses
+
+    #
+    # convenience methods for class instanciation
+    #
 
     @classmethod
     @asyncio.coroutine
@@ -447,7 +449,7 @@ class BaseRequester(object):
             else:
                 raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-class Requester(BaseRequester):
+class Requester(BaseRequester, interfaces.Request):
     """Class used to handle single outgoing request.
 
     Class includes methods that handle sending outgoing blockwise requests and

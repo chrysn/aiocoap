@@ -22,7 +22,7 @@ def main():
     request.remote = ("127.0.0.1", COAP_PORT)
 
     try:
-        response = yield from protocol.request(request)
+        response = yield from protocol.request(request).response
     except Exception as e:
         print('Failed to fetch resource:')
         print(e)
