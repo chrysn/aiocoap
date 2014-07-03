@@ -178,7 +178,7 @@ class TestOptions(unittest.TestCase):
         self.assertEqual(opt2.get_option(aiocoap.OptionNumber.URI_PATH)[0].value, "core", 'wrong uri_path setter operation for 2-element tuple argument')
         self.assertEqual(opt2.get_option(aiocoap.OptionNumber.URI_PATH)[1].value, ".well-known", 'wrong uri_path setter operation for 2-element tuple argument')
         opt3 = aiocoap.options.Options()
-        self.assertRaises(ValueError, setattr, opt3, "uri_path", "core")
+        self.assertRaises(TypeError, setattr, opt3, "uri_path", 42)
 
 
 class TestOptiontypes(unittest.TestCase):
