@@ -29,6 +29,13 @@ class TestClient(WithTestServer, WithClient):
         self.assertEqual(response.code, aiocoap.CONTENT, "Resolving localhost failed")
         self.assertEqual(response.get_request_uri(), "coap://localhost/empty", "Host name did not get round-tripped")
 
+    @no_warnings
+    def test_uri_parser2(self):
+        """A difficult test because it is prone to keeping the transport
+        around, bothering later tests"""
+
+        yieldfrom = lambda f: self.loop.run_until_complete(f)
+
         request = aiocoap.Message(code=aiocoap.GET)
         request.set_request_uri("coap://127.0.0.1:9999/empty")
         resp = self.client.request(request).response

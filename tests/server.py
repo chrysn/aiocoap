@@ -135,7 +135,25 @@ class WithAsyncLoop(unittest.TestCase):
 
         self.loop = asyncio.get_event_loop()
 
-class WithTestServer(WithAsyncLoop, WithLogMonitoring):
+class Destructing(unittest.TestCase):
+    def _del_to_be_sure(self, attribute):
+        weaksurvivor = weakref.ref(getattr(self, attribute))
+        delattr(self, attribute)
+        # let everything that gets async-triggered by close() happen
+        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
+        gc.collect()
+        survivor = weaksurvivor()
+        if survivor is not None:
+            snapshot = lambda: "Referrers: %s\n\nProperties: %s"%(pprint.pformat(gc.get_referrers(survivor)), pprint.pformat(vars(survivor)))
+            snapshot1 = snapshot()
+            logging.root.info("Starting extended grace period")
+            self.loop.run_until_complete(asyncio.sleep(10))
+            snapshot2 = snapshot()
+            formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
+            errormessage = "Protocol was not garbage collected.\n\nBefore extended grace period:\n" + snapshot1 + "\n\nAfter extended grace period:\n" + snapshot2 + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
+            self.fail(errormessage)
+
+class WithTestServer(WithAsyncLoop, WithLogMonitoring, Destructing):
     @no_warnings
     def setUp(self):
         super(WithTestServer, self).setUp()
@@ -148,26 +166,11 @@ class WithTestServer(WithAsyncLoop, WithLogMonitoring):
         # let the server receive the acks we just sent
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
         self.server.transport.close()
-        weakproto = weakref.ref(self.server)
-        del self.server
-        # let everything that gets async-triggered by close() happen
-        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
-        gc.collect()
-        proto = weakproto()
-        if proto is not None:
-            # if-clause so string formatting can assume proto is not None
-            snapshot = lambda: "Referrers: %s\n\nProperties: %s"%(pprint.pformat(gc.get_referrers(proto)), pprint.pformat(vars(proto)))
-            snapshot1 = snapshot()
-            logging.root.info("Starting extended grace period")
-            self.loop.run_until_complete(asyncio.sleep(10))
-            snapshot2 = snapshot()
-            formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
-            errormessage = "Protocol was not garbage collected.\n\nBefore extended grace period:\n" + snapshot1 + "\n\nAfter extended grace period:\n" + snapshot2 + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
-            self.fail(errormessage)
+        self._del_to_be_sure("server")
 
         super(WithTestServer, self).tearDown()
 
-class WithClient(WithAsyncLoop):
+class WithClient(WithAsyncLoop, Destructing):
     @no_warnings
     def setUp(self):
         super(WithClient, self).setUp()
@@ -177,6 +180,9 @@ class WithClient(WithAsyncLoop):
     @no_warnings
     def tearDown(self):
         self.client.transport.close()
+
+        # left disabled for now to get a better view of how things go wrong
+        #self._del_to_be_sure("client")
 
 # test cases
 
