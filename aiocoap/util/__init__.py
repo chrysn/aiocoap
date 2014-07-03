@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
 #               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
 #
-# txThings is free software, this file is published under the MIT license as
+# aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
 """Tools not directly related with CoAP that are needed to provide the API"""
@@ -39,4 +39,7 @@ class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
         return type(self)(int(self) + delta)
 
     def __repr__(self):
-        return '<%s %d>'%(type(self).__name__, self)
+        return '<%s %d%s>'%(type(self).__name__, self, ' "%s"'%self.name if hasattr(self, "name") else "")
+
+    def __str__(self):
+        return self.name if hasattr(self, "name") else int.__str__(self)

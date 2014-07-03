@@ -18,12 +18,14 @@ import subprocess
 import socket
 
 import aiocoap
+import aiocoap.proxy
 
 def parse_commandline(args):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--observe', help="Register an observation on the resource", action='store_true')
     p.add_argument('--observe-exec', help="Run the specified program whenever the observed resource changes, feeding the response data to its stdin", metavar='CMD')
     p.add_argument('--accept', help="Content format to request", metavar="MIME")
+    p.add_argument('--proxy', help="Relay the CoAP request to a proxy for execution", metavar="HOST[:PORT]")
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
     p.add_argument('url', help="CoAP address to fetch")
@@ -84,7 +86,17 @@ def main(args):
         request.opt.observe = 0
         observation_is_over = asyncio.Future()
 
-    requester = aiocoap.protocol.Requester(endpoint, request)
+    if options.proxy is None:
+        interface = endpoint
+    else:
+        if ':' in options.proxy:
+            host, port = options.proxy.split(':', 1)
+            try: port = int(port)
+            except ValueError: p.error("Numeric port required")
+        else:
+            host, port = options.proxy, aiocoap.COAP_PORT
+        interface = aiocoap.proxy.ProxyForwarder(host, port, endpoint)
+    requester = interface.request(request)
 
     if options.observe:
         requester.observation.register_errback(observation_is_over.set_result)

@@ -3,13 +3,13 @@
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
 #               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
 #
-# txThings is free software, this file is published under the MIT license as
+# aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
 """This module contains the classes that are responsible for keeping track of messages:
 
 * :class:`Endpoint` represents the CoAP endpoint (basically a UDP socket)
-* a :class:`Requester` gets generated whenever a request gets sent to keep
+* a :class:`Request` gets generated whenever a request gets sent to keep
   track of the response
 * a :class:`Responder` keeps track of a single incoming request
 """
@@ -22,6 +22,7 @@ import socket
 import asyncio
 
 from .util.queuewithend import QueueWithEnd
+from .util.asyncio import cancel_thoroughly
 
 import logging
 # log levels used:
@@ -35,17 +36,18 @@ import logging
 #   changed between blocks).
 
 from . import error
+from . import interfaces
 from .numbers import *
 from .message import Message
 
-class Endpoint(asyncio.DatagramProtocol):
+class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
     """A single local CoAP endpoint
 
     An :class:`.Endpoint` gets bound to a network interface as an asyncio
     protocol. It manages the basic CoAP network mechanisms like message
     deduplication and retransmissions, and delegates management of blockwise
     transfer as well as the details of matching requests with responses to the
-    :class:`Requester` and :class:`Responder` classes.
+    :class:`Request` and :class:`Responder` classes.
 
     Instead of passing a protocol factory to the asyncio loop's
     create_datagram_endpoint method, the following convenience functions are
@@ -65,7 +67,7 @@ class Endpoint(asyncio.DatagramProtocol):
     .. automethod:: multicast_request
 
     If more control is needed, eg. with observations, create a
-    :class:`Requester` yourself and pass the endpoint to it.
+    :class:`Request` yourself and pass the endpoint to it.
     """
     def __init__(self, loop=None, serversite=None, loggername="coap"):
         self.message_id = random.randint(0, 65535)
@@ -75,7 +77,7 @@ class Endpoint(asyncio.DatagramProtocol):
         self._active_exchanges = {}  # active exchanges i.e. sent CON messages (remote, message-id): (exchange monitor, cancellable timeout)
         self._backlogs = {} # per-remote list of (backlogged package, exchange-monitor) tupless (keys exist iff there is an active_exchange with that node)
         self.outgoing_requests = {}  # unfinished outgoing requests (identified by token and remote)
-        self.incoming_requests = {}  # unfinished incoming requests (path-tuple, remote): Requester
+        self.incoming_requests = {}  # unfinished incoming requests (path-tuple, remote): Request
         self.outgoing_observations = {} # observations where this node is the client. (token, remote) -> ClientObservation
 
         self.log = logging.getLogger(loggername)
@@ -83,6 +85,15 @@ class Endpoint(asyncio.DatagramProtocol):
         self.loop = loop or asyncio.get_event_loop()
 
         self.ready = asyncio.Future() # fullfilled by connection_made
+
+    def shutdown(self):
+        self.log.debug("Shutting down endpoint")
+        for exchange_monitor, cancellable in self._active_exchanges.values():
+            if exchange_monitor is not None:
+                exchange_monitor.cancelled()
+            cancellable.cancel()
+        self._active_exchanges = None
+        self.transport.close()
 
     #
     # implementing the typical DatagramProtocol interfaces.
@@ -124,7 +135,7 @@ class Endpoint(asyncio.DatagramProtocol):
         """Feed a message through the message-id, message-type and message-code
         sublayers of CoAP"""
 
-        self.log.debug("Incoming Message ID: %d" % message.mid)
+        self.log.debug("Incoming message %r" % message)
         if self._deduplicate_message(message) is True:
             return
 
@@ -209,12 +220,11 @@ class Endpoint(asyncio.DatagramProtocol):
         self._backlogs[message.remote] = []
 
         timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
-        retransmission_counter = 0
 
-        next_retransmission = self.loop.call_later(timeout, self._retransmit, message, timeout, retransmission_counter)
+        next_retransmission = self._schedule_retransmit(message, timeout, 0)
         self._active_exchanges[key] = (exchange_monitor, next_retransmission)
 
-        self.log.debug("Exchange added, Message ID: %d." % message.mid)
+        self.log.debug("Exchange added, message ID: %d." % message.mid)
 
     def _remove_exchange(self, message):
         """Remove exchange from active exchanges and cancel the timeout to next
@@ -226,13 +236,13 @@ class Endpoint(asyncio.DatagramProtocol):
             return
 
         exchange_monitor, next_retransmission = self._active_exchanges.pop(key)
-        next_retransmission.cancel()
+        cancel_thoroughly(next_retransmission)
         if exchange_monitor is not None:
             if message.mtype is RST:
                 exchange_monitor.rst()
             else:
                 exchange_monitor.response(message)
-        self.log.debug("Exchange removed, Message ID: %d." % message.mid)
+        self.log.debug("Exchange removed, message ID: %d." % message.mid)
 
         if message.remote not in self._backlogs:
             # if active exchanges were something we could do a
@@ -251,27 +261,47 @@ class Endpoint(asyncio.DatagramProtocol):
                 del self._backlogs[message.remote]
                 break
 
+    def _schedule_retransmit(self, message, timeout, retransmission_counter):
+        """Create and return a call_later for first or subsequent
+        retransmissions."""
+
+        # while this could just as well be done in a lambda or with the
+        # arguments passed to call_later, in this form makes the test cases
+        # easier to debug (it's about finding where references to an Endpoint
+        # are kept around; endpoints should be able to shut down in an orderly
+        # way without littering references in the loop)
+
+        def retr(self=self,
+                message=message,
+                timeout=timeout,
+                retransmission_counter=retransmission_counter,
+                doc="If you read this, have a look at _schedule_retransmit",
+                id=object()):
+            self._retransmit(message, timeout, retransmission_counter)
+        return self.loop.call_later(timeout, retr)
+
     def _retransmit(self, message, timeout, retransmission_counter):
         """Retransmit CON message that has not been ACKed or RSTed."""
         key = (message.remote, message.mid)
 
         exchange_monitor, next_retransmission = self._active_exchanges.pop(key)
-        next_retransmission.cancel()
+        # this should be a no-op, but let's be sure
+        cancel_thoroughly(next_retransmission)
 
         if retransmission_counter < MAX_RETRANSMIT:
+            self.log.info("Retransmission, Message ID: %d." % message.mid)
             self.transport.sendto(message.encode(), message.remote)
             retransmission_counter += 1
             timeout *= 2
 
-            next_retransmission = self.loop.call_later(timeout, self._retransmit, message, timeout, retransmission_counter)
+            next_retransmission = self._schedule_retransmit(message, timeout, retransmission_counter)
             self._active_exchanges[key] = (exchange_monitor, next_retransmission)
             if exchange_monitor is not None:
                 exchange_monitor.retransmitted()
-            self.log.info("Retransmission, Message ID: %d." % message.mid)
         else:
+            self.log.info("Exchange timed out")
             if exchange_monitor is not None:
                 exchange_monitor.timeout()
-            self.log.info("Exchange timed out")
 
     #
     # coap dispatch, message-code sublayer: triggering custom actions based on incoming messages
@@ -302,12 +332,12 @@ class Endpoint(asyncio.DatagramProtocol):
         depending on mtype), ans False if it was not expected (and should be
         RST'd)."""
 
-        self.log.debug("Received Response, token: %s, host: %s, port: %s" % (binascii.b2a_hex(response.token), response.remote[0], response.remote[1]))
+        self.log.debug("Received Response: %r" % response)
 
         if (response.token, response.remote) in self.outgoing_requests:
             self.outgoing_requests.pop((response.token, response.remote)).handle_response(response)
         elif (response.token, None) in self.outgoing_requests:
-            # that's exactly the `MulticastRequester`s so far
+            # that's exactly the `MulticastRequest`s so far
             self.outgoing_requests[(response.token, None)].handle_response(response)
         elif (response.token, response.remote) in self.outgoing_observations:
             ## @TODO: deduplication based on observe option value, collecting
@@ -328,7 +358,7 @@ class Endpoint(asyncio.DatagramProtocol):
     def send_message(self, message, exchange_monitor=None):
         """Encode and send message. This takes care of retransmissions (if
         CON), message IDs and rate limiting, but does not hook any events to
-        responses. (Use the :class:`Requester` class or responding resources
+        responses. (Use the :class:`Request` class or responding resources
         instead; those are the typical callers of this function.)
 
         If notification about the progress of the exchange is required, an
@@ -352,7 +382,7 @@ class Endpoint(asyncio.DatagramProtocol):
     def _send(self, message, exchange_monitor=None):
         """Put the message on the wire, starting retransmission timeouts"""
 
-        self.log.debug("Sending message to %s" % (message.remote,))
+        self.log.debug("Sending message %r" % message)
 
         if message.mtype is CON:
             self._add_exchange(message, exchange_monitor)
@@ -379,18 +409,19 @@ class Endpoint(asyncio.DatagramProtocol):
         return binascii.a2b_hex("%08x"%self.token)
 
     #
-    # convenience methods for class instanciation
+    # request interfaces
     #
 
-    @asyncio.coroutine
     def request(self, request):
-        """Convenience method for spawning a request, in case only the response is needed."""
-        # we could just as well return the future, but having this as a
-        # coroutine should be easier to follow in the documentation.
-        return (yield from Requester(self, request).response)
+        """TODO: create a proper interface to implement and deprecate direct instanciation again"""
+        return Request(self, request)
 
     def multicast_request(self, request):
-        return MulticastRequester(self, request).responses
+        return MulticastRequest(self, request).responses
+
+    #
+    # convenience methods for class instanciation
+    #
 
     @classmethod
     @asyncio.coroutine
@@ -431,8 +462,8 @@ class Endpoint(asyncio.DatagramProtocol):
 
         return protocol
 
-class BaseRequester(object):
-    """Common mechanisms of :class:`Requester` and :class:`MulticastRequester`"""
+class BaseRequest(object):
+    """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
 
     @asyncio.coroutine
     def _fill_remote(self, request):
@@ -447,7 +478,7 @@ class BaseRequester(object):
             else:
                 raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-class Requester(BaseRequester):
+class Request(BaseRequest, interfaces.Request):
     """Class used to handle single outgoing request.
 
     Class includes methods that handle sending outgoing blockwise requests and
@@ -462,6 +493,8 @@ class Requester(BaseRequester):
         self._exchange_monitor_factory = exchange_monitor_factory
 
         self._request_transmitted_completely = False
+
+        self._requesttimeout = None
 
         if self.app_request.code.is_request() is False:
             raise ValueError("Message code is not valid for request")
@@ -500,9 +533,13 @@ class Requester(BaseRequester):
 
     def cancel(self):
         # TODO cancel ongoing exchanges
+        if self._requesttimeout:
+            cancel_thoroughly(self._requesttimeout)
         self.response.cancel()
 
     def _response_cancellation_handler(self, response_future):
+        if self._requesttimeout:
+            cancel_thoroughly(self._requesttimeout)
         if self.response.cancelled():
             self.cancel()
 
@@ -531,7 +568,9 @@ class Requester(BaseRequester):
         except Exception as e:
             self.response.set_exception(e)
         else:
-            timeout = self.protocol.loop.call_later(REQUEST_TIMEOUT, timeout_request)
+            if self._requesttimeout:
+                cancel_thoroughly(self._requesttimeout)
+            self._requesttimeout = self.protocol.loop.call_later(REQUEST_TIMEOUT, timeout_request)
             self.protocol.outgoing_requests[(request.token, request.remote)] = self
 
             self.log.debug("Sending request - Token: %s, Remote: %s" % (binascii.b2a_hex(request.token).decode('ascii'), request.remote))
@@ -605,6 +644,8 @@ class Requester(BaseRequester):
             self.handle_final_response(response)
 
     def handle_final_response(self, response):
+        response.requested_host = self.app_request.opt.uri_host
+        response.requested_port = self.app_request.opt.uri_port
         response.requested_path = self.app_request.opt.uri_path
         response.requested_query = self.app_request.opt.get_option(OptionNumber.URI_QUERY) or ()
 
@@ -629,7 +670,7 @@ class Requester(BaseRequester):
         else:
             self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
 
-class MulticastRequester(BaseRequester):
+class MulticastRequest(BaseRequest):
     def __init__(self, protocol, request):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("requester")
@@ -644,7 +685,7 @@ class MulticastRequester(BaseRequester):
 
     @asyncio.coroutine
     def _init_phase2(self):
-        """See :meth:`Requester._init_phase2`"""
+        """See :meth:`Request._init_phase2`"""
         try:
             yield from self._fill_remote(self.request)
 
@@ -667,6 +708,7 @@ class MulticastRequester(BaseRequester):
         self.protocol.loop.call_later(MULTICAST_REQUEST_TIMEOUT, self._timeout)
 
     def handle_response(self, response):
+        # not setting requested_host / port, that needs to come from the remote
         response.requested_path = self.request.opt.uri_path
         response.requested_query = self.request.opt.get_option(OptionNumber.URI_QUERY) or ()
 
@@ -713,7 +755,7 @@ class Responder(object):
 
     def handle_next_request(self, request):
         if self._next_block_timeout is not None: # that'd be the case only for the first time
-            self._next_block_timeout.cancel()
+            cancel_thoroughly(self._next_block_timeout)
 
         if self.app_request.done() == False:
             self.process_block1_in_request(request)
@@ -817,7 +859,7 @@ class Responder(object):
 
         self.log.debug("Preparing response...")
         if delayed_ack is not None:
-            delayed_ack.cancel()
+            cancel_thoroughly(delayed_ack)
         self.app_response = app_response
         size_exp = min(request.opt.block2.size_exponent if request.opt.block2 is not None else DEFAULT_BLOCK_SIZE_EXP, DEFAULT_BLOCK_SIZE_EXP)
         if len(self.app_response.payload) > (2 ** (size_exp + 4)):
@@ -952,7 +994,7 @@ class ExchangeMonitor(object):
     exchange.
 
     Callbacks will be called in sequence: ``enqueued{0,1} sent
-    retransmitted{0,MAX_RETRANSMIT} (timeout | rst | response)``; everything
+    retransmitted{0,MAX_RETRANSMIT} (timeout | rst | cancelled | response)``; everything
     after ``sent`` only gets called if the messae that initiated the exchange
     was a CON."""
 
@@ -961,6 +1003,7 @@ class ExchangeMonitor(object):
     def retransmitted(self): pass
     def timeout(self): pass
     def rst(self): pass
+    def cancelled(self): pass
     def response(self, message): pass
 
 class ServerObservation(object):

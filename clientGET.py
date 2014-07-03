@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
 #               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
 #
-# txThings is free software, this file is published under the MIT license as
+# aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
 import logging
@@ -22,7 +22,7 @@ def main():
     request.remote = ("127.0.0.1", COAP_PORT)
 
     try:
-        response = yield from protocol.request(request)
+        response = yield from protocol.request(request).response
     except Exception as e:
         print('Failed to fetch resource:')
         print(e)

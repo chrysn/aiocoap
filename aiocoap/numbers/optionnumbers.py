@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
 #               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
 #
-# txThings is free software, this file is published under the MIT license as
+# aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
 """Known values for CoAP option numbers
@@ -133,6 +133,8 @@ class OptionNumber(ExtensibleIntEnum):
 OptionNumber.OBSERVE.format = optiontypes.UintOption
 OptionNumber.URI_PORT.format = optiontypes.UintOption
 OptionNumber.URI_PATH.format = optiontypes.StringOption
+OptionNumber.PROXY_URI.format = optiontypes.StringOption
+OptionNumber.PROXY_SCHEME.format = optiontypes.StringOption
 OptionNumber.CONTENT_FORMAT.format = optiontypes.UintOption
 OptionNumber.MAX_AGE.format = optiontypes.UintOption
 OptionNumber.URI_QUERY.format = optiontypes.StringOption

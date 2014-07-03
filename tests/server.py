@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
 #               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
 #
-# txThings is free software, this file is published under the MIT license as
+# aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
 import asyncio
@@ -97,12 +97,14 @@ class TypeCounter(object):
 
 def no_warnings(function):
     def wrapped(self, *args, function=function):
-        dummy = "ignore this"
-        dummy_formatted = "WARNING:root:%s"%dummy
-        with self.assertLogs(level=logging.WARNING) as messages:
-            logging.warning(dummy) # assertLogs can't work as assertDoesntLog
-            result = function(self, *args)
-        self.assertEqual(messages.output, [dummy_formatted], "Function %s had warnings: %s"%(function.__name__, [m for m in messages.output if m != dummy_formatted]))
+        # assertLogs does not work as assertDoesntLog anyway without major
+        # tricking, and it interacts badly with WithLogMonitoring as they both
+        # try to change the root logger's level.
+
+        startcount = len(self.handler)
+        result = function(self, *args)
+        messages = [m.msg for m in self.handler[startcount:] if m.levelno >= logging.WARNING]
+        self.assertEqual(messages, [], "Function %s had warnings: %s"%(function.__name__, messages))
         return result
     wrapped.__name__ = function.__name__
     wrapped.__doc__ = function.__doc__
@@ -110,44 +112,93 @@ def no_warnings(function):
 
 # fixtures
 
-class WithAsyncLoop(unittest.TestCase):
-    @no_warnings
+class WithLogMonitoring(unittest.TestCase):
     def setUp(self):
+        self.handler = self.ListHandler()
+
+        logging.root.setLevel(0)
+        logging.root.addHandler(self.handler)
+
+        super(WithLogMonitoring, self).setUp()
+
+    def tearDown(self):
+        super(WithLogMonitoring, self).tearDown()
+
+        logging.root.removeHandler(self.handler)
+#
+#        formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
+#        print("fyi:\n", "\n".join(formatter.format(x) for x in self.handler if x.name != 'asyncio'))
+
+    class ListHandler(logging.Handler, list):
+        def emit(self, record):
+            self.append(record)
+
+class WithAsyncLoop(unittest.TestCase):
+    def setUp(self):
+        super(WithAsyncLoop, self).setUp()
+
         self.loop = asyncio.get_event_loop()
 
-class WithTestServer(WithAsyncLoop):
-    @no_warnings
+class Destructing(WithLogMonitoring):
+    def _del_to_be_sure(self, attribute):
+        weaksurvivor = weakref.ref(getattr(self, attribute))
+        delattr(self, attribute)
+        # let everything that gets async-triggered by close() happen
+        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
+        gc.collect()
+        survivor = weaksurvivor()
+        if survivor is not None:
+            snapshot = lambda: "Referrers: %s\n\nProperties: %s"%(pprint.pformat(gc.get_referrers(survivor)), pprint.pformat(vars(survivor)))
+            snapshot1 = snapshot()
+            if False: # enable this if you think that a longer timeout would help
+                # this helped finding that timer cancellations don't free the
+                # callback, but in general, expect to modify this code if you
+                # have to read it; this will need adjustment to your current
+                # debugging situation
+                logging.root.info("Starting extended grace period")
+                for i in range(10):
+                    self.loop.run_until_complete(asyncio.sleep(1))
+                    del survivor
+                    gc.collect()
+                    survivor = weaksurvivor()
+                    logging.root.info("Now %ds into grace period, survivor is %r"%((i+1)/1, survivor))
+                    if survivor is None:
+                        break
+                snapshot2 = snapshot() if survivor else "no survivor"
+                snapshotsmessage = "Before extended grace period:\n" + snapshot1 + "\n\nAfter extended grace period:\n" + snapshot2
+            else:
+                snapshotsmessage = snapshot1
+            formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
+            errormessage = "Protocol was not garbage collected.\n\n" + snapshotsmessage + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
+            self.fail(errormessage)
+
+class WithTestServer(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithTestServer, self).setUp()
 
         ts = TestingSite()
         self.server = self.loop.run_until_complete(aiocoap.Endpoint.create_server_endpoint(ts))
 
-    @no_warnings
     def tearDown(self):
         # let the server receive the acks we just sent
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
-        self.server.transport.close()
-        weakproto = weakref.ref(self.server)
-        del self.server
-        # let everything that gets async-triggered by close() happen
-        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
-        gc.collect()
-        proto = weakproto()
-        if proto is not None:
-            # if-clause so string formatting can assume proto is not None
-            self.fail("Protocol was not garbage collected.\n\nReferrers: %s\n\nProperties: %s"%(pprint.pformat(referrers), pprint.pformat(vars(proto))))
+        self.server.shutdown()
+        self._del_to_be_sure("server")
 
-class WithClient(WithAsyncLoop):
-    @no_warnings
+        super(WithTestServer, self).tearDown()
+
+class WithClient(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithClient, self).setUp()
 
         self.client = self.loop.run_until_complete(aiocoap.Endpoint.create_client_endpoint())
 
-    @no_warnings
     def tearDown(self):
-        self.client.transport.close()
+        self.client.shutdown()
+
+        self._del_to_be_sure("client")
+
+        super(WithClient, self).tearDown()
 
 # test cases
 
@@ -162,7 +213,7 @@ class TestServer(WithTestServer, WithClient):
     def fetch_response(self, request, exchange_monitor_factory=lambda x:None):
         #return self.loop.run_until_complete(self.client.request(request))
 
-        requester = aiocoap.protocol.Requester(self.client, request, exchange_monitor_factory)
+        requester = aiocoap.protocol.Request(self.client, request, exchange_monitor_factory)
         return self.loop.run_until_complete(requester.response)
 
     @no_warnings

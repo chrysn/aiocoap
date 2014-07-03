@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
 #               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
 #
-# txThings is free software, this file is published under the MIT license as
+# aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
 from itertools import chain
@@ -88,8 +88,18 @@ def _items_view(option_number, doc=None):
 
 class Options(object):
     """Represent CoAP Header Options."""
+
+    # this is not so much an optimization as a safeguard -- if custom
+    # attributes were placed here, they could be accessed but would not be
+    # serialized
+    __slots__ = ["_options"]
+
     def __init__(self):
         self._options = {}
+
+    def __repr__(self):
+        text = ", ".join("%s: %s"%(OptionNumber(k), " / ".join(map(str, v))) for (k, v) in self._options.items())
+        return "<aiocoap.options.Options at %#x: %s>"%(id(self), text or "empty")
 
     def decode(self, rawdata):
         """Passed a CoAP message body after the token as rawdata, fill self
@@ -155,3 +165,4 @@ class Options(object):
     uri_host = _single_value_view(OptionNumber.URI_HOST)
     uri_port = _single_value_view(OptionNumber.URI_PORT)
     proxy_uri = _single_value_view(OptionNumber.PROXY_URI)
+    proxy_scheme = _single_value_view(OptionNumber.PROXY_SCHEME)

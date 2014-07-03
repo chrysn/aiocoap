@@ -3,7 +3,7 @@
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
 #               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
 #
-# txThings is free software, this file is published under the MIT license as
+# aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
 import struct
@@ -55,6 +55,11 @@ class TestMessage(unittest.TestCase):
         o = aiocoap.optiontypes.OpaqueOption(12345678, value=b"abcd")
         msg6.opt.add_option(o)
         self.assertRaises(ValueError, msg6.encode)
+
+        msg7 = aiocoap.Message(mtype=aiocoap.CON, mid=0)
+        def set_unknown_opt():
+            msg7.opt.foobar = 42
+        self.assertRaises(AttributeError, set_unknown_opt)
 
     def test_decode(self):
         rawdata1 = bytes((64,0,0,0))
@@ -173,7 +178,7 @@ class TestOptions(unittest.TestCase):
         self.assertEqual(opt2.get_option(aiocoap.OptionNumber.URI_PATH)[0].value, "core", 'wrong uri_path setter operation for 2-element tuple argument')
         self.assertEqual(opt2.get_option(aiocoap.OptionNumber.URI_PATH)[1].value, ".well-known", 'wrong uri_path setter operation for 2-element tuple argument')
         opt3 = aiocoap.options.Options()
-        self.assertRaises(ValueError, setattr, opt3, "uri_path", "core")
+        self.assertRaises(TypeError, setattr, opt3, "uri_path", 42)
 
 
 class TestOptiontypes(unittest.TestCase):
