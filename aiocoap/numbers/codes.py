@@ -88,7 +88,17 @@ class Code(ExtensibleIntEnum):
             return "%d"%self
 
     def __repr__(self):
-        return '<Code %d "%s">'%(self, self)
+        """
+        >>> Code.GET
+        <Request Code 1 "GET">
+        >>> Code.CONTENT
+        <Successful Response Code 69 "2.05 Content">
+        >>> Code.BAD_GATEWAY
+        <Response Code 162 "5.02 Bad Gateway">
+        >>> Code(32)
+        <Code 32 "32">
+        """
+        return '<%s%sCode %d "%s">'%("Successful " if self.is_successful() else "", "Request " if self.is_request() else "Response " if self.is_response() else "", self, self)
 
     name = property(lambda self: self._name if hasattr(self, "_name") else "(unknown)", lambda self, value: setattr(self, "_name", value), doc="The constant name of the code (equals name_printable readable in all-caps and with underscores)")
 

@@ -431,7 +431,23 @@ class Endpoint(asyncio.DatagramProtocol):
 
         return protocol
 
-class Requester(object):
+class BaseRequester(object):
+    """Common mechanisms of :class:`Requester` and :class:`MulticastRequester`"""
+
+    @asyncio.coroutine
+    def _fill_remote(self, request):
+        if request.remote is None:
+            if request.opt.uri_host:
+                ## @TODO this is very rudimentary; happy-eyeballs or
+                # similar could be employed.
+                request.remote = (yield from self.protocol.loop.getaddrinfo(
+                    request.opt.uri_host,
+                    request.opt.uri_port or COAP_PORT
+                    ))[0][-1]
+            else:
+                raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
+
+class Requester(BaseRequester):
     """Class used to handle single outgoing request.
 
     Class includes methods that handle sending outgoing blockwise requests and
@@ -450,22 +466,37 @@ class Requester(object):
         if self.app_request.code.is_request() is False:
             raise ValueError("Message code is not valid for request")
 
-        size_exp = DEFAULT_BLOCK_SIZE_EXP
-        if len(self.app_request.payload) > (2 ** (size_exp + 4)):
-            request = self.app_request._extract_block(0, size_exp)
-            self.app_request.opt.block1 = request.opt.block1
-        else:
-            request = self.app_request
-            self._request_transmitted_completely = True
-
         self.response = asyncio.Future()
         self.response.add_done_callback(self._response_cancellation_handler)
 
-        if app_request.opt.observe is not None:
-            self.observation = ClientObservation(app_request)
-            self.response.add_done_callback(self.register_observation)
+        asyncio.async(self._init_phase2())
 
-        self.send_request(request)
+    @asyncio.coroutine
+    def _init_phase2(self):
+        """Later aspects of initialization that deal more with sending the
+        message than with the setup of the requester
+
+        Those are split off into a dedicated function because completion might
+        depend on async results."""
+
+        try:
+            yield from self._fill_remote(self.app_request)
+
+            size_exp = DEFAULT_BLOCK_SIZE_EXP
+            if len(self.app_request.payload) > (2 ** (size_exp + 4)):
+                request = self.app_request._extract_block(0, size_exp)
+                self.app_request.opt.block1 = request.opt.block1
+            else:
+                request = self.app_request
+                self._request_transmitted_completely = True
+
+            if self.app_request.opt.observe is not None:
+                self.observation = ClientObservation(self.app_request)
+                self.response.add_done_callback(self.register_observation)
+
+            self.send_request(request)
+        except Exception as e:
+            self.response.set_exception(e)
 
     def cancel(self):
         # TODO cancel ongoing exchanges
@@ -598,7 +629,7 @@ class Requester(object):
         else:
             self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
 
-class MulticastRequester(object):
+class MulticastRequester(BaseRequester):
     def __init__(self, protocol, request):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("requester")
@@ -608,7 +639,18 @@ class MulticastRequester(object):
             raise ValueError("Multicast currently only supportet for NON GET")
 
         self.responses = QueueWithEnd()
-        self.send_request(request)
+
+        asyncio.async(self._init_phase2())
+
+    @asyncio.coroutine
+    def _init_phase2(self):
+        """See :meth:`Requester._init_phase2`"""
+        try:
+            yield from self._fill_remote(self.request)
+
+            self.send_request(self.request)
+        except Exception as e:
+            self.responses.put_exception(e)
 
     def send_request(self, request):
         request.token = self.protocol.next_token()

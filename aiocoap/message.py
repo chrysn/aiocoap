@@ -12,6 +12,7 @@ import struct
 import copy
 import ipaddress
 
+from . import error
 from .numbers import *
 from .options import Options
 
@@ -53,10 +54,10 @@ class Message(object):
         try:
             (vttkl, code, mid) = struct.unpack('!BBH', rawdata[:4])
         except struct.error:
-            raise iot.error.UnparsableMessage("Incoming message too short for CoAP")
+            raise error.UnparsableMessage("Incoming message too short for CoAP")
         version = (vttkl & 0xC0) >> 6
         if version is not 1:
-            raise iot.error.UnparsableMessage("Fatal Error: Protocol Version must be 1")
+            raise error.UnparsableMessage("Fatal Error: Protocol Version must be 1")
         mtype = (vttkl & 0x30) >> 4
         token_length = (vttkl & 0x0F)
         msg = Message(mtype=mtype, mid=mid, code=code)
@@ -110,7 +111,7 @@ class Message(object):
             self.token = next_block.token
             self.mid = next_block.mid
         else:
-            raise iot.error.NotImplemented()
+            raise error.NotImplemented()
 
     def _append_response_block(self, next_block):
         """Append next block to current response message.
@@ -120,10 +121,10 @@ class Message(object):
 
         block2 = next_block.opt.block2
         if block2.start != len(self.payload):
-            raise iot.error.NotImplemented()
+            raise error.NotImplemented()
 
         if next_block.opt.etag != self.opt.etag:
-            raise iot.error.ResourceChanged()
+            raise error.ResourceChanged()
 
         self.payload += next_block.payload
         self.opt.block2 = block2
@@ -212,17 +213,21 @@ class Message(object):
 
         return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
 
-    @asyncio.coroutine
     def set_request_uri(self, uri):
-        """Parse a given URI into the uri_ fields of the options, and set the
-        remote accordingly.
+        """Parse a given URI into the uri_ fields of the options.
 
-        This needs to be a coroutine as it involves a ``getaddrinfo`` call."""
+        The remote does not get set automatically; instead, the remote data is
+        stored in the uri_host and uri_port options. That is because name resolution
+        is coupled with network specifics the protocol will know better by the
+        time the message is sent. Whatever sends the message, be it the
+        protocol itself, a proxy wrapper or an alternative transport, will know
+        how to handle the information correctly."""
 
-        parsed = urllib.parse.urlparse(uri, allow_fragments='blah')
+        parsed = urllib.parse.urlparse(uri, allow_fragments=False)
 
         if parsed.scheme != 'coap':
-            raise ValueError("Can not use other schemes than 'coap' without configured proxy.")
+            self.opt.proxy_uri = uri
+            return
 
         if parsed.username or parsed.password:
             raise ValueError("User name and password not supported.")
@@ -238,9 +243,8 @@ class Message(object):
         else:
             self.opt.uri_query = []
 
-        # FIXME have to select remote now, that's not nice (happy eyeballs anyone?)
-        self.remote = (yield from asyncio.get_event_loop().getaddrinfo(parsed.hostname, parsed.port or COAP_PORT))[0][-1]
-
+        if parsed.port:
+            self.opt.uri_port = parsed.port
         self.opt.uri_host = parsed.hostname
 
     def has_multicast_remote(self):
