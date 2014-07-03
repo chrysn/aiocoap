@@ -7,6 +7,7 @@
    aiocoap
    aiocoap.protocol
    aiocoap.message
+   aiocoap.interfaces
    aiocoap.proxy
    aiocoap.numbers
    aiocoap.error
