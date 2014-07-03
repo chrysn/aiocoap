@@ -93,7 +93,9 @@ class OptionNumber(ExtensibleIntEnum):
         return not self.is_unsafe()
 
     def is_nocachekey(self):
-        return self & 0x1e != 0x1c
+        if self.is_unsafe():
+            raise ValueError("NoCacheKey is only meaningful for safe options")
+        return self & 0x1e == 0x1c
 
     def is_cachekey(self):
         return not self.is_nocachekey()

@@ -25,8 +25,7 @@ class OptionType(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def __init__(self, number, value):
-        self.name = name
-        self.value = value
+        """Set the `self.name` and `self.value` attributes"""
 
     @abc.abstractmethod
     def encode(self):

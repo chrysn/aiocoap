@@ -81,10 +81,10 @@ def _items_view(option_number, doc=None):
         for v in value:
             self.add_option(option_number.create_option(value=v))
 
-    def _deleter(self, value, option_number=option_number):
+    def _deleter(self, option_number=option_number):
         self.delete_option(option_number)
 
-    return property(_getter, _setter, doc=doc or "Iterable view on the %s option."%option_number)
+    return property(_getter, _setter, _deleter, doc=doc or "Iterable view on the %s option."%option_number)
 
 class Options(object):
     """Represent CoAP Header Options."""
