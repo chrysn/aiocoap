@@ -60,6 +60,9 @@ class StringOption(OptionType):
         return len(self.value.encode('utf-8'))
     length = property(_length)
 
+    def __str__(self):
+        return self.value
+
 class OpaqueOption(OptionType):
     """Opaque CoAP option - used to represent opaque options."""
 
@@ -78,6 +81,8 @@ class OpaqueOption(OptionType):
         return len(self.value)
     length = property(_length)
 
+    def __str__(self):
+        return repr(self.value)
 
 class UintOption(OptionType):
     """Uint CoAP option - used to represent uint options."""
@@ -103,6 +108,9 @@ class UintOption(OptionType):
         else:
             return 0
     length = property(_length)
+
+    def __str__(self):
+        return str(self.value)
 
 
 class BlockOption(OptionType):
@@ -139,3 +147,6 @@ class BlockOption(OptionType):
     def _length(self):
         return ((self.value[0].bit_length() + 3) // 8 + 1)
     length = property(_length)
+
+    def __str__(self):
+        return str(self.value)

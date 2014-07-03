@@ -97,6 +97,10 @@ class Options(object):
     def __init__(self):
         self._options = {}
 
+    def __repr__(self):
+        text = ", ".join("%s: %s"%(OptionNumber(k), " / ".join(map(str, v))) for (k, v) in self._options.items())
+        return "<aiocoap.options.Options at %#x: %s>"%(id(self), text or "empty")
+
     def decode(self, rawdata):
         """Passed a CoAP message body after the token as rawdata, fill self
         with the options starting at the beginning of rawdata, an return the

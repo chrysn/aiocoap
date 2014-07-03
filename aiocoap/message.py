@@ -52,6 +52,18 @@ class Message(object):
         if self.payload is None:
             raise TypeError("Payload must not be None. Use empty string instead.")
 
+    def __repr__(self):
+        return "<aiocoap.Message at %#x: %s %s (ID %r, token %r) remote %s%s%s>"%(
+                id(self),
+                self.mtype,
+                self.code,
+                self.mid,
+                self.token,
+                self.remote,
+                ", %s option(s)"%len(self.opt._options) if self.opt._options else "",
+                ", %s byte(s) payload"%len(self.payload) if self.payload else ""
+                )
+
     @classmethod
     def decode(cls, rawdata, remote=None):
         """Create Message object from binary representation of message."""

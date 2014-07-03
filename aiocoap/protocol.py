@@ -125,7 +125,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
         """Feed a message through the message-id, message-type and message-code
         sublayers of CoAP"""
 
-        self.log.debug("Incoming Message ID: %d" % message.mid)
+        self.log.debug("Incoming message %r" % message)
         if self._deduplicate_message(message) is True:
             return
 
@@ -215,7 +215,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
         next_retransmission = self.loop.call_later(timeout, self._retransmit, message, timeout, retransmission_counter)
         self._active_exchanges[key] = (exchange_monitor, next_retransmission)
 
-        self.log.debug("Exchange added, Message ID: %d." % message.mid)
+        self.log.debug("Exchange added, message ID: %d." % message.mid)
 
     def _remove_exchange(self, message):
         """Remove exchange from active exchanges and cancel the timeout to next
@@ -233,7 +233,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
                 exchange_monitor.rst()
             else:
                 exchange_monitor.response(message)
-        self.log.debug("Exchange removed, Message ID: %d." % message.mid)
+        self.log.debug("Exchange removed, message ID: %d." % message.mid)
 
         if message.remote not in self._backlogs:
             # if active exchanges were something we could do a
@@ -260,6 +260,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
         next_retransmission.cancel()
 
         if retransmission_counter < MAX_RETRANSMIT:
+            self.log.info("Retransmission, Message ID: %d." % message.mid)
             self.transport.sendto(message.encode(), message.remote)
             retransmission_counter += 1
             timeout *= 2
@@ -268,11 +269,10 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
             self._active_exchanges[key] = (exchange_monitor, next_retransmission)
             if exchange_monitor is not None:
                 exchange_monitor.retransmitted()
-            self.log.info("Retransmission, Message ID: %d." % message.mid)
         else:
+            self.log.info("Exchange timed out")
             if exchange_monitor is not None:
                 exchange_monitor.timeout()
-            self.log.info("Exchange timed out")
 
     #
     # coap dispatch, message-code sublayer: triggering custom actions based on incoming messages
@@ -303,7 +303,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
         depending on mtype), ans False if it was not expected (and should be
         RST'd)."""
 
-        self.log.debug("Received Response, token: %s, host: %s, port: %s" % (binascii.b2a_hex(response.token), response.remote[0], response.remote[1]))
+        self.log.debug("Received Response: %r" % response)
 
         if (response.token, response.remote) in self.outgoing_requests:
             self.outgoing_requests.pop((response.token, response.remote)).handle_response(response)
@@ -353,7 +353,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
     def _send(self, message, exchange_monitor=None):
         """Put the message on the wire, starting retransmission timeouts"""
 
-        self.log.debug("Sending message to %s" % (message.remote,))
+        self.log.debug("Sending message %r" % message)
 
         if message.mtype is CON:
             self._add_exchange(message, exchange_monitor)

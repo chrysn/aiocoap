@@ -39,4 +39,7 @@ class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
         return type(self)(int(self) + delta)
 
     def __repr__(self):
-        return '<%s %d>'%(type(self).__name__, self)
+        return '<%s %d%s>'%(type(self).__name__, self, ' "%s"'%self.name if hasattr(self, "name") else "")
+
+    def __str__(self):
+        return self.name if hasattr(self, "name") else int.__str__(self)
