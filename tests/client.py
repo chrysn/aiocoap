@@ -25,7 +25,7 @@ class TestClient(WithTestServer, WithClient):
         self.assertEqual(request.get_request_uri(), "coap://localhost/empty")
         response = self.loop.run_until_complete(self.client.request(request))
         self.assertEqual(response.code, aiocoap.CONTENT, "Resolving localhost failed")
-        self.assertEqual(response.get_request_uri(), "coap://localhost/empty")
+        self.assertEqual(response.get_request_uri(), "coap://localhost/empty", "Host name did not get round-tripped")
 
         request = aiocoap.Message(code=aiocoap.GET)
         request.set_request_uri("coap://127.0.0.1:9999/empty")

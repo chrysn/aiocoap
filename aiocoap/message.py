@@ -40,8 +40,12 @@ class Message(object):
         # their main purpose is allowing .get_request_uri() to work smoothly, a
         # feature that is required to resolve links relative to the message.
         #
-        # both are stored as lists, as they would be accessed for example by
-        # self.opt.uri_path
+        # path and query are stored as lists, as they would be accessed for
+        # example by self.opt.uri_path
+        self.requested_proxy_uri = None
+        self.requested_scheme = None
+        self.requested_host = None
+        self.requested_port = None
         self.requested_path = None
         self.requested_query = None
 
@@ -167,11 +171,31 @@ class Message(object):
     # the message in the context of network and addresses
     #
 
+    @staticmethod
+    def _build_request_uri(scheme, host, port, path, query):
+        """Assemble path components as found in CoAP options into a URL. Helper
+        for :meth:`get_request_uri`."""
+
+        if port is None:
+            netloc = host
+        else:
+            netloc = "%s:%d"%(host, port)
+
+        # FIXME this should follow coap section 6.5 more closely
+        query = "?" + "&".join(query) if query else ""
+        path = '/'.join(("",) + path) or '/'
+
+        fragment = None
+        params = "" # are they not there at all?
+
+        return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
+
     def get_request_uri(self):
-        """The absolute URI this message belongs to. For requests, this is
-        composed from the remote and options (FIXME: or configured proxy data).
-        For responses, this is stored by the Requester object not only to
-        preserve the request information (which could have been kept by the
+        """The absolute URI this message belongs to.
+
+        For requests, this is composed from the options (falling back to the
+        remote). For responses, this is stored by the Requester object not only
+        to preserve the request information (which could have been kept by the
         requesting application), but also because the Requester can know about
         multicast responses (which would update the host component) and
         redirects (FIXME do they exist?)."""
@@ -179,39 +203,40 @@ class Message(object):
         # maybe this function does not belong exactly *here*, but it belongs to
         # the results of .request(message), which is currently a message itself.
 
-        # FIXME this should follow coap section 6.5 more closely
-
-        # FIXME this tries to look up request-specific attributes in responses,
-        # maybe it needs completely separate implementations for requests and
-        # responses
-
-        if self.opt.proxy_uri is not None:
-            return self.opt.proxy_uri
-
-        scheme = self.opt.get_option(OptionNumber.PROXY_SCHEME) or 'coap'
-        host = self.opt.uri_host or self.remote[0]
-        port = self.opt.uri_port or self.remote[1]
-        if port == COAP_PORT:
-            netloc = host
-        else:
-            netloc = "%s:%s"%(host, port)
-
-        if self.requested_path is not None:
+        if self.code.is_response():
+            proxyuri = self.requested_proxy_uri
+            scheme = self.requested_scheme or 'coap'
+            query = self.requested_query
             path = self.requested_path
         else:
-            path = self.opt.uri_path
-        path = '/'.join(("",) + path) or '/'
-
-        params = "" # are they not there at all?
-
-        if self.requested_query is not None:
-            query = self.requested_query
-        else:
+            proxyuri = self.opt.proxy_uri
+            scheme = self.opt.get_option(OptionNumber.PROXY_SCHEME) or 'coap'
             query = self.opt.get_option(OptionNumber.URI_QUERY) or ()
-        query = "?" + "&".join(query) if query else ""
-        fragment = None
+            path = self.opt.uri_path
 
-        return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
+        if self.code.is_response() and self.requested_host is not None:
+            host = self.requested_host
+        elif self.code.is_request() and self.opt.uri_host is not None:
+            host = self.opt.uri_host
+        else:
+            host = self.remote[0]
+
+        if self.code.is_response() and self.requested_port is not None:
+            port = self.requested_port
+        elif self.code.is_request() and self.opt.uri_port is not None:
+            port = self.opt.uri_port
+        elif self.remote is not None:
+            port = self.remote[1]
+            if port == COAP_PORT:
+                # don't explicitly add port if not required
+                port = None
+        else:
+            port = None
+
+        if proxyuri is not None:
+            return proxyuri
+
+        return self._build_request_uri(scheme, host, port, path, query)
 
     def set_request_uri(self, uri):
         """Parse a given URI into the uri_ fields of the options.
