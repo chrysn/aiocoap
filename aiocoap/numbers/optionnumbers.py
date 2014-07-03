@@ -133,6 +133,8 @@ class OptionNumber(ExtensibleIntEnum):
 OptionNumber.OBSERVE.format = optiontypes.UintOption
 OptionNumber.URI_PORT.format = optiontypes.UintOption
 OptionNumber.URI_PATH.format = optiontypes.StringOption
+OptionNumber.PROXY_URI.format = optiontypes.StringOption
+OptionNumber.PROXY_SCHEME.format = optiontypes.StringOption
 OptionNumber.CONTENT_FORMAT.format = optiontypes.UintOption
 OptionNumber.MAX_AGE.format = optiontypes.UintOption
 OptionNumber.URI_QUERY.format = optiontypes.StringOption

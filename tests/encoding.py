@@ -56,6 +56,11 @@ class TestMessage(unittest.TestCase):
         msg6.opt.add_option(o)
         self.assertRaises(ValueError, msg6.encode)
 
+        msg7 = aiocoap.Message(mtype=aiocoap.CON, mid=0)
+        def set_unknown_opt():
+            msg7.opt.foobar = 42
+        self.assertRaises(AttributeError, set_unknown_opt)
+
     def test_decode(self):
         rawdata1 = bytes((64,0,0,0))
         self.assertEqual(aiocoap.Message.decode(rawdata1).mtype, aiocoap.CON, "wrong message type for decode operation")
