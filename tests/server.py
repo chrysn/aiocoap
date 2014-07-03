@@ -100,8 +100,10 @@ def no_warnings(function):
         # assertLogs does not work as assertDoesntLog anyway without major
         # tricking, and it interacts badly with WithLogMonitoring as they both
         # try to change the root logger's level.
+
+        startcount = len(self.handler)
         result = function(self, *args)
-        messages = [m.message for m in self.handler if m.levelno >= logging.WARNING]
+        messages = [m.msg for m in self.handler[startcount:] if m.levelno >= logging.WARNING]
         self.assertEqual(messages, [], "Function %s had warnings: %s"%(function.__name__, messages))
         return result
     wrapped.__name__ = function.__name__
@@ -112,30 +114,32 @@ def no_warnings(function):
 
 class WithLogMonitoring(unittest.TestCase):
     def setUp(self):
-        super(WithLogMonitoring, self).setUp()
-
         self.handler = self.ListHandler()
 
         logging.root.setLevel(0)
         logging.root.addHandler(self.handler)
 
-    def tearDown(self):
-        logging.root.removeHandler(self.handler)
+        super(WithLogMonitoring, self).setUp()
 
+    def tearDown(self):
         super(WithLogMonitoring, self).tearDown()
+
+        logging.root.removeHandler(self.handler)
+#
+#        formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
+#        print("fyi:\n", "\n".join(formatter.format(x) for x in self.handler if x.name != 'asyncio'))
 
     class ListHandler(logging.Handler, list):
         def emit(self, record):
             self.append(record)
 
 class WithAsyncLoop(unittest.TestCase):
-    @no_warnings
     def setUp(self):
         super(WithAsyncLoop, self).setUp()
 
         self.loop = asyncio.get_event_loop()
 
-class Destructing(unittest.TestCase):
+class Destructing(WithLogMonitoring):
     def _del_to_be_sure(self, attribute):
         weaksurvivor = weakref.ref(getattr(self, attribute))
         delattr(self, attribute)
@@ -146,43 +150,55 @@ class Destructing(unittest.TestCase):
         if survivor is not None:
             snapshot = lambda: "Referrers: %s\n\nProperties: %s"%(pprint.pformat(gc.get_referrers(survivor)), pprint.pformat(vars(survivor)))
             snapshot1 = snapshot()
-            logging.root.info("Starting extended grace period")
-            self.loop.run_until_complete(asyncio.sleep(10))
-            snapshot2 = snapshot()
+            if False: # enable this if you think that a longer timeout would help
+                # this helped finding that timer cancellations don't free the
+                # callback, but in general, expect to modify this code if you
+                # have to read it; this will need adjustment to your current
+                # debugging situation
+                logging.root.info("Starting extended grace period")
+                for i in range(10):
+                    self.loop.run_until_complete(asyncio.sleep(1))
+                    del survivor
+                    gc.collect()
+                    survivor = weaksurvivor()
+                    logging.root.info("Now %ds into grace period, survivor is %r"%((i+1)/1, survivor))
+                    if survivor is None:
+                        break
+                snapshot2 = snapshot() if survivor else "no survivor"
+                snapshotsmessage = "Before extended grace period:\n" + snapshot1 + "\n\nAfter extended grace period:\n" + snapshot2
+            else:
+                snapshotsmessage = snapshot1
             formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
-            errormessage = "Protocol was not garbage collected.\n\nBefore extended grace period:\n" + snapshot1 + "\n\nAfter extended grace period:\n" + snapshot2 + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
+            errormessage = "Protocol was not garbage collected.\n\n" + snapshotsmessage + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
             self.fail(errormessage)
 
-class WithTestServer(WithAsyncLoop, WithLogMonitoring, Destructing):
-    @no_warnings
+class WithTestServer(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithTestServer, self).setUp()
 
         ts = TestingSite()
         self.server = self.loop.run_until_complete(aiocoap.Endpoint.create_server_endpoint(ts))
 
-    @no_warnings
     def tearDown(self):
         # let the server receive the acks we just sent
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
-        self.server.transport.close()
+        self.server.shutdown()
         self._del_to_be_sure("server")
 
         super(WithTestServer, self).tearDown()
 
 class WithClient(WithAsyncLoop, Destructing):
-    @no_warnings
     def setUp(self):
         super(WithClient, self).setUp()
 
         self.client = self.loop.run_until_complete(aiocoap.Endpoint.create_client_endpoint())
 
-    @no_warnings
     def tearDown(self):
-        self.client.transport.close()
+        self.client.shutdown()
 
-        # left disabled for now to get a better view of how things go wrong
-        #self._del_to_be_sure("client")
+        self._del_to_be_sure("client")
+
+        super(WithClient, self).tearDown()
 
 # test cases
 
