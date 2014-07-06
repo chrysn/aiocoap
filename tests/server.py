@@ -187,6 +187,10 @@ class WithTestServer(WithAsyncLoop, Destructing):
 
         super(WithTestServer, self).tearDown()
 
+    serveraddress = "::1"
+    servernetloc = "[::1]"
+    servernamealias = "ip6-loopback"
+
 class WithClient(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithClient, self).setUp()
@@ -206,7 +210,8 @@ class TestServer(WithTestServer, WithClient):
     @no_warnings
     def build_request(self):
         request = aiocoap.Message(code=aiocoap.GET)
-        request.remote = ('127.0.0.1', aiocoap.COAP_PORT)
+        # this should be subject to whatever gets done with the rest of getaddrino
+        request.remote = self.loop.run_until_complete(self.loop.getaddrinfo(self.serveraddress, aiocoap.COAP_PORT))[0][-1]
         return request
 
     @no_warnings
