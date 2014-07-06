@@ -17,7 +17,41 @@ from .numbers import *
 from .options import Options
 
 class Message(object):
-    """A CoAP Message."""
+    """CoAP Message with some handling metadata
+
+    This object's attributes provide access to the fields in a CoAP message and
+    can be directly manipulated.
+
+    * Some attributes are additional data that do not round-trip through
+      serialization and deserialization. They are marked as "non-roundtrippable".
+    * Some attributes that need to be filled for submission of the message can
+      be left empty by most applications, and will be taken care of by the
+      library. Those are marked as "managed".
+
+    The attributes are:
+
+    * :attr:`payload`: The payload (body) of the message as bytes.
+    * :attr:`mtype`: Message type (CON, ACK etc, see :mod:`.numbers.types`).
+      Managed unless set by the application.
+    * :attr:`code`: The code (either request or response code), see
+      :mod:`.numbers.codes`.
+    * :attr:`opt`: A container for the options, see :class:`.options.Options`.
+
+    * :attr:`mid`: The message ID. Managed by the :class:`.Endpoint`.
+    * :attr:`token`: The message's token as bytes. Managed by the :class:`.Endpoint`.
+    * :attr:`remote`: The socket address of the  side, managed by the
+      :class:`.Request` by resolving the ``.opt.uri_host``, or the
+      :class:`.Responder` by echoing the incoming request's. (If you choose to
+      set this explicitly set this, make sure not to set incomplete IPv6
+      address tuples, as they can be sent but don't compare equally with the
+      responses). Non-roundtrippable.
+
+    * requested_*: Managed by the :class:`.Request` a response results from, and
+      filled with the request's URL data. Non-roundtrippable.
+
+    * :attr:`prepath`, :attr:`postpath`: Not sure, will probably go away when
+      resources are overhauled. Non-roundtrippable.
+    """
 
     def __init__(self, mtype=None, mid=None, code=EMPTY, payload=b'', token=b''):
         self.version = 1
