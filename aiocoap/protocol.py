@@ -435,12 +435,12 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         loop = asyncio.get_event_loop()
 
-        transport, protocol = yield from loop.create_datagram_endpoint(cls, family=socket.AF_INET)
+        #transport, protocol = yield from loop.create_datagram_endpoint(cls, family=socket.AF_INET)
 
         # use the following lines instead, and change the address to `::ffff:127.0.0.1`
         # in order to see acknowledgement handling fail with hybrid stack operation
-        #transport, protocol = yield from loop.create_datagram_endpoint(cls, family=socket.AF_INET6)
-        #transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        transport, protocol = yield from loop.create_datagram_endpoint(cls, family=socket.AF_INET6)
+        transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
         yield from protocol.ready
 
@@ -448,15 +448,18 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_server_endpoint(cls, site):
-        """Create an endpoint bound to all addresses on the CoAP port.
+    def create_server_endpoint(cls, site, bind=("::", COAP_PORT)):
+        """Create an endpoint, bound to all addresses on the CoAP port (unless
+        otherwise specified in the :arg:`bind` argument).
 
         This is the easiest way to get an endpoint suitable both for sending
         client and acceptin server requests."""
 
         loop = asyncio.get_event_loop()
 
-        transport, protocol = yield from loop.create_datagram_endpoint(lambda: cls(loop, site, loggername="coap-server"), ('127.0.0.1', COAP_PORT))
+        transport, protocol = yield from loop.create_datagram_endpoint(lambda: cls(loop, site, loggername="coap-server"), bind, family=socket.AF_INET6)
+        # never works?
+        #transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
         yield from protocol.ready
 
