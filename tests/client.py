@@ -18,16 +18,16 @@ class TestClient(WithTestServer, WithClient):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
 
         request = aiocoap.Message(code=aiocoap.GET)
-        request.set_request_uri("coap://127.0.0.1/empty")
+        request.set_request_uri("coap://" + self.servernetloc + "/empty")
         response = yieldfrom(self.client.request(request).response)
         self.assertEqual(response.code, aiocoap.CONTENT, "Request URL building failed")
 
         request = aiocoap.Message(code=aiocoap.GET)
-        request.set_request_uri("coap://localhost/empty")
-        self.assertEqual(request.get_request_uri(), "coap://localhost/empty")
+        request.set_request_uri("coap://" + self.servernamealias + "/empty")
+        self.assertEqual(request.get_request_uri(), "coap://" + self.servernamealias + "/empty")
         response = yieldfrom(self.client.request(request).response)
-        self.assertEqual(response.code, aiocoap.CONTENT, "Resolving localhost failed")
-        self.assertEqual(response.get_request_uri(), "coap://localhost/empty", "Host name did not get round-tripped")
+        self.assertEqual(response.code, aiocoap.CONTENT, "Resolving WithTestServer.servernamealias failed")
+        self.assertEqual(response.get_request_uri(), "coap://" + self.servernamealias + "/empty", "Host name did not get round-tripped")
 
     @no_warnings
     def test_uri_parser2(self):
@@ -37,7 +37,7 @@ class TestClient(WithTestServer, WithClient):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
 
         request = aiocoap.Message(code=aiocoap.GET)
-        request.set_request_uri("coap://127.0.0.1:9999/empty")
+        request.set_request_uri("coap://" + self.servernetloc + ":9999/empty")
         resp = self.client.request(request).response
         try:
             # give the request some time to finish getaddrinfo
