@@ -471,10 +471,14 @@ class BaseRequest(object):
             if request.opt.uri_host:
                 ## @TODO this is very rudimentary; happy-eyeballs or
                 # similar could be employed.
-                request.remote = (yield from self.protocol.loop.getaddrinfo(
+                addrinfo = yield from self.protocol.loop.getaddrinfo(
                     request.opt.uri_host,
-                    request.opt.uri_port or COAP_PORT
-                    ))[0][-1]
+                    request.opt.uri_port or COAP_PORT,
+                    family=self.protocol.transport._sock.family,
+                    type=0,
+                    proto=self.protocol.transport._sock.proto,
+                    )
+                request.remote = addrinfo[0][-1]
             else:
                 raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 

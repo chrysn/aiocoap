@@ -28,6 +28,8 @@ class ProxyForwarder(interfaces.RequestProvider):
         if self._proxy_remote is None:
             ## @TODO this is very rudimentary; happy-eyeballs or
             # similar could be employed and this be linked into the protocol
+            ## @TODO this has since been modified in BaseRequest, before you
+            # fix it here, move it to the protocol
             self._proxy_remote = (yield from self.endpoint.loop.getaddrinfo(
                 self._proxy[0],
                 self._proxy[1] or COAP_PORT
