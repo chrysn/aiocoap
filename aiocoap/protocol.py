@@ -457,9 +457,9 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         loop = asyncio.get_event_loop()
 
-        transport, protocol = yield from loop.create_datagram_endpoint(lambda: cls(loop, site, loggername="coap-server"), bind, family=socket.AF_INET6)
-        # never works?
-        #transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        transport, protocol = yield from loop.create_datagram_endpoint(lambda: cls(loop, site, loggername="coap-server"), family=socket.AF_INET6)
+        transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        transport._sock.bind(bind)
 
         yield from protocol.ready
 
