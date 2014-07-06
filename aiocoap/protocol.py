@@ -480,6 +480,7 @@ class BaseRequest(object):
                     family=self.protocol.transport._sock.family,
                     type=0,
                     proto=self.protocol.transport._sock.proto,
+                    flags=socket.AI_V4MAPPED,
                     )
                 request.remote = addrinfo[0][-1]
             else:
