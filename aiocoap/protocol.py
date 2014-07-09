@@ -697,11 +697,11 @@ class MulticastRequest(BaseRequest):
         try:
             yield from self._fill_remote(self.request)
 
-            self.send_request(self.request)
+            yield from self._send_request(self.request)
         except Exception as e:
             self.responses.put_exception(e)
 
-    def send_request(self, request):
+    def _send_request(self, request):
         request.token = self.protocol.next_token()
 
         try:
