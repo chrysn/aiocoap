@@ -715,6 +715,11 @@ class MulticastRequest(BaseRequest):
 
         self.protocol.loop.call_later(MULTICAST_REQUEST_TIMEOUT, self._timeout)
 
+        for i in range(5):
+            # FIXME that's not what the spec says. what does the spec say?
+            yield from asyncio.sleep(i/2)
+            self.protocol.send_message(request)
+
     def handle_response(self, response):
         # not setting requested_host / port, that needs to come from the remote
         response.requested_path = self.request.opt.uri_path
