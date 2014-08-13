@@ -19,14 +19,14 @@ Usage
 -----
 
 In all but the most exotic applications, you will want to create a single
-:class:`.Endpoint` instance that binds to the network. The
-:meth:`.Endpoint.create_client_endpoint` and
-:meth:`.Endpoint.create_server_endpoint` coroutines give you a readily connected
+:class:`.Context` instance that binds to the network. The
+:meth:`.Context.create_client_endpoint` and
+:meth:`.Context.create_server_endpoint` coroutines give you a readily connected
 endpoint.
 
 On the client side, you can request resources by assembling a
 :class:`.Message` and passing it to your endpoint's
-:meth:`.Endpoint.request` coroutine, which returns the response message.
+:meth:`.Context.request` coroutine, which returns the response message.
 
 On the server side, a resource tree gets built from
 :class:`aiocoap.resource.CoAPResource` objects into a
@@ -36,4 +36,4 @@ time.
 
 from .numbers import *
 from .message import Message
-from .protocol import Endpoint
+from .protocol import Context

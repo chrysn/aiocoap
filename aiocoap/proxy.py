@@ -11,7 +11,7 @@ import asyncio
 from . import interfaces
 
 class ProxyForwarder(interfaces.RequestProvider):
-    """Object that behaves like an Endpoint but only provides the request
+    """Object that behaves like an Context but only provides the request
     function and forwards all messages to a proxy.
 
     This is not a proxy itself, it is just the interface for an external

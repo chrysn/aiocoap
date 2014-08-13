@@ -8,7 +8,7 @@
 
 """This module contains the classes that are responsible for keeping track of messages:
 
-* :class:`Endpoint` represents the CoAP endpoint (basically a UDP socket)
+* :class:`Context` represents the CoAP endpoint (basically a UDP socket)
 * a :class:`Request` gets generated whenever a request gets sent to keep
   track of the response
 * a :class:`Responder` keeps track of a single incoming request
@@ -40,10 +40,10 @@ from . import interfaces
 from .numbers import *
 from .message import Message
 
-class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
+class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     """A single local CoAP endpoint
 
-    An :class:`.Endpoint` gets bound to a network interface as an asyncio
+    An :class:`.Context` gets bound to a network interface as an asyncio
     protocol. It manages the basic CoAP network mechanisms like message
     deduplication and retransmissions, and delegates management of blockwise
     transfer as well as the details of matching requests with responses to the
@@ -267,7 +267,7 @@ class Endpoint(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         # while this could just as well be done in a lambda or with the
         # arguments passed to call_later, in this form makes the test cases
-        # easier to debug (it's about finding where references to an Endpoint
+        # easier to debug (it's about finding where references to an Context
         # are kept around; endpoints should be able to shut down in an orderly
         # way without littering references in the loop)
 
@@ -827,7 +827,7 @@ class Responder(object):
             return
 
         if self.protocol.serversite is None:
-            self.respond_with_error(request, NOT_FOUND, "Endpoint is not a server")
+            self.respond_with_error(request, NOT_FOUND, "Context is not a server")
             return
 
         #TODO: Request with Block2 option and non-zero block number should get error response

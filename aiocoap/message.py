@@ -37,8 +37,8 @@ class Message(object):
       :mod:`.numbers.codes`.
     * :attr:`opt`: A container for the options, see :class:`.options.Options`.
 
-    * :attr:`mid`: The message ID. Managed by the :class:`.Endpoint`.
-    * :attr:`token`: The message's token as bytes. Managed by the :class:`.Endpoint`.
+    * :attr:`mid`: The message ID. Managed by the :class:`.Context`.
+    * :attr:`token`: The message's token as bytes. Managed by the :class:`.Context`.
     * :attr:`remote`: The socket address of the  side, managed by the
       :class:`.Request` by resolving the ``.opt.uri_host``, or the
       :class:`.Responder` by echoing the incoming request's. (If you choose to

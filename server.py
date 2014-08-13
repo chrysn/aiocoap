@@ -135,7 +135,7 @@ def main():
 
     site = resource.Site(root)
 
-    asyncio.async(aiocoap.Endpoint.create_server_endpoint(site))
+    asyncio.async(aiocoap.Context.create_server_endpoint(site))
 
     asyncio.get_event_loop().run_forever()
 
