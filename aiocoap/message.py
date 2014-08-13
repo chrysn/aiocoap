@@ -222,6 +222,9 @@ class Message(object):
         """Assemble path components as found in CoAP options into a URL. Helper
         for :meth:`get_request_uri`."""
 
+        if ':' in host:
+            host = '[%s]'%host
+
         if port is None:
             netloc = host
         else:

@@ -480,6 +480,7 @@ class BaseRequest(object):
                     family=self.protocol.transport._sock.family,
                     type=0,
                     proto=self.protocol.transport._sock.proto,
+                    flags=socket.AI_V4MAPPED,
                     )
                 request.remote = addrinfo[0][-1]
             else:
@@ -696,11 +697,11 @@ class MulticastRequest(BaseRequest):
         try:
             yield from self._fill_remote(self.request)
 
-            self.send_request(self.request)
+            yield from self._send_request(self.request)
         except Exception as e:
             self.responses.put_exception(e)
 
-    def send_request(self, request):
+    def _send_request(self, request):
         request.token = self.protocol.next_token()
 
         try:
@@ -713,6 +714,11 @@ class MulticastRequest(BaseRequest):
         self.log.debug("Sending multicast request - Token: %s, Remote: %s" % (binascii.b2a_hex(request.token).decode('ascii'), request.remote))
 
         self.protocol.loop.call_later(MULTICAST_REQUEST_TIMEOUT, self._timeout)
+
+        for i in range(5):
+            # FIXME that's not what the spec says. what does the spec say?
+            yield from asyncio.sleep(i/2)
+            self.protocol.send_message(request)
 
     def handle_response(self, response):
         # not setting requested_host / port, that needs to come from the remote

@@ -17,9 +17,9 @@ logging.basicConfig(level=logging.INFO)
 def main():
     protocol = yield from Endpoint.create_client_endpoint()
 
+    # TODO: replace this with set_request_uri
     request = Message(code=GET)
-    request.opt.uri_path = ('time',)
-    request.remote = ("127.0.0.1", COAP_PORT)
+    request.set_request_uri('coap://localhost/time')
 
     try:
         response = yield from protocol.request(request).response
