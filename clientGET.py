@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 
 @asyncio.coroutine
 def main():
-    protocol = yield from Context.create_client_endpoint()
+    protocol = yield from Context.create_client_context()
 
     request = Message(code=GET)
     request.set_request_uri('coap://localhost/time')

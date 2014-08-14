@@ -20,17 +20,17 @@ Usage
 
 In all but the most exotic applications, you will want to create a single
 :class:`.Context` instance that binds to the network. The
-:meth:`.Context.create_client_endpoint` and
-:meth:`.Context.create_server_endpoint` coroutines give you a readily connected
-endpoint.
+:meth:`.Context.create_client_context` and
+:meth:`.Context.create_server_context` coroutines give you a readily connected
+context.
 
-On the client side, you can request resources by assembling a
-:class:`.Message` and passing it to your endpoint's
-:meth:`.Context.request` coroutine, which returns the response message.
+On the client side, you can request resources by assembling a :class:`.Message`
+and passing it to your context's :meth:`.Context.request` coroutine, which
+returns the response message.
 
 On the server side, a resource tree gets built from
 :class:`aiocoap.resource.CoAPResource` objects into a
-:class:`aiocoap.resource.Site`, which is assigned to the endpoint at creation
+:class:`aiocoap.resource.Site`, which is assigned to the context at creation
 time.
 """
 

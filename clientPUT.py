@@ -46,8 +46,8 @@ class Agent():
 
 logging.basicConfig(level=logging.INFO)
 
-endpoint = resource.Site(None)
-protocol = coap.CoAP(endpoint)
+site = resource.Site(None)
+protocol = coap.Context(site)
 client = Agent(protocol)
 
 reactor.listenUDP(61616, protocol)

@@ -177,7 +177,7 @@ class WithTestServer(WithAsyncLoop, Destructing):
         super(WithTestServer, self).setUp()
 
         ts = TestingSite()
-        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_endpoint(ts))
+        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(ts))
 
     def tearDown(self):
         # let the server receive the acks we just sent
@@ -195,7 +195,7 @@ class WithClient(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithClient, self).setUp()
 
-        self.client = self.loop.run_until_complete(aiocoap.Context.create_client_endpoint())
+        self.client = self.loop.run_until_complete(aiocoap.Context.create_client_context())
 
     def tearDown(self):
         self.client.shutdown()

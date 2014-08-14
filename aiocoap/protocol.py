@@ -8,7 +8,9 @@
 
 """This module contains the classes that are responsible for keeping track of messages:
 
-* :class:`Context` represents the CoAP endpoint (basically a UDP socket)
+* :class:`Context` roughly represents the CoAP endpoint (basically a UDP
+  socket) -- something that can send requests and possibly can answer incoming
+  requests.
 * a :class:`Request` gets generated whenever a request gets sent to keep
   track of the response
 * a :class:`Responder` keeps track of a single incoming request
@@ -41,33 +43,54 @@ from .numbers import *
 from .message import Message
 
 class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
-    """A single local CoAP endpoint
+    """An object that passes messages between an application and the network
 
-    An :class:`.Context` gets bound to a network interface as an asyncio
+    A :class:`.Context` gets bound to a network interface as an asyncio
     protocol. It manages the basic CoAP network mechanisms like message
     deduplication and retransmissions, and delegates management of blockwise
     transfer as well as the details of matching requests with responses to the
     :class:`Request` and :class:`Responder` classes.
 
+    In that respect, a Context (as currently implemented) is also an endpoint.
+    It is anticipated, though, that issues arise due to which the
+    implementation won't get away with creating a single socket, and that it
+    will be required to deal with multiple endpoints. (E.g. the V6ONLY=0 option
+    is not portable to some OS, and implementations might need to bind to
+    different ports on different interfaces in multicast contexts). When those
+    distinctions will be implemented, message dispatch will stay with the
+    context, which will then deal with the individual endpoints.
+
+    In a way, a :class:`.Context` is the single object all CoAP messages that
+    get treated by a single application pass by.
+
+    Context creation
+    ----------------
+
     Instead of passing a protocol factory to the asyncio loop's
     create_datagram_endpoint method, the following convenience functions are
-    recommended for creating an endpoint:
+    recommended for creating a context:
 
-    .. automethod:: create_client_endpoint
-    .. automethod:: create_server_endpoint
+    .. automethod:: create_client_context
+    .. automethod:: create_server_context
 
-    An endpoint's public API consists of the :meth:`send_message` function and
+    If you choose to create the context manually, make sure to wait for its
+    :attr:`ready` future to complete, as only then can messages be sent.
+
+    Dispatching messages
+    --------------------
+
+    A context's public API consists of the :meth:`send_message` function,
     the :attr:`outgoing_requests`, :attr:`incoming_requests` and
-    :attr:`outgoing_obvservations` dictionaries, but those are not stabilized
-    yet, and for most applications the following convenience functions are
-    more suitable:
+    :attr:`outgoing_obvservations` dictionaries, and the :attr:`serversite`
+    object, but those are not stabilized yet, and for most applications the
+    following convenience functions are more suitable:
 
     .. automethod:: request
 
     .. automethod:: multicast_request
 
     If more control is needed, eg. with observations, create a
-    :class:`Request` yourself and pass the endpoint to it.
+    :class:`Request` yourself and pass the context to it.
     """
     def __init__(self, loop=None, serversite=None, loggername="coap"):
         self.message_id = random.randint(0, 65535)
@@ -87,7 +110,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         self.ready = asyncio.Future() # fullfilled by connection_made
 
     def shutdown(self):
-        self.log.debug("Shutting down endpoint")
+        self.log.debug("Shutting down context")
         for exchange_monitor, cancellable in self._active_exchanges.values():
             if exchange_monitor is not None:
                 exchange_monitor.cancelled()
@@ -99,7 +122,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     # implementing the typical DatagramProtocol interfaces.
     #
     # note from the documentation: we may rely on connection_made to be called
-    # before datagram_received -- but sending immediately after endpoint
+    # before datagram_received -- but sending immediately after context
     # creation will still fail
 
     def connection_made(self, transport):
@@ -267,8 +290,8 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         # while this could just as well be done in a lambda or with the
         # arguments passed to call_later, in this form makes the test cases
-        # easier to debug (it's about finding where references to an Context
-        # are kept around; endpoints should be able to shut down in an orderly
+        # easier to debug (it's about finding where references to a Context
+        # are kept around; contexts should be able to shut down in an orderly
         # way without littering references in the loop)
 
         def retr(self=self,
@@ -425,11 +448,10 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_client_endpoint(cls):
-        """Create an endpoint bound to all addresses on a random listening
-        port.
+    def create_client_context(cls):
+        """Create a context bound to all addresses on a random listening port.
 
-        This is the easiest way to get an endpoint suitable for sending client
+        This is the easiest way to get an context suitable for sending client
         requests.
         """
 
@@ -448,12 +470,12 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_server_endpoint(cls, site, bind=("::", COAP_PORT)):
-        """Create an endpoint, bound to all addresses on the CoAP port (unless
+    def create_server_context(cls, site, bind=("::", COAP_PORT)):
+        """Create an context, bound to all addresses on the CoAP port (unless
         otherwise specified in the :arg:`bind` argument).
 
-        This is the easiest way to get an endpoint suitable both for sending
-        client and acceptin server requests."""
+        This is the easiest way to get a context suitable both for sending
+        client and accepting server requests."""
 
         loop = asyncio.get_event_loop()
 
@@ -817,7 +839,7 @@ class Responder(object):
 
     @asyncio.coroutine
     def dispatch_request(self):
-        """Dispatch incoming request - search endpoint resource tree for
+        """Dispatch incoming request - search context resource tree for
         resource in Uri Path and call proper CoAP Method on it."""
 
         try:
