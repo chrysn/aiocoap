@@ -26,8 +26,8 @@ context.
 
 On the client side, you can request resources by assembling a :class:`.Message`
 and passing it to your context's :meth:`.Context.request` method, which
-returns a :class:`.Request` object with a :attr:`.Request.response` future
-(which is a :class:`.Message` again).
+returns a :class:`.protocol.Request` object with a
+:attr:`.protocol.Request.response` future (which is a :class:`.Message` again).
 
 On the server side, a resource tree gets built from
 :class:`aiocoap.resource.CoAPResource` objects into a

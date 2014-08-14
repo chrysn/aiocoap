@@ -40,14 +40,14 @@ class Message(object):
     * :attr:`mid`: The message ID. Managed by the :class:`.Context`.
     * :attr:`token`: The message's token as bytes. Managed by the :class:`.Context`.
     * :attr:`remote`: The socket address of the  side, managed by the
-      :class:`.Request` by resolving the ``.opt.uri_host``, or the
+      :class:`.protocol.Request` by resolving the ``.opt.uri_host``, or the
       :class:`.Responder` by echoing the incoming request's. (If you choose to
       set this explicitly set this, make sure not to set incomplete IPv6
       address tuples, as they can be sent but don't compare equally with the
       responses). Non-roundtrippable.
 
-    * requested_*: Managed by the :class:`.Request` a response results from, and
-      filled with the request's URL data. Non-roundtrippable.
+    * requested_*: Managed by the :class:`.protocol.Request` a response results
+      from, and filled with the request's URL data. Non-roundtrippable.
 
     * :attr:`prepath`, :attr:`postpath`: Not sure, will probably go away when
       resources are overhauled. Non-roundtrippable.
@@ -288,7 +288,7 @@ class Message(object):
         return self._build_request_uri(scheme, host, port, path, query)
 
     def set_request_uri(self, uri):
-        """Parse a given URI into the uri_ fields of the options.
+        """Parse a given URI into the uri_* fields of the options.
 
         The remote does not get set automatically; instead, the remote data is
         stored in the uri_host and uri_port options. That is because name resolution

@@ -15,7 +15,7 @@
 from setuptools import setup, find_packages
 
 name = "aiocoap"
-version = "0.1-development"
+version = "0.1"
 description = "Python CoAP library"
 longdescription = __doc__
 
