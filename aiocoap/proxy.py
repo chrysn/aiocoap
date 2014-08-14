@@ -6,6 +6,8 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
+import socket
+
 import asyncio
 
 from . import interfaces
@@ -32,7 +34,11 @@ class ProxyForwarder(interfaces.RequestProvider):
             # fix it here, move it to the protocol
             self._proxy_remote = (yield from self.context.loop.getaddrinfo(
                 self._proxy[0],
-                self._proxy[1] or COAP_PORT
+                self._proxy[1] or COAP_PORT,
+                family=self.context.transport._sock.family,
+                type=0,
+                proto=self.context.transport._sock.proto,
+                flags=socket.AI_V4MAPPED,
                 ))[0][-1]
         return self._proxy_remote
 
