@@ -11,15 +11,15 @@ import asyncio
 from . import interfaces
 
 class ProxyForwarder(interfaces.RequestProvider):
-    """Object that behaves like an Endpoint but only provides the request
+    """Object that behaves like a Context but only provides the request
     function and forwards all messages to a proxy.
 
     This is not a proxy itself, it is just the interface for an external
     one."""
-    def __init__(self, host, port, endpoint):
+    def __init__(self, host, port, context):
         self._proxy = (host, port)
         self._proxy_remote = None # see _proxy_remote
-        self.endpoint = endpoint
+        self.context = context
 
     proxy = property(lambda self: self._proxy)
 
@@ -30,7 +30,7 @@ class ProxyForwarder(interfaces.RequestProvider):
             # similar could be employed and this be linked into the protocol
             ## @TODO this has since been modified in BaseRequest, before you
             # fix it here, move it to the protocol
-            self._proxy_remote = (yield from self.endpoint.loop.getaddrinfo(
+            self._proxy_remote = (yield from self.context.loop.getaddrinfo(
                 self._proxy[0],
                 self._proxy[1] or COAP_PORT
                 ))[0][-1]
@@ -56,7 +56,7 @@ class ProxyRequest(interfaces.Request):
     def _launch(self):
         try:
             self.app_request.remote = yield from self.proxy._get_proxy_remote()
-            proxyrequest = self.proxy.endpoint.request(self.app_request)
+            proxyrequest = self.proxy.context.request(self.app_request)
             self.response.set_result((yield from proxyrequest.response))
         except Exception as e:
             self.response.set_exception(e)

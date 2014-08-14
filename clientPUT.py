@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # This file is part of the Python aiocoap library project.
 #
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
@@ -6,49 +8,35 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-import struct
-import random
-import copy
-import sys
+import logging
+import asyncio
 
-from twisted.internet.defer import Deferred
-from twisted.internet.protocol import DatagramProtocol
-from twisted.internet import reactor
+from aiocoap import *
 
-import iot.coap as coap
-import iot.resource as resource
+logging.basicConfig(level=logging.INFO)
 
-
-class Agent():
+@asyncio.coroutine
+def main():
     """
     Example class which performs single PUT request to localhost
     port 5683 (official IANA assigned CoAP port), URI "/other/block".
     Request is sent 2 seconds after initialization.
 
-    Payload is bigger than 64 bytes, and with default settings it
-    should be sent as several blocks.
+    Payload is bigger than 1kB, and thus is sent as several blocks.
     """
 
-    def __init__(self, protocol):
-        self.protocol = protocol
-        reactor.callLater(2, self.put_resource)
+    context = yield from Context.create_client_context()
 
-    def put_resource(self):
-        payload = "Poland CAN into space!!! Poland MUST into space!!! Poland WILL into space!!!!"
-        request = coap.Message(code=coap.PUT, payload=payload)
-        request.opt.uri_path = ("other", "block")
-        request.remote = ('127.0.0.1', coap.COAP_PORT)
-        d = protocol.request(request)
-        d.addCallback(self.print_response)
+    yield from asyncio.sleep(2)
 
-    def print_response(self, response):
-        print('Result: ' + response.payload)
+    payload = b"The quick brown fox jumps over the lazy dog.\n" * 30
+    request = Message(code=PUT, payload=payload)
+    request.opt.uri_host = '127.0.0.1'
+    request.opt.uri_path = ("other", "block")
 
-logging.basicConfig(level=logging.INFO)
+    response = yield from context.request(request).response
 
-endpoint = resource.Site(None)
-protocol = coap.CoAP(endpoint)
-client = Agent(protocol)
+    print('Result: %s\n%r'%(response.code, response.payload))
 
-reactor.listenUDP(61616, protocol)
-reactor.run()
+if __name__ == "__main__":
+    asyncio.get_event_loop().run_until_complete(main())

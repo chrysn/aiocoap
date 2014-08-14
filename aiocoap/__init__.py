@@ -11,29 +11,30 @@ aiocoap
 =======
 
 The aiocoap package is a library that implements CoAP, the Constrained
-Application Protocol (`RFC pending`_).
+Application Protocol (`RFC 7252`_, more info at http://coap.technology/).
 
-.. _`RFC pending`: https://datatracker.ietf.org/doc/draft-ietf-core-coap/
+.. _`RFC 7252`: http://tools.ietf.org/html/rfc7252
 
 Usage
 -----
 
 In all but the most exotic applications, you will want to create a single
-:class:`.Endpoint` instance that binds to the network. The
-:meth:`.Endpoint.create_client_endpoint` and
-:meth:`.Endpoint.create_server_endpoint` coroutines give you a readily connected
-endpoint.
+:class:`.Context` instance that binds to the network. The
+:meth:`.Context.create_client_context` and
+:meth:`.Context.create_server_context` coroutines give you a readily connected
+context.
 
-On the client side, you can request resources by assembling a
-:class:`.Message` and passing it to your endpoint's
-:meth:`.Endpoint.request` coroutine, which returns the response message.
+On the client side, you can request resources by assembling a :class:`.Message`
+and passing it to your context's :meth:`.Context.request` method, which
+returns a :class:`.Request` object with a :attr:`.Request.response` future
+(which is a :class:`.Message` again).
 
 On the server side, a resource tree gets built from
 :class:`aiocoap.resource.CoAPResource` objects into a
-:class:`aiocoap.resource.Site`, which is assigned to the endpoint at creation
+:class:`aiocoap.resource.Site`, which is assigned to the context at creation
 time.
 """
 
 from .numbers import *
 from .message import Message
-from .protocol import Endpoint
+from .protocol import Context

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # This file is part of the Python aiocoap library project.
 #
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
@@ -15,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 
 @asyncio.coroutine
 def main():
-    protocol = yield from Endpoint.create_client_endpoint()
+    protocol = yield from Context.create_client_context()
 
     request = Message(code=GET)
     request.set_request_uri('coap://localhost/time')

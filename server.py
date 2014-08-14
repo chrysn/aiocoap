@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # This file is part of the Python aiocoap library project.
 #
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
@@ -25,20 +27,21 @@ class BlockResource(resource.CoAPResource):
         super(BlockResource, self).__init__()
         self.visible = True
 
+        self.content = ("This is the resource's default content. It is padded "\
+                "with numbers to be large enough to trigger blockwise "\
+                "transfer.\n" + "0123456789\n" * 100).encode("ascii")
+
     @asyncio.coroutine
     def render_GET(self, request):
-        payload = "Now I lay me down to sleep, I pray the Lord my soul to keep,"\
-                "If I shall die before I wake, I pray the Lord my soul to"\
-                "take.".encode('ascii')
-        response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+        response = aiocoap.Message(code=aiocoap.CONTENT, payload=self.content)
         return response
 
     @asyncio.coroutine
     def render_PUT(self, request):
         print('PUT payload: %s' % request.payload)
-        payload = "Mr. and Mrs. Dursley of number four, Privet Drive, were proud"\
-                "to say that they were perfectly normal, thank you very"\
-                "much.".encode('ascii')
+        self.content = request.payload
+        payload = ("I've accepted the new payload. You may inspect it here in "\
+                "Python's repr format:\n\n%r"%self.content).encode('utf8')
         return aiocoap.Message(code=aiocoap.CHANGED, payload=payload)
 
 
@@ -135,7 +138,7 @@ def main():
 
     site = resource.Site(root)
 
-    asyncio.async(aiocoap.Endpoint.create_server_endpoint(site))
+    asyncio.async(aiocoap.Context.create_server_context(site))
 
     asyncio.get_event_loop().run_forever()
 

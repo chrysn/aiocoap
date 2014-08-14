@@ -13,15 +13,16 @@ import struct
 class OptionType(metaclass=abc.ABCMeta):
     """Interface for decoding and encoding option values
 
-    Instances of `OptionType`s are collected in a list in a Message.opt Options
-    object, and provide a translation between the CoAP octet-stream (accessed
-    using the `encode()`/`decode()` method pair) and the interpreted value
-    (accessed via the `value` attribute).
+    Instances of :class:`OptionType` are collected in a list in a
+    :attr:`.Message.opt` :class:`.Options` object, and provide a translation
+    between the CoAP octet-stream (accessed using the
+    :meth:`encode()`/:meth:`decode()` method pair) and the interpreted value
+    (accessed via the :attr:`value` attribute).
 
     Note that OptionType objects usually don't need to be handled by library
     users; the recommended way to read and set options is via the Options
-    object'sproperties (eg. `message.opt.uri_path = ('.well-known',
-    'core')`)."""
+    object'sproperties (eg. ``message.opt.uri_path = ('.well-known',
+    'core')``)."""
 
     @abc.abstractmethod
     def __init__(self, number, value):
@@ -42,7 +43,8 @@ class OptionType(metaclass=abc.ABCMeta):
         return len(self.encode())
 
 class StringOption(OptionType):
-    """String CoAP option - used to represent string options."""
+    """String CoAP option - used to represent string options. Always encoded in
+    UTF8 per CoAP specification."""
 
     def __init__(self, number, value=""):
         self.value = value
@@ -64,7 +66,8 @@ class StringOption(OptionType):
         return self.value
 
 class OpaqueOption(OptionType):
-    """Opaque CoAP option - used to represent opaque options."""
+    """Opaque CoAP option - used to represent options that just have their
+    uninterpreted bytes as value."""
 
     def __init__(self, number, value=b""):
         self.value = value
@@ -85,7 +88,7 @@ class OpaqueOption(OptionType):
         return repr(self.value)
 
 class UintOption(OptionType):
-    """Uint CoAP option - used to represent uint options."""
+    """Uint CoAP option - used to represent integer options."""
 
     def __init__(self, number, value=0):
         self.value = value
