@@ -21,6 +21,21 @@ Usage
 For details on how to usethe aiocoap library, have a look at the :mod:`aiocoap`
 module documentation, or at the :doc:`examples` and :doc:`tools` provided.
 
+All examples can be run directly from a source code copy. If you prefer to
+install it, the usual Python mechanisms apply.
+
+Development
+-----------
+
+aiocoap tries to stay close to PEP8 recommendations and general best practice,
+and should thus be easy to contribute to. Unit tests are implemented in the
+``./tests/`` directory; complete test coverage is aimed for, but not yet
+complete (and might never be, as the error handling for pathological network
+partners is hard to trigger with a library designed not to missbehave).
+
+Bugs from design goal and wishlist to typos are currently tracked in github
+(see below).
+
 Relevant URLs
 -------------
 
