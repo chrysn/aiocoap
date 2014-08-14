@@ -2,7 +2,7 @@ aiocoap -- The Python CoAP library
 ==================================
 
 The aiocoap package is a Python implementation of CoAP, the Constrained
-Application Protocl (`RFC 7252`_, more info as http://coap.technology/).
+Application Protocl (`RFC 7252`_, more info at http://coap.technology/).
 
 It uses the asyncio module introduced in Python 3.4 to facilitate concurrent
 operations while maintaining a simple to use interface and not depending on
@@ -24,8 +24,14 @@ module documentation, or at the :doc:`examples` provided.
 Relevant URLs
 -------------
 
-* https://github.com/chrysn/aiocoap -- this is where the latest source code can be found
-* http://aiocoap.readthedocs.org/ -- online documentation
+* https://github.com/chrysn/aiocoap
+
+  This is where the latest source code can be found, and bugs can be reported.
+  Generally, this serves as the project web site.
+
+* http://aiocoap.readthedocs.org/
+
+  Online documentation built from the sources.
 
 
 Licensing

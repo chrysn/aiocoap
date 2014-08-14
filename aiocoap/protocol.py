@@ -92,22 +92,23 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     If more control is needed, eg. with observations, create a
     :class:`Request` yourself and pass the context to it.
     """
+
     def __init__(self, loop=None, serversite=None, loggername="coap"):
         self.message_id = random.randint(0, 65535)
         self.token = random.randint(0, 65535)
         self.serversite = serversite
-        self._recent_messages = {}  # recently received messages (remote, message-id): None or result-message
-        self._active_exchanges = {}  # active exchanges i.e. sent CON messages (remote, message-id): (exchange monitor, cancellable timeout)
-        self._backlogs = {} # per-remote list of (backlogged package, exchange-monitor) tupless (keys exist iff there is an active_exchange with that node)
-        self.outgoing_requests = {}  # unfinished outgoing requests (identified by token and remote)
-        self.incoming_requests = {}  # unfinished incoming requests (path-tuple, remote): Request
-        self.outgoing_observations = {} # observations where this node is the client. (token, remote) -> ClientObservation
+        self._recent_messages = {}  #: recently received messages (remote, message-id): None or result-message
+        self._active_exchanges = {}  #: active exchanges i.e. sent CON messages (remote, message-id): (exchange monitor, cancellable timeout)
+        self._backlogs = {} #: per-remote list of (backlogged package, exchange-monitor) tupless (keys exist iff there is an active_exchange with that node)
+        self.outgoing_requests = {}  #: Unfinished outgoing requests (identified by token and remote)
+        self.incoming_requests = {}  #: Unfinished incoming requests. ``(path-tuple, remote): Request``
+        self.outgoing_observations = {} #: Observations where this context acts as client. ``(token, remote) -> ClientObservation``
 
         self.log = logging.getLogger(loggername)
 
         self.loop = loop or asyncio.get_event_loop()
 
-        self.ready = asyncio.Future() # fullfilled by connection_made
+        self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
 
     def shutdown(self):
         self.log.debug("Shutting down context")
@@ -472,7 +473,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     @asyncio.coroutine
     def create_server_context(cls, site, bind=("::", COAP_PORT)):
         """Create an context, bound to all addresses on the CoAP port (unless
-        otherwise specified in the :arg:`bind` argument).
+        otherwise specified in the ``bind`` argument).
 
         This is the easiest way to get a context suitable both for sending
         client and accepting server requests."""
