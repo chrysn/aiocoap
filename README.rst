@@ -19,7 +19,7 @@ Usage
 -----
 
 For details on how to usethe aiocoap library, have a look at the :mod:`aiocoap`
-module documentation, or at the :doc:`examples` provided.
+module documentation, or at the :doc:`examples` and :doc:`tools` provided.
 
 Relevant URLs
 -------------

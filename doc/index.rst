@@ -18,4 +18,5 @@
    aiocoap.util.asyncio
    aiocoap.util.queuewithend
    examples
+   tools
    LICENSE
