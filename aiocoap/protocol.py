@@ -866,6 +866,9 @@ class Responder(object):
             self.respond_with_error(request, METHOD_NOT_ALLOWED, "Error: Method not allowed!")
         except error.UnsupportedMethod:
             self.respond_with_error(request, METHOD_NOT_ALLOWED, "Error: Method not recognized!")
+        except Exception as e:
+            self.respond_with_error(request, INTERNAL_SERVER_ERROR, "")
+            self.log.error("An exception occurred while fetching a resource: %r"%e)
         else:
             delayed_ack = self.protocol.loop.call_later(EMPTY_ACK_DELAY, self.send_empty_ack, request)
 
@@ -874,6 +877,9 @@ class Responder(object):
             except Exception as e:
                 self.log.error("An exception occurred while rendering a resource: %r"%e)
                 response = Message(code=INTERNAL_SERVER_ERROR)
+
+            if not response.code.is_response():
+                self.log.warning("Response does not carry response code (%r), application probably violates protocol."%response.code)
 
             if resource.observable and request.code == GET and request.opt.observe is not None:
                 self.handle_observe(response, request, resource)
