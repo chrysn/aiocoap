@@ -27,14 +27,20 @@ install it, the usual Python mechanisms apply.
 Development
 -----------
 
-aiocoap tries to stay close to PEP8 recommendations and general best practice,
+aiocoap tries to stay close to PEP8_ recommendations and general best practice,
 and should thus be easy to contribute to. Unit tests are implemented in the
 ``./tests/`` directory; complete test coverage is aimed for, but not yet
 complete (and might never be, as the error handling for pathological network
 partners is hard to trigger with a library designed not to missbehave).
 
+Documentation is built using spinx_; hacks used there are described in
+``./doc/README.doc``.
+
 Bugs from design goal and wishlist to typos are currently tracked in github
 (see below).
+
+.. _PEP8: http://legacy.python.org/dev/peps/pep-0008/
+.. _sphinx: http://sphinx-doc.org/
 
 Relevant URLs
 -------------
