@@ -224,7 +224,7 @@ class LinkParam(object):
 
 
 class Site():
-    """Root element that gets passed to a :class:`CoAP` endpoint and contains
+    """Root element that gets passed to a :class:`Context` and contains
     all the resources that can be found when the endpoint gets accessed as a
     server."""
 

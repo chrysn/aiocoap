@@ -62,7 +62,7 @@ def main(args):
 
     configure_logging((options.verbose or 0) - (options.quiet or 0))
 
-    endpoint = yield from aiocoap.Endpoint.create_client_endpoint()
+    context = yield from aiocoap.Context.create_client_context()
 
     request = aiocoap.Message(code=aiocoap.GET)
     try:
@@ -87,7 +87,7 @@ def main(args):
         observation_is_over = asyncio.Future()
 
     if options.proxy is None:
-        interface = endpoint
+        interface = context
     else:
         if ':' in options.proxy:
             host, port = options.proxy.split(':', 1)
@@ -95,7 +95,7 @@ def main(args):
             except ValueError: p.error("Numeric port required")
         else:
             host, port = options.proxy, aiocoap.COAP_PORT
-        interface = aiocoap.proxy.ProxyForwarder(host, port, endpoint)
+        interface = aiocoap.proxy.ProxyForwarder(host, port, context)
     requester = interface.request(request)
 
     if options.observe:
