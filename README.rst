@@ -33,7 +33,7 @@ and should thus be easy to contribute to. Unit tests are implemented in the
 complete (and might never be, as the error handling for pathological network
 partners is hard to trigger with a library designed not to missbehave).
 
-Documentation is built using spinx_; hacks used there are described in
+Documentation is built using sphinx_; hacks used there are described in
 ``./doc/README.doc``.
 
 Bugs from design goal and wishlist to typos are currently tracked in github
