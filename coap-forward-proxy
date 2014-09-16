@@ -35,7 +35,7 @@ class ProxiedResource():
         request.token = None
 
         if request.opt.proxy_scheme != 'coap':
-            return Message(code=aiocoap.BAD_OPTION, payload=b"This is only a CoAP proxy (set uri-scheme to coap)")
+            return aiocoap.Message(code=aiocoap.BAD_OPTION, payload=b"This is only a CoAP proxy (set uri-scheme to coap)")
 
         unsafe_options = [o.value for o in request.opt.option_list() if o.number.is_unsafe() and o.number not in (aiocoap.numbers.OptionNumber.PROXY_SCHEME, aiocoap.numbers.OptionNumber.URI_HOST)]
         if unsafe_options:
