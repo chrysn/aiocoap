@@ -22,6 +22,7 @@ import binascii
 import functools
 import socket
 import asyncio
+import urllib.parse
 
 from .util.queuewithend import QueueWithEnd
 from .util.asyncio import cancel_thoroughly
@@ -510,12 +511,20 @@ class BaseRequest(object):
     @asyncio.coroutine
     def _fill_remote(self, request):
         if request.remote is None:
-            if request.opt.uri_host:
+            if request.unresolved_remote is not None or request.opt.uri_host:
                 ## @TODO this is very rudimentary; happy-eyeballs or
                 # similar could be employed.
+
+                if request.unresolved_remote is not None:
+                    host, port = urllib.parse.splitport(request.unresolved_remote)
+                    port = COAP_PORT if port in (None, str(COAP_PORT)) else int(port)
+                else:
+                    host = request.opt.uri_host
+                    port = request.opt.uri_port or COAP_PORT
+
                 addrinfo = yield from self.protocol.loop.getaddrinfo(
-                    request.opt.uri_host,
-                    request.opt.uri_port or COAP_PORT,
+                    host,
+                    port,
                     family=self.protocol.transport._sock.family,
                     type=0,
                     proto=self.protocol.transport._sock.proto,

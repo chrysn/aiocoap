@@ -90,13 +90,7 @@ def main(args):
     if options.proxy is None:
         interface = context
     else:
-        if ':' in options.proxy:
-            host, port = options.proxy.split(':', 1)
-            try: port = int(port)
-            except ValueError: p.error("Numeric port required")
-        else:
-            host, port = options.proxy, aiocoap.COAP_PORT
-        interface = aiocoap.proxy.ProxyForwarder(host, port, context)
+        interface = aiocoap.proxy.ProxyForwarder(options.proxy, context)
     requester = interface.request(request)
 
     if options.observe:
