@@ -14,6 +14,7 @@ import sys
 import logging
 import asyncio
 import copy
+import urllib.parse
 
 import aiocoap
 
@@ -90,16 +91,30 @@ class Redirector():
     def apply_redirection(self, request):
         return None
 
+def splitport(hostport):
+    """Like urllib.parse.splitport, but return port as int, and as None if it
+    equals the CoAP default port"""
+    host, port = urllib.parse.splitport(hostport)
+    if port is not None:
+        port = int(port)
+    if port == aiocoap.COAP_PORT:
+        port = None
+    return host, port
+
 class NameBasedVirtualHost(Redirector):
-    def __init__(self, match_name, target):
+    def __init__(self, match_name, target, rewrite_uri_host=False):
         self.match_name = match_name
         self.target = target
+        self.rewrite_uri_host = rewrite_uri_host
 
     def apply_redirection(self, request):
         raise_unless_safe(request, ())
 
         if request.opt.uri_host == self.match_name:
-            request.opt.uri_host = self.target
+            if self.rewrite_uri_host:
+                request.opt.uri_host, request.opt.uri_port = splitport(self.target)
+            else:
+                request.unresolved_remote = self.target
             return request
 
 class UnconditionalRedirector(Redirector):
@@ -109,7 +124,7 @@ class UnconditionalRedirector(Redirector):
     def apply_redirection(self, request):
         raise_unless_safe(request, ())
 
-        request.opt.uri_host = self.target
+        request.unresolved_remote = target
         return request
 
 class SubresourceVirtualHost(Redirector):
@@ -122,7 +137,7 @@ class SubresourceVirtualHost(Redirector):
 
         if self.path == request.opt.uri_path[:len(self.path)]:
             request.opt.uri_path = request.opt.uri_path[len(self.path):]
-            request.opt.uri_host = self.target
+            request.opt.uri_host, request.opt.uri_port = splitport(self.target)
             return request
 
 class ProxiedResource():
