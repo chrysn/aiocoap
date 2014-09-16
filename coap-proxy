@@ -8,7 +8,7 @@
 # txThings is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""coap-forward-proxy is a plain CoAP proxy that forwards incoming requests."""
+"""coap-proxy is a plain CoAP proxy that forwards incoming requests."""
 
 import sys
 import logging
