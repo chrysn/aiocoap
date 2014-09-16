@@ -28,6 +28,7 @@ def parse_commandline(args):
     p.add_argument('--proxy', help="Relay the CoAP request to a proxy for execution", metavar="HOST[:PORT]")
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
+    p.add_argument('--dump', help="Log network traffic to FILE", metavar="FILE")
     p.add_argument('url', help="CoAP address to fetch")
 
     return p, p.parse_args(args)
@@ -62,7 +63,7 @@ def main(args):
 
     configure_logging((options.verbose or 0) - (options.quiet or 0))
 
-    context = yield from aiocoap.Context.create_client_context()
+    context = yield from aiocoap.Context.create_client_context(dump_to=options.dump)
 
     request = aiocoap.Message(code=aiocoap.GET)
     try:

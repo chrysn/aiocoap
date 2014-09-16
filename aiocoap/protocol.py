@@ -25,6 +25,7 @@ import asyncio
 
 from .util.queuewithend import QueueWithEnd
 from .util.asyncio import cancel_thoroughly
+from .dump import TextDumper
 
 import logging
 # log levels used:
@@ -449,7 +450,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_client_context(cls):
+    def create_client_context(cls, *, dump_to=None):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get an context suitable for sending client
@@ -458,12 +459,20 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         loop = asyncio.get_event_loop()
 
-        #transport, protocol = yield from loop.create_datagram_endpoint(cls, family=socket.AF_INET)
+        if dump_to is None:
+            protofact = cls
+        else:
+            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), cls)
+
+        #transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET)
 
         # use the following lines instead, and change the address to `::ffff:127.0.0.1`
         # in order to see acknowledgement handling fail with hybrid stack operation
-        transport, protocol = yield from loop.create_datagram_endpoint(cls, family=socket.AF_INET6)
+        transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
         transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+
+        if dump_to is not None:
+            protocol = protocol.protocol
 
         yield from protocol.ready
 
@@ -471,7 +480,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_server_context(cls, site, bind=("::", COAP_PORT)):
+    def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None):
         """Create an context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -480,9 +489,16 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         loop = asyncio.get_event_loop()
 
-        transport, protocol = yield from loop.create_datagram_endpoint(lambda: cls(loop, site, loggername="coap-server"), family=socket.AF_INET6)
+        protofact = lambda: cls(loop, site, loggername="coap-server")
+        if dump_to is not None:
+            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
+
+        transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
         transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         transport._sock.bind(bind)
+
+        if dump_to is not None:
+            protocol = protocol.protocol
 
         yield from protocol.ready
 
