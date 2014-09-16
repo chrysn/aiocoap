@@ -63,6 +63,8 @@ class ForwardProxy(Proxy):
         if request.opt.proxy_scheme != 'coap':
             raise CanNotRedirect(aiocoap.BAD_OPTION, "This is only a CoAP proxy (set uri-scheme to coap)")
 
+        request.opt.proxy_scheme = None
+
         redirected = super(ForwardProxy, self).apply_redirection(request)
         if redirected is not None:
             return redirected
