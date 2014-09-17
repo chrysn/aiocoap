@@ -25,8 +25,6 @@ class BlockResource(resource.CoAPResource):
 
     def __init__(self):
         super(BlockResource, self).__init__()
-        self.visible = True
-
         self.content = ("This is the resource's default content. It is padded "\
                 "with numbers to be large enough to trigger blockwise "\
                 "transfer.\n" + "0123456789\n" * 100).encode("ascii")
@@ -54,8 +52,7 @@ class SeparateLargeResource(resource.CoAPResource):
 
     def __init__(self):
         super(SeparateLargeResource, self).__init__()
-        self.visible = True
-        self.add_param(resource.LinkParam("title", "Large resource."))
+#        self.add_param(resource.LinkParam("title", "Large resource."))
 
     @asyncio.coroutine
     def render_GET(self, request):
@@ -67,15 +64,13 @@ class SeparateLargeResource(resource.CoAPResource):
                 "dark throne.".encode('ascii')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
-class TimeResource(resource.CoAPResource):
+class TimeResource(resource.ObservableCoAPResource):
     """
     Example resource that can be observed. The `notify` method keeps scheduling
     itself, and calles `update_state` to trigger sending notifications.
     """
     def __init__(self):
-        resource.CoAPResource.__init__(self)
-        self.visible = True
-        self.observable = True
+        super(TimeResource, self).__init__()
 
         self.notify()
 
@@ -88,27 +83,27 @@ class TimeResource(resource.CoAPResource):
         payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
-class CoreResource(resource.CoAPResource):
-    """
-    Example Resource that provides list of links hosted by a server.
-    Normally it should be hosted at /.well-known/core
-
-    Notice that self.visible is not set - that means that resource won't
-    be listed in the link format it hosts.
-    """
-
-    def __init__(self, root):
-        resource.CoAPResource.__init__(self)
-        self.root = root
-
-    @asyncio.coroutine
-    def render_GET(self, request):
-        data = []
-        self.root.generate_resource_list(data, "")
-        payload = ",".join(data).encode('utf-8')
-        response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
-        response.opt.content_format = 40
-        return response
+#class CoreResource(resource.CoAPResource):
+#    """
+#    Example Resource that provides list of links hosted by a server.
+#    Normally it should be hosted at /.well-known/core
+#
+#    Notice that self.visible is not set - that means that resource won't
+#    be listed in the link format it hosts.
+#    """
+#
+#    def __init__(self, root):
+#        resource.CoAPResource.__init__(self)
+#        self.root = root
+#
+#    @asyncio.coroutine
+#    def render_GET(self, request):
+#        data = []
+#        self.root.generate_resource_list(data, "")
+#        payload = ",".join(data).encode('utf-8')
+#        response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+#        response.opt.content_format = 40
+#        return response
 
 # logging setup
 
@@ -117,28 +112,17 @@ logging.getLogger("coap-server").setLevel(logging.DEBUG)
 
 def main():
     # Resource tree creation
-    root = resource.CoAPResource()
+    root = resource.Site()
 
-    well_known = resource.CoAPResource()
-    root.put_child('.well-known', well_known)
-    core = CoreResource(root)
-    well_known.put_child('core', core)
+#    root.add_resource(('.well-known', 'core'), CoreResource(root))
 
-    time = TimeResource()
-    root.put_child('time', time)
+    root.add_resource(('time',), TimeResource())
 
-    other = resource.CoAPResource()
-    root.put_child('other', other)
+    root.add_resource(('other', 'block'), BlockResource())
 
-    block = BlockResource()
-    other.put_child('block', block)
+    root.add_resource(('other', 'separate'), SeparateLargeResource())
 
-    separate = SeparateLargeResource()
-    other.put_child('separate', separate)
-
-    site = resource.Site(root)
-
-    asyncio.async(aiocoap.Context.create_server_context(site))
+    asyncio.async(aiocoap.Context.create_server_context(root))
 
     asyncio.get_event_loop().run_forever()
 
