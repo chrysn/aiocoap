@@ -35,7 +35,15 @@ def raise_unless_safe(request, known_options):
     """Raise a BAD_OPTION CanNotRedirect unless all options in request are
     safe to forward or known"""
 
-    known_options = set(known_options).union({aiocoap.numbers.OptionNumber.URI_HOST, aiocoap.numbers.OptionNumber.URI_PATH})
+    known_options = set(known_options).union({
+        # it is expected that every proxy is aware of these options even though
+        # one of them often doesn't need touching
+        aiocoap.numbers.OptionNumber.URI_HOST,
+        aiocoap.numbers.OptionNumber.URI_PATH,
+        # handled by the Context
+        aiocoap.numbers.OptionNumber.BLOCK1,
+        aiocoap.numbers.OptionNumber.BLOCK2,
+        })
 
     unsafe_options = [o for o in request.opt.option_list() if o.number.is_unsafe() and o.number not in known_options]
     if unsafe_options:
@@ -72,9 +80,9 @@ class ForwardProxy(Proxy):
 
         try:
             raise_unless_safe(request, (aiocoap.numbers.OptionNumber.PROXY_SCHEME, aiocoap.numbers.OptionNumber.URI_HOST))
-        except CanNotRedirect as c:
+        except CanNotRedirectBecauseOfUnsafeOptions as c:
             # this should just be raised
-            logging.warn("Ignoring unsafe request options %r"%unsafe_options)
+            logging.warn("Ignoring unsafe request options %r"%c)
 
         return request
 
@@ -166,9 +174,10 @@ class ProxiedResource(aiocoap.interfaces.Resource):
 
         response = yield from self.context.request(request).response
 
-        unsafe_options = [o.value for o in response.opt.option_list() if o.number.is_unsafe() and o.number not in ()]
-        if unsafe_options:
-            logging.warn("Ignoring unsafe response options %r"%unsafe_options)
+        try:
+            raise_unless_safe(response, ())
+        except CanNotRedirectBecauseOfUnsafeOptions as c:
+            logging.warn("Ignoring unsafe response options %r"%c)
             # return aiocoap.Message(code=aiocoap.BAD_GATEWAY, b"Unsafe options in response")
 
 
