@@ -558,6 +558,10 @@ class Request(BaseRequest, interfaces.Request):
         self.response = asyncio.Future()
         self.response.add_done_callback(self._response_cancellation_handler)
 
+        if self.app_request.opt.observe is not None:
+            self.observation = ClientObservation(self.app_request)
+            self.response.add_done_callback(self.register_observation)
+
         asyncio.async(self._init_phase2())
 
     @asyncio.coroutine
@@ -578,10 +582,6 @@ class Request(BaseRequest, interfaces.Request):
             else:
                 request = self.app_request
                 self._request_transmitted_completely = True
-
-            if self.app_request.opt.observe is not None:
-                self.observation = ClientObservation(self.app_request)
-                self.response.add_done_callback(self.register_observation)
 
             self.send_request(request)
         except Exception as e:
