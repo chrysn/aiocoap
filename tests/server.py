@@ -68,13 +68,12 @@ class ReplacingResource(aiocoap.resource.CoAPResource):
 
 class TestingSite(aiocoap.resource.Site):
     def __init__(self):
-        root = aiocoap.resource.CoAPResource()
-        root.put_child('empty', MultiRepresentationResource())
-        root.put_child('slow', SlowResource())
-        root.put_child('big', BigResource())
-        root.put_child('replacing', ReplacingResource())
+        super(TestingSite, self).__init__()
 
-        super(TestingSite, self).__init__(root)
+        self.add_resource(('empty',), MultiRepresentationResource())
+        self.add_resource(('slow',), SlowResource())
+        self.add_resource(('big',), BigResource())
+        self.add_resource(('replacing',), ReplacingResource())
 
 # helpers
 
