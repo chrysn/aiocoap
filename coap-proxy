@@ -143,12 +143,10 @@ class SubresourceVirtualHost(Redirector):
             request.opt.uri_host, request.opt.uri_port = splitport(self.target)
             return request
 
-class ProxiedResource():
+class ProxiedResource(aiocoap.interfaces.Resource):
     def __init__(self, context, proxy):
         self.context = context
         self.proxy = proxy
-
-    observable = False
 
     @asyncio.coroutine
     def render(self, request):
@@ -179,13 +177,6 @@ class ProxiedResource():
         response.token = None
 
         return response
-
-class ProxySite():
-    def __init__(self, proxy):
-        self.proxy = proxy
-
-    def get_resource_for(self, request):
-        return ProxiedResource(self.context, self.proxy)
 
 def parse_commandline(args):
     p = argparse.ArgumentParser(description=__doc__)
@@ -231,12 +222,9 @@ def main(args):
             raise AssertionError('Unknown redirectory kind')
         proxy.add_redirector(r)
 
-    proxysite = ProxySite(proxy)
-
-    proxy_context = yield from aiocoap.Context.create_server_context(proxysite, dump_to='/tmp/proxy-in.log')
     outgoing_context = yield from aiocoap.Context.create_client_context(dump_to='/tmp/proxy-out.log')
-
-    proxysite.context = outgoing_context
+    proxysite = ProxiedResource(outgoing_context, proxy)
+    proxy_context = yield from aiocoap.Context.create_server_context(proxysite, dump_to='/tmp/proxy-in.log')
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
