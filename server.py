@@ -17,7 +17,7 @@ import aiocoap.resource as resource
 import aiocoap
 
 
-class BlockResource(resource.CoAPResource):
+class BlockResource(resource.Resource):
     """
     Example resource which supports GET and PUT methods. It sends large
     responses, which trigger blockwise transfer.
@@ -43,7 +43,7 @@ class BlockResource(resource.CoAPResource):
         return aiocoap.Message(code=aiocoap.CHANGED, payload=payload)
 
 
-class SeparateLargeResource(resource.CoAPResource):
+class SeparateLargeResource(resource.Resource):
     """
     Example resource which supports GET method. It uses asyncio.sleep to
     simulate a long-running operation, and thus forces the protocol to send
@@ -64,7 +64,7 @@ class SeparateLargeResource(resource.CoAPResource):
                 "dark throne.".encode('ascii')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
-class TimeResource(resource.ObservableCoAPResource):
+class TimeResource(resource.ObservableResource):
     """
     Example resource that can be observed. The `notify` method keeps scheduling
     itself, and calles `update_state` to trigger sending notifications.
@@ -83,7 +83,7 @@ class TimeResource(resource.ObservableCoAPResource):
         payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
-#class CoreResource(resource.CoAPResource):
+#class CoreResource(resource.Resource):
 #    """
 #    Example Resource that provides list of links hosted by a server.
 #    Normally it should be hosted at /.well-known/core
@@ -93,7 +93,7 @@ class TimeResource(resource.ObservableCoAPResource):
 #    """
 #
 #    def __init__(self, root):
-#        resource.CoAPResource.__init__(self)
+#        resource.Resource.__init__(self)
 #        self.root = root
 #
 #    @asyncio.coroutine

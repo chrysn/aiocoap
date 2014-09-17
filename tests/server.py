@@ -22,7 +22,7 @@ import gc
 # causes per-fixture delays.
 CLEANUPTIME = 0.01
 
-class MultiRepresentationResource(aiocoap.resource.CoAPResource):
+class MultiRepresentationResource(aiocoap.resource.Resource):
     @asyncio.coroutine
     def render_GET(self, request):
         ct = request.opt.accept or aiocoap.numbers.media_types_rev['text/plain']
@@ -38,20 +38,20 @@ class MultiRepresentationResource(aiocoap.resource.CoAPResource):
 
         return aiocoap.Message(code=aiocoap.CONTENT, payload=response)
 
-class SlowResource(aiocoap.resource.CoAPResource):
+class SlowResource(aiocoap.resource.Resource):
     @asyncio.coroutine
     def render_GET(self, request):
         yield from asyncio.sleep(0.2)
         return aiocoap.Message(code=aiocoap.CONTENT)
 
-class BigResource(aiocoap.resource.CoAPResource):
+class BigResource(aiocoap.resource.Resource):
     @asyncio.coroutine
     def render_GET(self, request):
         # 10kb
         payload = b"0123456789----------" * 512
         return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
-class ReplacingResource(aiocoap.resource.CoAPResource):
+class ReplacingResource(aiocoap.resource.Resource):
     @asyncio.coroutine
     def render_GET(self, request):
         return aiocoap.Message(code=aiocoap.CONTENT, payload=self.value)

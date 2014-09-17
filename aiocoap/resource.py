@@ -12,7 +12,7 @@ import asyncio
 from . import error
 from . import interfaces
 
-class CoAPResource(interfaces.Resource):
+class Resource(interfaces.Resource):
     """
     CoAP-accessible resource.
 
@@ -55,9 +55,9 @@ class CoAPResource(interfaces.Resource):
         for key in self.children:
             self.children[key].generate_resource_list(data, path + "/" + key)
 
-class ObservableCoAPResource(CoAPResource, interfaces.ObservableResource):
+class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):
-        super(ObservableCoAPResource, self).__init__()
+        super(ObservableResource, self).__init__()
         self._observations = set()
 
     @asyncio.coroutine
