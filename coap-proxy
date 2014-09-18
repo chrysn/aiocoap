@@ -104,10 +104,16 @@ class Redirector():
 
 def splitport(hostport):
     """Like urllib.parse.splitport, but return port as int, and as None if it
-    equals the CoAP default port"""
-    host, port = urllib.parse.splitport(hostport)
-    if port is not None:
-        port = int(port)
+    equals the CoAP default port. Also, it allows giving IPv6 addresses like a netloc:
+
+    >>> splitport('foo:5683')
+    ('foo', None)
+    >>> splitport('[::1]:56830')
+    ('::1', 56830)
+    """
+
+    pseudoparsed = urllib.parse.SplitResult(None, hostport, None, None, None)
+    host, port = pseudoparsed.hostname, pseudoparsed.port
     if port == aiocoap.COAP_PORT:
         port = None
     return host, port
