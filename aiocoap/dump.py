@@ -57,12 +57,12 @@ class TextDumper(object):
     # methods for both direct use and transport/protocol use
 
     def datagram_received(self, data, address):
-        self._outfile.write("%s I 000 %s\n"%(datetime.now(), " ".join("%02x"%c for c in data)))
+        self._outfile.write("I %s 000 %s\n"%(datetime.now(), " ".join("%02x"%c for c in data)))
         if self._protocol is not None:
             self._protocol.datagram_received(data, address)
 
     def sendto(self, data, address):
-        self._outfile.write("%s O 000 %s\n"%(datetime.now(), " ".join("%02x"%c for c in data)))
+        self._outfile.write("O %s 000 %s\n"%(datetime.now(), " ".join("%02x"%c for c in data)))
         if self._protocol is not None:
             # it's not an error to check for _protocol and not for _transport
             # here: if the protocol got hold of this fake transport by other
