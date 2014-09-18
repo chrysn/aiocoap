@@ -209,8 +209,7 @@ class TestServer(WithTestServer, WithClient):
     @no_warnings
     def build_request(self):
         request = aiocoap.Message(code=aiocoap.GET)
-        # this should be subject to whatever gets done with the rest of getaddrino
-        request.remote = self.loop.run_until_complete(self.loop.getaddrinfo(self.serveraddress, aiocoap.COAP_PORT))[0][-1]
+        request.unresolved_remote = self.serveraddress
         return request
 
     @no_warnings
