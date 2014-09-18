@@ -189,9 +189,15 @@ class ProxiedResource(aiocoap.interfaces.Resource):
 
 def parse_commandline(args):
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--forward', help="Run as forward proxy", action='store_const', const=ForwardProxy, dest='direction')
-    p.add_argument('--reverse', help="Run as reverse proxy", action='store_const', const=ReverseProxy, dest='direction')
-    p.add_argument('--proxy', help="Relay outgoing requests through yet another proxy", metavar="HOST[:PORT]")
+
+    mode = p.add_argument_group("mode", "Required argument for setting the operation mode")
+    mode.add_argument('--forward', help="Run as forward proxy", action='store_const', const=ForwardProxy, dest='direction')
+    mode.add_argument('--reverse', help="Run as reverse proxy", action='store_const', const=ReverseProxy, dest='direction')
+
+    details = p.add_argument_group("details", "Options that govern how requests go in and out")
+    details.add_argument('--server-address', help="Address to bind the server context to", metavar="HOST", default="::")
+    details.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=aiocoap.COAP_PORT, type=int)
+    details.add_argument('--proxy', help="Relay outgoing requests through yet another proxy", metavar="HOST[:PORT]")
     r = p.add_argument_group('Rules', description="Sequence of forwarding rules that, if matched by a request, specify a forwarding destination")
     class TypedAppend(argparse.Action):
         def __call__(self, parser, namespace, values, option_string=None):
@@ -233,7 +239,7 @@ def main(args):
 
     outgoing_context = yield from aiocoap.Context.create_client_context(dump_to='/tmp/proxy-out.log')
     proxysite = ProxiedResource(outgoing_context, proxy)
-    proxy_context = yield from aiocoap.Context.create_server_context(proxysite, dump_to='/tmp/proxy-in.log')
+    proxy_context = yield from aiocoap.Context.create_server_context(proxysite, dump_to='/tmp/proxy-in.log', bind=(options.server_address, options.server_port))
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
