@@ -186,7 +186,6 @@ class WithTestServer(WithAsyncLoop, Destructing):
 
         super(WithTestServer, self).tearDown()
 
-    serveraddress = "::1"
     servernetloc = "[::1]"
     servernamealias = "ip6-loopback"
 
@@ -209,7 +208,7 @@ class TestServer(WithTestServer, WithClient):
     @no_warnings
     def build_request(self):
         request = aiocoap.Message(code=aiocoap.GET)
-        request.unresolved_remote = self.serveraddress
+        request.unresolved_remote = self.servernetloc
         return request
 
     @no_warnings
