@@ -517,8 +517,9 @@ class BaseRequest(object):
                 # similar could be employed.
 
                 if request.unresolved_remote is not None:
-                    host, port = urllib.parse.splitport(request.unresolved_remote)
-                    port = COAP_PORT if port in (None, str(COAP_PORT)) else int(port)
+                    pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
+                    host = pseudoparsed.hostname
+                    port = pseudoparsed.port or COAP_PORT
                 else:
                     host = request.opt.uri_host
                     port = request.opt.uri_port or COAP_PORT
