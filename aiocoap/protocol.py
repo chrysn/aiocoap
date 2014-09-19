@@ -439,9 +439,9 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     # request interfaces
     #
 
-    def request(self, request):
+    def request(self, request, **kwargs):
         """TODO: create a proper interface to implement and deprecate direct instanciation again"""
-        return Request(self, request)
+        return Request(self, request, **kwargs)
 
     def multicast_request(self, request):
         return MulticastRequest(self, request).responses
