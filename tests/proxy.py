@@ -28,16 +28,12 @@ class WithProxyClient(WithClient, WithProxyServer):
     def tearDown(self):
         self.client = self.client.context
 
-    # some things just need to be run differently because tests/server.py
-    # doesn't exactly use the high-level apis. (and that's ok because we need
-    # to test the server with simple messages too.)
-
-    def fetch_response(self, request, exchange_monitor_factory=lambda x:None):
-        requester = aiocoap.proxy.ProxyRequest(self.client, request)
-        return self.loop.run_until_complete(requester.response)
-
 class TestServerWithProxy(WithProxyClient, TestServer):
     def build_request(self):
+        # this needs to be run differently because tests/server.py
+        # doesn't exactly use the high-level apis. (and that's ok because we need
+        # to test the server with simple messages too.)
+
         request = aiocoap.Message(code=aiocoap.GET)
         request.unresolved_remote = self.proxyaddress
         request.opt.proxy_scheme = 'coap'
