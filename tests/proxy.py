@@ -8,7 +8,7 @@
 
 from .server import WithAsyncLoop, Destructing, WithClient, TestServer
 from .client import TestClient
-import aiocoap.proxy
+import aiocoap.proxy.client
 
 class WithProxyServer(WithAsyncLoop, Destructing):
     def setUp(self):
@@ -22,7 +22,7 @@ class WithProxyClient(WithClient, WithProxyServer):
     def setUp(self):
         super(WithProxyClient, self).setUp()
         original_client_log = self.client.log
-        self.client = aiocoap.proxy.ProxyForwarder(self.proxyaddress, self.client)
+        self.client = aiocoap.proxy.client.ProxyForwarder(self.proxyaddress, self.client)
         self.client.log = original_client_log
 
     def tearDown(self):

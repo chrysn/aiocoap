@@ -10,7 +10,7 @@ import socket
 
 import asyncio
 
-from . import interfaces
+from .. import interfaces
 
 class ProxyForwarder(interfaces.RequestProvider):
     """Object that behaves like a Context but only provides the request
