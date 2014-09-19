@@ -187,6 +187,7 @@ class ProxiedResource(aiocoap.interfaces.Resource):
             # return aiocoap.Message(code=aiocoap.BAD_GATEWAY, b"Unsafe options in response")
 
 
+        response.mtype = None
         response.mid = None
         response.remote = None
         response.token = None
