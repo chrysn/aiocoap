@@ -77,11 +77,7 @@ class ForwardProxy(Proxy):
         if redirected is not None:
             return redirected
 
-        try:
-            raise_unless_safe(request, (numbers.OptionNumber.PROXY_SCHEME, numbers.OptionNumber.URI_HOST))
-        except CanNotRedirectBecauseOfUnsafeOptions as c:
-            # this should just be raised
-            logging.warn("Ignoring unsafe request options %r"%c)
+        raise_unless_safe(request, (numbers.OptionNumber.PROXY_SCHEME, numbers.OptionNumber.URI_HOST))
 
         return request
 
@@ -179,12 +175,7 @@ class ProxiedResource(interfaces.Resource):
 
         response = yield from self.context.request(request).response
 
-        try:
-            raise_unless_safe(response, ())
-        except CanNotRedirectBecauseOfUnsafeOptions as c:
-            logging.warn("Ignoring unsafe response options %r"%c)
-            # return message.Message(code=numbers.codes.BAD_GATEWAY, b"Unsafe options in response")
-
+        raise_unless_safe(response, ())
 
         response.mtype = None
         response.mid = None
