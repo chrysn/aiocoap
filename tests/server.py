@@ -186,7 +186,8 @@ class WithTestServer(WithAsyncLoop, Destructing):
 
         super(WithTestServer, self).tearDown()
 
-    servernetloc = "[::1]"
+    serveraddress = "::1"
+    servernetloc = "[%s]"%serveraddress
     servernamealias = "ip6-loopback"
 
 class WithClient(WithAsyncLoop, Destructing):
