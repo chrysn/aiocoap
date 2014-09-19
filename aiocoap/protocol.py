@@ -398,7 +398,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         if message.mid is None:
             message.mid = self._next_message_id()
 
-        if message.remote in self._backlogs:
+        if message.mtype == CON and message.remote in self._backlogs:
             self.log.debug("Message to %s put into backlog"%(message.remote,))
             if exchange_monitor is not None:
                 exchange_monitor.enqueued()
