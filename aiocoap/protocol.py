@@ -136,7 +136,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     def datagram_received(self, data, address):
         """Implementation of the DatagramProtocol interface, called by the transport."""
-        self.log.debug("received %r from %s" % (data, address))
         try:
             message = Message.decode(data, address)
         except error.UnparsableMessage:
@@ -685,12 +684,14 @@ class Request(BaseRequest, interfaces.Request):
                 try:
                     self._assembled_response._append_response_block(response)
                 except error.Error as e:
+                    self.log.error("Error assembling blockwise response, passing on error %r"%e)
                     self.response.set_exception(e)
             else:
                 if block2.block_number == 0:
                     self.log.debug("Receiving blockwise response")
                     self._assembled_response = response
                 else:
+                    self.log.error("Error assembling blockwise response (expected first block)")
                     self.response.set_exception(UnexpectedBlock2())
             if block2.more is True:
                 self.send_request(self.app_request._generate_next_block2_request(response))
