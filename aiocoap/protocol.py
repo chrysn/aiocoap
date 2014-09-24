@@ -797,7 +797,10 @@ class Responder(object):
     def __init__(self, protocol, request, exchange_monitor_factory=(lambda message: None)):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("responder")
-        self.log.debug("New responder created")
+
+        self.key = tuple(request.opt.uri_path), request.remote
+
+        self.log.debug("New responder created, key %s")
 
         # partial request while more block1 messages are incoming
         self._assembled_request = None
@@ -963,14 +966,14 @@ class Responder(object):
 
         key = tuple(request.opt.uri_path), request.remote
 
-        def timeout_non_final_response(self, key):
+        def timeout_non_final_response(self):
             self.log.info("Waiting for next blockwise request timed out")
-            self.protocol.incoming_requests.pop(key)
+            self.protocol.incoming_requests.pop(self.key)
             self.app_request.cancel()
 
         # we don't want to have this incoming request around forever
-        self._next_block_timeout = self.protocol.loop.call_later(MAX_TRANSMIT_WAIT, timeout_non_final_response, self, key)
-        self.protocol.incoming_requests[key] = self
+        self._next_block_timeout = self.protocol.loop.call_later(MAX_TRANSMIT_WAIT, timeout_non_final_response, self)
+        self.protocol.incoming_requests[self.key] = self
 
         self.send_response(response, request)
 
