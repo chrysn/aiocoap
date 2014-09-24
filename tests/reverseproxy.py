@@ -16,7 +16,7 @@ class WithReverseProxy(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithReverseProxy, self).setUp()
 
-        self.servertask = asyncio.Task(aiocoap.cli.proxy.main(["--reverse", "--server-port", str(self.proxyport), "--namebased", "%s:%s"%(self.name_for_real_server, self.servernetloc)]))
+        self.servertask = asyncio.Task(aiocoap.cli.proxy.main(["--reverse", "--server-port", str(self.proxyport), "--namebased", "%s:%s"%(self.name_for_real_server, self.servernetloc), "--pathbased", "%s:%s"%("/".join(self.path_for_real_server), self.servernetloc)]))
 
     def tearDown(self):
         super(WithReverseProxy, self).tearDown()
@@ -30,25 +30,33 @@ class WithReverseProxy(WithAsyncLoop, Destructing):
     proxyaddress = 'localhost:%d'%proxyport
 
     name_for_real_server = 'aliasedname'
+    path_for_real_server = ('aliased', 'name')
 
 class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
     def test_routing(self):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
 
-        request = aiocoap.Message(code=aiocoap.GET)
-        request.unresolved_remote = self.proxyaddress
-
-        request.opt.uri_path = ('big',)
+        def req():
+            request = aiocoap.Message(code=aiocoap.GET)
+            request.unresolved_remote = self.proxyaddress
+            request.opt.uri_path = ('big',)
+            return request
+        request = req()
 
         response = yieldfrom(self.client.request(request).response)
         self.assertEqual(response.code, aiocoap.NOT_FOUND, "GET without hostname gave resource (NOT_FOUND expected)")
 
-        request.token = None
-        request.mid = None
+        request = req()
         request.opt.uri_host = self.name_for_real_server
 
         response = yieldfrom(self.client.request(request).response)
-        self.assertEqual(response.code, aiocoap.CONTENT, "GET with hostname was not successful)")
+        self.assertEqual(response.code, aiocoap.CONTENT, "GET with hostname based proxying was not successful)")
+
+        request = req()
+        request.opt.uri_path = self.path_for_real_server + request.opt.uri_path
+
+        response = yieldfrom(self.client.request(request).response)
+        self.assertEqual(response.code, aiocoap.CONTENT, "GET with path based proxying was not successful)")
 
     def test_options(self):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
