@@ -49,3 +49,32 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
 
         response = yieldfrom(self.client.request(request).response)
         self.assertEqual(response.code, aiocoap.CONTENT, "GET with hostname was not successful)")
+
+    def test_options(self):
+        yieldfrom = lambda f: self.loop.run_until_complete(f)
+        def req():
+            request = aiocoap.Message(code=aiocoap.GET)
+            request.unresolved_remote = self.proxyaddress
+            request.opt.uri_path = ('big',)
+            request.opt.uri_host = self.name_for_real_server
+            return request
+        request = req()
+
+        request.opt.proxy_scheme = 'coap'
+
+        response = yieldfrom(self.client.request(request).response)
+        self.assertEqual(response.code, aiocoap.PROXYING_NOT_SUPPORTED, "Reverse proxy supports proxying even though it shouldn't.")
+
+
+        request = req()
+        request.opt.add_option(aiocoap.optiontypes.StringOption(2**10 + 2, "can't proxy this"))
+
+        response = yieldfrom(self.client.request(request).response)
+        self.assertEqual(response.code, aiocoap.BAD_OPTION, "Proxy did not react to unsafe option.")
+
+
+        request = req()
+        request.opt.add_option(aiocoap.optiontypes.StringOption(2**10, "nothing to see here"))
+
+        response = yieldfrom(self.client.request(request).response)
+        self.assertEqual(response.code, aiocoap.CONTENT, "Proxy did not ignore to safe-to-forward option.")
