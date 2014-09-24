@@ -685,7 +685,7 @@ class Request(BaseRequest, interfaces.Request):
                 try:
                     self._assembled_response._append_response_block(response)
                 except error.Error as e:
-                    self.result.set_exception(e)
+                    self.response.set_exception(e)
             else:
                 if block2.block_number == 0:
                     self.log.debug("Receiving blockwise response")
