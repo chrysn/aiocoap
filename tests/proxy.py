@@ -6,17 +6,24 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
+import asyncio
+
 from .server import WithAsyncLoop, Destructing, WithClient, TestServer
 from .client import TestClient
 import aiocoap.proxy.client
+import aiocoap.cli.proxy
 
 class WithProxyServer(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithProxyServer, self).setUp()
-        pass
-        # FIXME: currently, you need to run ./coap-proxy --forward --server-port 56839 externally.
 
-    proxyaddress = 'localhost:56839'
+        self.servertask = asyncio.Task(aiocoap.cli.proxy.main(["--forward", "--server-port", str(self.proxyport)]))
+
+    def tearDown(self):
+        self.servertask.cancel()
+
+    proxyport = 56839
+    proxyaddress = 'localhost:%d'%proxyport
 
 class WithProxyClient(WithClient, WithProxyServer):
     def setUp(self):
