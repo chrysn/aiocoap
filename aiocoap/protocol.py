@@ -1088,7 +1088,7 @@ class ServerObservation(object):
 
     A ServerObservation has two boolean states: accepted and cancelled. It is
     originally neither, gets accepted when a
-    :meth:`.ObservableResource.add_observation` method :meth:`.accept()`s it,
+    :meth:`.ObservableResource.add_observation` method does :meth:`.accept()` it,
     and gets cancelled by incoming packages of the same identifier, RST/timeout
     on notifications or the observed resource. Beware that an accept can happen
     after cancellation if the client changes his mind quickly, but the resource
