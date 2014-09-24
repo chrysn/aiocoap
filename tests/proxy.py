@@ -8,7 +8,7 @@
 
 import asyncio
 
-from .server import WithAsyncLoop, Destructing, WithClient, TestServer
+from .server import WithAsyncLoop, Destructing, WithClient, TestServer, CLEANUPTIME
 from .client import TestClient
 import aiocoap.proxy.client
 import aiocoap.cli.proxy
@@ -20,7 +20,12 @@ class WithProxyServer(WithAsyncLoop, Destructing):
         self.servertask = asyncio.Task(aiocoap.cli.proxy.main(["--forward", "--server-port", str(self.proxyport)]))
 
     def tearDown(self):
+        super(WithProxyServer, self).tearDown()
         self.servertask.cancel()
+        # TODO: find a way to use Destructing with asyncio.Task -- we should be
+        # sure that when this is torn down, the proxy server is gone. without
+        # proper cleanup, different test proxies could interfere.
+        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
 
     proxyport = 56839
     proxyaddress = 'localhost:%d'%proxyport
