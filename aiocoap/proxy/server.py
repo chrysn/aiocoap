@@ -99,6 +99,8 @@ def splitport(hostport):
     """Like urllib.parse.splitport, but return port as int, and as None if it
     equals the CoAP default port. Also, it allows giving IPv6 addresses like a netloc:
 
+    >>> splitport('foo')
+    ('foo', None)
     >>> splitport('foo:5683')
     ('foo', None)
     >>> splitport('[::1]:56830')

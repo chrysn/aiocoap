@@ -59,7 +59,7 @@ def main(args):
                 path, dest = data.split(':', 1)
             except:
                 raise parser.error("--pathbased needs PATH:DEST as arguments")
-            r = SubresourceVirtualHost(path.spit('/'), dest)
+            r = SubresourceVirtualHost(path.split('/'), dest)
         elif kind == '--unconditional':
             r = UnconditionalRedirector(data)
         else:
