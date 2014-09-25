@@ -40,14 +40,21 @@ class Message(object):
     * :attr:`mid`: The message ID. Managed by the :class:`.Context`.
     * :attr:`token`: The message's token as bytes. Managed by the :class:`.Context`.
     * :attr:`remote`: The socket address of the  side, managed by the
-      :class:`.protocol.Request` by resolving the ``.opt.uri_host``, or the
-      :class:`.Responder` by echoing the incoming request's. (If you choose to
-      set this explicitly set this, make sure not to set incomplete IPv6
-      address tuples, as they can be sent but don't compare equally with the
-      responses). Non-roundtrippable.
+      :class:`.protocol.Request` by resolving the ``.opt.uri_host`` or
+      ``unresolved_remote``, or the :class:`.Responder` by echoing the incoming
+      request's. (If you choose to set this explicitly set this, make sure not
+      to set incomplete IPv6 address tuples, as they can be sent but don't
+      compare equally with the responses). Non-roundtrippable.
 
     * requested_*: Managed by the :class:`.protocol.Request` a response results
       from, and filled with the request's URL data. Non-roundtrippable.
+    * unresolved_remote: ``host[:port]`` formatted string. If this attribute is
+      set, it overrides ``.opt.uri_host`` (and ``-_port``) when it comes to
+      filling the ``remote`` in an outgoing request.
+
+      Use this when you want to send a request with a host name that would not
+      normally resolve to the destination address. (Typically, this is used for
+      proxying.)
 
     * :attr:`prepath`, :attr:`postpath`: Not sure, will probably go away when
       resources are overhauled. Non-roundtrippable.
@@ -67,6 +74,7 @@ class Message(object):
         self.opt = Options()
 
         self.remote = None
+        self.unresolved_remote = None
         self.prepath = None
         self.postpath = None
 

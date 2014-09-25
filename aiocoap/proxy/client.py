@@ -6,9 +6,11 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
+import socket
+
 import asyncio
 
-from . import interfaces
+from .. import interfaces
 
 class ProxyForwarder(interfaces.RequestProvider):
     """Object that behaves like a Context but only provides the request
@@ -16,47 +18,35 @@ class ProxyForwarder(interfaces.RequestProvider):
 
     This is not a proxy itself, it is just the interface for an external
     one."""
-    def __init__(self, host, port, context):
-        self._proxy = (host, port)
-        self._proxy_remote = None # see _proxy_remote
+    def __init__(self, proxy_address, context):
+        self.proxy_address = proxy_address
         self.context = context
 
     proxy = property(lambda self: self._proxy)
 
-    @asyncio.coroutine
-    def _get_proxy_remote(self):
-        if self._proxy_remote is None:
-            ## @TODO this is very rudimentary; happy-eyeballs or
-            # similar could be employed and this be linked into the protocol
-            ## @TODO this has since been modified in BaseRequest, before you
-            # fix it here, move it to the protocol
-            self._proxy_remote = (yield from self.context.loop.getaddrinfo(
-                self._proxy[0],
-                self._proxy[1] or COAP_PORT
-                ))[0][-1]
-        return self._proxy_remote
-
-    def request(self, message):
+    def request(self, message, **kwargs):
         assert message.remote is None, "Message already has a configured "\
                 "remote, set .opt.uri_{host,port} instead of remote"
         assert message.opt.uri_host is not None, "Message does not have a "\
                 "destination address"
         message.opt.proxy_scheme = 'coap'
-        return ProxyRequest(self, message)
+        return ProxyRequest(self, message, **kwargs)
 
 class ProxyRequest(interfaces.Request):
-    def __init__(self, proxy, app_request):
+    def __init__(self, proxy, app_request, exchange_monitor_factory=lambda x:None):
         self.proxy = proxy
         self.app_request = app_request
         self.response = asyncio.Future()
+        self._exchange_monitor_factory = exchange_monitor_factory
 
         asyncio.async(self._launch())
 
     @asyncio.coroutine
     def _launch(self):
         try:
-            self.app_request.remote = yield from self.proxy._get_proxy_remote()
-            proxyrequest = self.proxy.context.request(self.app_request)
+            self.app_request.remote = None
+            self.app_request.unresolved_remote = self.proxy.proxy_address
+            proxyrequest = self.proxy.context.request(self.app_request, exchange_monitor_factory=self._exchange_monitor_factory)
             self.response.set_result((yield from proxyrequest.response))
         except Exception as e:
             self.response.set_exception(e)

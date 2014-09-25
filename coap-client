@@ -5,7 +5,7 @@
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
 #               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
 #
-# txThings is free software, this file is published under the MIT license as
+# aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
 """coap-client is a simple command-line tool for interacting with CoAP servers"""
@@ -18,7 +18,7 @@ import subprocess
 import socket
 
 import aiocoap
-import aiocoap.proxy
+import aiocoap.proxy.client
 
 def parse_commandline(args):
     p = argparse.ArgumentParser(description=__doc__)
@@ -28,6 +28,7 @@ def parse_commandline(args):
     p.add_argument('--proxy', help="Relay the CoAP request to a proxy for execution", metavar="HOST[:PORT]")
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
+    p.add_argument('--dump', help="Log network traffic to FILE", metavar="FILE")
     p.add_argument('url', help="CoAP address to fetch")
 
     return p, p.parse_args(args)
@@ -62,7 +63,7 @@ def main(args):
 
     configure_logging((options.verbose or 0) - (options.quiet or 0))
 
-    context = yield from aiocoap.Context.create_client_context()
+    context = yield from aiocoap.Context.create_client_context(dump_to=options.dump)
 
     request = aiocoap.Message(code=aiocoap.GET)
     try:
@@ -89,13 +90,7 @@ def main(args):
     if options.proxy is None:
         interface = context
     else:
-        if ':' in options.proxy:
-            host, port = options.proxy.split(':', 1)
-            try: port = int(port)
-            except ValueError: p.error("Numeric port required")
-        else:
-            host, port = options.proxy, aiocoap.COAP_PORT
-        interface = aiocoap.proxy.ProxyForwarder(host, port, context)
+        interface = aiocoap.proxy.client.ProxyForwarder(options.proxy, context)
     requester = interface.request(request)
 
     if options.observe:

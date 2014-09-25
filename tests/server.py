@@ -22,7 +22,7 @@ import gc
 # causes per-fixture delays.
 CLEANUPTIME = 0.01
 
-class MultiRepresentationResource(aiocoap.resource.CoAPResource):
+class MultiRepresentationResource(aiocoap.resource.Resource):
     @asyncio.coroutine
     def render_GET(self, request):
         ct = request.opt.accept or aiocoap.numbers.media_types_rev['text/plain']
@@ -38,20 +38,28 @@ class MultiRepresentationResource(aiocoap.resource.CoAPResource):
 
         return aiocoap.Message(code=aiocoap.CONTENT, payload=response)
 
-class SlowResource(aiocoap.resource.CoAPResource):
+class SlowResource(aiocoap.resource.Resource):
     @asyncio.coroutine
     def render_GET(self, request):
         yield from asyncio.sleep(0.2)
         return aiocoap.Message(code=aiocoap.CONTENT)
 
-class BigResource(aiocoap.resource.CoAPResource):
+class BigResource(aiocoap.resource.Resource):
     @asyncio.coroutine
     def render_GET(self, request):
         # 10kb
         payload = b"0123456789----------" * 512
         return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
-class ReplacingResource(aiocoap.resource.CoAPResource):
+class SlowBigResource(aiocoap.resource.Resource):
+    @asyncio.coroutine
+    def render_GET(self, request):
+        yield from asyncio.sleep(0.2)
+        # 1.6kb
+        payload = b"0123456789----------" * 80
+        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+
+class ReplacingResource(aiocoap.resource.Resource):
     @asyncio.coroutine
     def render_GET(self, request):
         return aiocoap.Message(code=aiocoap.CONTENT, payload=self.value)
@@ -68,13 +76,13 @@ class ReplacingResource(aiocoap.resource.CoAPResource):
 
 class TestingSite(aiocoap.resource.Site):
     def __init__(self):
-        root = aiocoap.resource.CoAPResource()
-        root.put_child('empty', MultiRepresentationResource())
-        root.put_child('slow', SlowResource())
-        root.put_child('big', BigResource())
-        root.put_child('replacing', ReplacingResource())
+        super(TestingSite, self).__init__()
 
-        super(TestingSite, self).__init__(root)
+        self.add_resource(('empty',), MultiRepresentationResource())
+        self.add_resource(('slow',), SlowResource())
+        self.add_resource(('big',), BigResource())
+        self.add_resource(('slowbig',), SlowBigResource())
+        self.add_resource(('replacing',), ReplacingResource())
 
 # helpers
 
@@ -188,7 +196,7 @@ class WithTestServer(WithAsyncLoop, Destructing):
         super(WithTestServer, self).tearDown()
 
     serveraddress = "::1"
-    servernetloc = "[::1]"
+    servernetloc = "[%s]"%serveraddress
     servernamealias = "ip6-loopback"
 
 class WithClient(WithAsyncLoop, Destructing):
@@ -210,16 +218,12 @@ class TestServer(WithTestServer, WithClient):
     @no_warnings
     def build_request(self):
         request = aiocoap.Message(code=aiocoap.GET)
-        # this should be subject to whatever gets done with the rest of getaddrino
-        request.remote = self.loop.run_until_complete(self.loop.getaddrinfo(self.serveraddress, aiocoap.COAP_PORT))[0][-1]
+        request.unresolved_remote = self.servernetloc
         return request
 
     @no_warnings
     def fetch_response(self, request, exchange_monitor_factory=lambda x:None):
-        #return self.loop.run_until_complete(self.client.request(request))
-
-        requester = aiocoap.protocol.Request(self.client, request, exchange_monitor_factory)
-        return self.loop.run_until_complete(requester.response)
+        return self.loop.run_until_complete(self.client.request(request, exchange_monitor_factory=exchange_monitor_factory).response)
 
     @no_warnings
     def test_empty_accept(self):
@@ -292,6 +296,16 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Big resource request did not succede")
         self.assertEqual(len(response.payload), 10240, "Big resource is not as big as expected")
+
+    @no_warnings
+    def test_slowbig_resource(self):
+        request = self.build_request()
+        request.opt.uri_path = ['slowbig']
+        counter = TypeCounter()
+        response = self.fetch_response(request, counter)
+        self.assertEqual(response.code, aiocoap.CONTENT, "SlowBig resource request did not succede")
+        self.assertEqual(len(response.payload), 1600, "SlowBig resource is not as big as expected")
+        self.assertEqual(counter.empty_ack_count, 1, "SlowBig resource was not handled in two exchanges")
 
     @no_warnings
     def test_replacing_resource(self):

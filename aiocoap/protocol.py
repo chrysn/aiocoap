@@ -22,9 +22,11 @@ import binascii
 import functools
 import socket
 import asyncio
+import urllib.parse
 
 from .util.queuewithend import QueueWithEnd
 from .util.asyncio import cancel_thoroughly
+from .dump import TextDumper
 
 import logging
 # log levels used:
@@ -103,6 +105,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         self.outgoing_requests = {}  #: Unfinished outgoing requests (identified by token and remote)
         self.incoming_requests = {}  #: Unfinished incoming requests. ``(path-tuple, remote): Request``
         self.outgoing_observations = {} #: Observations where this context acts as client. ``(token, remote) -> ClientObservation``
+        self.incoming_observations = {} #: Observation where this context acts as server. ``(token, remote) -> ServerObservation``. This is managed by :cls:ServerObservation and :meth:`.Responder.handle_observe_request`.
 
         self.log = logging.getLogger(loggername)
 
@@ -133,7 +136,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     def datagram_received(self, data, address):
         """Implementation of the DatagramProtocol interface, called by the transport."""
-        self.log.debug("received %r from %s" % (data, address))
         try:
             message = Message.decode(data, address)
         except error.UnparsableMessage:
@@ -395,7 +397,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         if message.mid is None:
             message.mid = self._next_message_id()
 
-        if message.remote in self._backlogs:
+        if message.mtype == CON and message.remote in self._backlogs:
             self.log.debug("Message to %s put into backlog"%(message.remote,))
             if exchange_monitor is not None:
                 exchange_monitor.enqueued()
@@ -436,9 +438,9 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     # request interfaces
     #
 
-    def request(self, request):
+    def request(self, request, **kwargs):
         """TODO: create a proper interface to implement and deprecate direct instanciation again"""
-        return Request(self, request)
+        return Request(self, request, **kwargs)
 
     def multicast_request(self, request):
         return MulticastRequest(self, request).responses
@@ -449,7 +451,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_client_context(cls):
+    def create_client_context(cls, *, dump_to=None):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get an context suitable for sending client
@@ -458,12 +460,20 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         loop = asyncio.get_event_loop()
 
-        #transport, protocol = yield from loop.create_datagram_endpoint(cls, family=socket.AF_INET)
+        if dump_to is None:
+            protofact = cls
+        else:
+            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), cls)
+
+        #transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET)
 
         # use the following lines instead, and change the address to `::ffff:127.0.0.1`
         # in order to see acknowledgement handling fail with hybrid stack operation
-        transport, protocol = yield from loop.create_datagram_endpoint(cls, family=socket.AF_INET6)
+        transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
         transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+
+        if dump_to is not None:
+            protocol = protocol.protocol
 
         yield from protocol.ready
 
@@ -471,7 +481,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_server_context(cls, site, bind=("::", COAP_PORT)):
+    def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None):
         """Create an context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -480,9 +490,16 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         loop = asyncio.get_event_loop()
 
-        transport, protocol = yield from loop.create_datagram_endpoint(lambda: cls(loop, site, loggername="coap-server"), family=socket.AF_INET6)
+        protofact = lambda: cls(loop, site, loggername="coap-server")
+        if dump_to is not None:
+            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
+
+        transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
         transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         transport._sock.bind(bind)
+
+        if dump_to is not None:
+            protocol = protocol.protocol
 
         yield from protocol.ready
 
@@ -494,12 +511,21 @@ class BaseRequest(object):
     @asyncio.coroutine
     def _fill_remote(self, request):
         if request.remote is None:
-            if request.opt.uri_host:
+            if request.unresolved_remote is not None or request.opt.uri_host:
                 ## @TODO this is very rudimentary; happy-eyeballs or
                 # similar could be employed.
+
+                if request.unresolved_remote is not None:
+                    pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
+                    host = pseudoparsed.hostname
+                    port = pseudoparsed.port or COAP_PORT
+                else:
+                    host = request.opt.uri_host
+                    port = request.opt.uri_port or COAP_PORT
+
                 addrinfo = yield from self.protocol.loop.getaddrinfo(
-                    request.opt.uri_host,
-                    request.opt.uri_port or COAP_PORT,
+                    host,
+                    port,
                     family=self.protocol.transport._sock.family,
                     type=0,
                     proto=self.protocol.transport._sock.proto,
@@ -533,6 +559,10 @@ class Request(BaseRequest, interfaces.Request):
         self.response = asyncio.Future()
         self.response.add_done_callback(self._response_cancellation_handler)
 
+        if self.app_request.opt.observe is not None:
+            self.observation = ClientObservation(self.app_request)
+            self.response.add_done_callback(self.register_observation)
+
         asyncio.async(self._init_phase2())
 
     @asyncio.coroutine
@@ -553,10 +583,6 @@ class Request(BaseRequest, interfaces.Request):
             else:
                 request = self.app_request
                 self._request_transmitted_completely = True
-
-            if self.app_request.opt.observe is not None:
-                self.observation = ClientObservation(self.app_request)
-                self.response.add_done_callback(self.register_observation)
 
             self.send_request(request)
         except Exception as e:
@@ -658,12 +684,14 @@ class Request(BaseRequest, interfaces.Request):
                 try:
                     self._assembled_response._append_response_block(response)
                 except error.Error as e:
-                    self.result.set_exception(e)
+                    self.log.error("Error assembling blockwise response, passing on error %r"%e)
+                    self.response.set_exception(e)
             else:
                 if block2.block_number == 0:
                     self.log.debug("Receiving blockwise response")
                     self._assembled_response = response
                 else:
+                    self.log.error("Error assembling blockwise response (expected first block)")
                     self.response.set_exception(UnexpectedBlock2())
             if block2.more is True:
                 self.send_request(self.app_request._generate_next_block2_request(response))
@@ -769,7 +797,10 @@ class Responder(object):
     def __init__(self, protocol, request, exchange_monitor_factory=(lambda message: None)):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("responder")
-        self.log.debug("New responder created")
+
+        self.key = tuple(request.opt.uri_path), request.remote
+
+        self.log.debug("New responder created, key %s")
 
         # partial request while more block1 messages are incoming
         self._assembled_request = None
@@ -780,6 +811,7 @@ class Responder(object):
         self.app_request = asyncio.Future()
         # used to track whether to reply with ACK or CON
         self._sent_empty_ack = False
+        self._serverobservation = None
 
         self._exchange_monitor_factory = exchange_monitor_factory
 
@@ -854,31 +886,31 @@ class Responder(object):
             return
 
         #TODO: Request with Block2 option and non-zero block number should get error response
-        request.prepath = []
-        request.postpath = list(request.opt.uri_path)
+
+        delayed_ack = self.protocol.loop.call_later(EMPTY_ACK_DELAY, self.send_empty_ack, request)
+
+        yield from self.handle_observe_request(request)
+
         try:
-            # TODO: if tree is not known beforehand, this get_resource_for might require yielding from
-            resource = self.protocol.serversite.get_resource_for(request)
-            unfinished_response = resource.render(request)
+            response = yield from self.protocol.serversite.render(request)
         except error.NoResource:
             self.respond_with_error(request, NOT_FOUND, "Error: Resource not found!")
         except error.UnallowedMethod:
             self.respond_with_error(request, METHOD_NOT_ALLOWED, "Error: Method not allowed!")
         except error.UnsupportedMethod:
             self.respond_with_error(request, METHOD_NOT_ALLOWED, "Error: Method not recognized!")
+        except Exception as e:
+            self.respond_with_error(request, INTERNAL_SERVER_ERROR, "")
+            self.log.error("An exception occurred while rendering a resource: %r"%e)
         else:
-            delayed_ack = self.protocol.loop.call_later(EMPTY_ACK_DELAY, self.send_empty_ack, request)
+            if not response.code.is_response():
+                self.log.warning("Response does not carry response code (%r), application probably violates protocol."%response.code)
 
-            try:
-                response = yield from unfinished_response
-            except Exception as e:
-                self.log.error("An exception occurred while rendering a resource: %r"%e)
-                response = Message(code=INTERNAL_SERVER_ERROR)
+            self.handle_observe_response(request, response)
 
-            if resource.observable and request.code == GET and request.opt.observe is not None:
-                self.handle_observe(response, request, resource)
-
-            self.respond(response, request, delayed_ack)
+            self.respond(response, request)
+        finally:
+            cancel_thoroughly(delayed_ack)
 
     def respond_with_error(self, request, code, payload):
         """Helper method to send error response to client."""
@@ -887,15 +919,13 @@ class Responder(object):
         response = Message(code=code, payload=payload)
         self.respond(response, request)
 
-    def respond(self, app_response, request, delayed_ack=None):
+    def respond(self, app_response, request):
         """Take application-supplied response and prepare it for sending."""
 
         # if there was an error, make sure nobody hopes to get a result any more
         self.app_request.cancel()
 
         self.log.debug("Preparing response...")
-        if delayed_ack is not None:
-            cancel_thoroughly(delayed_ack)
         self.app_response = app_response
         size_exp = min(request.opt.block2.size_exponent if request.opt.block2 is not None else DEFAULT_BLOCK_SIZE_EXP, DEFAULT_BLOCK_SIZE_EXP)
         if len(self.app_response.payload) > (2 ** (size_exp + 4)):
@@ -936,14 +966,14 @@ class Responder(object):
 
         key = tuple(request.opt.uri_path), request.remote
 
-        def timeout_non_final_response(self, key):
+        def timeout_non_final_response(self):
             self.log.info("Waiting for next blockwise request timed out")
-            self.protocol.incoming_requests.pop(key)
+            self.protocol.incoming_requests.pop(self.key)
             self.app_request.cancel()
 
         # we don't want to have this incoming request around forever
-        self._next_block_timeout = self.protocol.loop.call_later(MAX_TRANSMIT_WAIT, timeout_non_final_response, self, key)
-        self.protocol.incoming_requests[key] = self
+        self._next_block_timeout = self.protocol.loop.call_later(MAX_TRANSMIT_WAIT, timeout_non_final_response, self)
+        self.protocol.incoming_requests[self.key] = self
 
         self.send_response(response, request)
 
@@ -1000,30 +1030,41 @@ class Responder(object):
         self.protocol.send_message(ack)
         self._sent_empty_ack = True
 
-    def handle_observe(self, app_response, request, resource):
-        """Intermediate state of sending a response that the response will go
-        through if it might need to be processed for observation. This both
-        handles the implications for notification sending and adds the observe
-        response option."""
+    @asyncio.coroutine
+    def handle_observe_request(self, request):
+        key = ServerObservation.request_key(request)
 
-        observation_identifier = (request.remote, request.token)
+        if key in self.protocol.incoming_observations:
+            self.protocol.incoming_observations[key].cancel()
 
-        if app_response.code not in (VALID, CONTENT):
-            if observation_identifier in resource.observers:
-                ## @TODO cancel observation
-                pass
+        assert key not in self.protocol.incoming_observations
+
+        if request.code == GET and request.opt.observe is not None and hasattr(self.protocol.serversite, "add_observation"):
+            sobs = ServerObservation(self.protocol, request, self.log)
+            yield from self.protocol.serversite.add_observation(request, sobs)
+            if sobs.accepted:
+                self.log.debug("Observation established (but request result may cancel it again soon)")
+                self._serverobservation = sobs
+            else:
+                self.log.debug("No observation accepted by the resource")
+                sobs.cancel()
+
+    def handle_observe_response(self, request, response):
+        if self._serverobservation is None:
             return
 
-        if observation_identifier in resource.observers:
-            pass ## @TODO renew that observation (but keep in mind that whenever we send a notification, the original message is replayed)
-        else:
-            ServerObservation(self.protocol, request, self.log, observation_identifier, resource)
+        if response.code not in (VALID, CONTENT):
+            self._serverobservation.cancel()
+            self.log.debug("Not a valid response code, tearing down observation again.")
+            return
 
-        app_response.opt.observe = resource.observe_index
+        self.log.debug("Acknowledging observation to client.")
+
+        response.opt.observe = self._serverobservation.observe_index
 
         if request.mtype is None:
             # this is the indicator that the request was just injected
-            app_response.mtype = CON
+            response.mtype = CON
 
 class ExchangeMonitor(object):
     """Callback collection interface to keep track of what happens to an
@@ -1044,45 +1085,86 @@ class ExchangeMonitor(object):
 
 class ServerObservation(object):
     """An active CoAP observation inside a server is described as a
-    ServerObservation object attached to a Resource in .observers[(address,
-    token)].
+    ServerObservation object.
 
     It keeps a complete copy of the original request for simplicity (while it
-    actually would only need parts of that request, like the accept option)."""
+    actually would only need parts of that request, like the accept option).
 
-    def __init__(self, original_protocol, original_request, requester_log, identifier, resource):
+    A ServerObservation has two boolean states: accepted and cancelled. It is
+    originally neither, gets accepted when a
+    :meth:`.ObservableResource.add_observation` method does :meth:`.accept()` it,
+    and gets cancelled by incoming packages of the same identifier, RST/timeout
+    on notifications or the observed resource. Beware that an accept can happen
+    after cancellation if the client changes his mind quickly, but the resource
+    takes time to decide whether it can be observed.
+    """
+
+    def __init__(self, original_protocol, original_request, requester_log):
         self.original_protocol = original_protocol
         self.original_request = original_request
         self.log = requester_log.getChild("observation")
+        self.observe_index = 0
+        self.cancelled = False
+        self.accepted = False
 
-        self._identifier = identifier
-        self._resource = resource
-        self._resource.observers[self._identifier] = self
+        self.original_protocol.incoming_observations[self.identifier] = self
 
-    def trigger(self):
-        # bypassing parsing and duplicate detection, pretend the request came in again
-        self.log.debug("Server observation triggered, injecting original request %r again"%self.original_request)
+    def accept(self, cancellation_callback):
+        assert not self.accepted
+        self.accepted = True
+        if self.cancelled:
+            # poor resource is just establishing that it can observe. let's
+            # give it the time to finish add_observation and not worry about a
+            # few milliseconds. (after all, this is a rare condition and people
+            # will not test for it).
+            self.original_protocol.loop.call_later(cancellation_callback)
+        else:
+            self.resource_cancellation_callback = cancellation_callback
+
+    def cancel(self):
+        assert not self.cancelled
+        self.cancelled = True
+
+        if self.accepted:
+            self.resource_cancellation_callback()
+            del self.resource_cancellation_callback
+
+        popped = self.original_protocol.incoming_observations.pop(self.identifier)
+        assert popped is self
+
+    identifier = property(lambda self: self.request_key(self.original_request))
+
+    @staticmethod
+    def request_key(request):
+        return (request.remote, request.token)
+
+    def _create_new_request(self):
         # TODO this indicates that the request is injected -- overloading .mtype is not the cleanest thing to do hee
+        # further TODO this should be a copy once we decide that request receivers may manipulate them
         self.original_request.mtype = None
         self.original_request.mid = None
 
+        return self.original_request
+
+    def trigger(self):
+        # this implements the second implementation suggestion from
+        # draft-ietf-coap-observe-11 section 4.4
+        #
+        ## @TODO handle situations in which this gets called more often than
+        #        2^32 times in 256 seconds (or document why we can be sure that
+        #        that will not happen)
+        self.observe_index = (self.observe_index + 1) % (2**24)
+
+        request = self._create_new_request()
+
+        self.log.debug("Server observation triggered, injecting original request %r again"%request)
+
+        # bypassing parsing and duplicate detection, pretend the request came in again
+        #
         # the prediction is that the factory will be called exactly once, as no
         # blockwise is involved
-        Responder(self.original_protocol, self.original_request, lambda message: self.ObservationExchangeMonitor(self))
+        Responder(self.original_protocol, request, lambda message: self.ObservationExchangeMonitor(self))
 
-    def cancel(self):
-        # this should lead to the object being garbage collected pretty soon,
-        # as the caller (typically ObservationExchangeMonitor in its
-        # rst/timeout method) gets deref'd when the exchange ends, and the
-        # resource's observers list is the only place the observation is stored
-
-        if self._resource.observers.get(self._identifier, None) != self:
-            # we accept both duplicate removals (eg if two notifications are in
-            # the air and both get cancelled); it's ok if another observation
-            # took our place, we won't drop that.
-            pass
-        else:
-            del self._resource.observers[self._identifier]
 
     class ObservationExchangeMonitor(ExchangeMonitor):
         def __init__(self, observation):

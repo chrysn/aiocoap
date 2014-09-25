@@ -10,6 +10,7 @@
 especially with respect to request and response handling."""
 
 import abc
+from asyncio import coroutine
 
 class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
@@ -24,3 +25,35 @@ class Request(metaclass=abc.ABCMeta):
 
     response = """A future that is present from the creation of the object and \
         fullfilled with the response message."""
+
+class Resource(metaclass=abc.ABCMeta):
+    """Interface that is expected by a :class:`.protocol.Context` to be present
+    on the serversite, which renders all requests to that context."""
+
+    @abc.abstractmethod
+    @coroutine
+    def render(self, request):
+        """Return a message that can be sent back to the requester.
+
+        This does not need to set any low-level message options like remote,
+        token or message type; it does however need to set a response code."""
+
+class ObservableResource(Resource, metaclass=abc.ABCMeta):
+    """Interface the :class:`.protocol.ServerObservation` uses to negotiate
+    whether an observation can be established based on a request.
+
+    This adds only functionality for registering and unregistering observations;
+    the notification contents will be retrieved from the resource using the
+    regular :meth:`.render` method from crafted (fake) requests.
+    """
+    @abc.abstractmethod
+    @coroutine
+    def add_observation(self, request, serverobservation):
+        """Before the incoming request is sent to :meth:`.render`, the
+        :meth:`.add_observation` method is called. If the resource chooses to
+        accept the observation, it has to call the
+        `serverobservation.accept(cb)` with a callback that will be called when
+        the observation ends. After accepting, the ObservableResource should
+        call `serverobservation.trigger()` whenever it changes its state; the
+        ServerObservation will then initiate notifications by having the
+        request rendered again."""

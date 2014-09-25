@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+
+import aiocoap.cli.proxy
+
+aiocoap.cli.proxy.sync_main()

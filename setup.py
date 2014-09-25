@@ -15,7 +15,7 @@
 from setuptools import setup, find_packages
 
 name = "aiocoap"
-version = "0.1"
+version = "0.1+git"
 description = "Python CoAP library"
 longdescription = __doc__
 
@@ -27,6 +27,7 @@ setup(
 
     author="Maciej Wasilak, Christian Amsüss",
     author_email="Christian Amsüss <c.amsuess@energyharvesting.at>",
+    url="https://github.com/chrysn/aiocoap",
 
     keywords=['coap', 'asyncio', 'iot'],
     classifiers=[
