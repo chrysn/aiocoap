@@ -181,11 +181,13 @@ class Destructing(WithLogMonitoring):
             self.fail(errormessage)
 
 class WithTestServer(WithAsyncLoop, Destructing):
+    def create_testing_site(self):
+        return TestingSite()
+
     def setUp(self):
         super(WithTestServer, self).setUp()
 
-        ts = TestingSite()
-        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(ts))
+        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site()))
 
     def tearDown(self):
         # let the server receive the acks we just sent
