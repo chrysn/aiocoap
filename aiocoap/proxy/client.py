@@ -10,7 +10,7 @@ import socket
 
 import asyncio
 
-from . import interfaces
+from .. import interfaces
 
 class ProxyForwarder(interfaces.RequestProvider):
     """Object that behaves like a Context but only provides the request
@@ -24,19 +24,20 @@ class ProxyForwarder(interfaces.RequestProvider):
 
     proxy = property(lambda self: self._proxy)
 
-    def request(self, message):
+    def request(self, message, **kwargs):
         assert message.remote is None, "Message already has a configured "\
                 "remote, set .opt.uri_{host,port} instead of remote"
         assert message.opt.uri_host is not None, "Message does not have a "\
                 "destination address"
         message.opt.proxy_scheme = 'coap'
-        return ProxyRequest(self, message)
+        return ProxyRequest(self, message, **kwargs)
 
 class ProxyRequest(interfaces.Request):
-    def __init__(self, proxy, app_request):
+    def __init__(self, proxy, app_request, exchange_monitor_factory=lambda x:None):
         self.proxy = proxy
         self.app_request = app_request
         self.response = asyncio.Future()
+        self._exchange_monitor_factory = exchange_monitor_factory
 
         asyncio.async(self._launch())
 
@@ -45,7 +46,7 @@ class ProxyRequest(interfaces.Request):
         try:
             self.app_request.remote = None
             self.app_request.unresolved_remote = self.proxy.proxy_address
-            proxyrequest = self.proxy.context.request(self.app_request)
+            proxyrequest = self.proxy.context.request(self.app_request, exchange_monitor_factory=self._exchange_monitor_factory)
             self.response.set_result((yield from proxyrequest.response))
         except Exception as e:
             self.response.set_exception(e)

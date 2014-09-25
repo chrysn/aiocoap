@@ -18,7 +18,7 @@ import subprocess
 import socket
 
 import aiocoap
-import aiocoap.proxy
+import aiocoap.proxy.client
 
 def parse_commandline(args):
     p = argparse.ArgumentParser(description=__doc__)
@@ -90,7 +90,7 @@ def main(args):
     if options.proxy is None:
         interface = context
     else:
-        interface = aiocoap.proxy.ProxyForwarder(options.proxy, context)
+        interface = aiocoap.proxy.client.ProxyForwarder(options.proxy, context)
     requester = interface.request(request)
 
     if options.observe:

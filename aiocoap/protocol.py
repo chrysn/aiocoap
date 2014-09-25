@@ -136,7 +136,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     def datagram_received(self, data, address):
         """Implementation of the DatagramProtocol interface, called by the transport."""
-        self.log.debug("received %r from %s" % (data, address))
         try:
             message = Message.decode(data, address)
         except error.UnparsableMessage:
@@ -439,9 +438,9 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     # request interfaces
     #
 
-    def request(self, request):
+    def request(self, request, **kwargs):
         """TODO: create a proper interface to implement and deprecate direct instanciation again"""
-        return Request(self, request)
+        return Request(self, request, **kwargs)
 
     def multicast_request(self, request):
         return MulticastRequest(self, request).responses
@@ -685,12 +684,14 @@ class Request(BaseRequest, interfaces.Request):
                 try:
                     self._assembled_response._append_response_block(response)
                 except error.Error as e:
-                    self.result.set_exception(e)
+                    self.log.error("Error assembling blockwise response, passing on error %r"%e)
+                    self.response.set_exception(e)
             else:
                 if block2.block_number == 0:
                     self.log.debug("Receiving blockwise response")
                     self._assembled_response = response
                 else:
+                    self.log.error("Error assembling blockwise response (expected first block)")
                     self.response.set_exception(UnexpectedBlock2())
             if block2.more is True:
                 self.send_request(self.app_request._generate_next_block2_request(response))
@@ -796,7 +797,10 @@ class Responder(object):
     def __init__(self, protocol, request, exchange_monitor_factory=(lambda message: None)):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("responder")
-        self.log.debug("New responder created")
+
+        self.key = tuple(request.opt.uri_path), request.remote
+
+        self.log.debug("New responder created, key %s")
 
         # partial request while more block1 messages are incoming
         self._assembled_request = None
@@ -962,14 +966,14 @@ class Responder(object):
 
         key = tuple(request.opt.uri_path), request.remote
 
-        def timeout_non_final_response(self, key):
+        def timeout_non_final_response(self):
             self.log.info("Waiting for next blockwise request timed out")
-            self.protocol.incoming_requests.pop(key)
+            self.protocol.incoming_requests.pop(self.key)
             self.app_request.cancel()
 
         # we don't want to have this incoming request around forever
-        self._next_block_timeout = self.protocol.loop.call_later(MAX_TRANSMIT_WAIT, timeout_non_final_response, self, key)
-        self.protocol.incoming_requests[key] = self
+        self._next_block_timeout = self.protocol.loop.call_later(MAX_TRANSMIT_WAIT, timeout_non_final_response, self)
+        self.protocol.incoming_requests[self.key] = self
 
         self.send_response(response, request)
 
@@ -1088,7 +1092,7 @@ class ServerObservation(object):
 
     A ServerObservation has two boolean states: accepted and cancelled. It is
     originally neither, gets accepted when a
-    :meth:`.ObservableResource.add_observation` method :meth:`.accept()`s it,
+    :meth:`.ObservableResource.add_observation` method does :meth:`.accept()` it,
     and gets cancelled by incoming packages of the same identifier, RST/timeout
     on notifications or the observed resource. Beware that an accept can happen
     after cancellation if the client changes his mind quickly, but the resource

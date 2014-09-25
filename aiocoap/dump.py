@@ -13,7 +13,6 @@ class TextDumper(object):
 
     A TextDumper can be used to log network traffic into a file that can be
     converted to a PCAP-NG file as described in its header.
-    ``.
 
     Currently, this discards information like addresses; it is unknown how that
     information can be transferred into a dump reader easily while
