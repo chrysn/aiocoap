@@ -1169,6 +1169,13 @@ class ServerObservation(object):
 
 
     class ObservationExchangeMonitor(ExchangeMonitor):
+        """These objects feed information about the success or failure of a
+        response back to the observation.
+
+        Note that no information flows to the exchange monitor from the
+        observation, so they may outlive the observation and need to check if
+        it's not already cancelled before cancelling it.
+        """
         def __init__(self, observation):
             self.observation = observation
             self.observation.log.info("creating exchange observation monitor")
@@ -1179,11 +1186,13 @@ class ServerObservation(object):
 
         def rst(self):
             self.observation.log.debug("Observation received RST, cancelling")
-            self.observation.cancel()
+            if not self.observation.cancelled:
+                self.observation.cancel()
 
         def timeout(self):
             self.observation.log.debug("Observation received timeout, cancelling")
-            self.observation.cancel()
+            if not self.observation.cancelled:
+                self.observation.cancel()
 
 class ClientObservation(object):
     def __init__(self, original_request):
