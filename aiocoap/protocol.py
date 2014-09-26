@@ -800,7 +800,7 @@ class Responder(object):
 
         self.key = tuple(request.opt.uri_path), request.remote
 
-        self.log.debug("New responder created, key %s")
+        self.log.debug("New responder created, key %s"%(self.key,))
 
         # partial request while more block1 messages are incoming
         self._assembled_request = None
@@ -1034,7 +1034,9 @@ class Responder(object):
     def handle_observe_request(self, request):
         key = ServerObservation.request_key(request)
 
+        # FIXME this fires even if the incoming request is the injected re-request
         if key in self.protocol.incoming_observations:
+            self.log.info("Dropping old observation on %s"%(key,))
             self.protocol.incoming_observations[key].cancel()
 
         assert key not in self.protocol.incoming_observations
