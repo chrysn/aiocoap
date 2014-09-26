@@ -177,15 +177,17 @@ class Destructing(WithLogMonitoring):
             else:
                 snapshotsmessage = snapshot1
             formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
-            errormessage = "Protocol was not garbage collected.\n\n" + snapshotsmessage + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
+            errormessage = "Protocol %s was not garbage collected.\n\n"%attribute + snapshotsmessage + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
             self.fail(errormessage)
 
 class WithTestServer(WithAsyncLoop, Destructing):
+    def create_testing_site(self):
+        return TestingSite()
+
     def setUp(self):
         super(WithTestServer, self).setUp()
 
-        ts = TestingSite()
-        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(ts))
+        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site()))
 
     def tearDown(self):
         # let the server receive the acks we just sent

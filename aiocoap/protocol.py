@@ -119,6 +119,8 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
             if exchange_monitor is not None:
                 exchange_monitor.cancelled()
             cancellable.cancel()
+        for observation in list(self.incoming_observations.values()):
+            observation.cancel()
         self._active_exchanges = None
         self.transport.close()
 
@@ -800,7 +802,7 @@ class Responder(object):
 
         self.key = tuple(request.opt.uri_path), request.remote
 
-        self.log.debug("New responder created, key %s")
+        self.log.debug("New responder created, key %s"%(self.key,))
 
         # partial request while more block1 messages are incoming
         self._assembled_request = None
@@ -1034,7 +1036,9 @@ class Responder(object):
     def handle_observe_request(self, request):
         key = ServerObservation.request_key(request)
 
+        # FIXME this fires even if the incoming request is the injected re-request
         if key in self.protocol.incoming_observations:
+            self.log.info("Dropping old observation on %s"%(key,))
             self.protocol.incoming_observations[key].cancel()
 
         assert key not in self.protocol.incoming_observations
@@ -1167,6 +1171,13 @@ class ServerObservation(object):
 
 
     class ObservationExchangeMonitor(ExchangeMonitor):
+        """These objects feed information about the success or failure of a
+        response back to the observation.
+
+        Note that no information flows to the exchange monitor from the
+        observation, so they may outlive the observation and need to check if
+        it's not already cancelled before cancelling it.
+        """
         def __init__(self, observation):
             self.observation = observation
             self.observation.log.info("creating exchange observation monitor")
@@ -1177,11 +1188,13 @@ class ServerObservation(object):
 
         def rst(self):
             self.observation.log.debug("Observation received RST, cancelling")
-            self.observation.cancel()
+            if not self.observation.cancelled:
+                self.observation.cancel()
 
         def timeout(self):
             self.observation.log.debug("Observation received timeout, cancelling")
-            self.observation.cancel()
+            if not self.observation.cancelled:
+                self.observation.cancel()
 
 class ClientObservation(object):
     def __init__(self, original_request):
