@@ -6,6 +6,12 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
+"""Tests for resource observation
+
+Note that cancellation of observations is checked in neither way; that's
+largely because the implementation has fallen behind on the drafts anyway and
+needs to be updated."""
+
 import asyncio
 import aiocoap
 import unittest
@@ -32,6 +38,8 @@ class ObservableReplacingResource(ReplacingResource, ObservableResource):
         result = yield from super(ObservableReplacingResource, self).render_PUT(request)
 
         self.updated_state()
+
+        return result
 
 class ObserveTestingSite(aiocoap.resource.Site):
     def __init__(self):
@@ -105,9 +113,25 @@ class TestObserve(WithObserveTestServer, WithClient):
         yieldfrom(asyncio.sleep(0.1))
         self.assertEqual(observation_results, [b'1', b'2'])
 
-        # that's another topic for another test
-#        notinterested()
-#
-#        self.testingsite.counter.increment()
-#        yieldfrom(asyncio.sleep(0.1))
-#        self.assertEqual(observation_results, [b'1', b'2'])
+    @no_warnings
+    def test_echo(self):
+        yieldfrom = self.loop.run_until_complete
+
+        def put(b):
+            m = aiocoap.Message(code=aiocoap.PUT, payload=b)
+            m.unresolved_remote = self.servernetloc
+            m.opt.uri_path = ['echo']
+            response = yieldfrom(self.client.request(m).response)
+            self.assertEqual(response.code, aiocoap.CHANGED)
+
+        put(b'test data 1')
+
+        requester, observation_results, notinterested = self.build_observer(['echo'])
+        response = self.loop.run_until_complete(requester.response)
+        self.assertEqual(response.code, aiocoap.CONTENT, "Observe base request did not succede")
+        self.assertEqual(response.payload, b'test data 1', "Observe base request gave unexpected result")
+
+        put(b'test data 2')
+
+        yieldfrom(asyncio.sleep(0.1))
+        self.assertEqual(observation_results, [b'test data 2'])
