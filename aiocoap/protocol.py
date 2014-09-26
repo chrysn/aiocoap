@@ -119,6 +119,8 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
             if exchange_monitor is not None:
                 exchange_monitor.cancelled()
             cancellable.cancel()
+        for observation in list(self.incoming_observations.values()):
+            observation.cancel()
         self._active_exchanges = None
         self.transport.close()
 

@@ -105,8 +105,9 @@ class TestObserve(WithObserveTestServer, WithClient):
         yieldfrom(asyncio.sleep(0.1))
         self.assertEqual(observation_results, [b'1', b'2'])
 
-        notinterested()
-
-        self.testingsite.counter.increment()
-        yieldfrom(asyncio.sleep(0.1))
-        self.assertEqual(observation_results, [b'1', b'2'])
+        # that's another topic for another test
+#        notinterested()
+#
+#        self.testingsite.counter.increment()
+#        yieldfrom(asyncio.sleep(0.1))
+#        self.assertEqual(observation_results, [b'1', b'2'])
