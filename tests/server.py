@@ -49,7 +49,10 @@ class BigResource(aiocoap.resource.Resource):
     def render_GET(self, request):
         # 10kb
         payload = b"0123456789----------" * 512
-        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+        response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+
+        aiocoap.resource.hashing_etag(request, response)
+        return response
 
 class SlowBigResource(aiocoap.resource.Resource):
     @asyncio.coroutine
@@ -298,6 +301,15 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Big resource request did not succede")
         self.assertEqual(len(response.payload), 10240, "Big resource is not as big as expected")
+
+        self.assertTrue(response.opt.etag != None, "Big resource does not provide an ETag")
+
+        request = self.build_request()
+        request.opt.uri_path = ['big']
+        request.opt.etags = [response.opt.etag]
+        response = self.fetch_response(request)
+        self.assertEqual(response.code, aiocoap.VALID, "Big resource does not support ETag validation")
+        self.assertTrue(response.opt.etag != None, "Big resource does not send ETag for validation")
 
     @no_warnings
     def test_slowbig_resource(self):
