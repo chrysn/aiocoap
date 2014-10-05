@@ -79,8 +79,8 @@ class Main:
     def shutdown(self):
         yield from self.initializing
 
-        self.outgoing_context.shutdown()
-        self.proxy_context.shutdown()
+        yield from self.outgoing_context.shutdown()
+        yield from self.proxy_context.shutdown()
 
 def sync_main(args=None):
     if args is None:

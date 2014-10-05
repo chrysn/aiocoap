@@ -192,7 +192,7 @@ class WithTestServer(WithAsyncLoop, Destructing):
     def tearDown(self):
         # let the server receive the acks we just sent
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
-        self.server.shutdown()
+        self.loop.run_until_complete(self.server.shutdown())
         self._del_to_be_sure("server")
 
         super(WithTestServer, self).tearDown()
@@ -208,7 +208,7 @@ class WithClient(WithAsyncLoop, Destructing):
         self.client = self.loop.run_until_complete(aiocoap.Context.create_client_context())
 
     def tearDown(self):
-        self.client.shutdown()
+        self.loop.run_until_complete(self.client.shutdown())
 
         self._del_to_be_sure("client")
 

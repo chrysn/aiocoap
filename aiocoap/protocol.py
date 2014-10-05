@@ -113,7 +113,17 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
 
+        self._shutting_down = None #: Future created and used in the .shutdown() method.
+
+    @asyncio.coroutine
     def shutdown(self):
+        """Take down the listening socket and stop all related timers.
+
+        After this coroutine terminates, and once all external references to
+        the object are dropped, it should be garbage-collectable."""
+
+        self._shutting_down = asyncio.Future()
+
         self.log.debug("Shutting down context")
         for exchange_monitor, cancellable in self._active_exchanges.values():
             if exchange_monitor is not None:
@@ -123,6 +133,8 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
             observation.cancel()
         self._active_exchanges = None
         self.transport.close()
+
+        yield from self._shutting_down
 
     #
     # implementing the typical DatagramProtocol interfaces.
@@ -151,6 +163,17 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         # TODO: set IP_RECVERR to receive icmp "destination unreachable (port
         # unreachable)" & co to stop retransmitting and err back quickly
         self.log.error("Error received: %s"%exc)
+
+    def connection_lost(self, exc):
+        # TODO better error handling -- find out what can cause this at all
+        # except for a shutdown
+        if exc is not None:
+            self.log.error("Connection lost: %s"%exc)
+
+        if self._shutting_down is None:
+            self.log.error("Connection loss was not expected.")
+        else:
+            self._shutting_down.set_result(None)
 
     # pause_writing and resume_writing are not implemented, as the protocol
     # should take care of not flooding the output itself anyway (NSTART etc).
