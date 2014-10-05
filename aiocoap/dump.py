@@ -80,3 +80,6 @@ class TextDumper(object):
     def close(self):
         self._outfile.close()
         self._transport.close()
+
+    def connection_lost(self, exc):
+        self._protocol.connection_lost(exc)

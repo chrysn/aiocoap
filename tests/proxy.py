@@ -17,14 +17,21 @@ class WithProxyServer(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithProxyServer, self).setUp()
 
-        self.servertask = asyncio.Task(aiocoap.cli.proxy.main(["--forward", "--server-port", str(self.proxyport)]))
+        self.forwardproxy = aiocoap.cli.proxy.Main(["--forward", "--server-port", str(self.proxyport)])
+        self.loop.run_until_complete(self.forwardproxy.initializing)
 
     def tearDown(self):
         super(WithProxyServer, self).tearDown()
-        self.servertask.cancel()
-        # TODO: find a way to use Destructing with asyncio.Task -- we should be
-        # sure that when this is torn down, the proxy server is gone. without
-        # proper cleanup, different test proxies could interfere.
+        self.loop.run_until_complete(self.forwardproxy.shutdown())
+
+        # creating a reference loop between the cli instance and its contexts,
+        # so that the cli instance's gc-ing is linked o the contexts'.
+        # TODO how can we handle this more smoothly?
+        self.forwardproxy.outgoing_context._cli = self.reverseproxy
+        self.forwardproxy.proxy_context._cli = self.reverseproxy
+
+        self._del_to_be_sure('forwardproxy')
+
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
 
     proxyport = 56839
