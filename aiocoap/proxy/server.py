@@ -14,7 +14,7 @@ import asyncio
 import copy
 import urllib.parse
 
-from .. import numbers, interfaces, message
+from .. import numbers, interfaces, message, error
 
 class CanNotRedirect(Exception):
     def __init__(self, code, explanation):
@@ -173,7 +173,10 @@ class ProxiedResource(interfaces.Resource):
         except CanNotRedirect as e:
             return message.Message(code=e.code, payload=e.explanation.encode('utf8'))
 
-        response = yield from self.context.request(request).response
+        try:
+            response = yield from self.context.request(request).response
+        except error.RequestTimedOut as e:
+            return message.Message(code=numbers.codes.GATEWAY_TIMEOUT)
 
         raise_unless_safe(response, ())
 
