@@ -267,8 +267,8 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         key = (message.remote, message.mid)
 
-        assert message.remote not in self._backlogs
-        self._backlogs[message.remote] = []
+        if message.remote not in self._backlogs:
+            self._backlogs[message.remote] = []
 
         timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
 
@@ -295,7 +295,13 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
                 exchange_monitor.response(message)
         self.log.debug("Exchange removed, message ID: %d." % message.mid)
 
-        if message.remote not in self._backlogs:
+        self._continue_backlog(message.remote)
+
+    def _continue_backlog(self, remote):
+        """After an exchange has been removed, start working off the backlog or
+        clear it completely."""
+
+        if remote not in self._backlogs:
             # if active exchanges were something we could do a
             # .register_finally() on, we could chain them like that; if we
             # implemented anything but NSTART=1, we'll need a more elaborate
@@ -304,12 +310,12 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         # first iteration is sure to happen, others happen only if the enqueued
         # messages were NONs
-        while not any(remote == message.remote for remote, mid in self._active_exchanges.keys()):
-            if self._backlogs[message.remote] != []:
-                next_message, exchange_monitor = self._backlogs[message.remote].pop(0)
+        while not any(r == remote for r, mid in self._active_exchanges.keys()):
+            if self._backlogs[remote] != []:
+                next_message, exchange_monitor = self._backlogs[remote].pop(0)
                 self._send(next_message, exchange_monitor)
             else:
-                del self._backlogs[message.remote]
+                del self._backlogs[remote]
                 break
 
     def _schedule_retransmit(self, message, timeout, retransmission_counter):
@@ -353,6 +359,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
             self.log.info("Exchange timed out")
             if exchange_monitor is not None:
                 exchange_monitor.timeout()
+            self._continue_backlog(message.remote)
 
     #
     # coap dispatch, message-code sublayer: triggering custom actions based on incoming messages
@@ -652,6 +659,7 @@ class Request(BaseRequest, interfaces.Request):
         else:
             if self._requesttimeout:
                 cancel_thoroughly(self._requesttimeout)
+            self.log.debug("Timeout is %r"%REQUEST_TIMEOUT)
             self._requesttimeout = self.protocol.loop.call_later(REQUEST_TIMEOUT, timeout_request)
             self.protocol.outgoing_requests[(request.token, request.remote)] = self
 
