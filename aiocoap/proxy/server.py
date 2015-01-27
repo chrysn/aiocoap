@@ -37,6 +37,7 @@ def raise_unless_safe(request, known_options):
         # one of them often doesn't need touching
         numbers.OptionNumber.URI_HOST,
         numbers.OptionNumber.URI_PATH,
+        numbers.OptionNumber.URI_QUERY,
         # handled by the Context
         numbers.OptionNumber.BLOCK1,
         numbers.OptionNumber.BLOCK2,
