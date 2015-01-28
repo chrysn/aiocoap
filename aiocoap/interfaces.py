@@ -38,6 +38,14 @@ class Resource(metaclass=abc.ABCMeta):
         This does not need to set any low-level message options like remote,
         token or message type; it does however need to set a response code."""
 
+    @abc.abstractmethod
+    @coroutine
+    def needs_blockwise_assembly(self, request):
+        """Indicator to the :class:`.protocol.Responder` about whether it
+        should assemble request blocks to a single request and extract the
+        requested blocks from a complete-resource answer (True), or whether
+        the resource will do that by itself (False)."""
+
 class ObservableResource(Resource, metaclass=abc.ABCMeta):
     """Interface the :class:`.protocol.ServerObservation` uses to negotiate
     whether an observation can be established based on a request.

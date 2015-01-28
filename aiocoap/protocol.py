@@ -573,11 +573,12 @@ class Request(BaseRequest, interfaces.Request):
     Class includes methods that handle sending outgoing blockwise requests and
     receiving incoming blockwise responses."""
 
-    def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None)):
+    def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None), handle_blockwise=True):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("requester")
         self.app_request = app_request
         self._assembled_response = None
+        self.handle_blockwise = handle_blockwise
 
         self._exchange_monitor_factory = exchange_monitor_factory
 
@@ -609,7 +610,7 @@ class Request(BaseRequest, interfaces.Request):
             yield from self._fill_remote(self.app_request)
 
             size_exp = DEFAULT_BLOCK_SIZE_EXP
-            if len(self.app_request.payload) > (2 ** (size_exp + 4)):
+            if len(self.app_request.payload) > (2 ** (size_exp + 4)) and self.handle_blockwise:
                 request = self.app_request._extract_block(0, size_exp)
                 self.app_request.opt.block1 = request.opt.block1
             else:
@@ -710,7 +711,7 @@ class Request(BaseRequest, interfaces.Request):
     def process_block2_in_response(self, response):
         """Process incoming response with regard to Block2 option."""
 
-        if response.opt.block2 is not None:
+        if response.opt.block2 is not None and self.handle_blockwise:
             block2 = response.opt.block2
             self.log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
             if self._assembled_response is not None:
@@ -850,9 +851,7 @@ class Responder(object):
 
         self._next_block_timeout = None
 
-        self.handle_next_request(request)
-
-        asyncio.Task(self.dispatch_request())
+        asyncio.Task(self.dispatch_request(request))
 
     def handle_next_request(self, request):
         if self._next_block_timeout is not None: # that'd be the case only for the first time
@@ -904,19 +903,31 @@ class Responder(object):
             self.app_request.set_result(request)
 
     @asyncio.coroutine
-    def dispatch_request(self):
+    def dispatch_request(self, initial_block):
         """Dispatch incoming request - search context resource tree for
         resource in Uri Path and call proper CoAP Method on it."""
-
-        try:
-            request = yield from self.app_request
-        except asyncio.CancelledError:
-            # error has been handled somewhere else
-            return
 
         if self.protocol.serversite is None:
             self.respond_with_error(request, NOT_FOUND, "Context is not a server")
             return
+
+        try:
+            needs_blockwise = yield from self.protocol.serversite.needs_blockwise_assembly(initial_block)
+        except Exception as e:
+            self.respond_with_error(request, INTERNAL_SERVER_ERROR, "")
+            self.log.error("An exception occurred while requesting needs_blockwise: %r"%e)
+            self.log.exception(e)
+
+        if needs_blockwise:
+            self.handle_next_request(initial_block)
+
+            try:
+                request = yield from self.app_request
+            except asyncio.CancelledError:
+                # error has been handled somewhere else
+                return
+        else:
+            request = initial_block
 
         #TODO: Request with Block2 option and non-zero block number should get error response
 
@@ -935,13 +946,17 @@ class Responder(object):
         except Exception as e:
             self.respond_with_error(request, INTERNAL_SERVER_ERROR, "")
             self.log.error("An exception occurred while rendering a resource: %r"%e)
+            self.log.exception(e)
         else:
             if not response.code.is_response():
                 self.log.warning("Response does not carry response code (%r), application probably violates protocol."%response.code)
 
             self.handle_observe_response(request, response)
 
-            self.respond(response, request)
+            if needs_blockwise:
+                self.respond(response, request)
+            else:
+                self.send_final_response(response, request)
         finally:
             cancel_thoroughly(delayed_ack)
 

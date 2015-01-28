@@ -48,6 +48,9 @@ def raise_unless_safe(request, known_options):
         raise CanNotRedirectBecauseOfUnsafeOptions(unsafe_options)
 
 class Proxy():
+    # other than in special cases, we're trying to be transparent wrt blockwise transfers
+    interpret_block_options = False
+
     def __init__(self):
         self._redirectors = []
 
@@ -158,6 +161,11 @@ class ProxiedResource(interfaces.Resource):
         self.context = context
         self.proxy = proxy
 
+
+    @asyncio.coroutine
+    def needs_blockwise_assembly(self, request):
+        return self.proxy.interpret_block_options
+
     @asyncio.coroutine
     def render(self, request):
         # FIXME i'd rather let the application do with the message whatever it
@@ -175,7 +183,7 @@ class ProxiedResource(interfaces.Resource):
             return message.Message(code=e.code, payload=e.explanation.encode('utf8'))
 
         try:
-            response = yield from self.context.request(request).response
+            response = yield from self.context.request(request, handle_blockwise=self.proxy.interpret_block_options).response
         except error.RequestTimedOut as e:
             return message.Message(code=numbers.codes.GATEWAY_TIMEOUT)
 

@@ -75,6 +75,10 @@ class Resource(interfaces.Resource):
     """
 
     @asyncio.coroutine
+    def needs_blockwise_assembly(self, request):
+        return True
+
+    @asyncio.coroutine
     def render(self, request):
         if not request.code.is_request():
             raise error.UnsupportedMethod()
@@ -113,6 +117,15 @@ class Site(interfaces.ObservableResource):
 
     def __init__(self):
         self._resources = {}
+
+    @asyncio.coroutine
+    def needs_blockwise_assembly(self, request):
+        try:
+            child = self._resources[request.opt.uri_path]
+        except KeyError:
+            return True
+        else:
+            return child.needs_blockwise_assembly(request)
 
     @asyncio.coroutine
     def render(self, request):
