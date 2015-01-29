@@ -97,12 +97,12 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         self._observations.add(serverobservation)
         serverobservation.accept((lambda s=self._observations, obs=serverobservation: s.remove(obs)))
 
-    def updated_state(self):
+    def updated_state(self, response=None):
         """Call this whenever the resource was updated, and a notification
         should be sent to observers."""
 
         for o in self._observations:
-            o.trigger()
+            o.trigger(response)
 
 
 class Site(interfaces.ObservableResource):

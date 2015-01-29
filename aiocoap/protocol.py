@@ -1103,6 +1103,9 @@ class Responder(object):
         if self._serverobservation is None:
             return
 
+        # FIXME this is in parts duplicated in ServerObservation.trigger, and
+        # thus should be moved somewhere else
+
         if response.code not in (VALID, CONTENT):
             self._serverobservation.cancel()
             self.log.debug("Not a valid response code, tearing down observation again.")
@@ -1196,7 +1199,7 @@ class ServerObservation(object):
 
         return self.original_request
 
-    def trigger(self):
+    def trigger(self, response=None):
         # this implements the second implementation suggestion from
         # draft-ietf-coap-observe-11 section 4.4
         #
@@ -1206,15 +1209,41 @@ class ServerObservation(object):
         self.observe_index = (self.observe_index + 1) % (2**24)
 
         request = self._create_new_request()
+        if response is None:
+            self.log.debug("Server observation triggered, injecting original request %r again"%request)
 
-        self.log.debug("Server observation triggered, injecting original request %r again"%request)
+            # bypassing parsing and duplicate detection, pretend the request came in again
+            #
+            # the prediction is that the factory will be called exactly once, as no
+            # blockwise is involved
+            Responder(self.original_protocol, request, lambda message: self.ObservationExchangeMonitor(self))
+        else:
+            self.log.debug("Server observation triggered, responding with application provided answer")
 
-        # bypassing parsing and duplicate detection, pretend the request came in again
-        #
-        # the prediction is that the factory will be called exactly once, as no
-        # blockwise is involved
-        Responder(self.original_protocol, request, lambda message: self.ObservationExchangeMonitor(self))
+            if response.opt.block2 != None and not (response.opt.block2.m == False and response.opt.block2.num == 0):
+                self.log.warning("Observation trigger with immediate response contained nontrivial block option, failing the observation.")
+                response = Message(code=INTERNAL_SERVER_ERROR, payload=b"Observation answer contains strange block option")
 
+            response.mid = None
+
+            # FIXME this is duplicated in parts from Response.send_response
+
+            response.token = request.token
+            response.remote = request.remote
+
+            if response.mtype is None or response.opt.observe is None:
+                # not sure under which conditions this should actually happen
+                response.mtype = CON
+
+            # FIXME this is duplicated in parts from handle_observe_response
+
+            if response.code not in (VALID, CONTENT):
+                self.cancel()
+                self.log.debug("Trigger response produced no valid response code, tearing down observation.")
+            else:
+                response.opt.observe = self.observe_index
+
+            self.original_protocol.send_message(response, self.ObservationExchangeMonitor(self))
 
     class ObservationExchangeMonitor(ExchangeMonitor):
         """These objects feed information about the success or failure of a
