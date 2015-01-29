@@ -1101,6 +1101,9 @@ class Responder(object):
 
     def handle_observe_response(self, request, response):
         if self._serverobservation is None:
+            if response.opt.observe is not None:
+                self.log.info("Dropping observe option from response (no server observation was created for this request)")
+            response.opt.observe = None
             return
 
         # FIXME this is in parts duplicated in ServerObservation.trigger, and
