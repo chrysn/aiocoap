@@ -89,7 +89,6 @@ def sync_main(args=None):
     main = None
     try:
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(main(args))
         main = Main(args)
         loop.run_until_complete(main.initializing)
         logging.info("proxy ready")
