@@ -137,6 +137,38 @@ class Message(object):
             rawdata += self.payload
         return rawdata
 
+    def get_cache_key(self, ignore_options=()):
+        """Generate a hashable and comparable object (currently a tuple) from
+        the message's code and all option values that are part of the cache key
+        and not in the optional list of ignore_options (which is the list of
+        option numbers that are not technically NoCacheKey but handled by the
+        application using this method).
+
+        >>> m1 = Message(code=GET)
+        >>> m2 = Message(code=GET)
+        >>> m1.opt.uri_path = ('s', '1')
+        >>> m2.opt.uri_path = ('s', '1')
+        >>> m1.opt.size1 = 10 # the only no-cache-key option in the base spec
+        >>> m2.opt.size1 = 20
+        >>> m1.get_cache_key() == m2.get_cache_key()
+        True
+        >>> m2.opt.etag = b'000'
+        >>> m1.get_cache_key() == m2.get_cache_key()
+        False
+        >>> ignore = [OptionNumber.ETAG]
+        >>> m1.get_cache_key(ignore) == m2.get_cache_key(ignore)
+        True
+        """
+
+        options = []
+
+        for option in self.opt.option_list():
+            if option.number in ignore_options or (option.number.is_safetoforward() and option.number.is_nocachekey()):
+                continue
+            options.append((option.number, option.value))
+
+        return (self.code, tuple(options))
+
     #
     # splitting and merging messages into and from message blocks
     #
