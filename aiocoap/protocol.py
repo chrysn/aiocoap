@@ -1082,14 +1082,26 @@ class Responder(object):
     def handle_observe_request(self, request):
         key = ServerObservation.request_key(request)
 
-        # FIXME this fires even if the incoming request is the injected re-request
         if key in self.protocol.incoming_observations:
-            self.log.info("Dropping old observation on %s"%(key,))
-            self.protocol.incoming_observations[key].cancel()
+            old_observation = self.protocol.incoming_observations[key]
+            # there's no real need to distinguish real confirmations and
+            # pseudorequests so far (as the pseudo requests will always have
+            # their observe option set to 0), but it's good reading in the logs
+            # and might be required in case someone wants to keep an eye on
+            # renewed intesrest that is allowed since ietf-10.
+            if request.mtype is not None:
+                self.log.info("This is a real request belonging to an active observation")
+                if request.opt.observe != 0:
+                    # either it's 1 (deregister) or someone is trying to
+                    # deregister by not sending an observe option at all
+                    old_observation.cancel()
+                    return
+            else:
+                self.log.info("This is a pseudo-request")
+            self._serverobservation = old_observation
+            return
 
-        assert key not in self.protocol.incoming_observations
-
-        if request.code == GET and request.opt.observe is not None and hasattr(self.protocol.serversite, "add_observation"):
+        if request.code == GET and request.opt.observe == 0 and hasattr(self.protocol.serversite, "add_observation"):
             sobs = ServerObservation(self.protocol, request, self.log)
             yield from self.protocol.serversite.add_observation(request, sobs)
             if sobs.accepted:
