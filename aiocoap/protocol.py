@@ -908,7 +908,7 @@ class Responder(object):
         resource in Uri Path and call proper CoAP Method on it."""
 
         if self.protocol.serversite is None:
-            self.respond_with_error(request, NOT_FOUND, "Context is not a server")
+            self.respond_with_error(initial_block, NOT_FOUND, "Context is not a server")
             return
 
         try:
