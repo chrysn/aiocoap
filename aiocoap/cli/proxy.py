@@ -14,14 +14,14 @@ import asyncio
 import argparse
 
 import aiocoap
-from aiocoap.proxy.server import ForwardProxy, ReverseProxy, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector, ProxiedResource
+from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ReverseProxyWithPooledObservations, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector, ProxiedResource
 
 def parse_commandline(args):
     p = argparse.ArgumentParser(description=__doc__)
 
     mode = p.add_argument_group("mode", "Required argument for setting the operation mode")
-    mode.add_argument('--forward', help="Run as forward proxy", action='store_const', const=ForwardProxy, dest='direction')
-    mode.add_argument('--reverse', help="Run as reverse proxy", action='store_const', const=ReverseProxy, dest='direction')
+    mode.add_argument('--forward', help="Run as forward proxy", action='store_const', const=ForwardProxyWithPooledObservations, dest='direction')
+    mode.add_argument('--reverse', help="Run as reverse proxy", action='store_const', const=ReverseProxyWithPooledObservations, dest='direction')
 
     details = p.add_argument_group("details", "Options that govern how requests go in and out")
     details.add_argument('--server-address', help="Address to bind the server context to", metavar="HOST", default="::")

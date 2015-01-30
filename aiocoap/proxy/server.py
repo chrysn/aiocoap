@@ -13,6 +13,7 @@ This is work in progress and not yet part of the API."""
 import asyncio
 import copy
 import urllib.parse
+import functools
 
 from .. import numbers, interfaces, message, error
 
@@ -41,6 +42,8 @@ def raise_unless_safe(request, known_options):
         # handled by the Context
         numbers.OptionNumber.BLOCK1,
         numbers.OptionNumber.BLOCK2,
+        # handled by the proxy resource
+        numbers.OptionNumber.OBSERVE,
         })
 
     unsafe_options = [o for o in request.opt.option_list() if o.number.is_unsafe() and o.number not in known_options]
@@ -66,6 +69,58 @@ class Proxy():
                 return result
         return None
 
+class ProxyWithPooledObservations(Proxy):
+    def __init__(self, outgoing_context):
+        super(ProxyWithPooledObservations, self).__init__(outgoing_context)
+
+        self._outgoing_observations = {}
+
+    @staticmethod
+    def _cache_key(request):
+        return request.get_cache_key([numbers.optionnumbers.OptionNumber.OBSERVE])
+
+    def _get_observation_for(self, request):
+        cachekey = self._cache_key(request)
+
+        try:
+            result = self._outgoing_observations[cachekey]
+        except KeyError:
+            # not sure if absolutely required, but we have a similar thing in
+            # ProxiedResource.render for reasons.
+            request = copy.copy(request)
+
+            request.mid = None
+            request.remote = None
+            request.token = None
+
+            result = self._outgoing_observations[cachekey] = self.outgoing_context.request(request)
+            result.__users = set()
+            result.__cachekey = cachekey
+
+        return result
+
+    def _add_observation_user(self, clientobservationrequest, serverobservation):
+        clientobservationrequest.__users.add(serverobservation)
+
+    def _remove_observation_user(self, clientobservationrequest, serverobservation):
+        clientobservationrequest.__users.remove(serverobservation)
+        if not clientobservationrequest.__users:
+            self._outgoing_observations.pop(clientobservationrequest.__cachekey)
+            clientobservationrequest.observation.cancel()
+
+    @asyncio.coroutine
+    def add_observation(self, request, serverobservation):
+        """As ProxiedResource is intended to be just the proxy's interface
+        toward the Context, accepting observations is handled here, where the
+        observations handling can be defined by the subclasses."""
+
+        clientobservationrequest = self._get_observation_for(request)
+
+        self._add_observation_user(clientobservationrequest, serverobservation)
+        serverobservation.accept(functools.partial(self._remove_observation_user, clientobservationrequest, serverobservation))
+
+        clientobservationrequest.observation.register_callback(serverobservation.trigger)
+
 class ForwardProxy(Proxy):
     def apply_redirection(self, request):
         if request.opt.proxy_uri is not None:
@@ -85,6 +140,9 @@ class ForwardProxy(Proxy):
 
         return request
 
+class ForwardProxyWithPooledObservations(ForwardProxy, ProxyWithPooledObservations):
+    pass
+
 class ReverseProxy(Proxy):
     def apply_redirection(self, request):
         if request.opt.proxy_uri is not None or request.opt.proxy_scheme is not None:
@@ -96,6 +154,9 @@ class ReverseProxy(Proxy):
             raise CanNotRedirect(numbers.codes.NOT_FOUND, "")
 
         return redirected
+
+class ReverseProxyWithPooledObservations(ReverseProxy, ProxyWithPooledObservations):
+    pass
 
 class Redirector():
     def apply_redirection(self, request):
@@ -196,3 +257,8 @@ class ProxiedResource(interfaces.ObservableResource):
         response.token = None
 
         return response
+
+    @asyncio.coroutine
+    def add_observation(self, request, serverobservation):
+        if hasattr(self.proxy, "add_observation"):
+            yield from self.proxy.add_observation(request, serverobservation)
