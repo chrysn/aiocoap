@@ -50,7 +50,10 @@ class ProxyRequest(interfaces.Request):
             self.app_request.remote = None
             self.app_request.unresolved_remote = self.proxy.proxy_address
             proxyrequest = self.proxy.context.request(self.app_request, exchange_monitor_factory=self._exchange_monitor_factory)
-            self.observation._hook_onto(proxyrequest.observation)
+            if hasattr(proxyrequest, 'observation'):
+                self.observation._hook_onto(proxyrequest.observation)
+            else:
+                self.observation.error(Exception("No proxied observation, this should not have been created in the first place."))
             self.response.set_result((yield from proxyrequest.response))
         except Exception as e:
             self.response.set_exception(e)
