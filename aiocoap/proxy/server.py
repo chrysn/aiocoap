@@ -119,7 +119,7 @@ class ProxyWithPooledObservations(Proxy):
         self._add_observation_user(clientobservationrequest, serverobservation)
         serverobservation.accept(functools.partial(self._remove_observation_user, clientobservationrequest, serverobservation))
 
-        clientobservationrequest.observation.register_callback(serverobservation.trigger)
+        clientobservationrequest.observation.register_callback(lambda incoming_message: serverobservation.trigger(copy.copy(incoming_message)))
 
 class ForwardProxy(Proxy):
     def apply_redirection(self, request):
