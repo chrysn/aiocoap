@@ -51,7 +51,8 @@ class Main:
         if options.direction is None:
             raise parser.error("Either --forward or --reverse must be given.")
 
-        proxy = options.direction()
+        self.outgoing_context = yield from aiocoap.Context.create_client_context(dump_to='/tmp/proxy-out.log')
+        proxy = options.direction(self.outgoing_context)
         for kind, data in options.r or ():
             if kind == '--namebased':
                 try:
@@ -71,8 +72,7 @@ class Main:
                 raise AssertionError('Unknown redirectory kind')
             proxy.add_redirector(r)
 
-        self.outgoing_context = yield from aiocoap.Context.create_client_context(dump_to='/tmp/proxy-out.log')
-        proxysite = ProxiedResource(self.outgoing_context, proxy)
+        proxysite = ProxiedResource(proxy)
         self.proxy_context = yield from aiocoap.Context.create_server_context(proxysite, dump_to='/tmp/proxy-in.log', bind=(options.server_address, options.server_port))
 
     @asyncio.coroutine

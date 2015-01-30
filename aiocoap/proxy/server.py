@@ -51,7 +51,9 @@ class Proxy():
     # other than in special cases, we're trying to be transparent wrt blockwise transfers
     interpret_block_options = False
 
-    def __init__(self):
+    def __init__(self, outgoing_context):
+        self.outgoing_context = outgoing_context
+
         self._redirectors = []
 
     def add_redirector(self, redirector):
@@ -156,9 +158,8 @@ class SubresourceVirtualHost(Redirector):
             request.opt.uri_host, request.opt.uri_port = splitport(self.target)
             return request
 
-class ProxiedResource(interfaces.Resource):
-    def __init__(self, context, proxy):
-        self.context = context
+class ProxiedResource(interfaces.ObservableResource):
+    def __init__(self, proxy):
         self.proxy = proxy
 
 
@@ -183,7 +184,7 @@ class ProxiedResource(interfaces.Resource):
             return message.Message(code=e.code, payload=e.explanation.encode('utf8'))
 
         try:
-            response = yield from self.context.request(request, handle_blockwise=self.proxy.interpret_block_options).response
+            response = yield from self.proxy.outgoing_context.request(request, handle_blockwise=self.proxy.interpret_block_options).response
         except error.RequestTimedOut as e:
             return message.Message(code=numbers.codes.GATEWAY_TIMEOUT)
 
