@@ -83,7 +83,7 @@ class ProxyWithPooledObservations(Proxy):
         cachekey = self._cache_key(request)
 
         try:
-            result = self._outgoing_observations[cachekey]
+            obs = self._outgoing_observations[cachekey]
         except KeyError:
             # not sure if absolutely required, but we have a similar thing in
             # ProxiedResource.render for reasons.
@@ -93,11 +93,12 @@ class ProxyWithPooledObservations(Proxy):
             request.remote = None
             request.token = None
 
-            result = self._outgoing_observations[cachekey] = self.outgoing_context.request(request)
-            result.__users = set()
-            result.__cachekey = cachekey
+            obs = self._outgoing_observations[cachekey] = self.outgoing_context.request(request)
+            obs.__users = set()
+            obs.__cachekey = cachekey
+            obs.__latest_response = asyncio.Future()
 
-        return result
+        return obs
 
     def _add_observation_user(self, clientobservationrequest, serverobservation):
         clientobservationrequest.__users.add(serverobservation)
