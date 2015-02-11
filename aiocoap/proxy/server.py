@@ -69,6 +69,36 @@ class Proxy():
                 return result
         return None
 
+    @asyncio.coroutine
+    def render(self, request):
+        # FIXME i'd rather let the application do with the message whatever it
+        # wants. everything the responder needs of the request should be
+        # extracted beforehand.
+        request = copy.copy(request)
+
+        request.mid = None
+        request.remote = None
+        request.token = None
+
+        try:
+            request = self.proxy.apply_redirection(request)
+        except CanNotRedirect as e:
+            return message.Message(code=e.code, payload=e.explanation.encode('utf8'))
+
+        try:
+            response = yield from self.proxy.outgoing_context.request(request, handle_blockwise=self.proxy.interpret_block_options).response
+        except error.RequestTimedOut as e:
+            return message.Message(code=numbers.codes.GATEWAY_TIMEOUT)
+
+        raise_unless_safe(response, ())
+
+        response.mtype = None
+        response.mid = None
+        response.remote = None
+        response.token = None
+
+        return response
+
 class ProxyWithPooledObservations(Proxy):
     def __init__(self, outgoing_context):
         super(ProxyWithPooledObservations, self).__init__(outgoing_context)
@@ -231,33 +261,7 @@ class ProxiedResource(interfaces.ObservableResource):
 
     @asyncio.coroutine
     def render(self, request):
-        # FIXME i'd rather let the application do with the message whatever it
-        # wants. everything the responder needs of the request should be
-        # extracted beforehand.
-        request = copy.copy(request)
-
-        request.mid = None
-        request.remote = None
-        request.token = None
-
-        try:
-            request = self.proxy.apply_redirection(request)
-        except CanNotRedirect as e:
-            return message.Message(code=e.code, payload=e.explanation.encode('utf8'))
-
-        try:
-            response = yield from self.proxy.outgoing_context.request(request, handle_blockwise=self.proxy.interpret_block_options).response
-        except error.RequestTimedOut as e:
-            return message.Message(code=numbers.codes.GATEWAY_TIMEOUT)
-
-        raise_unless_safe(response, ())
-
-        response.mtype = None
-        response.mid = None
-        response.remote = None
-        response.token = None
-
-        return response
+        yield from self.proxy.render(request)
 
     @asyncio.coroutine
     def add_observation(self, request, serverobservation):
