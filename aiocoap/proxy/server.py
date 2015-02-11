@@ -204,7 +204,7 @@ class UnconditionalRedirector(Redirector):
     def apply_redirection(self, request):
         raise_unless_safe(request, ())
 
-        request.unresolved_remote = target
+        request.unresolved_remote = self.target
         return request
 
 class SubresourceVirtualHost(Redirector):
