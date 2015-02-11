@@ -127,6 +127,8 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
             request.remote = None
             request.token = None
 
+            request = self.apply_redirection(request)
+
             obs = self._outgoing_observations[cachekey] = self.outgoing_context.request(request)
             obs.__users = set()
             obs.__cachekey = cachekey
