@@ -1363,3 +1363,6 @@ class ClientObservation(object):
 
         if self._registry_data is not None:
             del self._registry_data[0][self._registry_data[1]]
+
+    def __repr__(self):
+        return '<%s %s at %#x>'%(type(self).__name__, "(cancelled)" if self.cancelled else "(%s call-, %s errback(s))"%(len(self.callbacks), len(self.errbacks)), id(self))
