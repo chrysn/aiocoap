@@ -14,7 +14,7 @@ import asyncio
 import argparse
 
 import aiocoap
-from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ReverseProxyWithPooledObservations, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector, ProxiedResource
+from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ReverseProxyWithPooledObservations, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector
 
 def parse_commandline(args):
     p = argparse.ArgumentParser(description=__doc__)
@@ -72,8 +72,7 @@ class Main:
                 raise AssertionError('Unknown redirectory kind')
             proxy.add_redirector(r)
 
-        proxysite = ProxiedResource(proxy)
-        self.proxy_context = yield from aiocoap.Context.create_server_context(proxysite, dump_to='/tmp/proxy-in.log', bind=(options.server_address, options.server_port))
+        self.proxy_context = yield from aiocoap.Context.create_server_context(proxy, dump_to='/tmp/proxy-in.log', bind=(options.server_address, options.server_port))
 
     @asyncio.coroutine
     def shutdown(self):

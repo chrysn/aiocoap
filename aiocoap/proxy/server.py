@@ -50,7 +50,7 @@ def raise_unless_safe(request, known_options):
     if unsafe_options:
         raise CanNotRedirectBecauseOfUnsafeOptions(unsafe_options)
 
-class Proxy():
+class Proxy(interfaces.Resource):
     # other than in special cases, we're trying to be transparent wrt blockwise transfers
     interpret_block_options = False
 
@@ -70,6 +70,10 @@ class Proxy():
         return None
 
     @asyncio.coroutine
+    def needs_blockwise_assembly(self, request):
+        return self.interpret_block_options
+
+    @asyncio.coroutine
     def render(self, request):
         # FIXME i'd rather let the application do with the message whatever it
         # wants. everything the responder needs of the request should be
@@ -81,12 +85,12 @@ class Proxy():
         request.token = None
 
         try:
-            request = self.proxy.apply_redirection(request)
+            request = self.apply_redirection(request)
         except CanNotRedirect as e:
             return message.Message(code=e.code, payload=e.explanation.encode('utf8'))
 
         try:
-            response = yield from self.proxy.outgoing_context.request(request, handle_blockwise=self.proxy.interpret_block_options).response
+            response = yield from self.outgoing_context.request(request, handle_blockwise=self.interpret_block_options).response
         except error.RequestTimedOut as e:
             return message.Message(code=numbers.codes.GATEWAY_TIMEOUT)
 
@@ -99,7 +103,7 @@ class Proxy():
 
         return response
 
-class ProxyWithPooledObservations(Proxy):
+class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
     def __init__(self, outgoing_context):
         super(ProxyWithPooledObservations, self).__init__(outgoing_context)
 
@@ -249,21 +253,3 @@ class SubresourceVirtualHost(Redirector):
             request.opt.uri_path = request.opt.uri_path[len(self.path):]
             request.opt.uri_host, request.opt.uri_port = splitport(self.target)
             return request
-
-class ProxiedResource(interfaces.ObservableResource):
-    def __init__(self, proxy):
-        self.proxy = proxy
-
-
-    @asyncio.coroutine
-    def needs_blockwise_assembly(self, request):
-        return self.proxy.interpret_block_options
-
-    @asyncio.coroutine
-    def render(self, request):
-        yield from self.proxy.render(request)
-
-    @asyncio.coroutine
-    def add_observation(self, request, serverobservation):
-        if hasattr(self.proxy, "add_observation"):
-            yield from self.proxy.add_observation(request, serverobservation)
