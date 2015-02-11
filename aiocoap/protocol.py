@@ -914,9 +914,10 @@ class Responder(object):
         try:
             needs_blockwise = yield from self.protocol.serversite.needs_blockwise_assembly(initial_block)
         except Exception as e:
-            self.respond_with_error(request, INTERNAL_SERVER_ERROR, "")
+            self.respond_with_error(initial_block, INTERNAL_SERVER_ERROR, "")
             self.log.error("An exception occurred while requesting needs_blockwise: %r"%e)
             self.log.exception(e)
+            return
 
         if needs_blockwise:
             self.handle_next_request(initial_block)
