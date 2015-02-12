@@ -113,7 +113,20 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
     def _cache_key(request):
         return request.get_cache_key([numbers.optionnumbers.OptionNumber.OBSERVE])
 
+    def _peek_observation_for(self, request):
+        """Return the augmented request (see _get_obervation_for) towards a
+        resource, or raise KeyError"""
+        cachekey = self._cache_key(request)
+
+        return self._outgoing_observations[cachekey]
+
     def _get_observation_for(self, request):
+        """Return an existing augmented request towards a resource or create one.
+
+        An augmented request is an observation request that has some additional
+        properties (__users, __cachekey, __latest_response), which are used in
+        ProxyWithPooledObservations to immediately serve responses from
+        observed resources, and to tear the observations down again."""
         cachekey = self._cache_key(request)
 
         try:
@@ -132,7 +145,11 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
             obs = self._outgoing_observations[cachekey] = self.outgoing_context.request(request)
             obs.__users = set()
             obs.__cachekey = cachekey
-            obs.__latest_response = asyncio.Future()
+            obs.__latest_response = None # this becomes a cached response right after the .response comes in (so only use this after waiting for it), and gets updated when new responses arrive.
+
+            def when_first_request_done(result, obs=obs):
+                obs.__latest_response = result.result()
+            obs.response.add_done_callback(when_first_request_done)
 
         return obs
 
@@ -156,7 +173,30 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         self._add_observation_user(clientobservationrequest, serverobservation)
         serverobservation.accept(functools.partial(self._remove_observation_user, clientobservationrequest, serverobservation))
 
-        clientobservationrequest.observation.register_callback(lambda incoming_message: serverobservation.trigger(copy.copy(incoming_message)))
+        def cb(incoming_message, clientobservationrequest=clientobservationrequest, serverobservation=serverobservation):
+            clientobservationrequest.__latest_response = incoming_message
+            serverobservation.trigger(copy.copy(incoming_message))
+        clientobservationrequest.observation.register_callback(cb)
+        def eb(exception):
+            import logging
+            logging.error("whoa, what happened, %r", exception, exc_traceback=True)
+        clientobservationrequest.observation.register_errback(cb)
+
+    @asyncio.coroutine
+    def render(self, request):
+        try:
+            clientobservationrequest = self._peek_observation_for(request)
+        except KeyError:
+            return (yield from super(ProxyWithPooledObservations, self).render(request))
+        else:
+            yield from clientobservationrequest.response
+            cached_response = clientobservationrequest.__latest_response
+            cached_response.mid = None
+            cached_response.token = None
+            cached_response.remote = None
+            cached_response.mtype = None
+            return cached_response
+
 
 class ForwardProxy(Proxy):
     def apply_redirection(self, request):
