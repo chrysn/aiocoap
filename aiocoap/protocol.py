@@ -130,7 +130,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
                 exchange_monitor.cancelled()
             cancellable.cancel()
         for observation in list(self.incoming_observations.values()):
-            observation.cancel()
+            observation.deregister("Server going down")
         self._active_exchanges = None
         self.transport.close()
 
@@ -1095,7 +1095,7 @@ class Responder(object):
                 if request.opt.observe != 0:
                     # either it's 1 (deregister) or someone is trying to
                     # deregister by not sending an observe option at all
-                    old_observation.cancel()
+                    old_observation.deregister("Client requested termination" if request.opt.observe == 1 else "Unexpected observe value: %r"%(request.opt.observe,))
                     return
             else:
                 self.log.info("This is a pseudo-request")
@@ -1106,11 +1106,9 @@ class Responder(object):
             sobs = ServerObservation(self.protocol, request, self.log)
             yield from self.protocol.serversite.add_observation(request, sobs)
             if sobs.accepted:
-                self.log.debug("Observation established (but request result may cancel it again soon)")
                 self._serverobservation = sobs
             else:
-                self.log.debug("No observation accepted by the resource")
-                sobs.cancel()
+                sobs.deregister("Resource does not provide observation")
 
     def handle_observe_response(self, request, response):
         if self._serverobservation is None:
@@ -1123,8 +1121,7 @@ class Responder(object):
         # thus should be moved somewhere else
 
         if response.code not in (VALID, CONTENT):
-            self._serverobservation.cancel()
-            self.log.debug("Not a valid response code, tearing down observation again.")
+            self._serverobservation.deregister("No successful response code")
             return
 
         self.log.debug("Acknowledging observation to client.")
@@ -1178,6 +1175,8 @@ class ServerObservation(object):
 
         self.original_protocol.incoming_observations[self.identifier] = self
 
+        self.log.debug("Observation created: %r"%self)
+
     def accept(self, cancellation_callback):
         assert not self.accepted
         self.accepted = True
@@ -1190,7 +1189,11 @@ class ServerObservation(object):
         else:
             self.resource_cancellation_callback = cancellation_callback
 
-    def cancel(self):
+    def deregister(self, reason):
+        self.log.debug("Taking down observation: %s", reason)
+        self._cancel()
+
+    def _cancel(self):
         assert not self.cancelled
         self.cancelled = True
 
@@ -1254,8 +1257,8 @@ class ServerObservation(object):
             # FIXME this is duplicated in parts from handle_observe_response
 
             if response.code not in (VALID, CONTENT):
-                self.cancel()
                 self.log.debug("Trigger response produced no valid response code, tearing down observation.")
+                self._cancel()
             else:
                 response.opt.observe = self.observe_index
 
@@ -1280,12 +1283,12 @@ class ServerObservation(object):
         def rst(self):
             self.observation.log.debug("Observation received RST, cancelling")
             if not self.observation.cancelled:
-                self.observation.cancel()
+                self.observation._cancel()
 
         def timeout(self):
             self.observation.log.debug("Observation received timeout, cancelling")
             if not self.observation.cancelled:
-                self.observation.cancel()
+                self.observation._cancel()
 
 class ClientObservation(object):
     def __init__(self, original_request):
