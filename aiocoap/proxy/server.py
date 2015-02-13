@@ -14,6 +14,7 @@ import asyncio
 import copy
 import urllib.parse
 import functools
+import logging
 
 from .. import numbers, interfaces, message, error
 
@@ -54,8 +55,9 @@ class Proxy(interfaces.Resource):
     # other than in special cases, we're trying to be transparent wrt blockwise transfers
     interpret_block_options = False
 
-    def __init__(self, outgoing_context):
+    def __init__(self, outgoing_context, logger=None):
         self.outgoing_context = outgoing_context
+        self.log = logger or logging.getLogger('proxy')
 
         self._redirectors = []
 
@@ -104,8 +106,8 @@ class Proxy(interfaces.Resource):
         return response
 
 class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
-    def __init__(self, outgoing_context):
-        super(ProxyWithPooledObservations, self).__init__(outgoing_context)
+    def __init__(self, outgoing_context, logger=None):
+        super(ProxyWithPooledObservations, self).__init__(outgoing_context, logger)
 
         self._outgoing_observations = {}
 
@@ -164,6 +166,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
 
     def _consider_dropping(self, clientobservationrequest):
         if not clientobservationrequest.__users:
+            self.log.debug("Last client of observation went away, deregistering with server.")
             self._outgoing_observations.pop(clientobservationrequest.__cachekey)
             clientobservationrequest.observation.cancel()
 
@@ -198,8 +201,10 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
                 # be established at all without there being a previous matching
                 # observation.
                 return message.Message(code=numbers.codes.BAD_OPTION, payload="Observe option can not be proxied without active observation.".encode('utf8'))
+            self.log.debug("Request is not an observation, passing it on to regular proxying mechanisms.")
             return (yield from super(ProxyWithPooledObservations, self).render(request))
         else:
+            self.log.info("Serving request using latest cached response of %r"%clientobservationrequest)
             yield from clientobservationrequest.response
             cached_response = clientobservationrequest.__latest_response
             cached_response.mid = None
