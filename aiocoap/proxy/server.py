@@ -184,8 +184,8 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         clientobservationrequest.observation.register_callback(cb)
         def eb(exception):
             import logging
-            logging.error("whoa, what happened, %r", exception, exc_traceback=True)
-        clientobservationrequest.observation.register_errback(cb)
+            logging.error("whoa, what happened, %r", exception)
+        clientobservationrequest.observation.register_errback(eb)
 
     @asyncio.coroutine
     def render(self, request):
