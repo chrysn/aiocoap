@@ -187,6 +187,12 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         try:
             clientobservationrequest = self._peek_observation_for(request)
         except KeyError:
+            if request.opt.observe is not None:
+                # we can handle that in general, but if this came in here it
+                # means that it has a value that didn't cause an observation to
+                # be established at all without there being a previous matching
+                # observation.
+                return message.Message(code=numbers.codes.BAD_OPTION, payload="Observe option can not be proxied without active observation.".encode('utf8'))
             return (yield from super(ProxyWithPooledObservations, self).render(request))
         else:
             yield from clientobservationrequest.response
