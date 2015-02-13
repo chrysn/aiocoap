@@ -952,8 +952,6 @@ class Responder(object):
             if not response.code.is_response():
                 self.log.warning("Response does not carry response code (%r), application probably violates protocol."%response.code)
 
-            self.handle_observe_response(request, response)
-
             if needs_blockwise:
                 self.respond(response, request)
             else:
@@ -973,6 +971,8 @@ class Responder(object):
 
         # if there was an error, make sure nobody hopes to get a result any more
         self.app_request.cancel()
+
+        self.handle_observe_response(request, app_response)
 
         self.log.debug("Preparing response...")
         self.app_response = app_response
@@ -1111,6 +1111,10 @@ class Responder(object):
                 sobs.deregister("Resource does not provide observation")
 
     def handle_observe_response(self, request, response):
+        if request.mtype is None:
+            # this is the indicator that the request was just injected
+            response.mtype = CON
+
         if self._serverobservation is None:
             if response.opt.observe is not None:
                 self.log.info("Dropping observe option from response (no server observation was created for this request)")
@@ -1127,10 +1131,6 @@ class Responder(object):
         self.log.debug("Acknowledging observation to client.")
 
         response.opt.observe = self._serverobservation.observe_index
-
-        if request.mtype is None:
-            # this is the indicator that the request was just injected
-            response.mtype = CON
 
 class ExchangeMonitor(object):
     """Callback collection interface to keep track of what happens to an
