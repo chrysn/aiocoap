@@ -153,6 +153,19 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
                 obs.__latest_response = result.result()
             obs.response.add_done_callback(when_first_request_done)
 
+            def cb(incoming_message, obs=obs):
+                self.log.info("Received incoming message %r, relaying it to %d clients"%(incoming_message, len(obs.__users)))
+                obs.__latest_response = incoming_message
+                for observationserver in set(obs.__users):
+                    observationserver.trigger(copy.copy(incoming_message))
+            obs.observation.register_callback(cb)
+            def eb(exception, obs=obs):
+                if obs.__users:
+                    self.log.warning("Received error %r, which did not lead to unregistration of the clients. Observations may stay around."%(exception,))
+                else:
+                    self.log.debug("Received error %r, but that seems to have been passed on cleanly to the observers as they are gone by now."%(exception,))
+            obs.observation.register_errback(eb)
+
         return obs
 
     def _add_observation_user(self, clientobservationrequest, serverobservation):
@@ -181,15 +194,6 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
 
         self._add_observation_user(clientobservationrequest, serverobservation)
         serverobservation.accept(functools.partial(self._remove_observation_user, clientobservationrequest, serverobservation))
-
-        def cb(incoming_message, clientobservationrequest=clientobservationrequest, serverobservation=serverobservation):
-            clientobservationrequest.__latest_response = incoming_message
-            serverobservation.trigger(copy.copy(incoming_message))
-        clientobservationrequest.observation.register_callback(cb)
-        def eb(exception):
-            import logging
-            logging.error("whoa, what happened, %r", exception)
-        clientobservationrequest.observation.register_errback(eb)
 
     @asyncio.coroutine
     def render(self, request):
