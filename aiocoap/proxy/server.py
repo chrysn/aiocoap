@@ -158,6 +158,11 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
 
     def _remove_observation_user(self, clientobservationrequest, serverobservation):
         clientobservationrequest.__users.remove(serverobservation)
+        # give the request that just cancelled time to be dealt with before
+        # dropping the __latest_response
+        asyncio.get_event_loop().call_soon(self._consider_dropping, clientobservationrequest)
+
+    def _consider_dropping(self, clientobservationrequest):
         if not clientobservationrequest.__users:
             self._outgoing_observations.pop(clientobservationrequest.__cachekey)
             clientobservationrequest.observation.cancel()
