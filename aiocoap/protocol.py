@@ -1334,6 +1334,8 @@ class ClientObservation(object):
         """Cease to generate observation or error events. This will not
         generate an error by itself."""
 
+        assert self.cancelled == False
+
         # make sure things go wrong when someone tries to continue this
         self.errbacks = None
         self.callbacks = None

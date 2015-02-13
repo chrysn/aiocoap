@@ -168,7 +168,8 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         if not clientobservationrequest.__users:
             self.log.debug("Last client of observation went away, deregistering with server.")
             self._outgoing_observations.pop(clientobservationrequest.__cachekey)
-            clientobservationrequest.observation.cancel()
+            if not clientobservationrequest.observation.cancelled:
+                clientobservationrequest.observation.cancel()
 
     @asyncio.coroutine
     def add_observation(self, request, serverobservation):
