@@ -1239,7 +1239,7 @@ class ServerObservation(object):
         else:
             self.log.debug("Server observation triggered, responding with application provided answer")
 
-            if response.opt.block2 != None and not (response.opt.block2.m == False and response.opt.block2.num == 0):
+            if response.opt.block2 != None and not (response.opt.block2.more == False and response.opt.block2.block_number == 0):
                 self.log.warning("Observation trigger with immediate response contained nontrivial block option, failing the observation.")
                 response = Message(code=INTERNAL_SERVER_ERROR, payload=b"Observation answer contains strange block option")
 
