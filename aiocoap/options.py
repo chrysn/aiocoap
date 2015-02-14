@@ -155,6 +155,8 @@ class Options(object):
 
     uri_path = _items_view(OptionNumber.URI_PATH)
     uri_query = _items_view(OptionNumber.URI_QUERY)
+    location_path = _items_view(OptionNumber.LOCATION_PATH)
+    location_query = _items_view(OptionNumber.LOCATION_QUERY)
     block2 = _single_value_view(OptionNumber.BLOCK2)
     block1 = _single_value_view(OptionNumber.BLOCK1)
     content_format = _single_value_view(OptionNumber.CONTENT_FORMAT)
