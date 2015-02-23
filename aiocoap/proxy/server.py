@@ -132,6 +132,9 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
 
         # see ProxiedResource.render
         request = copy.deepcopy(request)
+        request.mid = None
+        request.remote = None
+        request.token = None
         request = self.apply_redirection(request)
 
         cachekey = self._cache_key(request)
@@ -139,10 +142,6 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         try:
             obs = self._outgoing_observations[cachekey]
         except KeyError:
-            request.mid = None
-            request.remote = None
-            request.token = None
-
             obs = self._outgoing_observations[cachekey] = self.outgoing_context.request(request)
             obs.__users = set()
             obs.__cachekey = cachekey
