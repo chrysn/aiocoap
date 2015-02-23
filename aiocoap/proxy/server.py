@@ -129,20 +129,19 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         properties (__users, __cachekey, __latest_response), which are used in
         ProxyWithPooledObservations to immediately serve responses from
         observed resources, and to tear the observations down again."""
+
+        # see ProxiedResource.render
+        request = copy.deepcopy(request)
+        request = self.apply_redirection(request)
+
         cachekey = self._cache_key(request)
 
         try:
             obs = self._outgoing_observations[cachekey]
         except KeyError:
-            # not sure if absolutely required, but we have a similar thing in
-            # ProxiedResource.render for reasons.
-            request = copy.deepcopy(request)
-
             request.mid = None
             request.remote = None
             request.token = None
-
-            request = self.apply_redirection(request)
 
             obs = self._outgoing_observations[cachekey] = self.outgoing_context.request(request)
             obs.__users = set()
@@ -197,8 +196,17 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
 
     @asyncio.coroutine
     def render(self, request):
+        # FIXME this is evaulated twice in the implementation (once here, but
+        # unless it's an observation what matters is inside the super call),
+        # maybe this needs to hook in differently than by subclassing and
+        # calling super.
+        self.log.info("render called")
+        redirected_request = copy.deepcopy(request)
+        redirected_request = self.apply_redirection(redirected_request)
+        self.log.info("redirected request: %r %r"%(redirected_request, redirected_request.opt))
+
         try:
-            clientobservationrequest = self._peek_observation_for(request)
+            clientobservationrequest = self._peek_observation_for(redirected_request)
         except KeyError:
             if request.opt.observe is not None:
                 # we can handle that in general, but if this came in here it
