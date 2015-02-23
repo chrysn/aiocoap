@@ -189,10 +189,13 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         toward the Context, accepting observations is handled here, where the
         observations handling can be defined by the subclasses."""
 
-        clientobservationrequest = self._get_observation_for(request)
-
-        self._add_observation_user(clientobservationrequest, serverobservation)
-        serverobservation.accept(functools.partial(self._remove_observation_user, clientobservationrequest, serverobservation))
+        try:
+            clientobservationrequest = self._get_observation_for(request)
+        except CanNotRedirect:
+            pass # just don't accept the observation, the rest will be taken care of at rendering
+        else:
+            self._add_observation_user(clientobservationrequest, serverobservation)
+            serverobservation.accept(functools.partial(self._remove_observation_user, clientobservationrequest, serverobservation))
 
     @asyncio.coroutine
     def render(self, request):
@@ -202,22 +205,16 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         # calling super.
         self.log.info("render called")
         redirected_request = copy.deepcopy(request)
-        redirected_request = self.apply_redirection(redirected_request)
-        self.log.info("redirected request: %r %r"%(redirected_request, redirected_request.opt))
 
         try:
+            redirected_request = self.apply_redirection(redirected_request)
             clientobservationrequest = self._peek_observation_for(redirected_request)
-        except KeyError:
-            if request.opt.observe is not None:
-                # we can handle that in general, but if this came in here it
-                # means that it has a value that didn't cause an observation to
-                # be established at all without there being a previous matching
-                # observation.
-
+        except (KeyError, CanNotRedirect) as e:
+            if not isinstance(e, CanNotRedirect) and request.opt.observe is not None:
                 self.log.warning("No matching observation found: request is %r (cache key %r), outgoing observations %r"%(redirected_request, self._cache_key(redirected_request), self._outgoing_observations))
 
                 return message.Message(code=numbers.codes.BAD_OPTION, payload="Observe option can not be proxied without active observation.".encode('utf8'))
-            self.log.debug("Request is not an observation, passing it on to regular proxying mechanisms.")
+            self.log.debug("Request is not an observation or can't be proxied, passing it on to regular proxying mechanisms.")
             return (yield from super(ProxyWithPooledObservations, self).render(request))
         else:
             self.log.info("Serving request using latest cached response of %r"%clientobservationrequest)
