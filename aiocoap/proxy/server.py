@@ -80,7 +80,7 @@ class Proxy(interfaces.Resource):
         # FIXME i'd rather let the application do with the message whatever it
         # wants. everything the responder needs of the request should be
         # extracted beforehand.
-        request = copy.copy(request)
+        request = copy.deepcopy(request)
 
         request.mid = None
         request.remote = None
@@ -136,7 +136,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         except KeyError:
             # not sure if absolutely required, but we have a similar thing in
             # ProxiedResource.render for reasons.
-            request = copy.copy(request)
+            request = copy.deepcopy(request)
 
             request.mid = None
             request.remote = None
@@ -157,7 +157,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
                 self.log.info("Received incoming message %r, relaying it to %d clients"%(incoming_message, len(obs.__users)))
                 obs.__latest_response = incoming_message
                 for observationserver in set(obs.__users):
-                    observationserver.trigger(copy.copy(incoming_message))
+                    observationserver.trigger(copy.deepcopy(incoming_message))
             obs.observation.register_callback(cb)
             def eb(exception, obs=obs):
                 if obs.__users:
@@ -220,6 +220,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
 
 
 class ForwardProxy(Proxy):
+    # big FIXME: modifying an object in-place and returning it should not be done.
     def apply_redirection(self, request):
         if request.opt.proxy_uri is not None:
             raise CanNotRedirect(numbers.codes.NOT_IMPLEMENTED, "URI splitting not implemented, please use Proxy-Scheme.")
