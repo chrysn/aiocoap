@@ -205,6 +205,9 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
                 # means that it has a value that didn't cause an observation to
                 # be established at all without there being a previous matching
                 # observation.
+
+                self.log.warning("No matching observation found: request is %r (cache key %r), outgoing observations %r"%(redirected_request, self._cache_key(redirected_request), self._outgoing_observations))
+
                 return message.Message(code=numbers.codes.BAD_OPTION, payload="Observe option can not be proxied without active observation.".encode('utf8'))
             self.log.debug("Request is not an observation, passing it on to regular proxying mechanisms.")
             return (yield from super(ProxyWithPooledObservations, self).render(request))
