@@ -82,7 +82,7 @@ class Resource(interfaces.Resource):
     def render(self, request):
         if not request.code.is_request():
             raise error.UnsupportedMethod()
-        m = getattr(self, 'render_%s' % request.code.__str__().lower(), None)
+        m = getattr(self, 'render_%s' % str(request.code).lower(), None)
         if not m:
             raise error.UnallowedMethod()
         return m(request)
