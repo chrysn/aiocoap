@@ -22,6 +22,7 @@ import aiocoap.proxy.client
 
 def parse_commandline(args):
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('-m', '--method', help="Name or number of request method to use (default: %(default)s)", default="GET")
     p.add_argument('--observe', help="Register an observation on the resource", action='store_true')
     p.add_argument('--observe-exec', help="Run the specified program whenever the observed resource changes, feeding the response data to its stdin", metavar='CMD')
     p.add_argument('--accept', help="Content format to request", metavar="MIME")
@@ -63,9 +64,17 @@ def main(args):
 
     configure_logging((options.verbose or 0) - (options.quiet or 0))
 
+    try:
+        code = getattr(aiocoap.numbers.codes.Code, options.method.upper())
+    except AttributeError:
+        try:
+            code = aiocoap.numbers.codes.Code(int(options.method))
+        except ValueError:
+            raise parser.error("Unknown method")
+
     context = yield from aiocoap.Context.create_client_context(dump_to=options.dump)
 
-    request = aiocoap.Message(code=aiocoap.GET)
+    request = aiocoap.Message(code=code)
     try:
         request.set_request_uri(options.url)
     except ValueError as e:
