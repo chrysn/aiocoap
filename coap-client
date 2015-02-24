@@ -135,8 +135,12 @@ def single_request(args, context=None):
         exit_reason = yield from observation_is_over
         print(exit_reason, file=sys.stderr)
 
+interactive_expecting_keyboard_interrupt = asyncio.Future()
+
 @asyncio.coroutine
 def interactive():
+    global interactive_expecting_keyboard_interrupt
+
     context = yield from aiocoap.Context.create_client_context()
 
     while True:
@@ -153,27 +157,45 @@ def interactive():
         if line in (["quit"], ["q"], ["exit"]):
             return
 
-        try:
-            yield from single_request(line, context=context)
-        except SystemExit as e:
-            if e.code != 0:
-                print("Exit code: %d"%e.code, file=sys.stderr)
-            continue
-        except Exception as e:
-            print("Unhandled exception raised: %s"%(e,))
+        current_task = asyncio.Task(single_request(line, context=context))
+        interactive_expecting_keyboard_interrupt = asyncio.Future()
 
-@asyncio.coroutine
-def main(args):
+        done, pending = yield from asyncio.wait([current_task, interactive_expecting_keyboard_interrupt], return_when=asyncio.FIRST_COMPLETED)
+
+        if current_task not in done:
+            current_task.cancel()
+        else:
+            try:
+                yield from current_task
+            except SystemExit as e:
+                if e.code != 0:
+                    print("Exit code: %d"%e.code, file=sys.stderr)
+                continue
+            except Exception as e:
+                print("Unhandled exception raised: %s"%(e,))
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+
     if '--interactive' not in args:
-        yield from single_request(args)
+        try:
+            asyncio.get_event_loop().run_until_complete(single_request(args))
+        except KeyboardInterrupt:
+                sys.exit(3)
     else:
         if len(args) != 1:
             print("No other arguments must be specified when entering interactive mode", file=sys.stderr)
-            return
-        yield from interactive()
+            sys.exit(1)
 
-if __name__ == "__main__":
-    try:
-        asyncio.get_event_loop().run_until_complete(main(sys.argv[1:]))
-    except KeyboardInterrupt:
-        sys.exit(3)
+        loop = asyncio.get_event_loop()
+        task = asyncio.Task(interactive())
+        task.add_done_callback(lambda result: loop.stop())
+
+        while not loop.is_closed():
+            try:
+                loop.run_forever()
+            except KeyboardInterrupt:
+                if not interactive_expecting_keyboard_interrupt.done():
+                    interactive_expecting_keyboard_interrupt.set_result(None)
+            except SystemExit:
+                continue # asyncio/tasks.py(242) raises those after setting them as results, but we particularly want them back in the loop
