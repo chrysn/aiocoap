@@ -29,13 +29,13 @@ class ObservableCounter(ObservableResource):
         self.updated_state()
 
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         return aiocoap.Message(code=aiocoap.CONTENT, payload=str(self.count).encode('ascii'))
 
 class ObservableReplacingResource(ReplacingResource, ObservableResource):
     @asyncio.coroutine
-    def render_PUT(self, request):
-        result = yield from super(ObservableReplacingResource, self).render_PUT(request)
+    def render_put(self, request):
+        result = yield from super(ObservableReplacingResource, self).render_put(request)
 
         self.updated_state()
 

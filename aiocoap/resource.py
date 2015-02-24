@@ -18,7 +18,7 @@ one thing as its serversite, and that is a Resource too (typically of the
 :class:`Site` class).
 
 Resources are most easily implemented by deriving from :class:`.Resource` and
-implementing ``render_GET``, ``render_POST`` and similar coroutine methods.
+implementing ``render_get``, ``render_post`` and similar coroutine methods.
 Those take a single request message object and must return a
 :class:`aiocoap.Message` object.
 
@@ -70,7 +70,7 @@ class Resource(interfaces.Resource):
     """Simple base implementation of the :class:`interfaces.Resource`
     interface
 
-    The render method delegates content creation to ``render_$METHOD`` methods,
+    The render method delegates content creation to ``render_$method`` methods,
     and responds appropriately to unsupported methods.
     """
 
@@ -82,7 +82,7 @@ class Resource(interfaces.Resource):
     def render(self, request):
         if not request.code.is_request():
             raise error.UnsupportedMethod()
-        m = getattr(self, 'render_%s' % request.code, None)
+        m = getattr(self, 'render_%s' % request.code.__str__().lower(), None)
         if not m:
             raise error.UnallowedMethod()
         return m(request)
