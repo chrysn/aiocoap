@@ -30,12 +30,12 @@ class BlockResource(resource.Resource):
                 "transfer.\n" + "0123456789\n" * 100).encode("ascii")
 
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         response = aiocoap.Message(code=aiocoap.CONTENT, payload=self.content)
         return response
 
     @asyncio.coroutine
-    def render_PUT(self, request):
+    def render_put(self, request):
         print('PUT payload: %s' % request.payload)
         self.content = request.payload
         payload = ("I've accepted the new payload. You may inspect it here in "\
@@ -55,7 +55,7 @@ class SeparateLargeResource(resource.Resource):
 #        self.add_param(resource.LinkParam("title", "Large resource."))
 
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         yield from asyncio.sleep(3)
 
         payload = "Three rings for the elven kings under the sky, seven rings"\
@@ -79,7 +79,7 @@ class TimeResource(resource.ObservableResource):
         asyncio.get_event_loop().call_later(60, self.notify)
 
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
@@ -97,7 +97,7 @@ class TimeResource(resource.ObservableResource):
 #        self.root = root
 #
 #    @asyncio.coroutine
-#    def render_GET(self, request):
+#    def render_get(self, request):
 #        data = []
 #        self.root.generate_resource_list(data, "")
 #        payload = ",".join(data).encode('utf-8')

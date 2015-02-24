@@ -24,7 +24,7 @@ CLEANUPTIME = 0.01
 
 class MultiRepresentationResource(aiocoap.resource.Resource):
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         ct = request.opt.accept or aiocoap.numbers.media_types_rev['text/plain']
 
         if ct == aiocoap.numbers.media_types_rev['application/json']:
@@ -40,13 +40,13 @@ class MultiRepresentationResource(aiocoap.resource.Resource):
 
 class SlowResource(aiocoap.resource.Resource):
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         yield from asyncio.sleep(0.2)
         return aiocoap.Message(code=aiocoap.CONTENT)
 
 class BigResource(aiocoap.resource.Resource):
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         # 10kb
         payload = b"0123456789----------" * 512
         response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
@@ -56,7 +56,7 @@ class BigResource(aiocoap.resource.Resource):
 
 class SlowBigResource(aiocoap.resource.Resource):
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         yield from asyncio.sleep(0.2)
         # 1.6kb
         payload = b"0123456789----------" * 80
@@ -64,16 +64,16 @@ class SlowBigResource(aiocoap.resource.Resource):
 
 class ReplacingResource(aiocoap.resource.Resource):
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         return aiocoap.Message(code=aiocoap.CONTENT, payload=self.value)
 
     @asyncio.coroutine
-    def render_PUT(self, request):
+    def render_put(self, request):
         self.value = request.payload.replace(b'0', b'O')
         return aiocoap.Message(code=aiocoap.CHANGED)
 
     @asyncio.coroutine
-    def render_POST(self, request):
+    def render_post(self, request):
         response = request.payload.replace(b'0', b'O')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=response)
 
