@@ -17,6 +17,11 @@ import logging
 import subprocess
 import socket
 
+import shlex
+# even though not used directly, this has side effects on the input() function
+# used in interactive mode
+import readline
+
 import aiocoap
 import aiocoap.proxy.client
 
@@ -30,6 +35,7 @@ def parse_commandline(args):
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
     p.add_argument('--dump', help="Log network traffic to FILE", metavar="FILE")
+    p.add_argument('--interactive', help="Enter interactive mode", action="store_true")
     p.add_argument('url', help="CoAP address to fetch")
 
     return p, p.parse_args(args)
@@ -59,7 +65,7 @@ def incoming_observation(options, response):
         sys.stdout.buffer.flush()
 
 @asyncio.coroutine
-def main(args):
+def single_request(args, context=None):
     parser, options = parse_commandline(args)
 
     configure_logging((options.verbose or 0) - (options.quiet or 0))
@@ -72,7 +78,11 @@ def main(args):
         except ValueError:
             raise parser.error("Unknown method")
 
-    context = yield from aiocoap.Context.create_client_context(dump_to=options.dump)
+    if context is None:
+        context = yield from aiocoap.Context.create_client_context(dump_to=options.dump)
+    else:
+        if options.dump:
+            print("The --dump option is not implemented in interactive mode.", file=sys.stderr)
 
     request = aiocoap.Message(code=code)
     try:
@@ -124,6 +134,43 @@ def main(args):
     if options.observe:
         exit_reason = yield from observation_is_over
         print(exit_reason, file=sys.stderr)
+
+@asyncio.coroutine
+def interactive():
+    context = yield from aiocoap.Context.create_client_context()
+
+    while True:
+        try:
+            # when http://bugs.python.org/issue22412 is resolved, use that instead
+            line = yield from asyncio.get_event_loop().run_in_executor(None, lambda: input("aiocoap> "))
+        except EOFError:
+            line = "exit"
+        line = shlex.split(line)
+        if not line:
+            continue
+        if line in (["help"], ["?"]):
+            line = ["--help"]
+        if line in (["quit"], ["q"], ["exit"]):
+            return
+
+        try:
+            yield from single_request(line, context=context)
+        except SystemExit as e:
+            if e.code != 0:
+                print("Exit code: %d"%e.code, file=sys.stderr)
+            continue
+        except Exception as e:
+            print("Unhandled exception raised: %s"%(e,))
+
+@asyncio.coroutine
+def main(args):
+    if '--interactive' not in args:
+        yield from single_request(args)
+    else:
+        if len(args) != 1:
+            print("No other arguments must be specified when entering interactive mode", file=sys.stderr)
+            return
+        yield from interactive()
 
 if __name__ == "__main__":
     try:
