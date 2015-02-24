@@ -483,7 +483,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_client_context(cls, *, dump_to=None):
+    def create_client_context(cls, *, dump_to=None, loggername="coap"):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get an context suitable for sending client
@@ -492,9 +492,8 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         loop = asyncio.get_event_loop()
 
-        if dump_to is None:
-            protofact = cls
-        else:
+        protofact = lambda: cls(loop, None, loggername=loggername)
+        if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), cls)
 
         #transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET)
@@ -513,7 +512,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None):
+    def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None, loggername="coap-server"):
         """Create an context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -522,7 +521,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         loop = asyncio.get_event_loop()
 
-        protofact = lambda: cls(loop, site, loggername="coap-server")
+        protofact = lambda: cls(loop, site, loggername=loggername)
         if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
 
