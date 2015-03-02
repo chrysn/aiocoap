@@ -726,6 +726,7 @@ class Request(BaseRequest, interfaces.Request):
                 except error.Error as e:
                     self.log.error("Error assembling blockwise response, passing on error %r"%e)
                     self.response.set_exception(e)
+                    return
             else:
                 if block2.block_number == 0:
                     self.log.debug("Receiving blockwise response")
@@ -733,6 +734,7 @@ class Request(BaseRequest, interfaces.Request):
                 else:
                     self.log.error("Error assembling blockwise response (expected first block)")
                     self.response.set_exception(UnexpectedBlock2())
+                    return
             if block2.more is True:
                 self.send_request(self.app_request._generate_next_block2_request(response))
             else:
