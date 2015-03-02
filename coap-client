@@ -17,11 +17,17 @@ import logging
 import subprocess
 import socket
 
+import shlex
+# even though not used directly, this has side effects on the input() function
+# used in interactive mode
+import readline
+
 import aiocoap
 import aiocoap.proxy.client
 
 def parse_commandline(args):
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('-m', '--method', help="Name or number of request method to use (default: %(default)s)", default="GET")
     p.add_argument('--observe', help="Register an observation on the resource", action='store_true')
     p.add_argument('--observe-exec', help="Run the specified program whenever the observed resource changes, feeding the response data to its stdin", metavar='CMD')
     p.add_argument('--accept', help="Content format to request", metavar="MIME")
@@ -29,6 +35,7 @@ def parse_commandline(args):
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
     p.add_argument('--dump', help="Log network traffic to FILE", metavar="FILE")
+    p.add_argument('--interactive', help="Enter interactive mode", action="store_true")
     p.add_argument('url', help="CoAP address to fetch")
 
     return p, p.parse_args(args)
@@ -58,14 +65,26 @@ def incoming_observation(options, response):
         sys.stdout.buffer.flush()
 
 @asyncio.coroutine
-def main(args):
+def single_request(args, context=None):
     parser, options = parse_commandline(args)
 
     configure_logging((options.verbose or 0) - (options.quiet or 0))
 
-    context = yield from aiocoap.Context.create_client_context(dump_to=options.dump)
+    try:
+        code = getattr(aiocoap.numbers.codes.Code, options.method.upper())
+    except AttributeError:
+        try:
+            code = aiocoap.numbers.codes.Code(int(options.method))
+        except ValueError:
+            raise parser.error("Unknown method")
 
-    request = aiocoap.Message(code=aiocoap.GET)
+    if context is None:
+        context = yield from aiocoap.Context.create_client_context(dump_to=options.dump)
+    else:
+        if options.dump:
+            print("The --dump option is not implemented in interactive mode.", file=sys.stderr)
+
+    request = aiocoap.Message(code=code)
     try:
         request.set_request_uri(options.url)
     except ValueError as e:
@@ -116,8 +135,67 @@ def main(args):
         exit_reason = yield from observation_is_over
         print(exit_reason, file=sys.stderr)
 
+interactive_expecting_keyboard_interrupt = asyncio.Future()
+
+@asyncio.coroutine
+def interactive():
+    global interactive_expecting_keyboard_interrupt
+
+    context = yield from aiocoap.Context.create_client_context()
+
+    while True:
+        try:
+            # when http://bugs.python.org/issue22412 is resolved, use that instead
+            line = yield from asyncio.get_event_loop().run_in_executor(None, lambda: input("aiocoap> "))
+        except EOFError:
+            line = "exit"
+        line = shlex.split(line)
+        if not line:
+            continue
+        if line in (["help"], ["?"]):
+            line = ["--help"]
+        if line in (["quit"], ["q"], ["exit"]):
+            return
+
+        current_task = asyncio.Task(single_request(line, context=context))
+        interactive_expecting_keyboard_interrupt = asyncio.Future()
+
+        done, pending = yield from asyncio.wait([current_task, interactive_expecting_keyboard_interrupt], return_when=asyncio.FIRST_COMPLETED)
+
+        if current_task not in done:
+            current_task.cancel()
+        else:
+            try:
+                yield from current_task
+            except SystemExit as e:
+                if e.code != 0:
+                    print("Exit code: %d"%e.code, file=sys.stderr)
+                continue
+            except Exception as e:
+                print("Unhandled exception raised: %s"%(e,))
+
 if __name__ == "__main__":
-    try:
-        asyncio.get_event_loop().run_until_complete(main(sys.argv[1:]))
-    except KeyboardInterrupt:
-        sys.exit(3)
+    args = sys.argv[1:]
+
+    if '--interactive' not in args:
+        try:
+            asyncio.get_event_loop().run_until_complete(single_request(args))
+        except KeyboardInterrupt:
+                sys.exit(3)
+    else:
+        if len(args) != 1:
+            print("No other arguments must be specified when entering interactive mode", file=sys.stderr)
+            sys.exit(1)
+
+        loop = asyncio.get_event_loop()
+        task = asyncio.Task(interactive())
+        task.add_done_callback(lambda result: loop.stop())
+
+        while not loop.is_closed():
+            try:
+                loop.run_forever()
+            except KeyboardInterrupt:
+                if not interactive_expecting_keyboard_interrupt.done():
+                    interactive_expecting_keyboard_interrupt.set_result(None)
+            except SystemExit:
+                continue # asyncio/tasks.py(242) raises those after setting them as results, but we particularly want them back in the loop
