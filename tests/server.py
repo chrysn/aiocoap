@@ -24,7 +24,7 @@ CLEANUPTIME = 0.01
 
 class MultiRepresentationResource(aiocoap.resource.Resource):
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         ct = request.opt.accept or aiocoap.numbers.media_types_rev['text/plain']
 
         if ct == aiocoap.numbers.media_types_rev['application/json']:
@@ -40,20 +40,23 @@ class MultiRepresentationResource(aiocoap.resource.Resource):
 
 class SlowResource(aiocoap.resource.Resource):
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         yield from asyncio.sleep(0.2)
         return aiocoap.Message(code=aiocoap.CONTENT)
 
 class BigResource(aiocoap.resource.Resource):
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         # 10kb
         payload = b"0123456789----------" * 512
-        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+        response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+
+        aiocoap.resource.hashing_etag(request, response)
+        return response
 
 class SlowBigResource(aiocoap.resource.Resource):
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         yield from asyncio.sleep(0.2)
         # 1.6kb
         payload = b"0123456789----------" * 80
@@ -61,16 +64,16 @@ class SlowBigResource(aiocoap.resource.Resource):
 
 class ReplacingResource(aiocoap.resource.Resource):
     @asyncio.coroutine
-    def render_GET(self, request):
+    def render_get(self, request):
         return aiocoap.Message(code=aiocoap.CONTENT, payload=self.value)
 
     @asyncio.coroutine
-    def render_PUT(self, request):
+    def render_put(self, request):
         self.value = request.payload.replace(b'0', b'O')
         return aiocoap.Message(code=aiocoap.CHANGED)
 
     @asyncio.coroutine
-    def render_POST(self, request):
+    def render_post(self, request):
         response = request.payload.replace(b'0', b'O')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=response)
 
@@ -177,20 +180,22 @@ class Destructing(WithLogMonitoring):
             else:
                 snapshotsmessage = snapshot1
             formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
-            errormessage = "Protocol was not garbage collected.\n\n" + snapshotsmessage + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
+            errormessage = "Protocol %s was not garbage collected.\n\n"%attribute + snapshotsmessage + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
             self.fail(errormessage)
 
 class WithTestServer(WithAsyncLoop, Destructing):
+    def create_testing_site(self):
+        return TestingSite()
+
     def setUp(self):
         super(WithTestServer, self).setUp()
 
-        ts = TestingSite()
-        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(ts))
+        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site()))
 
     def tearDown(self):
         # let the server receive the acks we just sent
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
-        self.server.shutdown()
+        self.loop.run_until_complete(self.server.shutdown())
         self._del_to_be_sure("server")
 
         super(WithTestServer, self).tearDown()
@@ -206,7 +211,7 @@ class WithClient(WithAsyncLoop, Destructing):
         self.client = self.loop.run_until_complete(aiocoap.Context.create_client_context())
 
     def tearDown(self):
-        self.client.shutdown()
+        self.loop.run_until_complete(self.client.shutdown())
 
         self._del_to_be_sure("client")
 
@@ -296,6 +301,15 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Big resource request did not succede")
         self.assertEqual(len(response.payload), 10240, "Big resource is not as big as expected")
+
+        self.assertTrue(response.opt.etag != None, "Big resource does not provide an ETag")
+
+        request = self.build_request()
+        request.opt.uri_path = ['big']
+        request.opt.etags = [response.opt.etag]
+        response = self.fetch_response(request)
+        self.assertEqual(response.code, aiocoap.VALID, "Big resource does not support ETag validation")
+        self.assertTrue(response.opt.etag != None, "Big resource does not send ETag for validation")
 
     @no_warnings
     def test_slowbig_resource(self):

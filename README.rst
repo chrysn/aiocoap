@@ -2,7 +2,7 @@ aiocoap -- The Python CoAP library
 ==================================
 
 The aiocoap package is a Python implementation of CoAP, the Constrained
-Application Protocl (`RFC 7252`_, more info at http://coap.technology/).
+Application Protocol (`RFC 7252`_, more info at http://coap.technology/).
 
 It uses the asyncio module introduced in Python 3.4 to facilitate concurrent
 operations while maintaining a simple to use interface and not depending on
@@ -18,7 +18,7 @@ probably more useful to you than aiocoap.
 Usage
 -----
 
-For details on how to usethe aiocoap library, have a look at the :mod:`aiocoap`
+For details on how to use the aiocoap library, have a look at the :mod:`aiocoap`
 module documentation, or at the :doc:`examples` and :doc:`tools` provided.
 
 All examples can be run directly from a source code copy. If you prefer to
@@ -31,7 +31,7 @@ aiocoap tries to stay close to PEP8_ recommendations and general best practice,
 and should thus be easy to contribute to. Unit tests are implemented in the
 ``./tests/`` directory; complete test coverage is aimed for, but not yet
 complete (and might never be, as the error handling for pathological network
-partners is hard to trigger with a library designed not to missbehave).
+partners is hard to trigger with a library designed not to misbehave).
 
 Documentation is built using sphinx_; hacks used there are described in
 ``./doc/README.doc``.

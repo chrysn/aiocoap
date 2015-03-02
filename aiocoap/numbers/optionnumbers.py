@@ -143,3 +143,4 @@ OptionNumber.BLOCK2.format = optiontypes.BlockOption
 OptionNumber.BLOCK1.format = optiontypes.BlockOption
 OptionNumber.SIZE2.format = optiontypes.UintOption
 OptionNumber.URI_HOST.format = optiontypes.StringOption
+OptionNumber.SIZE1.format = optiontypes.UintOption

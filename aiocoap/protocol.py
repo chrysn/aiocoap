@@ -113,14 +113,28 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
 
+        self._shutting_down = None #: Future created and used in the .shutdown() method.
+
+    @asyncio.coroutine
     def shutdown(self):
+        """Take down the listening socket and stop all related timers.
+
+        After this coroutine terminates, and once all external references to
+        the object are dropped, it should be garbage-collectable."""
+
+        self._shutting_down = asyncio.Future()
+
         self.log.debug("Shutting down context")
         for exchange_monitor, cancellable in self._active_exchanges.values():
             if exchange_monitor is not None:
                 exchange_monitor.cancelled()
             cancellable.cancel()
+        for observation in list(self.incoming_observations.values()):
+            observation.deregister("Server going down")
         self._active_exchanges = None
         self.transport.close()
+
+        yield from self._shutting_down
 
     #
     # implementing the typical DatagramProtocol interfaces.
@@ -149,6 +163,17 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         # TODO: set IP_RECVERR to receive icmp "destination unreachable (port
         # unreachable)" & co to stop retransmitting and err back quickly
         self.log.error("Error received: %s"%exc)
+
+    def connection_lost(self, exc):
+        # TODO better error handling -- find out what can cause this at all
+        # except for a shutdown
+        if exc is not None:
+            self.log.error("Connection lost: %s"%exc)
+
+        if self._shutting_down is None:
+            self.log.error("Connection loss was not expected.")
+        else:
+            self._shutting_down.set_result(None)
 
     # pause_writing and resume_writing are not implemented, as the protocol
     # should take care of not flooding the output itself anyway (NSTART etc).
@@ -242,8 +267,8 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         key = (message.remote, message.mid)
 
-        assert message.remote not in self._backlogs
-        self._backlogs[message.remote] = []
+        if message.remote not in self._backlogs:
+            self._backlogs[message.remote] = []
 
         timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
 
@@ -270,7 +295,13 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
                 exchange_monitor.response(message)
         self.log.debug("Exchange removed, message ID: %d." % message.mid)
 
-        if message.remote not in self._backlogs:
+        self._continue_backlog(message.remote)
+
+    def _continue_backlog(self, remote):
+        """After an exchange has been removed, start working off the backlog or
+        clear it completely."""
+
+        if remote not in self._backlogs:
             # if active exchanges were something we could do a
             # .register_finally() on, we could chain them like that; if we
             # implemented anything but NSTART=1, we'll need a more elaborate
@@ -279,12 +310,12 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         # first iteration is sure to happen, others happen only if the enqueued
         # messages were NONs
-        while not any(remote == message.remote for remote, mid in self._active_exchanges.keys()):
-            if self._backlogs[message.remote] != []:
-                next_message, exchange_monitor = self._backlogs[message.remote].pop(0)
+        while not any(r == remote for r, mid in self._active_exchanges.keys()):
+            if self._backlogs[remote] != []:
+                next_message, exchange_monitor = self._backlogs[remote].pop(0)
                 self._send(next_message, exchange_monitor)
             else:
-                del self._backlogs[message.remote]
+                del self._backlogs[remote]
                 break
 
     def _schedule_retransmit(self, message, timeout, retransmission_counter):
@@ -328,6 +359,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
             self.log.info("Exchange timed out")
             if exchange_monitor is not None:
                 exchange_monitor.timeout()
+            self._continue_backlog(message.remote)
 
     #
     # coap dispatch, message-code sublayer: triggering custom actions based on incoming messages
@@ -451,7 +483,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_client_context(cls, *, dump_to=None):
+    def create_client_context(cls, *, dump_to=None, loggername="coap"):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get an context suitable for sending client
@@ -460,9 +492,8 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         loop = asyncio.get_event_loop()
 
-        if dump_to is None:
-            protofact = cls
-        else:
+        protofact = lambda: cls(loop, None, loggername=loggername)
+        if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), cls)
 
         #transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET)
@@ -481,7 +512,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None):
+    def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None, loggername="coap-server"):
         """Create an context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -490,7 +521,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         loop = asyncio.get_event_loop()
 
-        protofact = lambda: cls(loop, site, loggername="coap-server")
+        protofact = lambda: cls(loop, site, loggername=loggername)
         if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
 
@@ -541,11 +572,12 @@ class Request(BaseRequest, interfaces.Request):
     Class includes methods that handle sending outgoing blockwise requests and
     receiving incoming blockwise responses."""
 
-    def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None)):
+    def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None), handle_blockwise=True):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("requester")
         self.app_request = app_request
         self._assembled_response = None
+        self.handle_blockwise = handle_blockwise
 
         self._exchange_monitor_factory = exchange_monitor_factory
 
@@ -577,7 +609,7 @@ class Request(BaseRequest, interfaces.Request):
             yield from self._fill_remote(self.app_request)
 
             size_exp = DEFAULT_BLOCK_SIZE_EXP
-            if len(self.app_request.payload) > (2 ** (size_exp + 4)):
+            if len(self.app_request.payload) > (2 ** (size_exp + 4)) and self.handle_blockwise:
                 request = self.app_request._extract_block(0, size_exp)
                 self.app_request.opt.block1 = request.opt.block1
             else:
@@ -627,6 +659,7 @@ class Request(BaseRequest, interfaces.Request):
         else:
             if self._requesttimeout:
                 cancel_thoroughly(self._requesttimeout)
+            self.log.debug("Timeout is %r"%REQUEST_TIMEOUT)
             self._requesttimeout = self.protocol.loop.call_later(REQUEST_TIMEOUT, timeout_request)
             self.protocol.outgoing_requests[(request.token, request.remote)] = self
 
@@ -677,7 +710,7 @@ class Request(BaseRequest, interfaces.Request):
     def process_block2_in_response(self, response):
         """Process incoming response with regard to Block2 option."""
 
-        if response.opt.block2 is not None:
+        if response.opt.block2 is not None and self.handle_blockwise:
             block2 = response.opt.block2
             self.log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
             if self._assembled_response is not None:
@@ -800,7 +833,7 @@ class Responder(object):
 
         self.key = tuple(request.opt.uri_path), request.remote
 
-        self.log.debug("New responder created, key %s")
+        self.log.debug("New responder created, key %s"%(self.key,))
 
         # partial request while more block1 messages are incoming
         self._assembled_request = None
@@ -817,9 +850,7 @@ class Responder(object):
 
         self._next_block_timeout = None
 
-        self.handle_next_request(request)
-
-        asyncio.Task(self.dispatch_request())
+        asyncio.Task(self.dispatch_request(request))
 
     def handle_next_request(self, request):
         if self._next_block_timeout is not None: # that'd be the case only for the first time
@@ -871,19 +902,32 @@ class Responder(object):
             self.app_request.set_result(request)
 
     @asyncio.coroutine
-    def dispatch_request(self):
+    def dispatch_request(self, initial_block):
         """Dispatch incoming request - search context resource tree for
         resource in Uri Path and call proper CoAP Method on it."""
 
-        try:
-            request = yield from self.app_request
-        except asyncio.CancelledError:
-            # error has been handled somewhere else
+        if self.protocol.serversite is None:
+            self.respond_with_error(initial_block, NOT_FOUND, "Context is not a server")
             return
 
-        if self.protocol.serversite is None:
-            self.respond_with_error(request, NOT_FOUND, "Context is not a server")
+        try:
+            needs_blockwise = yield from self.protocol.serversite.needs_blockwise_assembly(initial_block)
+        except Exception as e:
+            self.respond_with_error(initial_block, INTERNAL_SERVER_ERROR, "")
+            self.log.error("An exception occurred while requesting needs_blockwise: %r"%e)
+            self.log.exception(e)
             return
+
+        if needs_blockwise:
+            self.handle_next_request(initial_block)
+
+            try:
+                request = yield from self.app_request
+            except asyncio.CancelledError:
+                # error has been handled somewhere else
+                return
+        else:
+            request = initial_block
 
         #TODO: Request with Block2 option and non-zero block number should get error response
 
@@ -902,13 +946,15 @@ class Responder(object):
         except Exception as e:
             self.respond_with_error(request, INTERNAL_SERVER_ERROR, "")
             self.log.error("An exception occurred while rendering a resource: %r"%e)
+            self.log.exception(e)
         else:
             if not response.code.is_response():
                 self.log.warning("Response does not carry response code (%r), application probably violates protocol."%response.code)
 
-            self.handle_observe_response(request, response)
-
-            self.respond(response, request)
+            if needs_blockwise:
+                self.respond(response, request)
+            else:
+                self.send_final_response(response, request)
         finally:
             cancel_thoroughly(delayed_ack)
 
@@ -924,6 +970,8 @@ class Responder(object):
 
         # if there was an error, make sure nobody hopes to get a result any more
         self.app_request.cancel()
+
+        self.handle_observe_response(request, app_response)
 
         self.log.debug("Preparing response...")
         self.app_response = app_response
@@ -1035,36 +1083,53 @@ class Responder(object):
         key = ServerObservation.request_key(request)
 
         if key in self.protocol.incoming_observations:
-            self.protocol.incoming_observations[key].cancel()
+            old_observation = self.protocol.incoming_observations[key]
+            # there's no real need to distinguish real confirmations and
+            # pseudorequests so far (as the pseudo requests will always have
+            # their observe option set to 0), but it's good reading in the logs
+            # and might be required in case someone wants to keep an eye on
+            # renewed intesrest that is allowed since ietf-10.
+            if request.mtype is not None:
+                self.log.info("This is a real request belonging to an active observation")
+                if request.opt.observe != 0:
+                    # either it's 1 (deregister) or someone is trying to
+                    # deregister by not sending an observe option at all
+                    old_observation.deregister("Client requested termination" if request.opt.observe == 1 else "Unexpected observe value: %r"%(request.opt.observe,))
+                    return
+            else:
+                self.log.info("This is a pseudo-request")
+            self._serverobservation = old_observation
+            return
 
-        assert key not in self.protocol.incoming_observations
-
-        if request.code == GET and request.opt.observe is not None and hasattr(self.protocol.serversite, "add_observation"):
+        if request.code == GET and request.opt.observe == 0 and hasattr(self.protocol.serversite, "add_observation"):
             sobs = ServerObservation(self.protocol, request, self.log)
             yield from self.protocol.serversite.add_observation(request, sobs)
             if sobs.accepted:
-                self.log.debug("Observation established (but request result may cancel it again soon)")
                 self._serverobservation = sobs
             else:
-                self.log.debug("No observation accepted by the resource")
-                sobs.cancel()
+                sobs.deregister("Resource does not provide observation")
 
     def handle_observe_response(self, request, response):
+        if request.mtype is None:
+            # this is the indicator that the request was just injected
+            response.mtype = CON
+
         if self._serverobservation is None:
+            if response.opt.observe is not None:
+                self.log.info("Dropping observe option from response (no server observation was created for this request)")
+            response.opt.observe = None
             return
 
+        # FIXME this is in parts duplicated in ServerObservation.trigger, and
+        # thus should be moved somewhere else
+
         if response.code not in (VALID, CONTENT):
-            self._serverobservation.cancel()
-            self.log.debug("Not a valid response code, tearing down observation again.")
+            self._serverobservation.deregister("No successful response code")
             return
 
         self.log.debug("Acknowledging observation to client.")
 
         response.opt.observe = self._serverobservation.observe_index
-
-        if request.mtype is None:
-            # this is the indicator that the request was just injected
-            response.mtype = CON
 
 class ExchangeMonitor(object):
     """Callback collection interface to keep track of what happens to an
@@ -1109,6 +1174,8 @@ class ServerObservation(object):
 
         self.original_protocol.incoming_observations[self.identifier] = self
 
+        self.log.debug("Observation created: %r"%self)
+
     def accept(self, cancellation_callback):
         assert not self.accepted
         self.accepted = True
@@ -1121,7 +1188,11 @@ class ServerObservation(object):
         else:
             self.resource_cancellation_callback = cancellation_callback
 
-    def cancel(self):
+    def deregister(self, reason):
+        self.log.debug("Taking down observation: %s", reason)
+        self._cancel()
+
+    def _cancel(self):
         assert not self.cancelled
         self.cancelled = True
 
@@ -1146,7 +1217,7 @@ class ServerObservation(object):
 
         return self.original_request
 
-    def trigger(self):
+    def trigger(self, response=None):
         # this implements the second implementation suggestion from
         # draft-ietf-coap-observe-11 section 4.4
         #
@@ -1156,17 +1227,50 @@ class ServerObservation(object):
         self.observe_index = (self.observe_index + 1) % (2**24)
 
         request = self._create_new_request()
+        if response is None:
+            self.log.debug("Server observation triggered, injecting original request %r again"%request)
 
-        self.log.debug("Server observation triggered, injecting original request %r again"%request)
+            # bypassing parsing and duplicate detection, pretend the request came in again
+            #
+            # the prediction is that the factory will be called exactly once, as no
+            # blockwise is involved
+            Responder(self.original_protocol, request, lambda message: self.ObservationExchangeMonitor(self))
+        else:
+            self.log.debug("Server observation triggered, responding with application provided answer")
 
-        # bypassing parsing and duplicate detection, pretend the request came in again
-        #
-        # the prediction is that the factory will be called exactly once, as no
-        # blockwise is involved
-        Responder(self.original_protocol, request, lambda message: self.ObservationExchangeMonitor(self))
+            if response.opt.block2 != None and not (response.opt.block2.more == False and response.opt.block2.block_number == 0):
+                self.log.warning("Observation trigger with immediate response contained nontrivial block option, failing the observation.")
+                response = Message(code=INTERNAL_SERVER_ERROR, payload=b"Observation answer contains strange block option")
 
+            response.mid = None
+
+            # FIXME this is duplicated in parts from Response.send_response
+
+            response.token = request.token
+            response.remote = request.remote
+
+            if response.mtype is None or response.opt.observe is None:
+                # not sure under which conditions this should actually happen
+                response.mtype = CON
+
+            # FIXME this is duplicated in parts from handle_observe_response
+
+            if response.code not in (VALID, CONTENT):
+                self.log.debug("Trigger response produced no valid response code, tearing down observation.")
+                self._cancel()
+            else:
+                response.opt.observe = self.observe_index
+
+            self.original_protocol.send_message(response, self.ObservationExchangeMonitor(self))
 
     class ObservationExchangeMonitor(ExchangeMonitor):
+        """These objects feed information about the success or failure of a
+        response back to the observation.
+
+        Note that no information flows to the exchange monitor from the
+        observation, so they may outlive the observation and need to check if
+        it's not already cancelled before cancelling it.
+        """
         def __init__(self, observation):
             self.observation = observation
             self.observation.log.info("creating exchange observation monitor")
@@ -1177,11 +1281,13 @@ class ServerObservation(object):
 
         def rst(self):
             self.observation.log.debug("Observation received RST, cancelling")
-            self.observation.cancel()
+            if not self.observation.cancelled:
+                self.observation._cancel()
 
         def timeout(self):
             self.observation.log.debug("Observation received timeout, cancelling")
-            self.observation.cancel()
+            if not self.observation.cancelled:
+                self.observation._cancel()
 
 class ClientObservation(object):
     def __init__(self, original_request):
@@ -1227,6 +1333,8 @@ class ClientObservation(object):
         """Cease to generate observation or error events. This will not
         generate an error by itself."""
 
+        assert self.cancelled == False
+
         # make sure things go wrong when someone tries to continue this
         self.errbacks = None
         self.callbacks = None
@@ -1254,3 +1362,6 @@ class ClientObservation(object):
 
         if self._registry_data is not None:
             del self._registry_data[0][self._registry_data[1]]
+
+    def __repr__(self):
+        return '<%s %s at %#x>'%(type(self).__name__, "(cancelled)" if self.cancelled else "(%s call-, %s errback(s))"%(len(self.callbacks), len(self.errbacks)), id(self))

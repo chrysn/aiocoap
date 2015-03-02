@@ -16,14 +16,21 @@ class WithReverseProxy(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithReverseProxy, self).setUp()
 
-        self.servertask = asyncio.Task(aiocoap.cli.proxy.main(["--reverse", "--server-port", str(self.proxyport), "--namebased", "%s:%s"%(self.name_for_real_server, self.servernetloc), "--pathbased", "%s:%s"%("/".join(self.path_for_real_server), self.servernetloc)]))
+        self.reverseproxy = aiocoap.cli.proxy.Main(["--reverse", "--server-port", str(self.proxyport), "--namebased", "%s:%s"%(self.name_for_real_server, self.servernetloc), "--pathbased", "%s:%s"%("/".join(self.path_for_real_server), self.servernetloc)])
+        self.loop.run_until_complete(self.reverseproxy.initializing)
 
     def tearDown(self):
         super(WithReverseProxy, self).tearDown()
-        self.servertask.cancel()
-        # TODO: find a way to use Destructing with asyncio.Task -- we should be
-        # sure that when this is torn down, the proxy server is gone. without
-        # proper cleanup, different test proxies could interfere.
+        self.loop.run_until_complete(self.reverseproxy.shutdown())
+
+        # creating a reference loop between the cli instance and its contexts,
+        # so that the cli instance's gc-ing is linked o the contexts'.
+        # TODO how can we handle this more smoothly?
+        self.reverseproxy.outgoing_context._cli = self.reverseproxy
+        self.reverseproxy.proxy_context._cli = self.reverseproxy
+
+        self._del_to_be_sure('reverseproxy')
+
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
 
     proxyport = 56839

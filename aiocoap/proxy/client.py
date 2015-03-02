@@ -11,6 +11,7 @@ import socket
 import asyncio
 
 from .. import interfaces
+from ..protocol import ClientObservation
 
 class ProxyForwarder(interfaces.RequestProvider):
     """Object that behaves like a Context but only provides the request
@@ -39,6 +40,8 @@ class ProxyRequest(interfaces.Request):
         self.response = asyncio.Future()
         self._exchange_monitor_factory = exchange_monitor_factory
 
+        self.observation = ProxyClientObservation(app_request)
+
         asyncio.async(self._launch())
 
     @asyncio.coroutine
@@ -47,6 +50,30 @@ class ProxyRequest(interfaces.Request):
             self.app_request.remote = None
             self.app_request.unresolved_remote = self.proxy.proxy_address
             proxyrequest = self.proxy.context.request(self.app_request, exchange_monitor_factory=self._exchange_monitor_factory)
+            if hasattr(proxyrequest, 'observation'):
+                self.observation._hook_onto(proxyrequest.observation)
+            else:
+                self.observation.error(Exception("No proxied observation, this should not have been created in the first place."))
             self.response.set_result((yield from proxyrequest.response))
         except Exception as e:
             self.response.set_exception(e)
+
+class ProxyClientObservation(ClientObservation):
+    real_observation = None
+    _register = None
+    _unregister = None
+
+    def _hook_onto(self, real_observation):
+        if self.cancelled:
+            real_observation.cancel()
+        else:
+            real_observation.register_callback(self.callback)
+            real_observation.register_errback(self.error)
+
+    def cancel(self):
+        self.errbacks = None
+        self.callbacks = None
+        self.cancelled = True
+        if self.real_observation is not None:
+            # delay to _hook_onto, will be cancelled there as cancelled is set to True
+            self.real_observation.cancel()

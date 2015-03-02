@@ -9,12 +9,16 @@
 import unittest
 import doctest
 import aiocoap
-import glob
+import os
 
 def load_tests(loader, tests, ignore):
-    for p in glob.glob("aiocoap/**/*.py"):
-        if "queuewithend" in p:
-            # exclude queuewithend module, it's unstable yet anyway
-            continue
-        tests.addTests(doctest.DocTestSuite(p[:-3].replace('/', '.')))
+    for root, dn, fn in os.walk('aiocoap'):
+        for f in fn:
+            if not f.endswith('.py'):
+                continue
+            if "queuewithend" in f:
+                # exclude queuewithend module, it's unstable yet anyway
+                continue
+            p = os.path.join(root, f)
+            tests.addTests(doctest.DocTestSuite(p[:-3].replace('/', '.')))
     return tests

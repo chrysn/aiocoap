@@ -18,7 +18,7 @@ one thing as its serversite, and that is a Resource too (typically of the
 :class:`Site` class).
 
 Resources are most easily implemented by deriving from :class:`.Resource` and
-implementing ``render_GET``, ``render_POST`` and similar coroutine methods.
+implementing ``render_get``, ``render_post`` and similar coroutine methods.
 Those take a single request message object and must return a
 :class:`aiocoap.Message` object.
 
@@ -26,24 +26,63 @@ To serve more than one resource on a site, use the :class:`Site` class to
 dispatch requests based on the Uri-Path header.
 """
 
+import hashlib
 import asyncio
 
 from . import error
 from . import interfaces
+from . import numbers
+
+def hashing_etag(request, response):
+    """Helper function for do_GET handlers that allows them to use ETags based
+    on the payload's hash value
+
+    Run this on your request and response before returning from do_GET; it is
+    safe to use this function with all kinds of responses, it will only act on
+    2.05 Content. The hash used are the first 8 bytes of the sha1 sum of the
+    payload.
+
+    Note that this method is not ideal from a server performance point of view
+    (a file server, for example, might want to hash only the stat() result of a
+    file instead of reading it in full), but it saves bandwith for the simple
+    cases.
+
+    >>> from aiocoap import *
+    >>> req = Message(code=GET)
+    >>> hash_of_hello = b'\\xaa\\xf4\\xc6\\x1d\\xdc\\xc5\\xe8\\xa2'
+    >>> req.opt.etags = [hash_of_hello]
+    >>> resp = Message(code=CONTENT)
+    >>> resp.payload = b'hello'
+    >>> hashing_etag(req, resp)
+    >>> resp                                            # doctest: +ELLIPSIS
+    <aiocoap.Message at ... 2.03 Valid ... 1 option(s)>
+    """
+
+    if response.code != numbers.codes.CONTENT:
+        return
+
+    response.opt.etag = hashlib.sha1(response.payload).digest()[:8]
+    if request.opt.etags is not None and response.opt.etag in request.opt.etags:
+        response.code = numbers.codes.VALID
+        response.payload = b''
 
 class Resource(interfaces.Resource):
     """Simple base implementation of the :class:`interfaces.Resource`
     interface
 
-    The render method delegates content creation to ``render_$METHOD`` methods,
+    The render method delegates content creation to ``render_$method`` methods,
     and responds appropriately to unsupported methods.
     """
+
+    @asyncio.coroutine
+    def needs_blockwise_assembly(self, request):
+        return True
 
     @asyncio.coroutine
     def render(self, request):
         if not request.code.is_request():
             raise error.UnsupportedMethod()
-        m = getattr(self, 'render_%s' % request.code, None)
+        m = getattr(self, 'render_%s' % str(request.code).lower(), None)
         if not m:
             raise error.UnallowedMethod()
         return m(request)
@@ -58,12 +97,12 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         self._observations.add(serverobservation)
         serverobservation.accept((lambda s=self._observations, obs=serverobservation: s.remove(obs)))
 
-    def updated_state(self):
+    def updated_state(self, response=None):
         """Call this whenever the resource was updated, and a notification
         should be sent to observers."""
 
         for o in self._observations:
-            o.trigger()
+            o.trigger(response)
 
 
 class Site(interfaces.ObservableResource):
@@ -78,6 +117,15 @@ class Site(interfaces.ObservableResource):
 
     def __init__(self):
         self._resources = {}
+
+    @asyncio.coroutine
+    def needs_blockwise_assembly(self, request):
+        try:
+            child = self._resources[request.opt.uri_path]
+        except KeyError:
+            return True
+        else:
+            return child.needs_blockwise_assembly(request)
 
     @asyncio.coroutine
     def render(self, request):
@@ -102,3 +150,6 @@ class Site(interfaces.ObservableResource):
 
     def add_resource(self, path, resource):
         self._resources[tuple(path)] = resource
+
+    def remove_resource(self, path):
+        del self._resources[tuple(path)]
