@@ -403,7 +403,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
             request.handle_response(response)
             return True
 
-        observation = self.outgoing_observations[(response.token, response.remote)]
+        observation = self.outgoing_observations.get((response.token, response.remote), None)
         if observation is not None:
             ## @TODO: deduplication based on observe option value, collecting
             # the rest of the resource if blockwise
