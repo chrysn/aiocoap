@@ -717,6 +717,10 @@ class Request(BaseRequest, interfaces.Request):
     def process_block2_in_response(self, response):
         """Process incoming response with regard to Block2 option."""
 
+        if self.response.done():
+            self.log.info("Disregarding incoming message as response Future is done (probably cancelled)")
+            return
+
         if response.opt.block2 is not None and self.handle_blockwise:
             block2 = response.opt.block2
             self.log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
