@@ -34,10 +34,10 @@ from . import interfaces
 from . import numbers
 
 def hashing_etag(request, response):
-    """Helper function for do_GET handlers that allows them to use ETags based
+    """Helper function for render_get handlers that allows them to use ETags based
     on the payload's hash value
 
-    Run this on your request and response before returning from do_GET; it is
+    Run this on your request and response before returning from render_get; it is
     safe to use this function with all kinds of responses, it will only act on
     2.05 Content. The hash used are the first 8 bytes of the sha1 sum of the
     payload.
