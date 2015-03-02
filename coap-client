@@ -110,30 +110,37 @@ def single_request(args, context=None):
         interface = context
     else:
         interface = aiocoap.proxy.client.ProxyForwarder(options.proxy, context)
-    requester = interface.request(request)
-
-    if options.observe:
-        requester.observation.register_errback(observation_is_over.set_result)
-        requester.observation.register_callback(lambda data, options=options: incoming_observation(options, data))
 
     try:
-        response_data = yield from requester.response
-    except socket.gaierror as  e:
-        print("Name resolution error:", e, file=sys.stderr)
-        sys.exit(1)
+        requester = interface.request(request)
 
-    if response_data.code.is_successful():
-        sys.stdout.buffer.write(response_data.payload)
-        sys.stdout.buffer.flush()
-    else:
-        print(response_data.code, file=sys.stderr)
-        if response_data.payload:
-            print(response_data.payload.decode('utf-8'), file=sys.stderr)
-        sys.exit(1)
+        if options.observe:
+            requester.observation.register_errback(observation_is_over.set_result)
+            requester.observation.register_callback(lambda data, options=options: incoming_observation(options, data))
 
-    if options.observe:
-        exit_reason = yield from observation_is_over
-        print(exit_reason, file=sys.stderr)
+        try:
+            response_data = yield from requester.response
+        except socket.gaierror as  e:
+            print("Name resolution error:", e, file=sys.stderr)
+            sys.exit(1)
+
+        if response_data.code.is_successful():
+            sys.stdout.buffer.write(response_data.payload)
+            sys.stdout.buffer.flush()
+        else:
+            print(response_data.code, file=sys.stderr)
+            if response_data.payload:
+                print(response_data.payload.decode('utf-8'), file=sys.stderr)
+            sys.exit(1)
+
+        if options.observe:
+            exit_reason = yield from observation_is_over
+            print(exit_reason, file=sys.stderr)
+    finally:
+        if not requester.response.done():
+            requester.response.cancel()
+        if options.observe:
+            requester.observation.cancel()
 
 interactive_expecting_keyboard_interrupt = asyncio.Future()
 
