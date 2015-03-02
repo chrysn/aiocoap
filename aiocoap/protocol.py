@@ -392,22 +392,29 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         self.log.debug("Received Response: %r" % response)
 
-        if (response.token, response.remote) in self.outgoing_requests:
-            self.outgoing_requests.pop((response.token, response.remote)).handle_response(response)
-        elif (response.token, None) in self.outgoing_requests:
+        request = self.outgoing_requests.pop((response.token, response.remote), None)
+        if request is not None:
+            request.handle_response(response)
+            return True
+
+        request = self.outgoing_requests.get((response.token, None), None)
+        if request is not None:
             # that's exactly the `MulticastRequest`s so far
-            self.outgoing_requests[(response.token, None)].handle_response(response)
-        elif (response.token, response.remote) in self.outgoing_observations:
+            request.handle_response(response)
+            return True
+
+        observation = self.outgoing_observations[(response.token, response.remote)]
+        if observation is not None:
             ## @TODO: deduplication based on observe option value, collecting
             # the rest of the resource if blockwise
-            self.outgoing_observations[(response.token, response.remote)].callback(response)
+            observation.callback(response)
 
             if response.opt.observe is None:
                 self.outgoing_observations[(response.token, response.remote)].error(error.ObservationCancelled())
-        else:
-            return False
 
-        return True
+            return True
+
+        return False
 
     #
     # outgoing messages
