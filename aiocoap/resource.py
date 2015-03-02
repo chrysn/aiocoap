@@ -150,3 +150,6 @@ class Site(interfaces.ObservableResource):
 
     def add_resource(self, path, resource):
         self._resources[tuple(path)] = resource
+
+    def remove_resource(self, path):
+        del self._resources[tuple(path)]
