@@ -24,6 +24,22 @@ module documentation, or at the :doc:`examples` and :doc:`tools` provided.
 All examples can be run directly from a source code copy. If you prefer to
 install it, the usual Python mechanisms apply.
 
+Dependencies
+------------
+
+The core aiocoap functionality works out of the box with Python_ 3.4; with the
+additional asyncio_ module, it works with version 3.3 as well.
+
+When application/link-format typed resources (`RFC 6690`_) are supposed to be
+used, the `link_header`_ module is required as well. When the respective code
+paths are used without the module, an `ImportError` will be raised, or a `5.00`
+status code will be returned.
+
+.. _Python: https://www.python.org/
+.. _asyncio: https://pypi.python.org/pypi/asyncio
+.. _`RFC 6690`: http://tools.ietf.org/html/rfc6690
+.. _`link_header`: https://pypi.python.org/pypi/LinkHeader
+
 Development
 -----------
 
