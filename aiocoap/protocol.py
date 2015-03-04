@@ -984,12 +984,8 @@ class Responder(object):
 
         try:
             response = yield from self.protocol.serversite.render(request)
-        except error.NoResource:
-            self.respond_with_error(request, NOT_FOUND, "Error: Resource not found!")
-        except error.UnallowedMethod:
-            self.respond_with_error(request, METHOD_NOT_ALLOWED, "Error: Method not allowed!")
-        except error.UnsupportedMethod:
-            self.respond_with_error(request, METHOD_NOT_ALLOWED, "Error: Method not recognized!")
+        except error.RenderableError as e:
+            self.respond_with_error(request, e.code, e.message)
         except Exception as e:
             self.respond_with_error(request, INTERNAL_SERVER_ERROR, "")
             self.log.error("An exception occurred while rendering a resource: %r"%e)

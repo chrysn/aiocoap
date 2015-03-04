@@ -10,32 +10,41 @@
 Exception definitions for txThings CoAP library.
 """
 
-
-#import iot.coap
+from .numbers import codes
 
 class Error(Exception):
     """
     Base exception for all exceptions that indicate a failed request
     """
 
-class NoResource(Error):
+class RenderableError(Error):
+    """
+    Exception that can meaningfully be represented in a CoAP response
+    """
+    code = codes.INTERNAL_SERVER_ERROR
+    message = ""
+
+class NoResource(RenderableError):
     """
     Raised when resource is not found.
     """
+    code = codes.NOT_FOUND
+    message = "Error: Resource not found!"
 
-
-class UnallowedMethod(Error):
+class UnallowedMethod(RenderableError):
     """
     Raised by a resource when request method is understood by the server
     but not allowed for that particular resource.
     """
+    code = codes.METHOD_NOT_ALLOWED
+    message = "Error: Method not allowed!"
 
-
-class UnsupportedMethod(Error):
+class UnsupportedMethod(RenderableError):
     """
     Raised when request method is not understood by the server at all.
     """
-
+    code = codes.METHOD_NOT_ALLOWED
+    message = "Error: Method not recognized!"
 
 class NotImplemented(Error):
     """
