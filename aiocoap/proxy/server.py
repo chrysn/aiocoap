@@ -159,7 +159,13 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
             obs.observation.register_callback(cb)
             def eb(exception, obs=obs):
                 if obs.__users:
-                    self.log.warning("Received error %r, which did not lead to unregistration of the clients. Observations may stay around."%(exception,))
+                    code = numbers.codes.INTERNAL_SERVER_ERROR
+                    payload = b""
+                    self.log.debug("Received error %r, which did not lead to unregistration of the clients. Actively deregistering them with %s %r."%(exception, code, payload))
+                    for u in list(obs.__users):
+                        u.trigger(message.Message(code=code, payload=payload))
+                    if obs.__users:
+                        self.log.error("Observations survived sending them an error message.")
                 else:
                     self.log.debug("Received error %r, but that seems to have been passed on cleanly to the observers as they are gone by now."%(exception,))
             obs.observation.register_errback(eb)
