@@ -161,6 +161,9 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
                 if obs.__users:
                     code = numbers.codes.INTERNAL_SERVER_ERROR
                     payload = b""
+                    if isinstance(exception, error.RenderableError):
+                        code = exception.code
+                        payload = exception.message.encode('ascii')
                     self.log.debug("Received error %r, which did not lead to unregistration of the clients. Actively deregistering them with %s %r."%(exception, code, payload))
                     for u in list(obs.__users):
                         u.trigger(message.Message(code=code, payload=payload))

@@ -543,7 +543,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         return protocol
 
-    def kill_transactions(self, remote):
+    def kill_transactions(self, remote, exception=error.CommunicationKilled):
         """Abort all pending exchanges and observations to a given remote.
 
         The exact semantics of this are not yet completely frozen -- currently,
@@ -568,8 +568,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         for ((token, obs_remote), clientobservation) in list(self.outgoing_observations.items()):
             if remote != obs_remote:
                 continue
-            class Killed(Exception): pass
-            clientobservation.error(Killed())
+            clientobservation.error(exception())
 
         for ((token, obs_remote), serverobservation) in list(self.incoming_observations.items()):
             if remote != obs_remote:

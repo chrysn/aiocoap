@@ -110,3 +110,9 @@ class UnparsableMessage(Error):
     Note that this happens rarely -- the requirements are just two bit at the
     beginning of the message, and a minimum length.
     """
+
+class CommunicationKilled(RenderableError):
+    """
+    The communication process has been aborted by request of the application.
+    """
+    code = codes.SERVICE_UNAVAILABLE
