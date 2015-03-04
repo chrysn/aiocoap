@@ -543,6 +543,40 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         return protocol
 
+    def kill_transactions(self, remote):
+        """Abort all pending exchanges and observations to a given remote.
+
+        The exact semantics of this are not yet completely frozen -- currently,
+        pending exchanges are treated as if they timeouted, server sides of
+        observations are droppedn and client sides of observations receive an
+        errback.
+
+        Requests that are not part of an exchange, eg. NON requests or requests
+        that are waiting for their responses after an empty ACK are currently
+        not handled."""
+
+        for ((exchange_remote, messageid), (exchangemonitor, cancellabletimeout)) in self._active_exchanges.items():
+            if remote != _remote:
+                continue
+
+            ## FIXME: this should receive testing, but a test setup would need
+            # precise timing to trigger this code path
+            cancellabletimeout.cancel()
+            exchangemonitor.rst()
+            self._active_exchanges.pop(exchange_remote)
+
+        for ((token, obs_remote), clientobservation) in list(self.outgoing_observations.items()):
+            if remote != obs_remote:
+                continue
+            class Killed(Exception): pass
+            clientobservation.error(Killed())
+
+        for ((token, obs_remote), serverobservation) in list(self.incoming_observations.items()):
+            if remote != obs_remote:
+                continue
+            ## FIXME this is not tested either
+            serverobservation.deregister("Dropping due to kill_transactions")
+
 class BaseRequest(object):
     """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
 
