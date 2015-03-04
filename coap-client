@@ -139,7 +139,7 @@ def single_request(args, context=None):
     finally:
         if not requester.response.done():
             requester.response.cancel()
-        if options.observe:
+        if options.observe and not requester.observation.cancelled:
             requester.observation.cancel()
 
 interactive_expecting_keyboard_interrupt = asyncio.Future()
