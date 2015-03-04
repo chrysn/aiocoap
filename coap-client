@@ -61,8 +61,13 @@ def incoming_observation(options, response):
         p.communicate(response.payload)
     else:
         sys.stdout.buffer.write(b'\f')
-        sys.stdout.buffer.write(response.payload)
-        sys.stdout.buffer.flush()
+        if response.code.is_successful():
+            sys.stdout.buffer.write(response.payload)
+            sys.stdout.buffer.flush()
+        else:
+            print(response.code, file=sys.stderr)
+            if response.payload:
+                print(response.payload.decode('utf-8'), file=sys.stderr)
 
 @asyncio.coroutine
 def single_request(args, context=None):
@@ -135,7 +140,7 @@ def single_request(args, context=None):
 
         if options.observe:
             exit_reason = yield from observation_is_over
-            print(exit_reason, file=sys.stderr)
+            print("Observation is over: %r"%(exit_reason,), file=sys.stderr)
     finally:
         if not requester.response.done():
             requester.response.cancel()
