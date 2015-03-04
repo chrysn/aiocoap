@@ -556,7 +556,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         not handled."""
 
         for ((exchange_remote, messageid), (exchangemonitor, cancellabletimeout)) in self._active_exchanges.items():
-            if remote != _remote:
+            if remote != exchange_remote:
                 continue
 
             ## FIXME: this should receive testing, but a test setup would need
