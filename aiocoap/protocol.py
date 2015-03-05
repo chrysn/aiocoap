@@ -562,7 +562,8 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
             ## FIXME: this should receive testing, but a test setup would need
             # precise timing to trigger this code path
             cancellabletimeout.cancel()
-            exchangemonitor.rst()
+            if exchangemonitor is not None:
+                exchangemonitor.rst()
             self._active_exchanges.pop(exchange_remote)
 
         for ((token, obs_remote), clientobservation) in list(self.outgoing_observations.items()):
