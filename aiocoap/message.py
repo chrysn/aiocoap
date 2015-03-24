@@ -60,7 +60,7 @@ class Message(object):
       resources are overhauled. Non-roundtrippable.
     """
 
-    def __init__(self, mtype=None, mid=None, code=EMPTY, payload=b'', token=b''):
+    def __init__(self, mtype=None, mid=None, code=EMPTY, payload=b'', token=b'', uri=None):
         self.version = 1
         if mtype is None:
             # leave it unspecified for convenience, sending functions will know what to do
@@ -91,8 +91,12 @@ class Message(object):
         self.requested_path = None
         self.requested_query = None
 
+        # deprecation error, should go away roughly after 0.2 release
         if self.payload is None:
             raise TypeError("Payload must not be None. Use empty string instead.")
+
+        if uri:
+            self.set_request_uri(uri)
 
     def __repr__(self):
         return "<aiocoap.Message at %#x: %s %s (ID %r, token %r) remote %s%s%s>"%(
