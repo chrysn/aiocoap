@@ -60,7 +60,7 @@ class Message(object):
       resources are overhauled. Non-roundtrippable.
     """
 
-    def __init__(self, mtype=None, mid=None, code=EMPTY, payload=b'', token=b'', uri=None):
+    def __init__(self, *, mtype=None, mid=None, code=EMPTY, payload=b'', token=b'', uri=None):
         self.version = 1
         if mtype is None:
             # leave it unspecified for convenience, sending functions will know what to do
