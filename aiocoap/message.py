@@ -16,6 +16,11 @@ from . import error
 from .numbers import *
 from .options import Options
 
+## Monkey patch urllib to make URL joining available in CoAP
+# This is a workaround for <http://bugs.python.org/issue23759>.
+urllib.parse.uses_relative.append('coap')
+urllib.parse.uses_netloc.append('coap')
+
 class Message(object):
     """CoAP Message with some handling metadata
 
