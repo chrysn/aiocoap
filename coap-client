@@ -32,6 +32,8 @@ def parse_commandline(args):
     p.add_argument('--observe-exec', help="Run the specified program whenever the observed resource changes, feeding the response data to its stdin", metavar='CMD')
     p.add_argument('--accept', help="Content format to request", metavar="MIME")
     p.add_argument('--proxy', help="Relay the CoAP request to a proxy for execution", metavar="HOST[:PORT]")
+    p.add_argument('--payload', help="Send X as payload in POST or PUT requests. If X starts with an '@', its remainder is treated as a file name and read from.", metavar="X")
+    p.add_argument('--content-format', help="Content format sent via POST or PUT", metavar="MIME")
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
     p.add_argument('--dump', help="Log network traffic to FILE", metavar="FILE")
@@ -105,11 +107,30 @@ def single_request(args, context=None):
             try:
                 request.opt.accept = aiocoap.numbers.media_types_rev[options.accept]
             except KeyError:
-                parser.error("Unknown media type")
+                raise parser.error("Unknown accept type")
 
     if options.observe:
         request.opt.observe = 0
         observation_is_over = asyncio.Future()
+
+    if options.payload:
+        if options.payload.startswith('@'):
+            try:
+                request.payload = open(options.payload[1:], 'rb').read()
+            except OSError as e:
+                raise parser.error("File could not be opened: %s"%e)
+        else:
+            request.payload = options.payload.encode('utf8')
+
+    if options.content_format:
+        try:
+            request.opt.content_format = int(options.content_format)
+        except ValueError:
+            try:
+                request.opt.content_format = aiocoap.numbers.media_types_rev[options.content_format]
+            except KeyError:
+                raise parser.error("Unknown content format")
+
 
     if options.proxy is None:
         interface = context
