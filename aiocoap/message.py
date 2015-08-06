@@ -308,8 +308,8 @@ class Message(object):
             path = self.requested_path
         else:
             proxyuri = self.opt.proxy_uri
-            scheme = self.opt.get_option(OptionNumber.PROXY_SCHEME) or 'coap'
-            query = self.opt.get_option(OptionNumber.URI_QUERY) or ()
+            scheme = self.opt.proxy_scheme or 'coap'
+            query = self.opt.uri_query or ()
             path = self.opt.uri_path
 
         if self.code.is_response() and self.requested_host is not None:
