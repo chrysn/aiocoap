@@ -280,7 +280,7 @@ class Message(object):
             netloc = "%s:%d"%(host, port)
 
         # FIXME this should follow coap section 6.5 more closely
-        query = "?" + "&".join(query) if query else ""
+        query = "&".join(query)
         path = '/'.join(("",) + path) or '/'
 
         fragment = None
