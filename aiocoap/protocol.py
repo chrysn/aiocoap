@@ -790,7 +790,7 @@ class Request(BaseRequest, interfaces.Request):
         response.requested_host = self.app_request.opt.uri_host
         response.requested_port = self.app_request.opt.uri_port
         response.requested_path = self.app_request.opt.uri_path
-        response.requested_query = self.app_request.opt.get_option(OptionNumber.URI_QUERY) or ()
+        response.requested_query = self.app_request.opt.uri_query
 
         self.response.set_result(response)
 
