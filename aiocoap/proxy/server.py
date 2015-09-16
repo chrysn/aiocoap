@@ -38,6 +38,7 @@ def raise_unless_safe(request, known_options):
         # it is expected that every proxy is aware of these options even though
         # one of them often doesn't need touching
         numbers.OptionNumber.URI_HOST,
+        numbers.OptionNumber.URI_PORT,
         numbers.OptionNumber.URI_PATH,
         numbers.OptionNumber.URI_QUERY,
         # handled by the Context
