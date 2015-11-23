@@ -38,6 +38,7 @@ def raise_unless_safe(request, known_options):
         # it is expected that every proxy is aware of these options even though
         # one of them often doesn't need touching
         numbers.OptionNumber.URI_HOST,
+        numbers.OptionNumber.URI_PORT,
         numbers.OptionNumber.URI_PATH,
         numbers.OptionNumber.URI_QUERY,
         # handled by the Context
@@ -159,7 +160,16 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
             obs.observation.register_callback(cb)
             def eb(exception, obs=obs):
                 if obs.__users:
-                    self.log.warning("Received error %r, which did not lead to unregistration of the clients. Observations may stay around."%(exception,))
+                    code = numbers.codes.INTERNAL_SERVER_ERROR
+                    payload = b""
+                    if isinstance(exception, error.RenderableError):
+                        code = exception.code
+                        payload = exception.message.encode('ascii')
+                    self.log.debug("Received error %r, which did not lead to unregistration of the clients. Actively deregistering them with %s %r."%(exception, code, payload))
+                    for u in list(obs.__users):
+                        u.trigger(message.Message(code=code, payload=payload))
+                    if obs.__users:
+                        self.log.error("Observations survived sending them an error message.")
                 else:
                     self.log.debug("Received error %r, but that seems to have been passed on cleanly to the observers as they are gone by now."%(exception,))
             obs.observation.register_errback(eb)

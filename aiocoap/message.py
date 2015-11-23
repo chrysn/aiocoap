@@ -16,6 +16,11 @@ from . import error
 from .numbers import *
 from .options import Options
 
+## Monkey patch urllib to make URL joining available in CoAP
+# This is a workaround for <http://bugs.python.org/issue23759>.
+urllib.parse.uses_relative.append('coap')
+urllib.parse.uses_netloc.append('coap')
+
 class Message(object):
     """CoAP Message with some handling metadata
 
@@ -60,7 +65,7 @@ class Message(object):
       resources are overhauled. Non-roundtrippable.
     """
 
-    def __init__(self, mtype=None, mid=None, code=EMPTY, payload=b'', token=b''):
+    def __init__(self, *, mtype=None, mid=None, code=EMPTY, payload=b'', token=b'', uri=None):
         self.version = 1
         if mtype is None:
             # leave it unspecified for convenience, sending functions will know what to do
@@ -91,8 +96,12 @@ class Message(object):
         self.requested_path = None
         self.requested_query = None
 
+        # deprecation error, should go away roughly after 0.2 release
         if self.payload is None:
             raise TypeError("Payload must not be None. Use empty string instead.")
+
+        if uri:
+            self.set_request_uri(uri)
 
     def __repr__(self):
         return "<aiocoap.Message at %#x: %s %s (ID %r, token %r) remote %s%s%s>"%(
@@ -271,7 +280,7 @@ class Message(object):
             netloc = "%s:%d"%(host, port)
 
         # FIXME this should follow coap section 6.5 more closely
-        query = "?" + "&".join(query) if query else ""
+        query = "&".join(query)
         path = '/'.join(("",) + path) or '/'
 
         fragment = None
@@ -299,8 +308,8 @@ class Message(object):
             path = self.requested_path
         else:
             proxyuri = self.opt.proxy_uri
-            scheme = self.opt.get_option(OptionNumber.PROXY_SCHEME) or 'coap'
-            query = self.opt.get_option(OptionNumber.URI_QUERY) or ()
+            scheme = self.opt.proxy_scheme or 'coap'
+            query = self.opt.uri_query or ()
             path = self.opt.uri_path
 
         if self.code.is_response() and self.requested_host is not None:

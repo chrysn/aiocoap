@@ -392,22 +392,29 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         self.log.debug("Received Response: %r" % response)
 
-        if (response.token, response.remote) in self.outgoing_requests:
-            self.outgoing_requests.pop((response.token, response.remote)).handle_response(response)
-        elif (response.token, None) in self.outgoing_requests:
+        request = self.outgoing_requests.pop((response.token, response.remote), None)
+        if request is not None:
+            request.handle_response(response)
+            return True
+
+        request = self.outgoing_requests.get((response.token, None), None)
+        if request is not None:
             # that's exactly the `MulticastRequest`s so far
-            self.outgoing_requests[(response.token, None)].handle_response(response)
-        elif (response.token, response.remote) in self.outgoing_observations:
+            request.handle_response(response)
+            return True
+
+        observation = self.outgoing_observations.get((response.token, response.remote), None)
+        if observation is not None:
             ## @TODO: deduplication based on observe option value, collecting
             # the rest of the resource if blockwise
-            self.outgoing_observations[(response.token, response.remote)].callback(response)
+            observation.callback(response)
 
             if response.opt.observe is None:
                 self.outgoing_observations[(response.token, response.remote)].error(error.ObservationCancelled())
-        else:
-            return False
 
-        return True
+            return True
+
+        return False
 
     #
     # outgoing messages
@@ -535,6 +542,44 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         yield from protocol.ready
 
         return protocol
+
+    def kill_transactions(self, remote, exception=error.CommunicationKilled):
+        """Abort all pending exchanges and observations to a given remote.
+
+        The exact semantics of this are not yet completely frozen -- currently,
+        pending exchanges are treated as if they timeouted, server sides of
+        observations are droppedn and client sides of observations receive an
+        errback.
+
+        Requests that are not part of an exchange, eg. NON requests or requests
+        that are waiting for their responses after an empty ACK are currently
+        not handled."""
+
+        for ((exchange_remote, messageid), (exchangemonitor, cancellabletimeout)) in self._active_exchanges.items():
+            if remote != exchange_remote:
+                continue
+
+            ## FIXME: this should receive testing, but a test setup would need
+            # precise timing to trigger this code path
+            ## FIXME: this does not actually abort the request, as the protocol
+            # does not have a way to tell a request that it won't complete. so
+            # actually, the request will just need to time out. (typical
+            # requests don't use an exchange monitor).
+            cancellabletimeout.cancel()
+            if exchangemonitor is not None:
+                exchangemonitor.rst()
+            self._active_exchanges.pop((exchange_remote, messageid))
+
+        for ((token, obs_remote), clientobservation) in list(self.outgoing_observations.items()):
+            if remote != obs_remote:
+                continue
+            clientobservation.error(exception())
+
+        for ((token, obs_remote), serverobservation) in list(self.incoming_observations.items()):
+            if remote != obs_remote:
+                continue
+            ## FIXME this is not tested either
+            serverobservation.deregister("Dropping due to kill_transactions")
 
 class BaseRequest(object):
     """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
@@ -710,6 +755,10 @@ class Request(BaseRequest, interfaces.Request):
     def process_block2_in_response(self, response):
         """Process incoming response with regard to Block2 option."""
 
+        if self.response.done():
+            self.log.info("Disregarding incoming message as response Future is done (probably cancelled)")
+            return
+
         if response.opt.block2 is not None and self.handle_blockwise:
             block2 = response.opt.block2
             self.log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
@@ -719,6 +768,7 @@ class Request(BaseRequest, interfaces.Request):
                 except error.Error as e:
                     self.log.error("Error assembling blockwise response, passing on error %r"%e)
                     self.response.set_exception(e)
+                    return
             else:
                 if block2.block_number == 0:
                     self.log.debug("Receiving blockwise response")
@@ -726,6 +776,7 @@ class Request(BaseRequest, interfaces.Request):
                 else:
                     self.log.error("Error assembling blockwise response (expected first block)")
                     self.response.set_exception(UnexpectedBlock2())
+                    return
             if block2.more is True:
                 self.send_request(self.app_request._generate_next_block2_request(response))
             else:
@@ -739,7 +790,7 @@ class Request(BaseRequest, interfaces.Request):
         response.requested_host = self.app_request.opt.uri_host
         response.requested_port = self.app_request.opt.uri_port
         response.requested_path = self.app_request.opt.uri_path
-        response.requested_query = self.app_request.opt.get_option(OptionNumber.URI_QUERY) or ()
+        response.requested_query = self.app_request.opt.uri_query
 
         self.response.set_result(response)
 
@@ -937,12 +988,8 @@ class Responder(object):
 
         try:
             response = yield from self.protocol.serversite.render(request)
-        except error.NoResource:
-            self.respond_with_error(request, NOT_FOUND, "Error: Resource not found!")
-        except error.UnallowedMethod:
-            self.respond_with_error(request, METHOD_NOT_ALLOWED, "Error: Method not allowed!")
-        except error.UnsupportedMethod:
-            self.respond_with_error(request, METHOD_NOT_ALLOWED, "Error: Method not recognized!")
+        except error.RenderableError as e:
+            self.respond_with_error(request, e.code, e.message)
         except Exception as e:
             self.respond_with_error(request, INTERNAL_SERVER_ERROR, "")
             self.log.error("An exception occurred while rendering a resource: %r"%e)

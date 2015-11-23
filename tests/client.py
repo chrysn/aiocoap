@@ -18,8 +18,11 @@ class TestClient(WithTestServer, WithClient):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
 
         request = aiocoap.Message(code=aiocoap.GET)
-        request.set_request_uri("coap://" + self.servernetloc + "/empty")
+        request_uri = "coap://" + self.servernetloc + "/empty?query=a&query=b"
+        request.set_request_uri(request_uri)
+        self.assertEqual(request.get_request_uri(), request_uri, "Request URL does not round-trip in request")
         response = yieldfrom(self.client.request(request).response)
+        self.assertEqual(response.get_request_uri(), request_uri, "Request URL does not round-trip in response")
         self.assertEqual(response.code, aiocoap.CONTENT, "Request URL building failed")
 
         request = aiocoap.Message(code=aiocoap.GET)

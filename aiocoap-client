@@ -8,7 +8,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""coap-client is a simple command-line tool for interacting with CoAP servers"""
+"""aiocoap-client is a simple command-line tool for interacting with CoAP servers"""
 
 import sys
 import asyncio
@@ -32,6 +32,8 @@ def parse_commandline(args):
     p.add_argument('--observe-exec', help="Run the specified program whenever the observed resource changes, feeding the response data to its stdin", metavar='CMD')
     p.add_argument('--accept', help="Content format to request", metavar="MIME")
     p.add_argument('--proxy', help="Relay the CoAP request to a proxy for execution", metavar="HOST[:PORT]")
+    p.add_argument('--payload', help="Send X as payload in POST or PUT requests. If X starts with an '@', its remainder is treated as a file name and read from.", metavar="X")
+    p.add_argument('--content-format', help="Content format sent via POST or PUT", metavar="MIME")
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
     p.add_argument('--dump', help="Log network traffic to FILE", metavar="FILE")
@@ -60,9 +62,14 @@ def incoming_observation(options, response):
         # FIXME this blocks
         p.communicate(response.payload)
     else:
-        sys.stdout.buffer.write(b'\f')
-        sys.stdout.buffer.write(response.payload)
-        sys.stdout.buffer.flush()
+        sys.stdout.buffer.write(b'---\n')
+        if response.code.is_successful():
+            sys.stdout.buffer.write(response.payload + b'\n' if not response.payload.endswith(b'\n') else b'')
+            sys.stdout.buffer.flush()
+        else:
+            print(response.code, file=sys.stderr)
+            if response.payload:
+                print(response.payload.decode('utf-8'), file=sys.stderr)
 
 @asyncio.coroutine
 def single_request(args, context=None):
@@ -100,40 +107,68 @@ def single_request(args, context=None):
             try:
                 request.opt.accept = aiocoap.numbers.media_types_rev[options.accept]
             except KeyError:
-                parser.error("Unknown media type")
+                raise parser.error("Unknown accept type")
 
     if options.observe:
         request.opt.observe = 0
         observation_is_over = asyncio.Future()
 
+    if options.payload:
+        if options.payload.startswith('@'):
+            try:
+                request.payload = open(options.payload[1:], 'rb').read()
+            except OSError as e:
+                raise parser.error("File could not be opened: %s"%e)
+        else:
+            request.payload = options.payload.encode('utf8')
+
+    if options.content_format:
+        try:
+            request.opt.content_format = int(options.content_format)
+        except ValueError:
+            try:
+                request.opt.content_format = aiocoap.numbers.media_types_rev[options.content_format]
+            except KeyError:
+                raise parser.error("Unknown content format")
+
+
     if options.proxy is None:
         interface = context
     else:
         interface = aiocoap.proxy.client.ProxyForwarder(options.proxy, context)
-    requester = interface.request(request)
-
-    if options.observe:
-        requester.observation.register_errback(observation_is_over.set_result)
-        requester.observation.register_callback(lambda data, options=options: incoming_observation(options, data))
 
     try:
-        response_data = yield from requester.response
-    except socket.gaierror as  e:
-        print("Name resolution error:", e, file=sys.stderr)
-        sys.exit(1)
+        requester = interface.request(request)
 
-    if response_data.code.is_successful():
-        sys.stdout.buffer.write(response_data.payload)
-        sys.stdout.buffer.flush()
-    else:
-        print(response_data.code, file=sys.stderr)
-        if response_data.payload:
-            print(response_data.payload.decode('utf-8'), file=sys.stderr)
-        sys.exit(1)
+        if options.observe:
+            requester.observation.register_errback(observation_is_over.set_result)
+            requester.observation.register_callback(lambda data, options=options: incoming_observation(options, data))
 
-    if options.observe:
-        exit_reason = yield from observation_is_over
-        print(exit_reason, file=sys.stderr)
+        try:
+            response_data = yield from requester.response
+        except socket.gaierror as  e:
+            print("Name resolution error:", e, file=sys.stderr)
+            sys.exit(1)
+
+        if response_data.code.is_successful():
+            sys.stdout.buffer.write(response_data.payload)
+            sys.stdout.buffer.flush()
+            if not response_data.payload.endswith(b'\n') and not options.quiet:
+                sys.stderr.write('\n(No newline at end of message)\n')
+        else:
+            print(response_data.code, file=sys.stderr)
+            if response_data.payload:
+                print(response_data.payload.decode('utf-8'), file=sys.stderr)
+            sys.exit(1)
+
+        if options.observe:
+            exit_reason = yield from observation_is_over
+            print("Observation is over: %r"%(exit_reason,), file=sys.stderr)
+    finally:
+        if not requester.response.done():
+            requester.response.cancel()
+        if options.observe and not requester.observation.cancelled:
+            requester.observation.cancel()
 
 interactive_expecting_keyboard_interrupt = asyncio.Future()
 

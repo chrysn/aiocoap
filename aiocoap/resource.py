@@ -29,15 +29,16 @@ dispatch requests based on the Uri-Path header.
 import hashlib
 import asyncio
 
+from . import message
 from . import error
 from . import interfaces
 from . import numbers
 
 def hashing_etag(request, response):
-    """Helper function for do_GET handlers that allows them to use ETags based
+    """Helper function for render_get handlers that allows them to use ETags based
     on the payload's hash value
 
-    Run this on your request and response before returning from do_GET; it is
+    Run this on your request and response before returning from render_get; it is
     safe to use this function with all kinds of responses, it will only act on
     2.05 Content. The hash used are the first 8 bytes of the sha1 sum of the
     payload.
@@ -72,6 +73,10 @@ class Resource(interfaces.Resource):
 
     The render method delegates content creation to ``render_$method`` methods,
     and responds appropriately to unsupported methods.
+
+    Moreover, this class provides a ``get_link_description`` method as used by
+    .well-known/core to expose a resource's ct, rt and if_ (alternative name
+    for `if` as that's a Python keyword) attributes.
     """
 
     @asyncio.coroutine
@@ -86,6 +91,18 @@ class Resource(interfaces.Resource):
         if not m:
             raise error.UnallowedMethod()
         return m(request)
+
+    def get_link_description(self):
+        ## FIXME which formats are acceptable, and how much escaping and
+        # list-to-separated-string conversion needs to happen here
+        ret = {}
+        if hasattr(self, 'ct'):
+            ret['ct'] = str(self.ct)
+        if hasattr(self, 'rt'):
+            ret['rt'] = self.rt
+        if hasattr(self, 'if_'):
+            ret['if'] = self.if_
+        return ret
 
 class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):
@@ -104,6 +121,37 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         for o in self._observations:
             o.trigger(response)
 
+    def get_link_description(self):
+        link = super(ObservableResource, self).get_link_description()
+        link['obs'] = None
+        return link
+
+class WKCResource(Resource):
+    """Read-only dynamic resource list, suitable as .well-known/core.
+
+    This resource renders a link_header.LinkHeader object (which describes a
+    collection of resources) as application/link-format (RFC 6690).
+
+    Currently, the resource does not respect the filte criteria that can be
+    passed in via query strings; that might be added later.
+
+    The list to be rendered is obtained from a function passed into the
+    constructor; typically, that function would be a bound
+    Site.get_resources_as_linkheader() method."""
+
+    ct = 40
+
+    def __init__(self, listgenerator):
+        self.listgenerator = listgenerator
+
+    def render_get(self, request):
+        links = self.listgenerator()
+
+        serialized = str(links)
+
+        response = message.Message(code=numbers.codes.CONTENT, payload=serialized.encode('utf8'))
+        response.opt.content_format = self.ct
+        return response
 
 class Site(interfaces.ObservableResource):
     """Typical root element that gets passed to a :class:`Context` and contains
@@ -153,3 +201,17 @@ class Site(interfaces.ObservableResource):
 
     def remove_resource(self, path):
         del self._resources[tuple(path)]
+
+    def get_resources_as_linkheader(self):
+        import link_header
+
+        links = []
+        for path, resource in self._resources.items():
+            if hasattr(resource, "get_link_description"):
+                details = resource.get_link_description()
+            else:
+                details = {}
+            lh = link_header.Link('/' + '/'.join(path), **details)
+
+            links.append(lh)
+        return link_header.LinkHeader(links)
