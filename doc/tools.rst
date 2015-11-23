@@ -7,4 +7,5 @@ aiocoap. Still, they can serve as examples of how to deal with user-provided
 addresses (as opposed to the fixed addresses in the examples), or of
 integration in a bigger project in general.
 
-* ``coap-client``: A CoAP client that supports observations and proxying.
+* ``aiocoap-client``: A CoAP client that supports observations and proxying.
+* ``aiocoap-proxy``: A command-line configurable forward and reverse proxy.

@@ -8,7 +8,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""coap-client is a simple command-line tool for interacting with CoAP servers"""
+"""aiocoap-client is a simple command-line tool for interacting with CoAP servers"""
 
 import sys
 import asyncio
