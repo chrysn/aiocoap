@@ -40,6 +40,10 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
 
+    extras_require={
+        'linkheader': ['LinkHeader'],
+        },
+
     command_options={
         'build_sphinx': {
             'project': ('setup.py', name),
