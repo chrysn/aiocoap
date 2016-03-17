@@ -9,4 +9,11 @@
 """Container module for command line utilities bundled with aiocoap:
 
 * :mod:`.proxy` -- running a stand-alone forward or reverse proxy server
+* :mod:`.client` -- a CoAP client similar to `curl`
+
+Be warned that even though these modules are documented here, they are not
+considered to be a part of the aioCoAP API, and are thus subject to change even
+when the project reaches a stable version number. If you want to use any of
+that infrastructure, please file a feature request for stabilization in the
+project's issue tracker.
 """

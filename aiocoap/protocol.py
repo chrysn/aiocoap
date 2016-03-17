@@ -490,14 +490,15 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_client_context(cls, *, dump_to=None, loggername="coap"):
+    def create_client_context(cls, *, dump_to=None, loggername="coap", loop=None):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get an context suitable for sending client
         requests.
         """
 
-        loop = asyncio.get_event_loop()
+        if loop is None:
+            loop = asyncio.get_event_loop()
 
         protofact = lambda: cls(loop, None, loggername=loggername)
         if dump_to is not None:
@@ -519,14 +520,15 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     @classmethod
     @asyncio.coroutine
-    def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None, loggername="coap-server"):
+    def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None, loggername="coap-server", loop=None):
         """Create an context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
         This is the easiest way to get a context suitable both for sending
         client and accepting server requests."""
 
-        loop = asyncio.get_event_loop()
+        if loop is None:
+            loop = asyncio.get_event_loop()
 
         protofact = lambda: cls(loop, site, loggername=loggername)
         if dump_to is not None:
