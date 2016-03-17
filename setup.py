@@ -46,6 +46,7 @@ setup(
 
     entry_points={
         'console_scripts': [
+            'aiocoap-client = aiocoap.cli.client:sync_main',
             'aiocoap-proxy = aiocoap.cli.proxy:sync_main',
             ]
         },
