@@ -9,3 +9,9 @@ integration in a bigger project in general.
 
 * ``aiocoap-client``: A CoAP client that supports observations and proxying.
 * ``aiocoap-proxy``: A command-line configurable forward and reverse proxy.
+
+Those utilities are installed by `setup.py` at the usual executable locations;
+during development or when working from a git checkout of the project, wrapper
+scripts are available in the root directory. In some instances, it might be
+practical to access their functionality from within Python; see the
+:mod:`aiocoap.cli` module documentation for details.
