@@ -43,7 +43,7 @@ class Message(object):
 
     * :attr:`mid`: The message ID. Managed by the :class:`.Context`.
     * :attr:`token`: The message's token as bytes. Managed by the :class:`.Context`.
-    * :attr:`remote`: The socket address of the  side, managed by the
+    * :attr:`remote`: The socket address of the other side, managed by the
       :class:`.protocol.Request` by resolving the ``.opt.uri_host`` or
       ``unresolved_remote``, or the :class:`.Responder` by echoing the incoming
       request's. (If you choose to set this explicitly set this, make sure not
