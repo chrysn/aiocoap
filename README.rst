@@ -52,11 +52,12 @@ partners is hard to trigger with a library designed not to misbehave).
 Documentation is built using sphinx_; hacks used there are described in
 ``./doc/README.doc``.
 
-Bugs from design goal and wishlist to typos are currently tracked in github
-(see below).
+Bugs from design goal and wishlist to typos are currently tracked in the
+`github issue tracker`_.
 
 .. _PEP8: http://legacy.python.org/dev/peps/pep-0008/
 .. _sphinx: http://sphinx-doc.org/
+.. _`github issue tracker`: https://github.com/chrysn/aiocoap/issues
 
 Relevant URLs
 -------------
