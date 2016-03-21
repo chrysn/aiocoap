@@ -111,9 +111,11 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         self.loop = loop or asyncio.get_event_loop()
 
-        self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
+        self.transport_endpoints = []
 
         self._shutting_down = None #: Future created and used in the .shutdown() method.
+
+    transport = property(lambda self: self.transport_endpoints[0].transport, doc="Intermediate property until more than one transport endpoint is supported")
 
     @asyncio.coroutine
     def shutdown(self):
@@ -135,45 +137,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         self.transport.close()
 
         yield from self._shutting_down
-
-    #
-    # implementing the typical DatagramProtocol interfaces.
-    #
-    # note from the documentation: we may rely on connection_made to be called
-    # before datagram_received -- but sending immediately after context
-    # creation will still fail
-
-    def connection_made(self, transport):
-        """Implementation of the DatagramProtocol interface, called by the transport."""
-        self.ready.set_result(True)
-        self.transport = transport
-
-    def datagram_received(self, data, address):
-        """Implementation of the DatagramProtocol interface, called by the transport."""
-        try:
-            message = Message.decode(data, address)
-        except error.UnparsableMessage:
-            self.log.warning("Ignoring unparsable message from %s"%(address,))
-            return
-
-        self._dispatch_message(message)
-
-    def error_received(self, exc):
-        """Implementation of the DatagramProtocol interface, called by the transport."""
-        # TODO: set IP_RECVERR to receive icmp "destination unreachable (port
-        # unreachable)" & co to stop retransmitting and err back quickly
-        self.log.error("Error received: %s"%exc)
-
-    def connection_lost(self, exc):
-        # TODO better error handling -- find out what can cause this at all
-        # except for a shutdown
-        if exc is not None:
-            self.log.error("Connection lost: %s"%exc)
-
-        if self._shutting_down is None:
-            self.log.error("Connection loss was not expected.")
-        else:
-            self._shutting_down.set_result(None)
 
     # pause_writing and resume_writing are not implemented, as the protocol
     # should take care of not flooding the output itself anyway (NSTART etc).
@@ -500,7 +463,11 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         if loop is None:
             loop = asyncio.get_event_loop()
 
-        protofact = lambda: cls(loop, None, loggername=loggername)
+        self = cls(loop=loop, serversite=None, loggername=loggername)
+
+        from .transports.udp6 import TransportEndpointUDP6
+
+        protofact = lambda: TransportEndpointUDP6(context=self, log=self.log, loop=loop)
         if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
 
@@ -516,7 +483,9 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         yield from protocol.ready
 
-        return protocol
+        self.transport_endpoints.append(protocol)
+
+        return self
 
     @classmethod
     @asyncio.coroutine
@@ -530,7 +499,11 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         if loop is None:
             loop = asyncio.get_event_loop()
 
-        protofact = lambda: cls(loop, site, loggername=loggername)
+        self = cls(loop=loop, serversite=site, loggername=loggername)
+
+        from .transports.udp6 import TransportEndpointUDP6
+
+        protofact = lambda: TransportEndpointUDP6(context=self, log=self.log, loop=loop)
         if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
 
@@ -543,7 +516,9 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         yield from protocol.ready
 
-        return protocol
+        self.transport_endpoints.append(protocol)
+
+        return self
 
     def kill_transactions(self, remote, exception=error.CommunicationKilled):
         """Abort all pending exchanges and observations to a given remote.

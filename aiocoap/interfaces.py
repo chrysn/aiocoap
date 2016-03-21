@@ -12,6 +12,9 @@ especially with respect to request and response handling."""
 import abc
 from asyncio import coroutine
 
+class TransportEndpoint(metaclass=abc.ABCMeta):
+    pass
+
 class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def request(self, request_message):
