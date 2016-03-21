@@ -502,7 +502,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         protofact = lambda: cls(loop, None, loggername=loggername)
         if dump_to is not None:
-            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), cls)
+            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
 
         #transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET)
 
