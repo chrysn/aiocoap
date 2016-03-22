@@ -24,6 +24,12 @@ class TransportEndpoint(metaclass=abc.ABCMeta):
     def send(self, message):
         """Send a given :class:`Message` object"""
 
+    @abc.abstractmethod
+    @coroutine
+    def fill_remote(self, message):
+        """Populate a message's remote property based on its .opt.uri_host or
+        .unresolved_remote. This interface is likely to change."""
+
 class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def request(self, request_message):

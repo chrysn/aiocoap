@@ -22,7 +22,6 @@ import binascii
 import functools
 import socket
 import asyncio
-import urllib.parse
 
 from .util.queuewithend import QueueWithEnd
 from .util.asyncio import cancel_thoroughly
@@ -376,6 +375,11 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     # outgoing messages
     #
 
+    @asyncio.coroutine
+    def fill_remote(self, message):
+      te, = self.transport_endpoints
+      yield from te.fill_remote(message)
+
     def send_message(self, message, exchange_monitor=None):
         """Encode and send message. This takes care of retransmissions (if
         CON), message IDs and rate limiting, but does not hook any events to
@@ -559,33 +563,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 class BaseRequest(object):
     """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
 
-    @asyncio.coroutine
-    def _fill_remote(self, request):
-        if request.remote is None:
-            if request.unresolved_remote is not None or request.opt.uri_host:
-                ## @TODO this is very rudimentary; happy-eyeballs or
-                # similar could be employed.
-
-                if request.unresolved_remote is not None:
-                    pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
-                    host = pseudoparsed.hostname
-                    port = pseudoparsed.port or COAP_PORT
-                else:
-                    host = request.opt.uri_host
-                    port = request.opt.uri_port or COAP_PORT
-
-                addrinfo = yield from self.protocol.loop.getaddrinfo(
-                    host,
-                    port,
-                    family=self.protocol.transport._sock.family,
-                    type=0,
-                    proto=self.protocol.transport._sock.proto,
-                    flags=socket.AI_V4MAPPED,
-                    )
-                request.remote = addrinfo[0][-1]
-            else:
-                raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
-
 class Request(BaseRequest, interfaces.Request):
     """Class used to handle single outgoing request.
 
@@ -626,7 +603,7 @@ class Request(BaseRequest, interfaces.Request):
         depend on async results."""
 
         try:
-            yield from self._fill_remote(self.app_request)
+            yield from self.protocol.fill_remote(self.app_request)
 
             size_exp = DEFAULT_BLOCK_SIZE_EXP
             if len(self.app_request.payload) > (2 ** (size_exp + 4)) and self.handle_blockwise:
@@ -805,7 +782,7 @@ class MulticastRequest(BaseRequest):
     def _init_phase2(self):
         """See :meth:`Request._init_phase2`"""
         try:
-            yield from self._fill_remote(self.request)
+            yield from self.protocol.fill_remote(self.request)
 
             yield from self._send_request(self.request)
         except Exception as e:

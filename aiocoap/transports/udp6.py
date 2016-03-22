@@ -15,10 +15,13 @@ addresses (a la `::ffff:127.0.0.1`) will be used when name resolution shows
 that a name is only available on V4."""
 
 import asyncio
+import urllib.parse
+import socket
 
 from ..message import Message
 from .. import error
 from .. import interfaces
+from ..numbers import COAP_PORT
 
 class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoint):
     def __init__(self, new_message_callback, log, loop):
@@ -40,8 +43,35 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
 
         del self.new_message_callback
 
-    def send(self, message, remote):
-        self.transport.sendto(message.encode(), remote)
+    def send(self, message):
+        self.transport.sendto(message.encode(), message.remote)
+
+    @asyncio.coroutine
+    def fill_remote(self, request):
+        if request.remote is None:
+            if request.unresolved_remote is not None or request.opt.uri_host:
+                ## @TODO this is very rudimentary; happy-eyeballs or
+                # similar could be employed.
+
+                if request.unresolved_remote is not None:
+                    pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
+                    host = pseudoparsed.hostname
+                    port = pseudoparsed.port or COAP_PORT
+                else:
+                    host = request.opt.uri_host
+                    port = request.opt.uri_port or COAP_PORT
+
+                addrinfo = yield from self.loop.getaddrinfo(
+                    host,
+                    port,
+                    family=self.transport._sock.family,
+                    type=0,
+                    proto=self.transport._sock.proto,
+                    flags=socket.AI_V4MAPPED,
+                    )
+                request.remote = addrinfo[0][-1]
+            else:
+                raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
     # where should that go?
     #transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, 1)
