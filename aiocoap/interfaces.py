@@ -13,7 +13,12 @@ import abc
 from asyncio import coroutine
 
 class TransportEndpoint(metaclass=abc.ABCMeta):
-    pass
+    @abc.abstractmethod
+    @coroutine
+    def shutdown(self):
+        """Deactivate the complete transport, usually irrevertably. When the
+        coroutine returns, the object must have made sure that it can be
+        destructed by means of ref-counting or a garbage collector run."""
 
 class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod

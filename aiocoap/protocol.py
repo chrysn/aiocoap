@@ -113,8 +113,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         self.transport_endpoints = []
 
-        self._shutting_down = None #: Future created and used in the .shutdown() method.
-
     transport = property(lambda self: self.transport_endpoints[0].transport, doc="Intermediate property until more than one transport endpoint is supported")
 
     @asyncio.coroutine
@@ -124,8 +122,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         After this coroutine terminates, and once all external references to
         the object are dropped, it should be garbage-collectable."""
 
-        self._shutting_down = asyncio.Future()
-
         self.log.debug("Shutting down context")
         for exchange_monitor, cancellable in self._active_exchanges.values():
             if exchange_monitor is not None:
@@ -134,9 +130,8 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         for observation in list(self.incoming_observations.values()):
             observation.deregister("Server going down")
         self._active_exchanges = None
-        self.transport.close()
 
-        yield from self._shutting_down
+        yield from asyncio.wait([te.shutdown() for te in self.transport_endpoints], timeout=3, loop=self.loop)
 
     # pause_writing and resume_writing are not implemented, as the protocol
     # should take care of not flooding the output itself anyway (NSTART etc).

@@ -26,7 +26,19 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
         self.log = log
         self.loop = loop
 
+        self._shutting_down = None #: Future created and used in the .shutdown() method.
+
         self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
+
+    @asyncio.coroutine
+    def shutdown(self):
+        self._shutting_down = asyncio.Future()
+
+        self.transport.close()
+
+        yield from self._shutting_down
+
+        del self.context
 
     # where should that go?
     #transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, 1)
@@ -65,8 +77,7 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
         if exc is not None:
             self.log.error("Connection lost: %s"%exc)
 
-        if self.context._shutting_down is None:
+        if self._shutting_down is None:
             self.log.error("Connection loss was not expected.")
         else:
-            self.context._shutting_down.set_result(None)
-
+            self._shutting_down.set_result(None)
