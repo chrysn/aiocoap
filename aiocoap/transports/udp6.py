@@ -40,6 +40,9 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
 
         del self.context
 
+    def send(self, message, remote):
+        self.transport.sendto(message.encode(), remote)
+
     # where should that go?
     #transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, 1)
 

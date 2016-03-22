@@ -20,6 +20,10 @@ class TransportEndpoint(metaclass=abc.ABCMeta):
         coroutine returns, the object must have made sure that it can be
         destructed by means of ref-counting or a garbage collector run."""
 
+    @abc.abstractmethod
+    def send(self, message, remote):
+        """Send a given :class:`Message` object"""
+
 class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def request(self, request_message):

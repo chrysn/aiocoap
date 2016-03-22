@@ -113,8 +113,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         self.transport_endpoints = []
 
-    transport = property(lambda self: self.transport_endpoints[0].transport, doc="Intermediate property until more than one transport endpoint is supported")
-
     @asyncio.coroutine
     def shutdown(self):
         """Take down the listening socket and stop all related timers.
@@ -271,7 +269,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         while not any(r == remote for r, mid in self._active_exchanges.keys()):
             if self._backlogs[remote] != []:
                 next_message, exchange_monitor = self._backlogs[remote].pop(0)
-                self._send(next_message, exchange_monitor)
+                self._send_initially(next_message, exchange_monitor)
             else:
                 del self._backlogs[remote]
                 break
@@ -305,7 +303,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         if retransmission_counter < MAX_RETRANSMIT:
             self.log.info("Retransmission, Message ID: %d." % message.mid)
-            self.transport.sendto(message.encode(), message.remote)
+            self._send_via_transport(message)
             retransmission_counter += 1
             timeout *= 2
 
@@ -400,10 +398,10 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
                 exchange_monitor.enqueued()
             self._backlogs[message.remote].append((message, exchange_monitor))
         else:
-            self._send(message, exchange_monitor)
+            self._send_initially(message, exchange_monitor)
 
-    def _send(self, message, exchange_monitor=None):
-        """Put the message on the wire, starting retransmission timeouts"""
+    def _send_initially(self, message, exchange_monitor=None):
+        """Put the message on the wire for the first time, starting retransmission timeouts"""
 
         self.log.debug("Sending message %r" % message)
 
@@ -415,8 +413,13 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         self._store_response_for_duplicates(message)
 
-        encoded = message.encode()
-        self.transport.sendto(encoded, message.remote)
+        self._send_via_transport(message)
+
+    def _send_via_transport(self, message):
+        """Put the message on the wire"""
+
+        te, = self.transport_endpoints
+        te.send(message, message.remote)
 
     def _next_message_id(self):
         """Reserve and return a new message ID."""
