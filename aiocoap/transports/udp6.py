@@ -22,6 +22,7 @@ from ..message import Message
 from .. import error
 from .. import interfaces
 from ..numbers import COAP_PORT
+from ..dump import TextDumper
 
 class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoint):
     def __init__(self, new_message_callback, log, loop):
@@ -32,6 +33,45 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
         self._shutting_down = None #: Future created and used in the .shutdown() method.
 
         self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
+
+    @classmethod
+    @asyncio.coroutine
+    def create_client_transport_endpoint(cls, new_message_callback, log, loop, dump_to):
+        protofact = lambda: cls(new_message_callback=new_message_callback, log=log, loop=loop)
+        if dump_to is not None:
+            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
+
+        #transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET)
+
+        # use the following lines instead, and change the address to `::ffff:127.0.0.1`
+        # in order to see acknowledgement handling fail with hybrid stack operation
+        transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
+        transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+
+        if dump_to is not None:
+            protocol = protocol.protocol
+
+        yield from protocol.ready
+
+        return protocol
+
+    @classmethod
+    @asyncio.coroutine
+    def create_server_transport_endpoint(cls, new_message_callback, log, loop, dump_to, bind):
+        protofact = lambda: cls(new_message_callback=new_message_callback, log=log, loop=loop)
+        if dump_to is not None:
+            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
+
+        transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
+        transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        transport._sock.bind(bind)
+
+        if dump_to is not None:
+            protocol = protocol.protocol
+
+        yield from protocol.ready
+
+        return protocol
 
     @asyncio.coroutine
     def shutdown(self):
