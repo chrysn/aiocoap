@@ -21,8 +21,8 @@ from .. import error
 from .. import interfaces
 
 class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoint):
-    def __init__(self, context, log, loop):
-        self.context = context
+    def __init__(self, new_message_callback, log, loop):
+        self.new_message_callback = new_message_callback
         self.log = log
         self.loop = loop
 
@@ -38,7 +38,7 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
 
         yield from self._shutting_down
 
-        del self.context
+        del self.new_message_callback
 
     def send(self, message, remote):
         self.transport.sendto(message.encode(), remote)
@@ -66,7 +66,7 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return
 
-        self.context._dispatch_message(message)
+        self.new_message_callback(message)
 
     def error_received(self, exc):
         """Implementation of the DatagramProtocol interface, called by the transport."""

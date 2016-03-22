@@ -419,7 +419,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         """Put the message on the wire"""
 
         te, = self.transport_endpoints
-        te.send(message, message.remote)
+        te.send(message)
 
     def _next_message_id(self):
         """Reserve and return a new message ID."""
@@ -465,7 +465,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         from .transports.udp6 import TransportEndpointUDP6
 
-        protofact = lambda: TransportEndpointUDP6(context=self, log=self.log, loop=loop)
+        protofact = lambda: TransportEndpointUDP6(new_message_callback=self._dispatch_message, log=self.log, loop=loop)
         if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
 
@@ -501,7 +501,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         from .transports.udp6 import TransportEndpointUDP6
 
-        protofact = lambda: TransportEndpointUDP6(context=self, log=self.log, loop=loop)
+        protofact = lambda: TransportEndpointUDP6(new_message_callback=self._dispatch_message, log=self.log, loop=loop)
         if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
 

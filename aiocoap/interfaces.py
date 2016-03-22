@@ -21,7 +21,7 @@ class TransportEndpoint(metaclass=abc.ABCMeta):
         destructed by means of ref-counting or a garbage collector run."""
 
     @abc.abstractmethod
-    def send(self, message, remote):
+    def send(self, message):
         """Send a given :class:`Message` object"""
 
 class RequestProvider(metaclass=abc.ABCMeta):
