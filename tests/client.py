@@ -47,5 +47,5 @@ class TestClient(WithTestServer, WithClient):
             yieldfrom(asyncio.as_completed([resp], timeout=0.01).__next__())
         except asyncio.TimeoutError:
             pass
-        self.assertEqual(request.remote[1], 9999, "Remote port was not parsed")
+        self.assertEqual(request.remote.port, 9999, "Remote port was not parsed")
         resp.cancel()

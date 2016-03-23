@@ -9,7 +9,6 @@
 import urllib.parse
 import struct
 import copy
-import ipaddress
 
 from . import error
 from .numbers import *
@@ -323,7 +322,7 @@ class Message(object):
         elif self.code.is_request() and self.opt.uri_port is not None:
             port = self.opt.uri_port
         elif self.remote is not None:
-            port = self.remote[1]
+            port = self.remote.port
             if port == COAP_PORT:
                 # don't explicitly add port if not required
                 port = None
@@ -368,8 +367,3 @@ class Message(object):
         if parsed.port:
             self.opt.uri_port = parsed.port
         self.opt.uri_host = parsed.hostname
-
-    def has_multicast_remote(self):
-        """Return True if the message's remote needs to be considered a multicast remote."""
-        address = ipaddress.ip_address(self.remote[0])
-        return address.is_multicast

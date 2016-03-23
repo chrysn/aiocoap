@@ -17,12 +17,29 @@ that a name is only available on V4."""
 import asyncio
 import urllib.parse
 import socket
+import ipaddress
 
 from ..message import Message
 from .. import error
 from .. import interfaces
 from ..numbers import COAP_PORT
 from ..dump import TextDumper
+
+class UDP6EndpointAddress:
+    # interface work in progress. chances are those should be immutable or at
+    # least hashable, as they'll be frequently used as dict keys.
+    def __init__(self, sockaddr):
+        self.sockaddr = sockaddr
+
+    def __hash__(self):
+        return hash(self.sockaddr)
+
+    def __eq__(self, other):
+        return self.sockaddr == other.sockaddr
+
+    # those are currently the inofficial metadata interface
+    port = property(lambda self: self.sockaddr[1])
+    is_multicast = property(lambda self: ipaddress.ip_address(self.sockaddr[0]).is_multicast)
 
 class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoint):
     def __init__(self, new_message_callback, log, loop):
@@ -83,7 +100,7 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
         del self.new_message_callback
 
     def send(self, message):
-        self.transport.sendto(message.encode(), message.remote)
+        self.transport.sendto(message.encode(), message.remote.sockaddr)
 
     @asyncio.coroutine
     def fill_remote(self, request):
@@ -108,7 +125,7 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
                     proto=self.transport._sock.proto,
                     flags=socket.AI_V4MAPPED,
                     )
-                request.remote = addrinfo[0][-1]
+                request.remote = UDP6EndpointAddress(addrinfo[0][-1])
             else:
                 raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
@@ -130,7 +147,7 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
     def datagram_received(self, data, address):
         """Implementation of the DatagramProtocol interface, called by the transport."""
         try:
-            message = Message.decode(data, address)
+            message = Message.decode(data, UDP6EndpointAddress(address))
         except error.UnparsableMessage:
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return

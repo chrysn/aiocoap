@@ -389,7 +389,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         ExchangeMonitor can be passed in, which will receive the appropriate
         callbacks."""
 
-        if message.mtype == CON and message.has_multicast_remote():
+        if message.mtype == CON and message.remote.is_multicast:
             raise ValueError("Refusing to send CON message to multicast address")
 
         if message.mid is None:
