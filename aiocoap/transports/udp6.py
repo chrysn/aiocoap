@@ -83,6 +83,7 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
     @asyncio.coroutine
     def create_server_transport_endpoint(cls, new_message_callback, log, loop, dump_to, bind):
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
+        # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.bind(bind)
