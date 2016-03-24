@@ -8,7 +8,9 @@
 
 from datetime import datetime
 
-class TextDumper(object):
+from .util.asyncio import RecvmsgDatagramProtocol
+
+class TextDumper(RecvmsgDatagramProtocol):
     """Plain text etwork data dumper
 
     A TextDumper can be used to log network traffic into a file that can be
@@ -55,10 +57,10 @@ class TextDumper(object):
 
     # methods for both direct use and transport/protocol use
 
-    def datagram_received(self, data, address):
+    def datagram_msg_received(self, data, ancdata, flags, address):
         self._outfile.write("I %s 000 %s\n"%(datetime.now(), " ".join("%02x"%c for c in data)))
         if self._protocol is not None:
-            self._protocol.datagram_received(data, address)
+            self._protocol.datagram_msg_received(data, ancdata, flags, address)
 
     def sendto(self, data, address):
         self._outfile.write("O %s 000 %s\n"%(datetime.now(), " ".join("%02x"%c for c in data)))

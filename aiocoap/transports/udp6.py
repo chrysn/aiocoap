@@ -24,12 +24,14 @@ from .. import error
 from .. import interfaces
 from ..numbers import COAP_PORT
 from ..dump import TextDumper
+from ..util.asyncio import RecvmsgDatagramProtocol
 
 class UDP6EndpointAddress:
     # interface work in progress. chances are those should be immutable or at
     # least hashable, as they'll be frequently used as dict keys.
-    def __init__(self, sockaddr):
+    def __init__(self, sockaddr, *, pktinfo=None):
         self.sockaddr = sockaddr
+        self.pktinfo = pktinfo
 
     def __hash__(self):
         return hash(self.sockaddr)
@@ -41,7 +43,7 @@ class UDP6EndpointAddress:
     port = property(lambda self: self.sockaddr[1])
     is_multicast = property(lambda self: ipaddress.ip_address(self.sockaddr[0]).is_multicast)
 
-class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoint):
+class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoint):
     def __init__(self, new_message_callback, log, loop):
         self.new_message_callback = new_message_callback
         self.log = log
@@ -54,6 +56,8 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
     @classmethod
     @asyncio.coroutine
     def _create_transport_endpoint(cls, sock, new_message_callback, log, loop, dump_to):
+        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
+
         protofact = lambda: cls(new_message_callback=new_message_callback, log=log, loop=loop)
         if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
@@ -101,7 +105,10 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
         del self.new_message_callback
 
     def send(self, message):
-        self.transport.sendto(message.encode(), message.remote.sockaddr)
+        ancdata = []
+        if message.remote.pktinfo is not None:
+            ancdata.append((socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, message.remote.pktinfo))
+        self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
 
     @asyncio.coroutine
     def fill_remote(self, request):
@@ -130,9 +137,6 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
             else:
                 raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-    # where should that go?
-    #transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, 1)
-
     #
     # implementing the typical DatagramProtocol interfaces.
     #
@@ -145,10 +149,14 @@ class TransportEndpointUDP6(asyncio.DatagramProtocol, interfaces.TransportEndpoi
         self.ready.set_result(True)
         self.transport = transport
 
-    def datagram_received(self, data, address):
-        """Implementation of the DatagramProtocol interface, called by the transport."""
+    def datagram_msg_received(self, data, ancdata, flags, address):
+        """Implementation of the RecvmsgDatagramProtocol interface, called by the transport."""
+        pktinfo = None
+        for cmsg_level, cmsg_type, cmsg_data in ancdata:
+            if cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == socket.IPV6_PKTINFO:
+                pktinfo = cmsg_data
         try:
-            message = Message.decode(data, UDP6EndpointAddress(address))
+            message = Message.decode(data, UDP6EndpointAddress(address, pktinfo=pktinfo))
         except error.UnparsableMessage:
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return
