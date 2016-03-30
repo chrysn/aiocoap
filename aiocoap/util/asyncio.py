@@ -32,6 +32,17 @@ class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
         super(RecvmsgSelectorDatagramTransport, self).__init__(*args, **kwargs)
 
     def _read_ready(self):
+        try:
+            data, ancdata, flags, addr = self._sock.recvmsg(self.max_size, 1024, socket.MSG_ERRQUEUE)
+        except (BlockingIOError, InterruptedError):
+            pass
+        except OSError as exc:
+            self._protocol.error_received(exc)
+        except Exception as exc:
+            self._fatal_error(exc, 'Fatal read error on datagram transport')
+        else:
+            self._protocol.datagram_errqueue_received(data, ancdata, flags, addr)
+
         # copied and modified from _SelectorDatagramTransport
         try:
             data, ancdata, flags, addr = self._sock.recvmsg(self.max_size, 1024) # TODO: find a way for the application to tell the trensport how much data is expected

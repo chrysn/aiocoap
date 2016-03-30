@@ -17,7 +17,10 @@ that a name is only available on V4."""
 import asyncio
 import urllib.parse
 import socket
+import IN
 import ipaddress
+import struct
+from collections import namedtuple
 
 from ..message import Message
 from .. import error
@@ -43,9 +46,17 @@ class UDP6EndpointAddress:
     port = property(lambda self: self.sockaddr[1])
     is_multicast = property(lambda self: ipaddress.ip_address(self.sockaddr[0]).is_multicast)
 
+class SockExtendedErr(namedtuple("_SockExtendedErr", "ee_errno ee_origin ee_type ee_code ee_pad ee_info ee_data")):
+    _struct = struct.Struct("IbbbbII")
+    @classmethod
+    def load(cls, data):
+        # unpack_from: recvmsg(2) says that more data may follow
+        return cls(*cls._struct.unpack_from(data))
+
 class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoint):
-    def __init__(self, new_message_callback, log, loop):
+    def __init__(self, new_message_callback, new_error_callback, log, loop):
         self.new_message_callback = new_message_callback
+        self.new_error_callback = new_error_callback
         self.log = log
         self.loop = loop
 
@@ -55,10 +66,15 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
 
     @classmethod
     @asyncio.coroutine
-    def _create_transport_endpoint(cls, sock, new_message_callback, log, loop, dump_to):
+    def _create_transport_endpoint(cls, sock, new_message_callback, new_error_callback, log, loop, dump_to):
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
+        # this'd feel more comfortable if the IN module were documented anywhere
+        sock.setsockopt(socket.IPPROTO_IPV6, IN.IPV6_RECVERR, 1)
+        # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
+        # it clear that i don't care about the ip version as long as everything looks the same?
+        sock.setsockopt(socket.IPPROTO_IP, IN.IP_RECVERR, 1)
 
-        protofact = lambda: cls(new_message_callback=new_message_callback, log=log, loop=loop)
+        protofact = lambda: cls(new_message_callback=new_message_callback, new_error_callback=new_error_callback, log=log, loop=loop)
         if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
 
@@ -77,22 +93,22 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
 
     @classmethod
     @asyncio.coroutine
-    def create_client_transport_endpoint(cls, new_message_callback, log, loop, dump_to):
+    def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to):
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
-        return (yield from cls._create_transport_endpoint(sock, new_message_callback, log, loop, dump_to))
+        return (yield from cls._create_transport_endpoint(sock, new_message_callback, new_error_callback, log, loop, dump_to))
 
     @classmethod
     @asyncio.coroutine
-    def create_server_transport_endpoint(cls, new_message_callback, log, loop, dump_to, bind):
+    def create_server_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to, bind):
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.bind(bind)
 
-        return (yield from cls._create_transport_endpoint(sock, new_message_callback, log, loop, dump_to))
+        return (yield from cls._create_transport_endpoint(sock, new_message_callback, new_error_callback, log, loop, dump_to))
 
     @asyncio.coroutine
     def shutdown(self):
@@ -103,6 +119,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         yield from self._shutting_down
 
         del self.new_message_callback
+        del self.new_error_callback
 
     def send(self, message):
         ancdata = []
@@ -155,6 +172,8 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         for cmsg_level, cmsg_type, cmsg_data in ancdata:
             if cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == socket.IPV6_PKTINFO:
                 pktinfo = cmsg_data
+            else:
+                self.log.info("Received unexpected ancillary data to recvmsg: level %d, type %d, data %r", cmsg_level, cmsg_type, cmsg_data)
         try:
             message = Message.decode(data, UDP6EndpointAddress(address, pktinfo=pktinfo))
         except error.UnparsableMessage:
@@ -163,11 +182,31 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
 
         self.new_message_callback(message)
 
+    def datagram_errqueue_received(self, data, ancdata, flags, address):
+        assert flags == socket.MSG_ERRQUEUE
+        pktinfo = None
+        errno = None
+        for cmsg_level, cmsg_type, cmsg_data in ancdata:
+            assert cmsg_level == socket.IPPROTO_IPV6
+            if cmsg_type == IN.IPV6_RECVERR:
+                errno = SockExtendedErr.load(cmsg_data).ee_errno
+            elif cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == IN.IPV6_PKTINFO:
+                pktinfo = cmsg_data
+            else:
+                self.log.info("Received unexpected ancillary data to recvmsg errqueue: level %d, type %d, data %r", cmsg_level, cmsg_type, cmsg_data)
+        remote = UDP6EndpointAddress(address, pktinfo=pktinfo)
+
+        # not trying to decode a message from data -- that works for
+        # "connection refused", doesn't work for "no route to host", and
+        # anyway, when an icmp error comes back, everything pending from that
+        # port should err out.
+
+        self.new_error_callback(errno, remote)
+
     def error_received(self, exc):
         """Implementation of the DatagramProtocol interface, called by the transport."""
-        # TODO: set IP_RECVERR to receive icmp "destination unreachable (port
-        # unreachable)" & co to stop retransmitting and err back quickly
-        self.log.error("Error received: %s"%exc)
+        # TODO: what can we do about errors we *only* receive here? (eg. sending to 127.0.0.0)
+        self.log.error("Error received and ignored in this codepath: %s"%exc)
 
     def connection_lost(self, exc):
         # TODO better error handling -- find out what can cause this at all

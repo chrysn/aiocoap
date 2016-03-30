@@ -147,6 +147,9 @@ def single_request(args, context=None):
         except socket.gaierror as  e:
             print("Name resolution error:", e, file=sys.stderr)
             sys.exit(1)
+        except OSError as e:
+            print("Error:", e, file=sys.stderr)
+            sys.exit(1)
 
         if response_data.code.is_successful():
             sys.stdout.buffer.write(response_data.payload)

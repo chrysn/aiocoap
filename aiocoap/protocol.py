@@ -16,6 +16,7 @@
 * a :class:`Responder` keeps track of a single incoming request
 """
 
+import os
 import random
 import struct
 import binascii
@@ -170,6 +171,37 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
                 self.send_message(rst)
         else:
             self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it."%(message.code, message.mtype, message.remote))
+
+    def _dispatch_error(self, errno, remote):
+        self.log.debug("Incoming error %d from %r", errno, remote)
+
+        # cancel requests first, and then exchanges: cancelling the pending
+        # exchange would trigger enqueued requests to be transmitted
+
+        keys_for_removal = []
+        for key, request in self.outgoing_requests.items():
+            (token, request_remote) = key
+            if request_remote == remote:
+                request.response.set_exception(OSError(errno, os.strerror(errno)))
+            keys_for_removal.append(key)
+        for k in keys_for_removal:
+            self.outgoing_requests.pop(key)
+
+        # not cancelling incoming requests, as they have even less an API for
+        # that than the outgoing ones; clearing the exchange monitors at least
+        # spares them retransmission hell, and apart from that, they'll need to
+        # timeout by themselves.
+
+        keys_for_removal = []
+        for key, (monitor, cancellable_timeout) in self._active_exchanges.items():
+            (exchange_remote, message_id) = key
+            if remote == exchange_remote:
+                if monitor is not None:
+                    monitor.rst() # FIXME: add API for better errors
+                cancel_thoroughly(cancellable_timeout)
+                keys_for_removal.append(key)
+        for k in keys_for_removal:
+            self._active_exchanges.pop(k)
 
     #
     # coap dispatch, message-id sublayer: duplicate handling
@@ -468,7 +500,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         from .transports.udp6 import TransportEndpointUDP6
 
-        self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, log=self.log, loop=loop, dump_to=dump_to)))
+        self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
 
         return self
 
@@ -488,7 +520,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         from .transports.udp6 import TransportEndpointUDP6
 
-        self.transport_endpoints.append((yield from TransportEndpointUDP6.create_server_transport_endpoint(new_message_callback=self._dispatch_message, log=self.log, loop=loop, dump_to=dump_to, bind=bind)))
+        self.transport_endpoints.append((yield from TransportEndpointUDP6.create_server_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to, bind=bind)))
 
         return self
 
