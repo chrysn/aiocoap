@@ -12,6 +12,24 @@ especially with respect to request and response handling."""
 import abc
 from asyncio import coroutine
 
+class TransportEndpoint(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    @coroutine
+    def shutdown(self):
+        """Deactivate the complete transport, usually irrevertably. When the
+        coroutine returns, the object must have made sure that it can be
+        destructed by means of ref-counting or a garbage collector run."""
+
+    @abc.abstractmethod
+    def send(self, message):
+        """Send a given :class:`Message` object"""
+
+    @abc.abstractmethod
+    @coroutine
+    def fill_remote(self, message):
+        """Populate a message's remote property based on its .opt.uri_host or
+        .unresolved_remote. This interface is likely to change."""
+
 class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def request(self, request_message):

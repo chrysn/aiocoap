@@ -16,17 +16,16 @@
 * a :class:`Responder` keeps track of a single incoming request
 """
 
+import os
 import random
 import struct
 import binascii
 import functools
 import socket
 import asyncio
-import urllib.parse
 
 from .util.queuewithend import QueueWithEnd
 from .util.asyncio import cancel_thoroughly
-from .dump import TextDumper
 
 import logging
 # log levels used:
@@ -111,9 +110,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         self.loop = loop or asyncio.get_event_loop()
 
-        self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
-
-        self._shutting_down = None #: Future created and used in the .shutdown() method.
+        self.transport_endpoints = []
 
     @asyncio.coroutine
     def shutdown(self):
@@ -121,8 +118,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         After this coroutine terminates, and once all external references to
         the object are dropped, it should be garbage-collectable."""
-
-        self._shutting_down = asyncio.Future()
 
         self.log.debug("Shutting down context")
         for exchange_monitor, cancellable in self._active_exchanges.values():
@@ -132,48 +127,8 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         for observation in list(self.incoming_observations.values()):
             observation.deregister("Server going down")
         self._active_exchanges = None
-        self.transport.close()
 
-        yield from self._shutting_down
-
-    #
-    # implementing the typical DatagramProtocol interfaces.
-    #
-    # note from the documentation: we may rely on connection_made to be called
-    # before datagram_received -- but sending immediately after context
-    # creation will still fail
-
-    def connection_made(self, transport):
-        """Implementation of the DatagramProtocol interface, called by the transport."""
-        self.ready.set_result(True)
-        self.transport = transport
-
-    def datagram_received(self, data, address):
-        """Implementation of the DatagramProtocol interface, called by the transport."""
-        try:
-            message = Message.decode(data, address)
-        except error.UnparsableMessage:
-            self.log.warning("Ignoring unparsable message from %s"%(address,))
-            return
-
-        self._dispatch_message(message)
-
-    def error_received(self, exc):
-        """Implementation of the DatagramProtocol interface, called by the transport."""
-        # TODO: set IP_RECVERR to receive icmp "destination unreachable (port
-        # unreachable)" & co to stop retransmitting and err back quickly
-        self.log.error("Error received: %s"%exc)
-
-    def connection_lost(self, exc):
-        # TODO better error handling -- find out what can cause this at all
-        # except for a shutdown
-        if exc is not None:
-            self.log.error("Connection lost: %s"%exc)
-
-        if self._shutting_down is None:
-            self.log.error("Connection loss was not expected.")
-        else:
-            self._shutting_down.set_result(None)
+        yield from asyncio.wait([te.shutdown() for te in self.transport_endpoints], timeout=3, loop=self.loop)
 
     # pause_writing and resume_writing are not implemented, as the protocol
     # should take care of not flooding the output itself anyway (NSTART etc).
@@ -216,6 +171,37 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
                 self.send_message(rst)
         else:
             self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it."%(message.code, message.mtype, message.remote))
+
+    def _dispatch_error(self, errno, remote):
+        self.log.debug("Incoming error %d from %r", errno, remote)
+
+        # cancel requests first, and then exchanges: cancelling the pending
+        # exchange would trigger enqueued requests to be transmitted
+
+        keys_for_removal = []
+        for key, request in self.outgoing_requests.items():
+            (token, request_remote) = key
+            if request_remote == remote:
+                request.response.set_exception(OSError(errno, os.strerror(errno)))
+            keys_for_removal.append(key)
+        for k in keys_for_removal:
+            self.outgoing_requests.pop(key)
+
+        # not cancelling incoming requests, as they have even less an API for
+        # that than the outgoing ones; clearing the exchange monitors at least
+        # spares them retransmission hell, and apart from that, they'll need to
+        # timeout by themselves.
+
+        keys_for_removal = []
+        for key, (monitor, cancellable_timeout) in self._active_exchanges.items():
+            (exchange_remote, message_id) = key
+            if remote == exchange_remote:
+                if monitor is not None:
+                    monitor.rst() # FIXME: add API for better errors
+                cancel_thoroughly(cancellable_timeout)
+                keys_for_removal.append(key)
+        for k in keys_for_removal:
+            self._active_exchanges.pop(k)
 
     #
     # coap dispatch, message-id sublayer: duplicate handling
@@ -313,7 +299,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         while not any(r == remote for r, mid in self._active_exchanges.keys()):
             if self._backlogs[remote] != []:
                 next_message, exchange_monitor = self._backlogs[remote].pop(0)
-                self._send(next_message, exchange_monitor)
+                self._send_initially(next_message, exchange_monitor)
             else:
                 del self._backlogs[remote]
                 break
@@ -347,7 +333,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         if retransmission_counter < MAX_RETRANSMIT:
             self.log.info("Retransmission, Message ID: %d." % message.mid)
-            self.transport.sendto(message.encode(), message.remote)
+            self._send_via_transport(message)
             retransmission_counter += 1
             timeout *= 2
 
@@ -420,6 +406,11 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     # outgoing messages
     #
 
+    @asyncio.coroutine
+    def fill_remote(self, message):
+      te, = self.transport_endpoints
+      yield from te.fill_remote(message)
+
     def send_message(self, message, exchange_monitor=None):
         """Encode and send message. This takes care of retransmissions (if
         CON), message IDs and rate limiting, but does not hook any events to
@@ -430,7 +421,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         ExchangeMonitor can be passed in, which will receive the appropriate
         callbacks."""
 
-        if message.mtype == CON and message.has_multicast_remote():
+        if message.mtype == CON and message.remote.is_multicast:
             raise ValueError("Refusing to send CON message to multicast address")
 
         if message.mid is None:
@@ -442,10 +433,10 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
                 exchange_monitor.enqueued()
             self._backlogs[message.remote].append((message, exchange_monitor))
         else:
-            self._send(message, exchange_monitor)
+            self._send_initially(message, exchange_monitor)
 
-    def _send(self, message, exchange_monitor=None):
-        """Put the message on the wire, starting retransmission timeouts"""
+    def _send_initially(self, message, exchange_monitor=None):
+        """Put the message on the wire for the first time, starting retransmission timeouts"""
 
         self.log.debug("Sending message %r" % message)
 
@@ -457,8 +448,13 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         self._store_response_for_duplicates(message)
 
-        encoded = message.encode()
-        self.transport.sendto(encoded, message.remote)
+        self._send_via_transport(message)
+
+    def _send_via_transport(self, message):
+        """Put the message on the wire"""
+
+        te, = self.transport_endpoints
+        te.send(message)
 
     def _next_message_id(self):
         """Reserve and return a new message ID."""
@@ -500,23 +496,13 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         if loop is None:
             loop = asyncio.get_event_loop()
 
-        protofact = lambda: cls(loop, None, loggername=loggername)
-        if dump_to is not None:
-            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), cls)
+        self = cls(loop=loop, serversite=None, loggername=loggername)
 
-        #transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET)
+        from .transports.udp6 import TransportEndpointUDP6
 
-        # use the following lines instead, and change the address to `::ffff:127.0.0.1`
-        # in order to see acknowledgement handling fail with hybrid stack operation
-        transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
-        transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
 
-        if dump_to is not None:
-            protocol = protocol.protocol
-
-        yield from protocol.ready
-
-        return protocol
+        return self
 
     @classmethod
     @asyncio.coroutine
@@ -530,20 +516,13 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         if loop is None:
             loop = asyncio.get_event_loop()
 
-        protofact = lambda: cls(loop, site, loggername=loggername)
-        if dump_to is not None:
-            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
+        self = cls(loop=loop, serversite=site, loggername=loggername)
 
-        transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
-        transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        transport._sock.bind(bind)
+        from .transports.udp6 import TransportEndpointUDP6
 
-        if dump_to is not None:
-            protocol = protocol.protocol
+        self.transport_endpoints.append((yield from TransportEndpointUDP6.create_server_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to, bind=bind)))
 
-        yield from protocol.ready
-
-        return protocol
+        return self
 
     def kill_transactions(self, remote, exception=error.CommunicationKilled):
         """Abort all pending exchanges and observations to a given remote.
@@ -586,33 +565,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 class BaseRequest(object):
     """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
 
-    @asyncio.coroutine
-    def _fill_remote(self, request):
-        if request.remote is None:
-            if request.unresolved_remote is not None or request.opt.uri_host:
-                ## @TODO this is very rudimentary; happy-eyeballs or
-                # similar could be employed.
-
-                if request.unresolved_remote is not None:
-                    pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
-                    host = pseudoparsed.hostname
-                    port = pseudoparsed.port or COAP_PORT
-                else:
-                    host = request.opt.uri_host
-                    port = request.opt.uri_port or COAP_PORT
-
-                addrinfo = yield from self.protocol.loop.getaddrinfo(
-                    host,
-                    port,
-                    family=self.protocol.transport._sock.family,
-                    type=0,
-                    proto=self.protocol.transport._sock.proto,
-                    flags=socket.AI_V4MAPPED,
-                    )
-                request.remote = addrinfo[0][-1]
-            else:
-                raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
-
 class Request(BaseRequest, interfaces.Request):
     """Class used to handle single outgoing request.
 
@@ -653,7 +605,7 @@ class Request(BaseRequest, interfaces.Request):
         depend on async results."""
 
         try:
-            yield from self._fill_remote(self.app_request)
+            yield from self.protocol.fill_remote(self.app_request)
 
             size_exp = DEFAULT_BLOCK_SIZE_EXP
             if len(self.app_request.payload) > (2 ** (size_exp + 4)) and self.handle_blockwise:
@@ -832,7 +784,7 @@ class MulticastRequest(BaseRequest):
     def _init_phase2(self):
         """See :meth:`Request._init_phase2`"""
         try:
-            yield from self._fill_remote(self.request)
+            yield from self.protocol.fill_remote(self.request)
 
             yield from self._send_request(self.request)
         except Exception as e:

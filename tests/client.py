@@ -9,6 +9,7 @@
 import asyncio
 import aiocoap
 import unittest
+import errno
 
 from .server import WithTestServer, WithClient, no_warnings
 
@@ -45,7 +46,9 @@ class TestClient(WithTestServer, WithClient):
         try:
             # give the request some time to finish getaddrinfo
             yieldfrom(asyncio.as_completed([resp], timeout=0.01).__next__())
-        except asyncio.TimeoutError:
-            pass
-        self.assertEqual(request.remote[1], 9999, "Remote port was not parsed")
+        except OSError as e:
+            self.assertEqual(e.errno, errno.ECONNREFUSED, "")
+        else:
+            self.fail("Request to non-opened port did not come back with 'Connection Refused'")
+        self.assertEqual(request.remote.port, 9999, "Remote port was not parsed")
         resp.cancel()
