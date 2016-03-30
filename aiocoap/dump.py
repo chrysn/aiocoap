@@ -62,14 +62,14 @@ class TextDumper(RecvmsgDatagramProtocol):
         if self._protocol is not None:
             self._protocol.datagram_msg_received(data, ancdata, flags, address)
 
-    def sendto(self, data, address):
+    def sendmsg(self, data, ancdata, flags, address):
         self._outfile.write("O %s 000 %s\n"%(datetime.now(), " ".join("%02x"%c for c in data)))
         if self._protocol is not None:
             # it's not an error to check for _protocol and not for _transport
             # here: if the protocol got hold of this fake transport by other
             # means than connection_made, writing before connection_made should
             # still create an error.
-            self._transport.sendto(data, address)
+            self._transport.sendmsg(data, ancdata, flags, address)
 
     # passed-through properties and methods
 
