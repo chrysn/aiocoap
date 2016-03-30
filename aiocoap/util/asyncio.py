@@ -44,8 +44,6 @@ class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
         else:
             self._protocol.datagram_msg_received(data, ancdata, flags, addr)
 
-        pass
-
     def sendmsg(self, data, ancdata, flags, address):
         # copied and modified from _SelectorDatagramTransport.sendto
         if not isinstance(data, (bytes, bytearray, memoryview)):
