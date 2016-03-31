@@ -66,7 +66,16 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
 
     @classmethod
     @asyncio.coroutine
-    def _create_transport_endpoint(cls, sock, new_message_callback, new_error_callback, log, loop, dump_to):
+    def _create_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to, bind):
+        protofact = lambda: cls(new_message_callback=new_message_callback, new_error_callback=new_error_callback, log=log, loop=loop)
+        if dump_to is not None:
+            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
+
+        transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
+
+        sock = transport._sock
+
+        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
         # this'd feel more comfortable if the IN module were documented anywhere
         sock.setsockopt(socket.IPPROTO_IPV6, IN.IPV6_RECVERR, 1)
@@ -74,15 +83,10 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         # it clear that i don't care about the ip version as long as everything looks the same?
         sock.setsockopt(socket.IPPROTO_IP, IN.IP_RECVERR, 1)
 
-        protofact = lambda: cls(new_message_callback=new_message_callback, new_error_callback=new_error_callback, log=log, loop=loop)
-        if dump_to is not None:
-            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
-
-        #transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET)
-
-        # use the following lines instead, and change the address to `::ffff:127.0.0.1`
-        # in order to see acknowledgement handling fail with hybrid stack operation
-        transport, protocol = yield from loop.create_datagram_endpoint(protofact, sock=sock)
+        if bind is not None:
+            # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(bind)
 
         if dump_to is not None:
             protocol = protocol.protocol
@@ -94,21 +98,12 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
     @classmethod
     @asyncio.coroutine
     def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to):
-        sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
-        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-
-        return (yield from cls._create_transport_endpoint(sock, new_message_callback, new_error_callback, log, loop, dump_to))
+        return (yield from cls._create_transport_endpoint(new_message_callback, new_error_callback, log, loop, dump_to, None))
 
     @classmethod
     @asyncio.coroutine
     def create_server_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to, bind):
-        sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
-        # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        sock.bind(bind)
-
-        return (yield from cls._create_transport_endpoint(sock, new_message_callback, new_error_callback, log, loop, dump_to))
+        return (yield from cls._create_transport_endpoint(new_message_callback, new_error_callback, log, loop, dump_to, bind))
 
     @asyncio.coroutine
     def shutdown(self):
