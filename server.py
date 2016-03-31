@@ -76,7 +76,14 @@ class TimeResource(resource.ObservableResource):
 
     def notify(self):
         self.updated_state()
-        asyncio.get_event_loop().call_later(60, self.notify)
+        asyncio.get_event_loop().call_later(6, self.notify)
+
+    def update_observation_count(self, count):
+        if count:
+            # not that it's actually implemented like that here -- unconditional updating works just as well
+            print("Keeping the clock nearby to trigger observations")
+        else:
+            print("Stowing away the clock until someone asks again")
 
     @asyncio.coroutine
     def render_get(self, request):
