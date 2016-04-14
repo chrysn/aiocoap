@@ -154,7 +154,7 @@ def single_request(args, context=None):
         if response_data.code.is_successful():
             sys.stdout.buffer.write(response_data.payload)
             sys.stdout.buffer.flush()
-            if not response_data.payload.endswith(b'\n') and not options.quiet:
+            if response_data.payload and not response_data.payload.endswith(b'\n') and not options.quiet:
                 sys.stderr.write('\n(No newline at end of message)\n')
         else:
             print(response_data.code, file=sys.stderr)
