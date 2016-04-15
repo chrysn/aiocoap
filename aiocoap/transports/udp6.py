@@ -42,6 +42,9 @@ class UDP6EndpointAddress:
     def __eq__(self, other):
         return self.sockaddr == other.sockaddr
 
+    def __repr__(self):
+        return "<%s [%s]:%d%s>"%(type(self).__name__, self.sockaddr[0], self.sockaddr[1], " with local address" if self.pktinfo is not None else "")
+
     # those are currently the inofficial metadata interface
     port = property(lambda self: self.sockaddr[1])
     is_multicast = property(lambda self: ipaddress.ip_address(self.sockaddr[0]).is_multicast)
