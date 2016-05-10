@@ -315,7 +315,7 @@ class Message(object):
         elif self.code.is_request() and self.opt.uri_host is not None:
             host = self.opt.uri_host
         else:
-            host = self.remote[0]
+            host = self.remote.sockaddr[0]
 
         if self.code.is_response() and self.requested_port is not None:
             port = self.requested_port
