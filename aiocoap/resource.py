@@ -192,13 +192,23 @@ class Site(interfaces.ObservableResource):
         path = tuple(request.opt.uri_path)
         # Only compare against resources with the same number of path components
         matches = [(key, res) for key, res in self._resources.items() if len(key) == len(path)]
+        # Filter routes matching the path, one level at a time
         for level in range(len(path)):
-            # Filter routes matching the path, one level at a time
+            # Try to find exact string matches
+            string_matches = [
+                (key, res) for key, res in matches \
+                if not isinstance(key[level], PathRegex) and \
+                key[level] == path[level]
+                ]
+            if string_matches:
+                # string matches have a higher priority than regex matches
+                matches = string_matches
+                continue
+            # Try to find any regex matches
             matches = [
                 (key, res) for key, res in matches \
                 if isinstance(key[level], PathRegex) and \
-                re.fullmatch(key[level], path[level]) or \
-                key[level] == path[level]
+                re.fullmatch(key[level], path[level])
                 ]
         if len(matches) == 0:
             raise error.NoResource()
