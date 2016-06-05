@@ -26,6 +26,7 @@ To serve more than one resource on a site, use the :class:`Site` class to
 dispatch requests based on the Uri-Path header.
 """
 
+import re
 import hashlib
 import asyncio
 
@@ -161,6 +162,9 @@ class WKCResource(Resource):
         response.opt.content_format = self.ct
         return response
 
+class PathRegex(str):
+    """Regular expression match in resource path components"""
+
 class Site(interfaces.ObservableResource):
     """Typical root element that gets passed to a :class:`Context` and contains
     all the resources that can be found when the endpoint gets accessed as a
@@ -185,12 +189,24 @@ class Site(interfaces.ObservableResource):
 
     @asyncio.coroutine
     def render(self, request):
-        try:
-            child = self._resources[request.opt.uri_path]
-        except KeyError:
+        path = tuple(request.opt.uri_path)
+        # Only compare against resources with the same number of path components
+        matches = [(key, res) for key, res in self._resources.items() if len(key) == len(path)]
+        for level in range(len(path)):
+            # Filter routes matching the path, one level at a time
+            matches = [
+                (key, res) for key, res in matches \
+                if isinstance(key[level], PathRegex) and \
+                re.fullmatch(key[level], path[level]) or \
+                key[level] == path[level]
+                ]
+        if len(matches) == 0:
             raise error.NoResource()
-        else:
-            return child.render(request)
+        elif len(matches) > 1:
+            raise error.RenderableError(
+                "Ambiguous matches: {} = {}".format(repr(path), repr(matches)))
+        child = matches[0][1]
+        return child.render(request)
 
     @asyncio.coroutine
     def add_observation(self, request, serverobservation):
