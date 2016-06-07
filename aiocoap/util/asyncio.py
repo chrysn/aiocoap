@@ -100,9 +100,9 @@ class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
 # require this to be loaded.
 
 _orig_mdt = BaseSelectorEventLoop._make_datagram_transport
-def _new_mdt(self, sock, protocol, address=None, waiter=None, extra=None):
+def _new_mdt(self, sock, protocol, *args, **kwargs):
     if isinstance(protocol, RecvmsgDatagramProtocol):
-        return RecvmsgSelectorDatagramTransport(self, sock, protocol, address, waiter, extra)
+        return RecvmsgSelectorDatagramTransport(self, sock, protocol, *args, **kwargs)
     else:
-        return _orig_mdt(self, sock, protocol, address, waiter, extra)
+        return _orig_mdt(self, sock, protocol, *args, **kwargs)
 BaseSelectorEventLoop._make_datagram_transport = _new_mdt
