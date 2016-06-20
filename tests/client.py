@@ -52,3 +52,22 @@ class TestClient(WithTestServer, WithClient):
             self.fail("Request to non-opened port did not come back with 'Connection Refused'")
         self.assertEqual(request.remote.port, 9999, "Remote port was not parsed")
         resp.cancel()
+
+    @no_warnings
+    def test_uri_reconstruction(self):
+        """This test aims for reconstruction of the URI when for some reasons
+        the request hostname is not available. That would typically be the case
+        for multicasts (where the response's URI dependes on the response
+        package's origin and does not contain the multicast address), but until
+        that's easily testable, this test just removes the information."""
+        yieldfrom = lambda f: self.loop.run_until_complete(f)
+
+        request = aiocoap.Message(code=aiocoap.GET)
+        request_uri = "coap://" + self.servernetloc + "/empty?query=a&query=b"
+        request.set_request_uri(request_uri)
+
+        response = yieldfrom(self.client.request(request).response)
+        response.requested_host = None
+        response.requested_port = None
+        self.assertEqual(response.get_request_uri(), request_uri, "Request URL does not round-trip in response")
+        self.assertEqual(response.code, aiocoap.CONTENT, "Request URL building failed")
