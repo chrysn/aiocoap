@@ -47,7 +47,7 @@ class UDP6EndpointAddress:
 
     # those are currently the inofficial metadata interface
     port = property(lambda self: self.sockaddr[1])
-    is_multicast = property(lambda self: ipaddress.ip_address(self.sockaddr[0]).is_multicast)
+    is_multicast = property(lambda self: ipaddress.ip_address(self.sockaddr[0].split('%', 1)[0]).is_multicast)
 
 class SockExtendedErr(namedtuple("_SockExtendedErr", "ee_errno ee_origin ee_type ee_code ee_pad ee_info ee_data")):
     _struct = struct.Struct("IbbbbII")
