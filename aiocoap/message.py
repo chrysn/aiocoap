@@ -342,7 +342,12 @@ class Message(object):
         is coupled with network specifics the protocol will know better by the
         time the message is sent. Whatever sends the message, be it the
         protocol itself, a proxy wrapper or an alternative transport, will know
-        how to handle the information correctly."""
+        how to handle the information correctly.
+
+        When ``set_uri_host=False`` is passed, the host/port is stored in the
+        ``unresolved_remote`` message property instead of the uri_host option;
+        as a result, the unresolved host name is not sent on the wire, which
+        breaks virtual hosts but makes message sizes smaller."""
 
         parsed = urllib.parse.urlparse(uri, allow_fragments=False)
 
