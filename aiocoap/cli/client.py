@@ -95,7 +95,7 @@ def single_request(args, context=None):
     except ValueError as e:
         raise parser.error(e)
 
-    if not request.opt.uri_host:
+    if not request.opt.uri_host and not request.unresolved_remote:
         raise parser.error("Request URLs need to be absolute.")
 
     if options.accept:

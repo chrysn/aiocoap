@@ -334,7 +334,7 @@ class Message(object):
 
         return self._build_request_uri(scheme, host, port, path, query)
 
-    def set_request_uri(self, uri):
+    def set_request_uri(self, uri, *, set_uri_host=True):
         """Parse a given URI into the uri_* fields of the options.
 
         The remote does not get set automatically; instead, the remote data is
@@ -364,6 +364,11 @@ class Message(object):
         else:
             self.opt.uri_query = []
 
-        if parsed.port:
-            self.opt.uri_port = parsed.port
-        self.opt.uri_host = parsed.hostname
+        if set_uri_host:
+            if parsed.port:
+                self.opt.uri_port = parsed.port
+            self.opt.uri_host = parsed.hostname
+        else:
+            self.unresolved_remote = parsed.hostname
+            if parsed.port:
+                self.unresolved_remote += ":%d"%parsed.port
