@@ -28,6 +28,7 @@ from .. import interfaces
 from ..numbers import COAP_PORT
 from ..dump import TextDumper
 from ..util.asyncio import RecvmsgDatagramProtocol
+from ..util import hostportjoin
 
 class UDP6EndpointAddress:
     # interface work in progress. chances are those should be immutable or at
@@ -44,6 +45,10 @@ class UDP6EndpointAddress:
 
     def __repr__(self):
         return "<%s [%s]:%d%s>"%(type(self).__name__, self.sockaddr[0], self.sockaddr[1], " with local address" if self.pktinfo is not None else "")
+
+    @property
+    def hostinfo(self):
+        return hostportjoin(self.sockaddr[0], self.sockaddr[1] if self.sockaddr[1] != COAP_PORT else None)
 
     # those are currently the inofficial metadata interface
     port = property(lambda self: self.sockaddr[1])

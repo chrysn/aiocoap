@@ -13,6 +13,7 @@ import copy
 from . import error
 from .numbers import *
 from .options import Options
+from .util import hostportjoin
 
 ## Monkey patch urllib to make URL joining available in CoAP
 # This is a workaround for <http://bugs.python.org/issue23759>.
@@ -51,9 +52,10 @@ class Message(object):
 
     * requested_*: Managed by the :class:`.protocol.Request` a response results
       from, and filled with the request's URL data. Non-roundtrippable.
-    * unresolved_remote: ``host[:port]`` formatted string. If this attribute is
-      set, it overrides ``.opt.uri_host`` (and ``-_port``) when it comes to
-      filling the ``remote`` in an outgoing request.
+    * unresolved_remote: ``host[:port]`` (strictly speaking; hostinfo as in a
+      URI) formatted string. If this attribute is set, it overrides
+      ``.opt.uri_host`` (and ``-_port``) when it comes to filling the
+      ``remote`` in an outgoing request.
 
       Use this when you want to send a request with a host name that would not
       normally resolve to the destination address. (Typically, this is used for
@@ -265,17 +267,11 @@ class Message(object):
     #
 
     @staticmethod
-    def _build_request_uri(scheme, host, port, path, query):
+    def _build_request_uri(scheme, hostinfo, path, query):
         """Assemble path components as found in CoAP options into a URL. Helper
         for :meth:`get_request_uri`."""
 
-        if ':' in host:
-            host = '[%s]'%host
-
-        if port is None:
-            netloc = host
-        else:
-            netloc = "%s:%d"%(host, port)
+        netloc = hostinfo
 
         # FIXME this should follow coap section 6.5 more closely
         query = "&".join(query)
@@ -299,6 +295,9 @@ class Message(object):
         # maybe this function does not belong exactly *here*, but it belongs to
         # the results of .request(message), which is currently a message itself.
 
+        hostinfo = None
+        host = None
+
         if self.code.is_response():
             proxyuri = self.requested_proxy_uri
             scheme = self.requested_scheme or 'coap'
@@ -314,25 +313,28 @@ class Message(object):
             host = self.requested_host
         elif self.code.is_request() and self.opt.uri_host is not None:
             host = self.opt.uri_host
+        elif self.code.is_request() and self.unresolved_remote is not None:
+            hostinfo = self.unresolved_remote
         else:
-            host = self.remote.sockaddr[0]
+            hostinfo = self.remote.hostinfo
 
         if self.code.is_response() and self.requested_port is not None:
             port = self.requested_port
         elif self.code.is_request() and self.opt.uri_port is not None:
             port = self.opt.uri_port
-        elif self.remote is not None:
-            port = self.remote.port
-            if port == COAP_PORT:
-                # don't explicitly add port if not required
-                port = None
         else:
             port = None
 
         if proxyuri is not None:
             return proxyuri
 
-        return self._build_request_uri(scheme, host, port, path, query)
+        if hostinfo is None and host is None:
+            raise ValueError("Can not construct URI without any information on the set host")
+
+        if hostinfo is None:
+            hostinfo = hostportjoin(host, port)
+
+        return self._build_request_uri(scheme, hostinfo, path, query)
 
     def set_request_uri(self, uri, *, set_uri_host=True):
         """Parse a given URI into the uri_* fields of the options.
@@ -374,6 +376,4 @@ class Message(object):
                 self.opt.uri_port = parsed.port
             self.opt.uri_host = parsed.hostname
         else:
-            self.unresolved_remote = parsed.hostname
-            if parsed.port:
-                self.unresolved_remote += ":%d"%parsed.port
+            self.unresolved_remote = parsed.netloc
