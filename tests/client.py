@@ -69,8 +69,7 @@ class TestClient(WithTestServer, WithClient):
         request.set_request_uri(request_uri, set_uri_host=self.set_uri_host)
 
         response = yieldfrom(self.client.request(request).response)
-        response.requested_host = None
-        response.requested_port = None
+        response.requested_hostinfo = None
         self.assertEqual(response.get_request_uri(), request_uri, "Request URL does not round-trip in response")
         self.assertEqual(response.code, aiocoap.CONTENT, "Request URL building failed")
 

@@ -91,8 +91,7 @@ class Message(object):
         # example by self.opt.uri_path
         self.requested_proxy_uri = None
         self.requested_scheme = None
-        self.requested_host = None
-        self.requested_port = None
+        self.requested_hostinfo = None
         self.requested_path = None
         self.requested_query = None
 
@@ -309,8 +308,8 @@ class Message(object):
             query = self.opt.uri_query or ()
             path = self.opt.uri_path
 
-        if self.code.is_response() and self.requested_host is not None:
-            host = self.requested_host
+        if self.code.is_response() and self.requested_hostinfo is not None:
+            hostinfo = self.requested_hostinfo
         elif self.code.is_request() and self.opt.uri_host is not None:
             host = self.opt.uri_host
         elif self.code.is_request() and self.unresolved_remote is not None:
@@ -318,9 +317,7 @@ class Message(object):
         else:
             hostinfo = self.remote.hostinfo
 
-        if self.code.is_response() and self.requested_port is not None:
-            port = self.requested_port
-        elif self.code.is_request() and self.opt.uri_port is not None:
+        if self.code.is_request() and self.opt.uri_port is not None:
             port = self.opt.uri_port
         else:
             port = None

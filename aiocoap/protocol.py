@@ -26,6 +26,7 @@ import asyncio
 
 from .util.queuewithend import QueueWithEnd
 from .util.asyncio import cancel_thoroughly
+from .util import hostportjoin
 
 import logging
 # log levels used:
@@ -741,8 +742,10 @@ class Request(BaseRequest, interfaces.Request):
             self.handle_final_response(response)
 
     def handle_final_response(self, response):
-        response.requested_host = self.app_request.opt.uri_host
-        response.requested_port = self.app_request.opt.uri_port
+        if self.app_request.opt.uri_host:
+            response.requested_hostinfo = hostportjoin(self.app_request.opt.uri_host, self.app_request.opt.uri_port)
+        else:
+            response.requested_hostinfo = self.app_request.unresolved_remote
         response.requested_path = self.app_request.opt.uri_path
         response.requested_query = self.app_request.opt.uri_query
 
@@ -810,7 +813,7 @@ class MulticastRequest(BaseRequest):
             self.protocol.send_message(request)
 
     def handle_response(self, response):
-        # not setting requested_host / port, that needs to come from the remote
+        # not setting requested_hostinfo, that needs to come from the remote
         response.requested_path = self.request.opt.uri_path
         response.requested_query = self.request.opt.get_option(OptionNumber.URI_QUERY) or ()
 
