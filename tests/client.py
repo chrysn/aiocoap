@@ -14,20 +14,22 @@ import errno
 from .server import WithTestServer, WithClient, no_warnings
 
 class TestClient(WithTestServer, WithClient):
+    set_uri_host = True
+
     @no_warnings
     def test_uri_parser(self):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
 
         request = aiocoap.Message(code=aiocoap.GET)
         request_uri = "coap://" + self.servernetloc + "/empty?query=a&query=b"
-        request.set_request_uri(request_uri)
+        request.set_request_uri(request_uri, set_uri_host=self.set_uri_host)
         self.assertEqual(request.get_request_uri(), request_uri, "Request URL does not round-trip in request")
         response = yieldfrom(self.client.request(request).response)
         self.assertEqual(response.get_request_uri(), request_uri, "Request URL does not round-trip in response")
         self.assertEqual(response.code, aiocoap.CONTENT, "Request URL building failed")
 
         request = aiocoap.Message(code=aiocoap.GET)
-        request.set_request_uri("coap://" + self.servernamealias + "/empty")
+        request.set_request_uri("coap://" + self.servernamealias + "/empty", set_uri_host=self.set_uri_host)
         self.assertEqual(request.get_request_uri(), "coap://" + self.servernamealias + "/empty")
         response = yieldfrom(self.client.request(request).response)
         self.assertEqual(response.code, aiocoap.CONTENT, "Resolving WithTestServer.servernamealias failed")
@@ -41,7 +43,7 @@ class TestClient(WithTestServer, WithClient):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
 
         request = aiocoap.Message(code=aiocoap.GET)
-        request.set_request_uri("coap://" + self.servernetloc + ":9999/empty")
+        request.set_request_uri("coap://" + self.servernetloc + ":9999/empty", set_uri_host=self.set_uri_host)
         resp = self.client.request(request).response
         try:
             # give the request some time to finish getaddrinfo
@@ -64,10 +66,12 @@ class TestClient(WithTestServer, WithClient):
 
         request = aiocoap.Message(code=aiocoap.GET)
         request_uri = "coap://" + self.servernetloc + "/empty?query=a&query=b"
-        request.set_request_uri(request_uri)
+        request.set_request_uri(request_uri, set_uri_host=self.set_uri_host)
 
         response = yieldfrom(self.client.request(request).response)
-        response.requested_host = None
-        response.requested_port = None
+        response.requested_hostinfo = None
         self.assertEqual(response.get_request_uri(), request_uri, "Request URL does not round-trip in response")
         self.assertEqual(response.code, aiocoap.CONTENT, "Request URL building failed")
+
+class TestClientWithHostlessMessages(TestClient):
+    set_uri_host = False
