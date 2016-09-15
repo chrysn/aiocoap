@@ -77,6 +77,12 @@ class ReplacingResource(aiocoap.resource.Resource):
         response = request.payload.replace(b'0', b'O')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=response)
 
+class PathResource(aiocoap.resource.Resource):
+    @asyncio.coroutine
+    def render_get(self, request):
+        payload = repr(request.opt.uri_path).encode('utf-8')
+        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+
 class TestingSite(aiocoap.resource.Site):
     def __init__(self):
         super(TestingSite, self).__init__()
@@ -86,6 +92,8 @@ class TestingSite(aiocoap.resource.Site):
         self.add_resource(('big',), BigResource())
         self.add_resource(('slowbig',), SlowBigResource())
         self.add_resource(('replacing',), ReplacingResource())
+        self.add_resource(('wildcard', aiocoap.resource.PathRegex('.*')), PathResource())
+        self.add_resource(('4digits', aiocoap.resource.PathRegex('[0-9]{4}')), PathResource())
 
 # helpers
 

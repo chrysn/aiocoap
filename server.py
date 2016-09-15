@@ -13,6 +13,7 @@ import logging
 
 import asyncio
 
+from aiocoap.resource import PathRegex
 import aiocoap.resource as resource
 import aiocoap
 
@@ -90,6 +91,15 @@ class TimeResource(resource.ObservableResource):
         payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
+class RegexResource(resource.Resource):
+    """Example wildcard matching resource, use request.opt.uri_path to find the
+    actual target of the request"""
+
+    @asyncio.coroutine
+    def render_get(self, request):
+        payload = 'Regular expression match example\nrequest.opt.uri_path = {}'.format(repr(request.opt.uri_path))
+        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload.encode('utf-8'))
+
 #class CoreResource(resource.Resource):
 #    """
 #    Example Resource that provides list of links hosted by a server.
@@ -128,6 +138,10 @@ def main():
     root.add_resource(('other', 'block'), BlockResource())
 
     root.add_resource(('other', 'separate'), SeparateLargeResource())
+
+    root.add_resource(('regex', 'anything', PathRegex(r'.*')), RegexResource())
+    root.add_resource(('regex', 'numbers', PathRegex(r'[0-9]*')), RegexResource())
+    root.add_resource(('regex', 'pattern', PathRegex(r'[a-zA-Z][0-9]')), RegexResource())
 
     asyncio.async(aiocoap.Context.create_server_context(root))
 
