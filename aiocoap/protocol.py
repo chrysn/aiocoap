@@ -610,7 +610,7 @@ class Request(BaseRequest, interfaces.Request):
         try:
             yield from self.protocol.fill_remote(self.app_request)
 
-            size_exp = DEFAULT_BLOCK_SIZE_EXP
+            size_exp = DEFAULT_BLOCK_SIZE_EXP if self.app_request.opt.block1 is None else self.app_request.opt.block1.size_exponent
             if len(self.app_request.payload) > (2 ** (size_exp + 4)) and self.handle_blockwise:
                 request = self.app_request._extract_block(0, size_exp)
                 self.app_request.opt.block1 = request.opt.block1
