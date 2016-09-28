@@ -981,7 +981,7 @@ class Responder(object):
         self.app_response = app_response
         size_exp = min(request.opt.block2.size_exponent if request.opt.block2 is not None else DEFAULT_BLOCK_SIZE_EXP, DEFAULT_BLOCK_SIZE_EXP)
         if len(self.app_response.payload) > (2 ** (size_exp + 4)):
-            first_block = self.app_response._extract_block(0, size_exp)
+            first_block = self.app_response._extract_block(request.opt.block2.block_number, size_exp)
             self.app_response.opt.block2 = first_block.opt.block2
             self.send_non_final_response(first_block, request)
         else:
