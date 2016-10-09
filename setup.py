@@ -40,9 +40,9 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
 
-    extras_require={
-        'linkheader': ['LinkHeader'],
-        },
+    install_requires=[
+        'LinkHeader>=0.4.3',
+        ],
 
     entry_points={
         'console_scripts': [
