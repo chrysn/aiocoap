@@ -23,6 +23,7 @@ import binascii
 import functools
 import socket
 import asyncio
+import weakref
 
 from .util.queuewithend import QueueWithEnd
 from .util.asyncio import cancel_thoroughly
@@ -104,7 +105,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         self._backlogs = {} #: per-remote list of (backlogged package, exchange-monitor) tupless (keys exist iff there is an active_exchange with that node)
         self.outgoing_requests = {}  #: Unfinished outgoing requests (identified by token and remote)
         self.incoming_requests = {}  #: Unfinished incoming requests. ``(path-tuple, remote): Request``
-        self.outgoing_observations = {} #: Observations where this context acts as client. ``(token, remote) -> ClientObservation``
+        self.outgoing_observations = {} #: Observations where this context acts as client. ``(token, remote) -> weak(ClientObservation)``
         self.incoming_observations = {} #: Observation where this context acts as server. ``(token, remote) -> ServerObservation``. This is managed by :cls:ServerObservation and :meth:`.Responder.handle_observe_request`.
 
         self.log = logging.getLogger(loggername)
@@ -390,14 +391,15 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
             request.handle_response(response)
             return True
 
-        observation = self.outgoing_observations.get((response.token, response.remote), None)
-        if observation is not None:
+        obsref = self.outgoing_observations.get((response.token, response.remote), None)
+        if obsref is not None:
+            observation = obsref()
             ## @TODO: deduplication based on observe option value, collecting
             # the rest of the resource if blockwise
             observation.callback(response)
 
             if response.opt.observe is None:
-                self.outgoing_observations[(response.token, response.remote)].error(error.ObservationCancelled())
+                observation.error(error.ObservationCancelled())
 
             return True
 
@@ -555,7 +557,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         for ((token, obs_remote), clientobservation) in list(self.outgoing_observations.items()):
             if remote != obs_remote:
                 continue
-            clientobservation.error(exception())
+            clientobservation().error(exception())
 
         for ((token, obs_remote), serverobservation) in list(self.incoming_observations.items()):
             if remote != obs_remote:
@@ -1359,13 +1361,22 @@ class ClientObservation(object):
 
         self._registry_data = (observation_dict, key)
 
-        observation_dict[key] = self
+        observation_dict[key] = weakref.ref(self)
 
     def _unregister(self):
         """Undo the registration done in _register if it was ever done."""
 
         if self._registry_data is not None:
             del self._registry_data[0][self._registry_data[1]]
+            self._registry_data = None
 
     def __repr__(self):
         return '<%s %s at %#x>'%(type(self).__name__, "(cancelled)" if self.cancelled else "(%s call-, %s errback(s))"%(len(self.callbacks), len(self.errbacks)), id(self))
+
+    def __del__(self):
+        if self._registry_data is not None:
+            # if we want to go fully gc-driven later, the warning can be
+            # dropped -- but for observations it's probably better to
+            # explicitly state disinterest.
+            logging.warning("Observation deleted without explicit cancellation")
+            self._unregister()

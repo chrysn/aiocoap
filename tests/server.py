@@ -9,6 +9,7 @@
 import asyncio
 import aiocoap
 import aiocoap.resource
+import functools
 import unittest
 
 import logging
@@ -106,7 +107,8 @@ class TypeCounter(object):
             if message.mtype == aiocoap.ACK and message.code == aiocoap.EMPTY:
                 self.counter.empty_ack_count += 1
 
-def no_warnings(function):
+def no_warnings(function, expected_warnings=None):
+    expected_warnings = expected_warnings or []
     def wrapped(self, *args, function=function):
         # assertLogs does not work as assertDoesntLog anyway without major
         # tricking, and it interacts badly with WithLogMonitoring as they both
@@ -115,11 +117,14 @@ def no_warnings(function):
         startcount = len(self.handler)
         result = function(self, *args)
         messages = [m.msg for m in self.handler[startcount:] if m.levelno >= logging.WARNING]
-        self.assertEqual(messages, [], "Function %s had warnings: %s"%(function.__name__, messages))
+        self.assertEqual(messages, expected_warnings, "Function %s had unexpected warnings: %s"%(function.__name__, messages))
         return result
     wrapped.__name__ = function.__name__
     wrapped.__doc__ = function.__doc__
     return wrapped
+
+def precise_warnings(expected_warnings):
+    return functools.partial(no_warnings, expected_warnings=expected_warnings)
 
 # fixtures
 

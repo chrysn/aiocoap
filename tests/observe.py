@@ -15,9 +15,10 @@ needs to be updated."""
 import asyncio
 import aiocoap
 import unittest
+import gc
 
 from aiocoap.resource import ObservableResource
-from .server import WithTestServer, WithClient, no_warnings, ReplacingResource, MultiRepresentationResource
+from .server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource
 
 class ObservableCounter(ObservableResource):
     def __init__(self):
@@ -113,6 +114,8 @@ class TestObserve(WithObserveTestServer, WithClient):
         yieldfrom(asyncio.sleep(0.1))
         self.assertEqual(observation_results, [b'1', b'2'])
 
+        notinterested()
+
     @no_warnings
     def test_echo(self):
         yieldfrom = self.loop.run_until_complete
@@ -135,3 +138,18 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         yieldfrom(asyncio.sleep(0.1))
         self.assertEqual(observation_results, [b'test data 2'])
+
+        notinterested()
+
+    @precise_warnings(["Observation deleted without explicit cancellation"])
+    def test_lingering(self):
+        """Simulate what happens when a request is sent with an observe option,
+        but the code only waits for the response and does not subscribe to the
+        observation."""
+        yieldfrom = self.loop.run_until_complete
+
+        requester, observation_results, notinterested = self.build_observer(['count'])
+
+        response = self.loop.run_until_complete(requester.response)
+        del requester, response
+        gc.collect()
