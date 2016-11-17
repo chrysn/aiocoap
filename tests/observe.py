@@ -148,8 +148,12 @@ class TestObserve(WithObserveTestServer, WithClient):
         observation."""
         yieldfrom = self.loop.run_until_complete
 
-        # with the callbacks registered in build_observer, this should actually not raise a warning any more! (so we need to build the observation differently to still trigger the warning)
-        requester, observation_results, notinterested = self.build_observer(['count'])
+        request = aiocoap.Message(code=aiocoap.GET)
+        request.unresolved_remote = self.servernetloc
+        request.opt.uri_path = ['count']
+        request.opt.observe = 0
+
+        requester = self.client.request(request)
 
         response = self.loop.run_until_complete(requester.response)
         del requester, response
