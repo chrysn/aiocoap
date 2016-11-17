@@ -65,7 +65,7 @@ class Message(object):
       resources are overhauled. Non-roundtrippable.
     """
 
-    def __init__(self, *, mtype=None, mid=None, code=EMPTY, payload=b'', token=b'', uri=None):
+    def __init__(self, *, mtype=None, mid=None, code=None, payload=b'', token=b'', uri=None):
         self.version = 1
         if mtype is None:
             # leave it unspecified for convenience, sending functions will know what to do
@@ -73,7 +73,11 @@ class Message(object):
         else:
             self.mtype = Type(mtype)
         self.mid = mid
-        self.code = Code(code)
+        if code is None:
+            # as above with mtype
+            self.code = None
+        else:
+            self.code = Code(code)
         self.token = token
         self.payload = payload
         self.opt = Options()
@@ -134,8 +138,8 @@ class Message(object):
 
     def encode(self):
         """Create binary representation of message from Message object."""
-        if self.mtype is None or self.mid is None:
-            raise TypeError("Fatal Error: Message Type and Message ID must not be None.")
+        if self.code is None or self.mtype is None or self.mid is None:
+            raise TypeError("Fatal Error: Code, Message Type and Message ID must not be None.")
         rawdata = bytes([(self.version << 6) + ((self.mtype & 0x03) << 4) + (len(self.token) & 0x0F)])
         rawdata += struct.pack('!BH', self.code, self.mid)
         rawdata += self.token
