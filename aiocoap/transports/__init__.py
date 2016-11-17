@@ -7,4 +7,10 @@
 # described in the accompanying LICENSE file.
 
 """Container module for transports
+
+Transports are expected to be the modular backends of aiocoap, and implement
+the specifics of eg. TCP, WebSockets or SMS, possibly divided by backend
+implementations as well. (If, for example, a non-posix platform is added, it
+might be easier to rewrite the :mod:`.udp6` for that platform
+instead of "ifdef hell").
 """

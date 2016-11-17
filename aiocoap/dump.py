@@ -11,7 +11,7 @@ from datetime import datetime
 from .util.asyncio import RecvmsgDatagramProtocol
 
 class TextDumper(RecvmsgDatagramProtocol):
-    """Plain text etwork data dumper
+    """Plain text network data dumper
 
     A TextDumper can be used to log network traffic into a file that can be
     converted to a PCAP-NG file as described in its header.
@@ -21,9 +21,11 @@ class TextDumper(RecvmsgDatagramProtocol):
     simultaneously staying at application level and staying ignorant of
     particular underlying protocols' data structures.
 
-    It can be used stand-alone (outside of the asyncio transport/protocol
-    mechanisms) when instanciated only with an output file; in that case, us
-    the :meth:datagram_received and :meth:sendto methods.
+    It could previously be used stand-alone (outside of the asyncio
+    transport/protocol mechanisms) when instanciated only with an output file
+    (the :meth:`datagram_received` and :meth:`sendto` were used), but with the
+    :meth:`datagram_msg_received` substitute method, this is probably
+    impractical now.
 
     To use it between an asyncio transport and protocol, use the
     :meth:endpointfactory method."""
