@@ -22,6 +22,7 @@
    aiocoap.util
    aiocoap.util.asyncio
    aiocoap.util.queuewithend
+   aiocoap.util.socknumbers
    examples
    tools
    LICENSE

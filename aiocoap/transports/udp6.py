@@ -17,7 +17,6 @@ that a name is only available on V4."""
 import asyncio
 import urllib.parse
 import socket
-import IN
 import ipaddress
 import struct
 from collections import namedtuple
@@ -29,6 +28,7 @@ from ..numbers import COAP_PORT
 from ..dump import TextDumper
 from ..util.asyncio import RecvmsgDatagramProtocol
 from ..util import hostportjoin
+from ..util import socknumbers
 
 class UDP6EndpointAddress:
     # interface work in progress. chances are those should be immutable or at
@@ -85,11 +85,10 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
 
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
-        # this'd feel more comfortable if the IN module were documented anywhere
-        sock.setsockopt(socket.IPPROTO_IPV6, IN.IPV6_RECVERR, 1)
+        sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1)
         # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
         # it clear that i don't care about the ip version as long as everything looks the same?
-        sock.setsockopt(socket.IPPROTO_IP, IN.IP_RECVERR, 1)
+        sock.setsockopt(socket.IPPROTO_IP, socknumbers.IP_RECVERR, 1)
 
         if bind is not None:
             # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
@@ -191,9 +190,9 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         errno = None
         for cmsg_level, cmsg_type, cmsg_data in ancdata:
             assert cmsg_level == socket.IPPROTO_IPV6
-            if cmsg_type == IN.IPV6_RECVERR:
+            if cmsg_type == socknumbers.IPV6_RECVERR:
                 errno = SockExtendedErr.load(cmsg_data).ee_errno
-            elif cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == IN.IPV6_PKTINFO:
+            elif cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == socknumbers.IPV6_PKTINFO:
                 pktinfo = cmsg_data
             else:
                 self.log.info("Received unexpected ancillary data to recvmsg errqueue: level %d, type %d, data %r", cmsg_level, cmsg_type, cmsg_data)
