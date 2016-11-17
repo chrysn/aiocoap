@@ -15,9 +15,10 @@ needs to be updated."""
 import asyncio
 import aiocoap
 import unittest
+import gc
 
 from aiocoap.resource import ObservableResource
-from .server import WithTestServer, WithClient, no_warnings, ReplacingResource, MultiRepresentationResource
+from .server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource
 
 class ObservableCounter(ObservableResource):
     def __init__(self):
@@ -113,6 +114,8 @@ class TestObserve(WithObserveTestServer, WithClient):
         yieldfrom(asyncio.sleep(0.1))
         self.assertEqual(observation_results, [b'1', b'2'])
 
+        notinterested()
+
     @no_warnings
     def test_echo(self):
         yieldfrom = self.loop.run_until_complete
@@ -135,3 +138,28 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         yieldfrom(asyncio.sleep(0.1))
         self.assertEqual(observation_results, [b'test data 2'])
+
+        notinterested()
+
+    @no_warnings
+    def test_lingering(self):
+        """Simulate what happens when a request is sent with an observe option,
+        but the code only waits for the response and does not subscribe to the
+        observation."""
+        yieldfrom = self.loop.run_until_complete
+
+        request = aiocoap.Message(code=aiocoap.GET)
+        request.unresolved_remote = self.servernetloc
+        request.opt.uri_path = ['count']
+        request.opt.observe = 0
+
+        requester = self.client.request(request)
+
+        response = self.loop.run_until_complete(requester.response)
+        del requester, response
+        gc.collect()
+
+        # this needs to happen now and not in a precise_warnings because by the
+        # time precise_warnings checks the messages, the context was already
+        # shut down, but we want to make sure the warning is raised in time.
+        self.assertWarned("Observation deleted without explicit cancellation")
