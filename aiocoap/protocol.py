@@ -961,6 +961,8 @@ class Responder(object):
             self.log.error("An exception occurred while rendering a resource: %r"%e)
             self.log.exception(e)
         else:
+            if response.code is None:
+                response.code = CONTENT
             if not response.code.is_response():
                 self.log.warning("Response does not carry response code (%r), application probably violates protocol."%response.code)
 

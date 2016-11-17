@@ -51,7 +51,7 @@ class FileServer(Resource):
 
     async def render_get(self, request):
         if request.opt.uri_path == ('.well-known', 'core'):
-            m = aiocoap.Message(code=codes.CONTENT, payload=b"</>;ct=40")
+            m = aiocoap.Message(payload=b"</>;ct=40")
             m.opt.content_format = 40
             return m
 
@@ -76,7 +76,7 @@ class FileServer(Resource):
                 response += "<%s/>;ct=40,"%f
             else:
                 response += "<%s>,"%f
-        m = aiocoap.Message(code=codes.CONTENT, payload=response[:-1].encode('utf8'))
+        m = aiocoap.Message(payload=response[:-1].encode('utf8'))
         m.opt.content_format = 40
         return m
 
@@ -90,7 +90,7 @@ class FileServer(Resource):
         guessed_type, _ = mimetypes.guess_type(str(path))
 
         block_out = aiocoap.optiontypes.BlockOption.BlockwiseTuple(block_in.block_number, len(data) > block_in.size, block_in.size_exponent)
-        response = aiocoap.Message(code=codes.CONTENT, payload=data[:block_in.size])
+        response = aiocoap.Message(payload=data[:block_in.size])
         response.opt.block2 = block_out
         response.opt.content_format = aiocoap.numbers.media_types_rev.get(guessed_type, 0 if guessed_type is not None and guessed_type.startswith('text/') else 42)
         return response

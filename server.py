@@ -30,7 +30,7 @@ class BlockResource(resource.Resource):
                 "transfer.\n" + "0123456789\n" * 100).encode("ascii")
 
     async def render_get(self, request):
-        response = aiocoap.Message(code=aiocoap.CONTENT, payload=self.content)
+        response = aiocoap.Message(payload=self.content)
         return response
 
     async def render_put(self, request):
@@ -38,7 +38,7 @@ class BlockResource(resource.Resource):
         self.content = request.payload
         payload = ("I've accepted the new payload. You may inspect it here in "\
                 "Python's repr format:\n\n%r"%self.content).encode('utf8')
-        return aiocoap.Message(code=aiocoap.CHANGED, payload=payload)
+        return aiocoap.Message(payload=payload)
 
 
 class SeparateLargeResource(resource.Resource):
@@ -59,7 +59,7 @@ class SeparateLargeResource(resource.Resource):
                 "for dwarven lords in their halls of stone, nine rings for"\
                 "mortal men doomed to die, one ring for the dark lord on his"\
                 "dark throne.".encode('ascii')
-        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+        return aiocoap.Message(payload=payload)
 
 class TimeResource(resource.ObservableResource):
     """
@@ -84,7 +84,7 @@ class TimeResource(resource.ObservableResource):
 
     async def render_get(self, request):
         payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii')
-        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+        return aiocoap.Message(payload=payload)
 
 #class CoreResource(resource.Resource):
 #    """
@@ -103,7 +103,7 @@ class TimeResource(resource.ObservableResource):
 #        data = []
 #        self.root.generate_resource_list(data, "")
 #        payload = ",".join(data).encode('utf-8')
-#        response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+#        response = aiocoap.Message(payload=payload)
 #        response.opt.content_format = 40
 #        return response
 
