@@ -28,7 +28,8 @@ Dependencies
 ------------
 
 The core aiocoap functionality works out of the box with Python_ 3.4; with the
-additional asyncio_ module, it works with version 3.3 as well.
+additional asyncio_ module, it works with version 3.3 as well. The
+:doc:`examples` require Python 3.5 or newer.
 
 When application/link-format typed resources (`RFC 6690`_) are supposed to be
 used, the `link_header`_ module is required as well. When the respective code

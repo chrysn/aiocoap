@@ -29,13 +29,11 @@ class BlockResource(resource.Resource):
                 "with numbers to be large enough to trigger blockwise "\
                 "transfer.\n" + "0123456789\n" * 100).encode("ascii")
 
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         response = aiocoap.Message(code=aiocoap.CONTENT, payload=self.content)
         return response
 
-    @asyncio.coroutine
-    def render_put(self, request):
+    async def render_put(self, request):
         print('PUT payload: %s' % request.payload)
         self.content = request.payload
         payload = ("I've accepted the new payload. You may inspect it here in "\
@@ -54,9 +52,8 @@ class SeparateLargeResource(resource.Resource):
         super(SeparateLargeResource, self).__init__()
 #        self.add_param(resource.LinkParam("title", "Large resource."))
 
-    @asyncio.coroutine
-    def render_get(self, request):
-        yield from asyncio.sleep(3)
+    async def render_get(self, request):
+        await asyncio.sleep(3)
 
         payload = "Three rings for the elven kings under the sky, seven rings"\
                 "for dwarven lords in their halls of stone, nine rings for"\
@@ -85,8 +82,7 @@ class TimeResource(resource.ObservableResource):
         else:
             print("Stowing away the clock until someone asks again")
 
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
@@ -103,8 +99,7 @@ class TimeResource(resource.ObservableResource):
 #        resource.Resource.__init__(self)
 #        self.root = root
 #
-#    @asyncio.coroutine
-#    def render_get(self, request):
+#    async def render_get(self, request):
 #        data = []
 #        self.root.generate_resource_list(data, "")
 #        payload = ",".join(data).encode('utf-8')
@@ -129,7 +124,7 @@ def main():
 
     root.add_resource(('other', 'separate'), SeparateLargeResource())
 
-    asyncio.async(aiocoap.Context.create_server_context(root))
+    asyncio.Task(aiocoap.Context.create_server_context(root))
 
     asyncio.get_event_loop().run_forever()
 

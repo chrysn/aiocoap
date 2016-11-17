@@ -15,15 +15,14 @@ from aiocoap import *
 
 logging.basicConfig(level=logging.INFO)
 
-@asyncio.coroutine
-def main():
-    protocol = yield from Context.create_client_context()
+async def main():
+    protocol = await Context.create_client_context()
 
     request = Message(code=GET)
     request.set_request_uri('coap://localhost/time')
 
     try:
-        response = yield from protocol.request(request).response
+        response = await protocol.request(request).response
     except Exception as e:
         print('Failed to fetch resource:')
         print(e)
