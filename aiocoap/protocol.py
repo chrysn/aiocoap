@@ -274,7 +274,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         key = (message.remote, message.mid)
 
         if key not in self._active_exchanges:
-            self.log.info("Received %s from %s, but could not match it to a running exchange."%(message.mtype, message.remote))
+            self.log.warn("Received %s from %s, but could not match it to a running exchange."%(message.mtype, message.remote))
             return
 
         exchange_monitor, next_retransmission = self._active_exchanges.pop(key)
