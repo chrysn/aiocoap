@@ -966,6 +966,8 @@ class Responder(object):
             if not response.code.is_response():
                 self.log.warning("Response does not carry response code (%r), application probably violates protocol."%response.code)
 
+            self.handle_observe_response(request, response)
+
             if needs_blockwise:
                 self.respond(response, request)
             else:
@@ -985,8 +987,6 @@ class Responder(object):
 
         # if there was an error, make sure nobody hopes to get a result any more
         self.app_request.cancel()
-
-        self.handle_observe_response(request, app_response)
 
         self.log.debug("Preparing response...")
         self.app_response = app_response
@@ -1125,6 +1125,11 @@ class Responder(object):
                 sobs.deregister("Resource does not provide observation")
 
     def handle_observe_response(self, request, response):
+        """Modify the response according to the Responder's understanding of
+        the involved observation (eg. drop the observe flag it's not involved
+        in an observation or the observation was cancelled), and update the
+        Responder/context if the response modifies the observation state (eg.
+        by being unsuccessful)."""
         if request.mtype is None:
             # this is the indicator that the request was just injected
             response.mtype = CON
