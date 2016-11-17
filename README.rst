@@ -56,17 +56,9 @@ Documentation is built using sphinx_; hacks used there are described in
 Bugs from design goal and wishlist to typos are currently tracked in the
 `github issue tracker`_.
 
-Continuousi integration is currently managed in GitLab: |online status|_
-
 .. _PEP8: http://legacy.python.org/dev/peps/pep-0008/
 .. _sphinx: http://sphinx-doc.org/
 .. _`github issue tracker`: https://github.com/chrysn/aiocoap/issues
-
-.. |online status| raw:: html
-   
-    <!-- workaround because of incomplete fix for https://github.com/sphinx-doc/sphinx/issues/2240 -->
-    <img src="https://gitlab.com/energyharvesting/aiocoap/badges/master/build.svg">
-.. _`online status`: https://gitlab.com/energyharvesting/aiocoap/commits/master
 
 Relevant URLs
 -------------
