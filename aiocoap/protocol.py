@@ -9,12 +9,15 @@
 """This module contains the classes that are responsible for keeping track of messages:
 
 * :class:`Context` roughly represents the CoAP endpoint (basically a UDP
-  socket) -- something that can send requests and possibly can answer incoming
-  requests.
+    socket) -- something that can send requests and possibly can answer incoming
+    requests.
+
 * a :class:`Request` gets generated whenever a request gets sent to keep
-  track of the response
+    track of the response
+
 * a :class:`Responder` keeps track of a single incoming request
 """
+
 
 import os
 import random
@@ -1312,6 +1315,41 @@ class ClientObservation(object):
         self.cancelled = False
 
         self._registry_data = None
+
+    def __aiter__(self):
+        """`async for` interface to observations. Currently, this still loses
+        information to the application (the reason for the termination is
+        unclear)."""
+        it = self._Iterator()
+        self.register_callback(it.push)
+        self.register_errback(it.push_err)
+        return it
+
+    class _Iterator:
+        def __init__(self):
+            self._future = asyncio.Future()
+
+        def push(self, item):
+            if self._future.done():
+                # we don't care whether we overwrite anything, this is a lossy queue as observe is lossy
+                self._future = asyncio.Future()
+            self._future.set_result(item)
+
+        def push_err(self, e):
+            if self._future.done():
+                self._future = asyncio.Future()
+            self._future.set_exception(e)
+
+        @asyncio.coroutine
+        def __anext__(self):
+            f = self._future
+            try:
+                result = (yield from self._future)
+                if f is self._future:
+                    self._future = asyncio.Future()
+                return result
+            except Exception:
+                raise StopAsyncIteration
 
     def register_callback(self, callback):
         """Call the callback whenever a response to the message comes in, and
