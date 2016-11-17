@@ -1,0 +1,5 @@
+image: "python:3"
+
+test:
+  script:
+    - ./setup.py test
