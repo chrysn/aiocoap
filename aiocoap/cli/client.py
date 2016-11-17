@@ -62,7 +62,7 @@ def incoming_observation(options, response):
     else:
         sys.stdout.buffer.write(b'---\n')
         if response.code.is_successful():
-            sys.stdout.buffer.write(response.payload + b'\n' if not response.payload.endswith(b'\n') else b'')
+            sys.stdout.buffer.write(response.payload + (b'\n' if not response.payload.endswith(b'\n') else b''))
             sys.stdout.buffer.flush()
         else:
             print(response.code, file=sys.stderr)
