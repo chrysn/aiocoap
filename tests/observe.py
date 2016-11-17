@@ -141,15 +141,21 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         notinterested()
 
-    @precise_warnings(["Observation deleted without explicit cancellation"])
+    @no_warnings
     def test_lingering(self):
         """Simulate what happens when a request is sent with an observe option,
         but the code only waits for the response and does not subscribe to the
         observation."""
         yieldfrom = self.loop.run_until_complete
 
+        # with the callbacks registered in build_observer, this should actually not raise a warning any more! (so we need to build the observation differently to still trigger the warning)
         requester, observation_results, notinterested = self.build_observer(['count'])
 
         response = self.loop.run_until_complete(requester.response)
         del requester, response
         gc.collect()
+
+        # this needs to happen now and not in a precise_warnings because by the
+        # time precise_warnings checks the messages, the context was already
+        # shut down, but we want to make sure the warning is raised in time.
+        self.assertWarned("Observation deleted without explicit cancellation")

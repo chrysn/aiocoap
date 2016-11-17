@@ -149,6 +149,18 @@ class WithLogMonitoring(unittest.TestCase):
         def emit(self, record):
             self.append(record)
 
+    def assertWarned(self, message):
+        """Assert that there was a warning with the given message.
+
+        This function also removes the warning from the log, so an enclosing
+        @no_warnings (or @precise_warnings) can succed."""
+        for entry in self.handler:
+            if entry.msg == message and entry.levelno == logging.WARNING:
+                self.handler.remove(entry)
+                break
+        else:
+            raise AssertionError("Warning not logged: %r"%message)
+
 class WithAsyncLoop(unittest.TestCase):
     def setUp(self):
         super(WithAsyncLoop, self).setUp()

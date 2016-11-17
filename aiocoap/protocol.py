@@ -1313,12 +1313,14 @@ class ClientObservation(object):
         """Call the callback whenever a response to the message comes in, and
         pass the response to it."""
         self.callbacks.append(callback)
+        self._set_nonweak()
 
     def register_errback(self, callback):
         """Call the callback whenever something goes wrong with the
         observation, and pass an exception to the callback. After such a
         callback is called, no more callbacks will be issued."""
         self.errbacks.append(callback)
+        self._set_nonweak()
 
     def callback(self, response):
         """Notify all listeners of an incoming response"""
@@ -1362,6 +1364,13 @@ class ClientObservation(object):
         self._registry_data = (observation_dict, key)
 
         observation_dict[key] = weakref.ref(self)
+
+    def _set_nonweak(self):
+        """Prevent the observation from being garbage collected (because it has
+        actual callbacks). Not reversible right now because callbacks can't be
+        deregistered anyway."""
+        if self._registry_data and isinstance(self._registry_data[0][self._registry_data[1]], weakref.ref):
+            self._registry_data[0][self._registry_data[1]] = lambda self=self: self
 
     def _unregister(self):
         """Undo the registration done in _register if it was ever done."""
