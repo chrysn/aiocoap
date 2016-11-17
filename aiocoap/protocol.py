@@ -595,7 +595,7 @@ class Request(BaseRequest, interfaces.Request):
 
         if self.app_request.opt.observe is not None:
             self.observation = ClientObservation(self.app_request)
-            self.response.add_done_callback(self.register_observation)
+            self._observation_handled = False
 
         asyncio.async(self._init_phase2())
 
@@ -620,7 +620,13 @@ class Request(BaseRequest, interfaces.Request):
 
             self.send_request(request)
         except Exception as e:
-            self.response.set_exception(e)
+            self._set_response_and_observation_error(e)
+
+    def _set_response_and_observation_error(e):
+        self.response.set_exception(e)
+        if self.app_request.opt.observe is not None:
+            self._observation_handled = True
+            self.observation.error(e)
 
     def cancel(self):
         # TODO cancel ongoing exchanges
@@ -648,7 +654,7 @@ class Request(BaseRequest, interfaces.Request):
 
             self.log.info("Request timed out")
             del self.protocol.outgoing_requests[(request.token, request.remote)]
-            self.response.set_exception(error.RequestTimedOut())
+            self._set_response_and_observation_error(e)
 
         if request.mtype is None:
             request.mtype = CON
@@ -657,7 +663,7 @@ class Request(BaseRequest, interfaces.Request):
         try:
             self.protocol.send_message(request, self._exchange_monitor_factory(request))
         except Exception as e:
-            self.response.set_exception(e)
+            self._set_response_and_observation_error(e)
         else:
             if self._requesttimeout:
                 cancel_thoroughly(self._requesttimeout)
@@ -687,7 +693,7 @@ class Request(BaseRequest, interfaces.Request):
         self.log.debug("Response with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
 
         if block1.block_number != self.app_request.opt.block1.block_number:
-            self.response.set_exception(UnexpectedBlock1Option())
+            self._set_response_and_observation_error(UnexpectedBlock1Option())
 
         if block1.size_exponent < self.app_request.opt.block1.size_exponent:
             next_number = (self.app_request.opt.block1.block_number + 1) * 2 ** (self.app_request.opt.block1.size_exponent - block1.size_exponent)
@@ -707,7 +713,7 @@ class Request(BaseRequest, interfaces.Request):
                 self._request_transmitted_completely = True
                 self.process_block2_in_response(response)
             else:
-                self.response.set_exception(UnexpectedBlock1Option())
+                self._set_response_and_observation_error(UnexpectedBlock1Option())
 
     def process_block2_in_response(self, response):
         """Process incoming response with regard to Block2 option."""
@@ -715,6 +721,10 @@ class Request(BaseRequest, interfaces.Request):
         if self.response.done():
             self.log.info("Disregarding incoming message as response Future is done (probably cancelled)")
             return
+
+        if self.app_request.opt.observe is not None and self._assembled_response == None:
+            # assembled response indicates it's the first response package
+            self.register_observation(response)
 
         if response.opt.block2 is not None and self.handle_blockwise:
             block2 = response.opt.block2
@@ -753,20 +763,11 @@ class Request(BaseRequest, interfaces.Request):
 
         self.response.set_result(response)
 
-    def register_observation(self, response_future):
-        # we could have this be a coroutine, then it would be launched
-        # immediately instead of as add_done_callback to self.response, but it
-        # doesn't give an advantage, we'd still have to check for whether the
-        # observation has been cancelled before setting an error, and we'd just
-        # one more task around
-        try:
-            response = response_future.result()
-        except Exception as e:
-            if not self.observation.cancelled:
-                self.observation.error(e)
-            return
+    def register_observation(self, response):
+        assert self._observation_handled == False
+        self._observation_handled = True
 
-        if response.opt.observe is None:
+        if not response.code.is_successful() or response.opt.observe is None:
             if not self.observation.cancelled:
                 self.observation.error(error.NotObservable())
         else:
