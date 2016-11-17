@@ -43,7 +43,7 @@ class SlowResource(aiocoap.resource.Resource):
     @asyncio.coroutine
     def render_get(self, request):
         yield from asyncio.sleep(0.2)
-        return aiocoap.Message(code=aiocoap.CONTENT)
+        return aiocoap.Message()
 
 class BigResource(aiocoap.resource.Resource):
     @asyncio.coroutine

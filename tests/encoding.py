@@ -204,3 +204,16 @@ class TestOptiontypes(unittest.TestCase):
             else:
                 self.assertRaises(ValueError, o.is_nocachekey)
                 self.assertRaises(ValueError, o.is_cachekey)
+
+class TestMessageOptionConstruction(unittest.TestCase):
+    def test_uri_construction(self):
+        message = aiocoap.Message(uri="coap://localhost:1234/some/path/")
+        self.assertEqual(message.opt.uri_host, "localhost")
+        self.assertEqual(message.opt.uri_port, 1234)
+        self.assertEqual(message.opt.uri_path, ("some", "path", ""))
+
+    def test_opt_construction(self):
+        message = aiocoap.Message(content_format=40, observe=0, uri_path=())
+        self.assertEqual(message.opt.content_format, 40)
+        self.assertEqual(message.opt.observe, 0)
+        self.assertEqual(message.opt.uri_path, ())
