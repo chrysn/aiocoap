@@ -30,8 +30,7 @@ class BlockResource(resource.Resource):
                 "transfer.\n" + "0123456789\n" * 100).encode("ascii")
 
     async def render_get(self, request):
-        response = aiocoap.Message(payload=self.content)
-        return response
+        return aiocoap.Message(payload=self.content)
 
     async def render_put(self, request):
         print('PUT payload: %s' % request.payload)
@@ -103,9 +102,7 @@ class TimeResource(resource.ObservableResource):
 #        data = []
 #        self.root.generate_resource_list(data, "")
 #        payload = ",".join(data).encode('utf-8')
-#        response = aiocoap.Message(payload=payload)
-#        response.opt.content_format = 40
-#        return response
+#        return aiocoap.Message(payload=payload, content_format=40)
 
 # logging setup
 

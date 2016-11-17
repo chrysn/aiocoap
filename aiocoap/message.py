@@ -63,9 +63,13 @@ class Message(object):
 
     * :attr:`prepath`, :attr:`postpath`: Not sure, will probably go away when
       resources are overhauled. Non-roundtrippable.
+
+    Options can be given as further keyword arguments at message construction
+    time. This feature is experimental, as future message parameters could
+    collide with options.
     """
 
-    def __init__(self, *, mtype=None, mid=None, code=None, payload=b'', token=b'', uri=None):
+    def __init__(self, *, mtype=None, mid=None, code=None, payload=b'', token=b'', uri=None, **kwargs):
         self.version = 1
         if mtype is None:
             # leave it unspecified for convenience, sending functions will know what to do
@@ -105,6 +109,9 @@ class Message(object):
 
         if uri:
             self.set_request_uri(uri)
+
+        for k, v in kwargs.items():
+            setattr(self.opt, k, v)
 
     def __repr__(self):
         return "<aiocoap.Message at %#x: %s %s (ID %r, token %r) remote %s%s%s>"%(

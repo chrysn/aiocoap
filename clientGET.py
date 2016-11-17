@@ -18,8 +18,7 @@ logging.basicConfig(level=logging.INFO)
 async def main():
     protocol = await Context.create_client_context()
 
-    request = Message(code=GET)
-    request.set_request_uri('coap://localhost/time')
+    request = Message(code=GET, uri='coap://localhost/time')
 
     try:
         response = await protocol.request(request).response

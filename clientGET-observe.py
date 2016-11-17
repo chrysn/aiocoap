@@ -18,9 +18,7 @@ logging.basicConfig(level=logging.INFO)
 async def main():
     protocol = await Context.create_client_context()
 
-    request = Message(code=GET)
-    request.set_request_uri('coap://localhost/time')
-    request.opt.observe = 0
+    request = Message(code=GET, uri='coap://localhost/time', observe=0)
 
     pr = protocol.request(request)
 
