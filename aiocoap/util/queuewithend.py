@@ -157,7 +157,7 @@ class QueueWithEnd(AsyncIterable):
                 yield from merged._put(queue._flag, queue._value)
                 queue._flag = cls.Type.notpeeked
         for s in merged.subqueues:
-            asyncio.async(feeder(s, merged))
+            asyncio.Task(feeder(s, merged))
 
         return merged
 

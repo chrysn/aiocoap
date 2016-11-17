@@ -600,7 +600,7 @@ class Request(BaseRequest, interfaces.Request):
             self.observation = ClientObservation(self.app_request)
             self._observation_handled = False
 
-        asyncio.async(self._init_phase2())
+        asyncio.Task(self._init_phase2())
 
     @asyncio.coroutine
     def _init_phase2(self):
@@ -790,7 +790,7 @@ class MulticastRequest(BaseRequest):
 
         self.responses = QueueWithEnd()
 
-        asyncio.async(self._init_phase2())
+        asyncio.Task(self._init_phase2())
 
     @asyncio.coroutine
     def _init_phase2(self):
@@ -826,8 +826,8 @@ class MulticastRequest(BaseRequest):
         response.requested_path = self.request.opt.uri_path
         response.requested_query = self.request.opt.get_option(OptionNumber.URI_QUERY) or ()
 
-        # FIXME this should somehow backblock, but it's udp
-        asyncio.async(self.responses.put(response))
+        # FIXME this should somehow backblock, but it's udp -- maybe rather limit queue length?
+        asyncio.Task(self.responses.put(response))
 
     def _timeout(self):
         self.protocol.outgoing_requests.pop(self.request.token, None)
