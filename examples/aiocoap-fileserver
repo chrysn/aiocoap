@@ -56,7 +56,8 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
                     new_stat = path.stat()
                 except:
                     new_stat = False
-                if new_stat != last_stat:
+                relevant = lambda s: (s.st_ino, s.st_dev, s.st_size, s.st_mtime, s.st_ctime)
+                if relevant(new_stat) != relevant(last_stat):
                     self.log.info("New stat for %s"%path)
                     data[0] = new_stat
                     for cb in callbacks: cb()
