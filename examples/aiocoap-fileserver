@@ -52,7 +52,10 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
                 last_stat, callbacks = data
                 if last_stat is None:
                     continue # this hit before the original response even triggered
-                new_stat = path.stat()
+                try:
+                    new_stat = path.stat()
+                except:
+                    new_stat = False
                 if new_stat != last_stat:
                     self.log.info("New stat for %s"%path)
                     data[0] = new_stat
@@ -91,10 +94,11 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
 
         response = ""
         for f in path.iterdir():
+            rel = f.relative_to(path)
             if f.is_dir():
-                response += "<%s/>;ct=40,"%f
+                response += "<%s/>;ct=40,"%rel
             else:
-                response += "<%s>,"%f
+                response += "<%s>,"%rel
         return aiocoap.Message(payload=response[:-1].encode('utf8'), content_format=40)
 
     async def render_get_file(self, request, path):
