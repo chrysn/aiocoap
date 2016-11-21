@@ -660,7 +660,7 @@ class Request(BaseRequest, interfaces.Request):
 
             self.log.info("Request timed out")
             del self.protocol.outgoing_requests[(request.token, request.remote)]
-            self._set_response_and_observation_error(e)
+            self._set_response_and_observation_error(error.RequestTimedOut())
 
         if request.mtype is None:
             request.mtype = CON
