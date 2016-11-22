@@ -9,7 +9,7 @@
 import asyncio
 
 from .server import WithAsyncLoop, Destructing, WithClient, TestServer, CLEANUPTIME
-from .client import TestClient
+from .client import TestClientWithSetHost
 import aiocoap.proxy.client
 import aiocoap.cli.proxy
 
@@ -61,9 +61,9 @@ class TestServerWithProxy(WithProxyClient, TestServer):
 
 # leaving that out for a moment because it fails more slowly
 
-#class TestClientWithProxy(WithProxyClient, TestClient):
+#class TestClientWithProxy(WithProxyClient, TestClientWithSetHost):
 #    pass
 
 # no need to run them again
-del TestClient
+del TestClientWithSetHost
 del TestServer

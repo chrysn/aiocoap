@@ -31,6 +31,7 @@ import weakref
 from .util.queuewithend import QueueWithEnd
 from .util.asyncio import cancel_thoroughly
 from .util import hostportjoin
+from . import error
 
 import logging
 # log levels used:
@@ -779,6 +780,38 @@ class Request(BaseRequest, interfaces.Request):
         else:
             self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
 
+    ### Alternatives to waiting for .response
+
+    @property
+    @asyncio.coroutine
+    def response_raising(self):
+        """An awaitable that returns if a response comes in and is successful,
+        otherwise raises generic network exception or a
+        :class:`.error.ResponseWrappingError` for unsuccessful responses.
+
+        Experimental Interface."""
+
+        response = yield from self.response
+        if not response.code.is_successful():
+            raise error.ResponseWrappingError(response)
+
+        return response
+
+    @property
+    @asyncio.coroutine
+    def response_nonraising(self):
+        """An awaitable that rather returns a 500ish fabricated message (as a
+        proxy would return) instead of raising an exception.
+
+        Experimental Interface."""
+
+        try:
+            return (yield from self.response)
+        except error.RenderableError:
+            return e.to_message()
+        except Exception as e:
+            return Message(code=INTERNAL_SERVER_ERROR)
+
 class MulticastRequest(BaseRequest):
     def __init__(self, protocol, request):
         self.protocol = protocol
@@ -1326,7 +1359,9 @@ class ClientObservation(object):
     def __aiter__(self):
         """`async for` interface to observations. Currently, this still loses
         information to the application (the reason for the termination is
-        unclear)."""
+        unclear).
+
+        Experimental Interface."""
         it = self._Iterator()
         self.register_callback(it.push)
         self.register_errback(it.push_err)

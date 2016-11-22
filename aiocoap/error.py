@@ -10,6 +10,8 @@
 Exception definitions for txThings CoAP library.
 """
 
+import abc
+
 from .numbers import codes
 
 class Error(Exception):
@@ -17,21 +19,48 @@ class Error(Exception):
     Base exception for all exceptions that indicate a failed request
     """
 
-class RenderableError(Error):
+class RenderableError(Error, metaclass=abc.ABCMeta):
     """
     Exception that can meaningfully be represented in a CoAP response
+    """
+
+    @abc.abstractmethod
+    def to_message(self):
+        """Create a CoAP message that should be sent when this exception is
+        rendered"""
+
+class ResponseWrappingError(Error):
+    """
+    An exception that is raised due to an unsuccessful but received response.
+
+    A better relationship with :mod:`.numbers.codes` should be worked out to do
+    `except UnsupportedMediaType`.
+    """
+    def __init__(self, coapmessage):
+        self.coapmessage = coapmessage
+
+    def to_message(self):
+        return self.coapmessage
+
+    def __repr__(self):
+        return "<%s: %s %r>"%(type(self).__name__, self.coapmessage.code, self.coapmessage.payload)
+
+class ConstructionRenderableError(RenderableError):
+    """
+    RenderableError that is constructed from class attrinutes :attr:`code` and
+    :attr:`message`
     """
     code = codes.INTERNAL_SERVER_ERROR
     message = ""
 
-class NoResource(RenderableError):
+class NoResource(ConstructionRenderableError):
     """
     Raised when resource is not found.
     """
     code = codes.NOT_FOUND
     message = "Error: Resource not found!"
 
-class UnallowedMethod(RenderableError):
+class UnallowedMethod(ConstructionRenderableError):
     """
     Raised by a resource when request method is understood by the server
     but not allowed for that particular resource.
@@ -39,7 +68,7 @@ class UnallowedMethod(RenderableError):
     code = codes.METHOD_NOT_ALLOWED
     message = "Error: Method not allowed!"
 
-class UnsupportedMethod(RenderableError):
+class UnsupportedMethod(ConstructionRenderableError):
     """
     Raised when request method is not understood by the server at all.
     """
@@ -111,7 +140,7 @@ class UnparsableMessage(Error):
     beginning of the message, and a minimum length.
     """
 
-class CommunicationKilled(RenderableError):
+class CommunicationKilled(ConstructionRenderableError):
     """
     The communication process has been aborted by request of the application.
     """
