@@ -628,7 +628,7 @@ class Request(BaseRequest, interfaces.Request):
         except Exception as e:
             self._set_response_and_observation_error(e)
 
-    def _set_response_and_observation_error(e):
+    def _set_response_and_observation_error(self, e):
         self.response.set_exception(e)
         if self.app_request.opt.observe is not None:
             self._observation_handled = True
