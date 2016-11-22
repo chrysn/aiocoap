@@ -163,3 +163,23 @@ class TestObserve(WithObserveTestServer, WithClient):
         # time precise_warnings checks the messages, the context was already
         # shut down, but we want to make sure the warning is raised in time.
         self.assertWarned("Observation deleted without explicit cancellation")
+
+    @no_warnings
+    def test_unknownhost(self):
+        yieldfrom = self.loop.run_until_complete
+
+        request = aiocoap.Message(code=aiocoap.GET, uri="coap://cant.resolve.this.example./empty", observe=0)
+        requester = self.client.request(request)
+
+        events = []
+
+        def cb(x):
+            events.append("Callback: %s"%x)
+        def eb(x):
+            events.append("Errback")
+        requester.observation.register_callback(cb)
+        requester.observation.register_errback(eb)
+
+        response = yieldfrom(requester.response_nonraising)
+
+        self.assertEqual(events, ["Errback"])
