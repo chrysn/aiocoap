@@ -24,6 +24,25 @@ module documentation, or at the :doc:`examples` and :doc:`tools` provided.
 All examples can be run directly from a source code copy. If you prefer to
 install it, the usual Python mechanisms apply.
 
+Features / Standards
+--------------------
+
+This library supports the following standards in full or partially:
+
+* RFC7252_ (CoAP): missing are a caching and cross proxy implementation, proper
+  multicast (support is incomplete), and DTLS.
+* RFC7641_ (Observe): Reordering, re-registration, and active cancellation are
+  missing.
+* RFC7959_ (Blockwise): Multicast exceptions missing.
+
+If something described by one of the standards but not implemented, it is
+considered a bug; please file at the `github issue tracker`_. (If it's not on
+the list or in the excluded items, file a wishlist item at the same location).
+
+.. _RFC7252: https://tools.ietf.org/html/rfc7252
+.. _RFC7641: https://tools.ietf.org/html/rfc7641
+.. _RFC7959: https://tools.ietf.org/html/rfc7959
+
 Dependencies
 ------------
 
