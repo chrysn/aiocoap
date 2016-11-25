@@ -9,12 +9,13 @@
 """a plain CoAP proxy that can work both as forward and as reverse proxy"""
 
 import sys
-import logging
 import asyncio
 import argparse
+import functools
 
 import aiocoap
 from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ReverseProxyWithPooledObservations, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector
+from aiocoap.util.cli import AsyncCLIDaemon
 
 def parse_commandline(args):
     p = argparse.ArgumentParser(description=__doc__)
@@ -39,14 +40,10 @@ def parse_commandline(args):
 
     return p, p.parse_args(args)
 
-class Main:
-    def __init__(self, args):
-        self.args = args
-        self.initializing = asyncio.Task(self.__start())
-
+class Main(AsyncCLIDaemon):
     @asyncio.coroutine
-    def __start(self):
-        parser, options = parse_commandline(self.args)
+    def start(self, args=None):
+        parser, options = parse_commandline(args if args is not None else sys.argv[1:])
 
         if options.direction is None:
             raise parser.error("Either --forward or --reverse must be given.")
@@ -76,29 +73,10 @@ class Main:
 
     @asyncio.coroutine
     def shutdown(self):
-        yield from self.initializing
-
         yield from self.outgoing_context.shutdown()
         yield from self.proxy_context.shutdown()
 
-def sync_main(args=None):
-    if args is None:
-        args = sys.argv[1:]
-    logging.basicConfig(level=logging.DEBUG)
-    main = None
-    try:
-        loop = asyncio.get_event_loop()
-        main = Main(args)
-        loop.run_until_complete(main.initializing)
-        logging.info("proxy ready")
-        loop.run_forever()
-    except KeyboardInterrupt:
-        sys.exit(3)
-    finally:
-        print("stopping loop")
-        if main is not None:
-            loop.run_until_complete(main.shutdown())
-        loop.stop()
+sync_main = Main.sync_main
 
 if __name__ == "__main__":
     # if you want to run this using `python3 -m`, see http://bugs.python.org/issue22480
