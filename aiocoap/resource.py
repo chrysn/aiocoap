@@ -67,7 +67,20 @@ def hashing_etag(request, response):
         response.code = numbers.codes.VALID
         response.payload = b''
 
-class Resource(interfaces.Resource):
+class _ExposesWellknownAttributes:
+    def get_link_description(self):
+        ## FIXME which formats are acceptable, and how much escaping and
+        # list-to-separated-string conversion needs to happen here
+        ret = {}
+        if hasattr(self, 'ct'):
+            ret['ct'] = str(self.ct)
+        if hasattr(self, 'rt'):
+            ret['rt'] = self.rt
+        if hasattr(self, 'if_'):
+            ret['if'] = self.if_
+        return ret
+
+class Resource(_ExposesWellknownAttributes, interfaces.Resource):
     """Simple base implementation of the :class:`interfaces.Resource`
     interface
 
@@ -91,18 +104,6 @@ class Resource(interfaces.Resource):
         if not m:
             raise error.UnallowedMethod()
         return m(request)
-
-    def get_link_description(self):
-        ## FIXME which formats are acceptable, and how much escaping and
-        # list-to-separated-string conversion needs to happen here
-        ret = {}
-        if hasattr(self, 'ct'):
-            ret['ct'] = str(self.ct)
-        if hasattr(self, 'rt'):
-            ret['rt'] = self.rt
-        if hasattr(self, 'if_'):
-            ret['if'] = self.if_
-        return ret
 
 class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):
@@ -161,7 +162,7 @@ class WKCResource(Resource):
         response.opt.content_format = self.ct
         return response
 
-class Site(interfaces.ObservableResource):
+class Site(_ExposesWellknownAttributes, interfaces.ObservableResource):
     """Typical root element that gets passed to a :class:`Context` and contains
     all the resources that can be found when the endpoint gets accessed as a
     server.
@@ -169,7 +170,10 @@ class Site(interfaces.ObservableResource):
     This provides easy registration of statical resources.
 
     Add resources at absolute locations using the :meth:`.add_observation`
-    method."""
+    method. You can add another Site as well, those will be nested and
+    integrally reported in a WKCResource. The path of a site should not end
+    with an empty string (ie. a slash in the URI) -- the child site's own root
+    resource will then have the trailing slash address."""
 
     def __init__(self):
         self._resources = {}
@@ -183,24 +187,38 @@ class Site(interfaces.ObservableResource):
         else:
             return child.needs_blockwise_assembly(request)
 
+    def _find_child_and_pathstripped_message(self, request):
+        """Given a request, find the child that will handle it, and strip all
+        path components from the request that are covered by the child's
+        position within the site. Returns the child and a request with a path
+        shortened by the components in the child's path, or raises a
+        KeyError."""
+
+        path = request.opt.uri_path
+        while path:
+            if path in self._resources:
+                return self._resources[path], request.copy(uri_path=request.opt.uri_path[len(path):])
+            path = path[:-1]
+        raise KeyError()
+
     @asyncio.coroutine
     def render(self, request):
         try:
-            child = self._resources[request.opt.uri_path]
+            child, subrequest = self._find_child_and_pathstripped_message(request)
         except KeyError:
             raise error.NoResource()
         else:
-            return child.render(request)
+            return child.render(subrequest)
 
     @asyncio.coroutine
     def add_observation(self, request, serverobservation):
         try:
-            child = self._resources[request.opt.uri_path]
+            child, subrequest = self._find_child_and_pathstripped_message(request)
         except KeyError:
             return
 
         try:
-            yield from child.add_observation(request, serverobservation)
+            yield from child.add_observation(subrequest, serverobservation)
         except AttributeError:
             pass
 
@@ -214,12 +232,21 @@ class Site(interfaces.ObservableResource):
         import link_header
 
         links = []
-        for path, resource in self._resources.items():
-            if hasattr(resource, "get_link_description"):
-                details = resource.get_link_description()
-            else:
-                details = {}
-            lh = link_header.Link('/' + '/'.join(path), **details)
 
-            links.append(lh)
+        selfdetails = self.get_link_description()
+        if selfdetails:
+            links.append(link_header.Link("", **selfdetails))
+
+        for path, resource in self._resources.items():
+            if hasattr(resource, "get_resources_as_linkheader"):
+                for l in resource.get_resources_as_linkheader().links:
+                    links.append(link_header.Link('/' + '/'.join(path) + l.href, l.attr_pairs))
+            else:
+                if hasattr(resource, "get_link_description"):
+                    details = resource.get_link_description()
+                else:
+                    details = {}
+                lh = link_header.Link('/' + '/'.join(path), **details)
+
+                links.append(lh)
         return link_header.LinkHeader(links)
