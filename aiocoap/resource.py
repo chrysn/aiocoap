@@ -141,9 +141,6 @@ class WKCResource(Resource):
     This resource renders a link_header.LinkHeader object (which describes a
     collection of resources) as application/link-format (RFC 6690).
 
-    Currently, the resource does not respect the filte criteria that can be
-    passed in via query strings; that might be added later.
-
     The list to be rendered is obtained from a function passed into the
     constructor; typically, that function would be a bound
     Site.get_resources_as_linkheader() method."""
@@ -155,6 +152,28 @@ class WKCResource(Resource):
 
     def render_get(self, request):
         links = self.listgenerator()
+
+        filters = []
+        for q in request.opt.uri_query:
+            try:
+                k, v = q.split('=', 1)
+            except ValueError:
+                continue # no =, not a relevant filter
+
+            if v.endswith('*'):
+                matchexp = lambda x: x.startswith(v[:-1])
+            else:
+                matchexp = lambda x: x == v
+
+            if k in ('rt', 'if'):
+                filters.append(lambda link: any(matchexp(part) for part in (" ".join(getattr(link, k))).split(" ")))
+            elif k in ('href',): # x.href is single valued
+                filters.append(lambda link: matchexp(getattr(link, k)))
+            else:
+                filters.append(lambda link: any(matchexp(part) for part in getattr(link, k)))
+
+        while filters:
+            links.links = filter(filters.pop(), links.links)
 
         serialized = str(links)
 
