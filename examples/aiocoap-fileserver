@@ -142,7 +142,7 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         callbacks.append(cb)
         serverobservation.accept(lambda self=self, path=path, cb=cb: self._observations[path][1].remove(cb))
 
-async def main(path, verbosity=0):
+async def main(path, verbosity=0, simple_rd=None):
     log = logging.getLogger('fileserver')
     coaplog = logging.getLogger('coap-server')
 
@@ -158,6 +158,16 @@ async def main(path, verbosity=0):
     server = FileServer(path, log)
     context = await aiocoap.Context.create_server_context(server)
 
+    if simple_rd is not None:
+        if '://' not in simple_rd:
+            log.warn("Resource directory does not look like a CoAP URI")
+        elif simple_rd.count('/') > 2:
+            log.warn("Resource directory does not look like a host-only CoAP URI")
+        try:
+            await context.request(aiocoap.Message(code=aiocoap.POST, uri=simple_rd + "/.well-known/core")).response_raising
+        except Exception:
+            log.exception("Registration at the RD failed")
+
     log.info("Initialization completed")
 
 if __name__ == "__main__":
@@ -165,6 +175,7 @@ if __name__ == "__main__":
 
     p = argparse.ArgumentParser()
     p.add_argument("-v", "--verbose", help="Be more verbose (repeat to debug)", action='count', dest="verbosity", default=0)
+    p.add_argument("--simple-rd", help="Register with the given resource directory using Simple Publishing")
     p.add_argument("path", help="Root directory of the server", nargs="?", default=".", type=Path)
 
     loop = asyncio.get_event_loop()
