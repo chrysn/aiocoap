@@ -34,6 +34,8 @@ This library supports the following standards in full or partially:
 * RFC7641_ (Observe): Reordering, re-registration, and active cancellation are
   missing.
 * RFC7959_ (Blockwise): Multicast exceptions missing.
+* draft-ietf-core-etch-04_: Only registry entries added, but that should be all
+  that's neede on the library side.
 
 If something described by one of the standards but not implemented, it is
 considered a bug; please file at the `github issue tracker`_. (If it's not on
@@ -42,6 +44,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC7252: https://tools.ietf.org/html/rfc7252
 .. _RFC7641: https://tools.ietf.org/html/rfc7641
 .. _RFC7959: https://tools.ietf.org/html/rfc7959
+.. _draft-ietf-core-etch-04: https://tools.ietf.org/html/draft-ietf-core-etch-04
 
 Dependencies
 ------------
