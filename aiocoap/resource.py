@@ -232,7 +232,7 @@ class Site(_ExposesWellknownAttributes, interfaces.ObservableResource, PathCapab
         try:
             child, subrequest = self._find_child_and_pathstripped_message(request)
         except KeyError:
-            raise error.NoResource()
+            raise error.NotFound()
         else:
             return child.render(subrequest)
 

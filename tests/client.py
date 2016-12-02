@@ -88,7 +88,7 @@ class TestClientOther(WithTestServer, WithClient):
         self.assertEqual(response.code, aiocoap.CONTENT, "Response access via response_raising failed")
 
         request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/nonexistent")
-        ## @FIXME i'd like to assertRaises(NoResource), see docstring of
+        ## @FIXME i'd like to assertRaises(NotFound), see docstring of
         # :class:`ResponseWrappingError`
         self.assertRaises(aiocoap.error.ResponseWrappingError, yieldfrom,
                 self.client.request(request).response_raising)
