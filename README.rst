@@ -97,5 +97,8 @@ Licensing
 
 aiocoap is published under the MIT License, see :doc:`LICENSE` for details.
 
+When using aiocoap for a publication, please cite it according to the output of
+``./setup.py cite [--bibtex]``.
+
 Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
