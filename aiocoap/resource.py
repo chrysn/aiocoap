@@ -181,7 +181,12 @@ class WKCResource(Resource):
         response.opt.content_format = self.ct
         return response
 
-class Site(_ExposesWellknownAttributes, interfaces.ObservableResource):
+class PathCapable:
+    """Class that indicates that a resource promises to parse the uri_path
+    option, and can thus be given requests for :meth:`render`ing that contain a
+    uri_path"""
+
+class Site(_ExposesWellknownAttributes, interfaces.ObservableResource, PathCapable):
     """Typical root element that gets passed to a :class:`Context` and contains
     all the resources that can be found when the endpoint gets accessed as a
     server.
@@ -216,7 +221,9 @@ class Site(_ExposesWellknownAttributes, interfaces.ObservableResource):
         path = request.opt.uri_path
         while path:
             if path in self._resources:
-                return self._resources[path], request.copy(uri_path=request.opt.uri_path[len(path):])
+                res = self._resources[path]
+                if path == request.opt.uri_path or isinstance(res, PathCapable):
+                    return res, request.copy(uri_path=request.opt.uri_path[len(path):])
             path = path[:-1]
         raise KeyError()
 
