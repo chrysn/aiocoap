@@ -200,11 +200,11 @@ class Site(_ExposesWellknownAttributes, interfaces.ObservableResource):
     @asyncio.coroutine
     def needs_blockwise_assembly(self, request):
         try:
-            child = self._resources[request.opt.uri_path]
+            child, subrequest = self._find_child_and_pathstripped_message(request)
         except KeyError:
             return True
         else:
-            return child.needs_blockwise_assembly(request)
+            return child.needs_blockwise_assembly(subrequest)
 
     def _find_child_and_pathstripped_message(self, request):
         """Given a request, find the child that will handle it, and strip all
