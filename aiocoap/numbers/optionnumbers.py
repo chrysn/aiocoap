@@ -125,22 +125,33 @@ class OptionNumber(ExtensibleIntEnum):
             option.value = value
         return option
 
-# TODO: set format OpaqueOption for options where it is expected to be used
-# even though it is the default value; thus, developers can rely on it to
-# persist (as opposed to formats of unknown options, which might later be
-# added).
+# OpaqueOption is set on formats where it is known to be used even though it is
+# the default. This allows developers to rely on those interfaces to be stable
+# (or at least to be notified visibly in the release notes).
 
-OptionNumber.OBSERVE.format = optiontypes.UintOption
+# RFC 7252
+
+OptionNumber.IF_MATCH.format = optiontypes.OpaqueOption
+OptionNumber.URI_HOST.format = optiontypes.StringOption
+OptionNumber.ETAG.format = optiontypes.OpaqueOption
 OptionNumber.URI_PORT.format = optiontypes.UintOption
+OptionNumber.LOCATION_PATH.format = optiontypes.StringOption
 OptionNumber.URI_PATH.format = optiontypes.StringOption
-OptionNumber.PROXY_URI.format = optiontypes.StringOption
-OptionNumber.PROXY_SCHEME.format = optiontypes.StringOption
 OptionNumber.CONTENT_FORMAT.format = optiontypes.UintOption
 OptionNumber.MAX_AGE.format = optiontypes.UintOption
 OptionNumber.URI_QUERY.format = optiontypes.StringOption
 OptionNumber.ACCEPT.format = optiontypes.UintOption
+OptionNumber.LOCATION_QUERY.format = optiontypes.StringOption
+OptionNumber.PROXY_URI.format = optiontypes.StringOption
+OptionNumber.PROXY_SCHEME.format = optiontypes.StringOption
+OptionNumber.SIZE1.format = optiontypes.UintOption
+
+# RFC 7959
+
 OptionNumber.BLOCK2.format = optiontypes.BlockOption
 OptionNumber.BLOCK1.format = optiontypes.BlockOption
 OptionNumber.SIZE2.format = optiontypes.UintOption
-OptionNumber.URI_HOST.format = optiontypes.StringOption
-OptionNumber.SIZE1.format = optiontypes.UintOption
+
+# RFC 7641
+
+OptionNumber.OBSERVE.format = optiontypes.UintOption

@@ -10,6 +10,7 @@
 Exception definitions for txThings CoAP library.
 """
 
+import warnings
 import abc
 
 from .numbers import codes
@@ -53,27 +54,43 @@ class ConstructionRenderableError(RenderableError):
     code = codes.INTERNAL_SERVER_ERROR
     message = ""
 
-class NoResource(ConstructionRenderableError):
+# FIXME: this should be comprehensive, maybe generted from the code list
+
+class NotFound(ConstructionRenderableError):
+    code = codes.NOT_FOUND
+
+class MethodNotAllowed(ConstructionRenderableError):
+    code = codes.METHOD_NOT_ALLOWED
+
+class UnsupportedMediaType(ConstructionRenderableError):
+    code = codes.UNSUPPORTED_MEDIA_TYPE
+
+class BadRequest(ConstructionRenderableError):
+    code = codes.BAD_REQUEST
+
+# More detailed versions of code based errors
+
+class NoResource(NotFound):
     """
     Raised when resource is not found.
     """
-    code = codes.NOT_FOUND
     message = "Error: Resource not found!"
+    def __init__(self):
+        warnings.warn("NoResource is deprecated in favor of NotFound", DeprecationWarning, stacklevel=2)
 
-class UnallowedMethod(ConstructionRenderableError):
+class UnallowedMethod(MethodNotAllowed):
     """
     Raised by a resource when request method is understood by the server
     but not allowed for that particular resource.
     """
-    code = codes.METHOD_NOT_ALLOWED
     message = "Error: Method not allowed!"
 
-class UnsupportedMethod(ConstructionRenderableError):
+class UnsupportedMethod(MethodNotAllowed):
     """
     Raised when request method is not understood by the server at all.
     """
-    code = codes.METHOD_NOT_ALLOWED
     message = "Error: Method not recognized!"
+
 
 class NotImplemented(Error):
     """

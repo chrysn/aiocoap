@@ -125,6 +125,30 @@ class Message(object):
                 ", %s byte(s) payload"%len(self.payload) if self.payload else ""
                 )
 
+    def copy(self, **kwargs):
+        """Create a copy of the Message. kwargs are treated like the named
+        arguments in the constructor, and update the copy."""
+        # This is part of moving messages in an "immutable" direction; not
+        # necessarily hard immutable. Let's see where this goes.
+        new = copy.deepcopy(self)
+        if 'mtype' in kwargs:
+            new.mtype = Type(kwargs.pop('mtype'))
+        if 'mid' in kwargs:
+            new.mid = kwargs.pop('mid')
+        if 'code' in kwargs:
+            new.code = Code(kwargs.pop('code'))
+        if 'payload' in kwargs:
+            new.payload = kwargs.pop('payload')
+        if 'token' in kwargs:
+            new.token = kwargs.pop('token')
+        if 'uri' in kwargs:
+            new.set_request_uri(kwargs.pop('uri'))
+
+        for k, v in kwargs.items():
+            setattr(new.opt, k, v)
+
+        return new
+
     @classmethod
     def decode(cls, rawdata, remote=None):
         """Create Message object from binary representation of message."""

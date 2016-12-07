@@ -211,6 +211,7 @@ def interactive():
                 print("Unhandled exception raised: %s"%(e,))
 
 def sync_main(args=None):
+    # interactive mode is a little messy, that's why this is not using aiocoap.util.cli yet
     if args is None:
         args = sys.argv[1:]
 

@@ -217,3 +217,19 @@ class TestMessageOptionConstruction(unittest.TestCase):
         self.assertEqual(message.opt.content_format, 40)
         self.assertEqual(message.opt.observe, 0)
         self.assertEqual(message.opt.uri_path, ())
+
+    def test_copy(self):
+        message = aiocoap.Message()
+        original_state = repr(message)
+        new_one = message.copy(payload=b"x", mid=42, code=0, mtype=3, token=b"xyz", observe=0, content_format=1234)
+        self.assertEqual(original_state, repr(message), "Message.copy mutated original")
+        self.assertEqual(new_one.payload, b"x")
+        self.assertEqual(new_one.mid, 42)
+        self.assertEqual(new_one.token, b"xyz")
+        self.assertEqual(str(new_one.code), "EMPTY")
+        self.assertEqual(str(new_one.mtype), "Type.RST") # "RST" is also ok if the enum decides to have a different str, but it should be of mtype class and not just a number
+        self.assertEqual(new_one.opt.observe, 0)
+        self.assertEqual(new_one.opt.content_format, 1234)
+
+        new_two = new_one.copy(uri="coap://localhost/some/path")
+        self.assertEqual(new_two.opt.uri_path, ('some', 'path'))

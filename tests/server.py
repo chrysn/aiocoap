@@ -86,7 +86,12 @@ class TestingSite(aiocoap.resource.Site):
         self.add_resource(('slow',), SlowResource())
         self.add_resource(('big',), BigResource())
         self.add_resource(('slowbig',), SlowBigResource())
-        self.add_resource(('replacing',), ReplacingResource())
+        self.add_resource(('replacing',), self.Subsite())
+
+    class Subsite(aiocoap.resource.Site):
+        def __init__(self):
+            super().__init__()
+            self.add_resource(('one',), ReplacingResource())
 
 # helpers
 
@@ -345,14 +350,14 @@ class TestServer(WithTestServer, WithClient):
         request = self.build_request()
         request.code = aiocoap.PUT
         request.payload = testpattern
-        request.opt.uri_path = ['replacing']
+        request.opt.uri_path = ['replacing', 'one']
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CHANGED, "PUT did not result in CHANGED")
         self.assertEqual(response.payload, b"", "PUT has unexpected payload")
 
         request = self.build_request()
         request.code = aiocoap.GET
-        request.opt.uri_path = ['replacing']
+        request.opt.uri_path = ['replacing', 'one']
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Replacing resource could not be GOT (GET'd?) successfully")
         self.assertEqual(response.payload, testpattern.replace(b"0", b"O"), "Replacing resource did not replace as expected between PUT and GET")
@@ -360,7 +365,7 @@ class TestServer(WithTestServer, WithClient):
         request = self.build_request()
         request.code = aiocoap.POST
         request.payload = testpattern
-        request.opt.uri_path = ['replacing']
+        request.opt.uri_path = ['replacing', 'one']
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Replacing resource could not be POSTed to successfully")
         self.assertEqual(response.payload, testpattern.replace(b"0", b"O"), "Replacing resource did not replace as expected when POSTed")
