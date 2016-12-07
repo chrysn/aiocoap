@@ -6,16 +6,17 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module contains the classes that are responsible for keeping track of messages:
+"""This module contains the classes that are responsible for keeping track of
+messages:
 
-* :class:`Context` roughly represents the CoAP endpoint (basically a UDP
-    socket) -- something that can send requests and possibly can answer incoming
-    requests.
+*   :class:`Context` roughly represents the CoAP endpoint (basically a UDP
+    socket) -- something that can send requests and possibly can answer
+    incoming requests.
 
-* a :class:`Request` gets generated whenever a request gets sent to keep
+*   a :class:`Request` gets generated whenever a request gets sent to keep
     track of the response
 
-* a :class:`Responder` keeps track of a single incoming request
+*   a :class:`Responder` keeps track of a single incoming request
 """
 
 
