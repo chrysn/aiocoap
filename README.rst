@@ -24,11 +24,31 @@ module documentation, or at the :doc:`examples` and :doc:`tools` provided.
 All examples can be run directly from a source code copy. If you prefer to
 install it, the usual Python mechanisms apply.
 
+Features / Standards
+--------------------
+
+This library supports the following standards in full or partially:
+
+* RFC7252_ (CoAP): missing are a caching and cross proxy implementation, proper
+  multicast (support is incomplete), and DTLS.
+* RFC7641_ (Observe): Reordering, re-registration, and active cancellation are
+  missing.
+* RFC7959_ (Blockwise): Multicast exceptions missing.
+
+If something described by one of the standards but not implemented, it is
+considered a bug; please file at the `github issue tracker`_. (If it's not on
+the list or in the excluded items, file a wishlist item at the same location).
+
+.. _RFC7252: https://tools.ietf.org/html/rfc7252
+.. _RFC7641: https://tools.ietf.org/html/rfc7641
+.. _RFC7959: https://tools.ietf.org/html/rfc7959
+
 Dependencies
 ------------
 
 The core aiocoap functionality works out of the box with Python_ 3.4; with the
-additional asyncio_ module, it works with version 3.3 as well.
+additional asyncio_ module, it works with version 3.3 as well. The
+:doc:`examples` require Python 3.5 or newer.
 
 When application/link-format typed resources (`RFC 6690`_) are supposed to be
 used, the `link_header`_ module is required as well. When the respective code
@@ -52,11 +72,12 @@ partners is hard to trigger with a library designed not to misbehave).
 Documentation is built using sphinx_; hacks used there are described in
 ``./doc/README.doc``.
 
-Bugs from design goal and wishlist to typos are currently tracked in github
-(see below).
+Bugs from design goal and wishlist to typos are currently tracked in the
+`github issue tracker`_.
 
 .. _PEP8: http://legacy.python.org/dev/peps/pep-0008/
 .. _sphinx: http://sphinx-doc.org/
+.. _`github issue tracker`: https://github.com/chrysn/aiocoap/issues
 
 Relevant URLs
 -------------
@@ -75,6 +96,9 @@ Licensing
 ---------
 
 aiocoap is published under the MIT License, see :doc:`LICENSE` for details.
+
+When using aiocoap for a publication, please cite it according to the output of
+``./setup.py cite [--bibtex]``.
 
 Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>

@@ -9,24 +9,27 @@
 import asyncio
 import aiocoap
 import unittest
+import errno
 
 from .server import WithTestServer, WithClient, no_warnings
 
-class TestClient(WithTestServer, WithClient):
+class TestClientWithSetHost(WithTestServer, WithClient):
+    set_uri_host = True
+
     @no_warnings
     def test_uri_parser(self):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
 
         request = aiocoap.Message(code=aiocoap.GET)
         request_uri = "coap://" + self.servernetloc + "/empty?query=a&query=b"
-        request.set_request_uri(request_uri)
+        request.set_request_uri(request_uri, set_uri_host=self.set_uri_host)
         self.assertEqual(request.get_request_uri(), request_uri, "Request URL does not round-trip in request")
         response = yieldfrom(self.client.request(request).response)
         self.assertEqual(response.get_request_uri(), request_uri, "Request URL does not round-trip in response")
         self.assertEqual(response.code, aiocoap.CONTENT, "Request URL building failed")
 
         request = aiocoap.Message(code=aiocoap.GET)
-        request.set_request_uri("coap://" + self.servernamealias + "/empty")
+        request.set_request_uri("coap://" + self.servernamealias + "/empty", set_uri_host=self.set_uri_host)
         self.assertEqual(request.get_request_uri(), "coap://" + self.servernamealias + "/empty")
         response = yieldfrom(self.client.request(request).response)
         self.assertEqual(response.code, aiocoap.CONTENT, "Resolving WithTestServer.servernamealias failed")
@@ -40,12 +43,66 @@ class TestClient(WithTestServer, WithClient):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
 
         request = aiocoap.Message(code=aiocoap.GET)
-        request.set_request_uri("coap://" + self.servernetloc + ":9999/empty")
+        request.set_request_uri("coap://" + self.servernetloc + ":9999/empty", set_uri_host=self.set_uri_host)
         resp = self.client.request(request).response
         try:
             # give the request some time to finish getaddrinfo
             yieldfrom(asyncio.as_completed([resp], timeout=0.01).__next__())
-        except asyncio.TimeoutError:
-            pass
-        self.assertEqual(request.remote[1], 9999, "Remote port was not parsed")
+        except OSError as e:
+            self.assertEqual(e.errno, errno.ECONNREFUSED, "")
+        else:
+            self.fail("Request to non-opened port did not come back with 'Connection Refused'")
+        self.assertEqual(request.remote.port, 9999, "Remote port was not parsed")
         resp.cancel()
+
+    @no_warnings
+    def test_uri_reconstruction(self):
+        """This test aims for reconstruction of the URI when for some reasons
+        the request hostname is not available. That would typically be the case
+        for multicasts (where the response's URI dependes on the response
+        package's origin and does not contain the multicast address), but until
+        that's easily testable, this test just removes the information."""
+        yieldfrom = lambda f: self.loop.run_until_complete(f)
+
+        request = aiocoap.Message(code=aiocoap.GET)
+        request_uri = "coap://" + self.servernetloc + "/empty?query=a&query=b"
+        request.set_request_uri(request_uri, set_uri_host=self.set_uri_host)
+
+        response = yieldfrom(self.client.request(request).response)
+        response.requested_hostinfo = None
+        self.assertEqual(response.get_request_uri(), request_uri, "Request URL does not round-trip in response")
+        self.assertEqual(response.code, aiocoap.CONTENT, "Request URL building failed")
+
+class TestClientWithHostlessMessages(TestClientWithSetHost):
+    set_uri_host = False
+
+class TestClientOther(WithTestServer, WithClient):
+    @no_warnings
+    def test_raising(self):
+        """This test obtains results via the response_raising property of a
+        Request."""
+        yieldfrom = lambda f: self.loop.run_until_complete(f)
+
+        request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/empty")
+        response = yieldfrom(self.client.request(request).response_raising)
+        self.assertEqual(response.code, aiocoap.CONTENT, "Response access via response_raising failed")
+
+        request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/nonexistent")
+        ## @FIXME i'd like to assertRaises(NoResource), see docstring of
+        # :class:`ResponseWrappingError`
+        self.assertRaises(aiocoap.error.ResponseWrappingError, yieldfrom,
+                self.client.request(request).response_raising)
+
+    @no_warnings
+    def test_raising(self):
+        """This test obtains results via the response_nonraising property of a
+        Request."""
+        yieldfrom = lambda f: self.loop.run_until_complete(f)
+
+        request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/empty")
+        response = yieldfrom(self.client.request(request).response_nonraising)
+        self.assertEqual(response.code, aiocoap.CONTENT, "Response access via response_nonraising failed")
+
+        request = aiocoap.Message(code=aiocoap.GET, uri="coap://cant.resolve.this.example./empty")
+        response = yieldfrom(self.client.request(request).response_nonraising)
+        self.assertEqual(response.code, aiocoap.INTERNAL_SERVER_ERROR)

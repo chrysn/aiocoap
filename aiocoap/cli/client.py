@@ -62,7 +62,7 @@ def incoming_observation(options, response):
     else:
         sys.stdout.buffer.write(b'---\n')
         if response.code.is_successful():
-            sys.stdout.buffer.write(response.payload + b'\n' if not response.payload.endswith(b'\n') else b'')
+            sys.stdout.buffer.write(response.payload + (b'\n' if not response.payload.endswith(b'\n') else b''))
             sys.stdout.buffer.flush()
         else:
             print(response.code, file=sys.stderr)
@@ -95,7 +95,7 @@ def single_request(args, context=None):
     except ValueError as e:
         raise parser.error(e)
 
-    if not request.opt.uri_host:
+    if not request.opt.uri_host and not request.unresolved_remote:
         raise parser.error("Request URLs need to be absolute.")
 
     if options.accept:
@@ -147,11 +147,14 @@ def single_request(args, context=None):
         except socket.gaierror as  e:
             print("Name resolution error:", e, file=sys.stderr)
             sys.exit(1)
+        except OSError as e:
+            print("Error:", e, file=sys.stderr)
+            sys.exit(1)
 
         if response_data.code.is_successful():
             sys.stdout.buffer.write(response_data.payload)
             sys.stdout.buffer.flush()
-            if not response_data.payload.endswith(b'\n') and not options.quiet:
+            if response_data.payload and not response_data.payload.endswith(b'\n') and not options.quiet:
                 sys.stderr.write('\n(No newline at end of message)\n')
         else:
             print(response_data.code, file=sys.stderr)

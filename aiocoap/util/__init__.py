@@ -43,3 +43,15 @@ class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
 
     def __str__(self):
         return self.name if hasattr(self, "name") else int.__str__(self)
+
+def hostportjoin(host, port=None):
+    """Join a host and optionally port into a hostinfo-style host:port
+    string"""
+    if ':' in host:
+        host = '[%s]'%host
+
+    if port is None:
+        hostinfo = host
+    else:
+        hostinfo = "%s:%d"%(host, port)
+    return hostinfo

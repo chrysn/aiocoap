@@ -13,11 +13,40 @@
 (Internet of Things) devices."""
 
 from setuptools import setup, find_packages
+from distutils.core import Command
 
 name = "aiocoap"
 version = "0.2"
 description = "Python CoAP library"
 longdescription = __doc__
+
+class Cite(Command):
+    description = """Print how to cite aiocoap in a publication"""
+
+    user_options = [("bibtex", None, "Output citation data as bibtex")]
+    boolean_options = ["bibtex"]
+
+    def initialize_options(self):
+        self.bibtex = False
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        if self.bibtex:
+            print(self.bibtex_text)
+        else:
+            print(self.plain_text)
+
+    plain_text = """Amsüss, Christian and Wasilak, Maciej. aiocoap: Python CoAP Library. Energy Harvesting Solutions, 2013–. http://github.com/chrysn/aiocoap/"""
+
+    bibtex_text = """@Misc{,
+        author = {Christian Amsüss and Maciej Wasilak},
+        organization = {Energy Harvesting Solutions},
+        title = {{aiocoap}: Python CoAP Library},
+        year = {2013--},
+        url = {http://github.com/chrysn/aiocoap/},
+        }"""
 
 setup(
     name=name,
@@ -57,6 +86,10 @@ setup(
             'version': ('setup.py', version),
             'release': ('setup.py', version),
             }
+        },
+
+    cmdclass={
+        'cite': Cite,
         },
 
     test_suite='tests',

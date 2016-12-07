@@ -9,11 +9,11 @@
 import urllib.parse
 import struct
 import copy
-import ipaddress
 
 from . import error
 from .numbers import *
 from .options import Options
+from .util import hostportjoin
 
 ## Monkey patch urllib to make URL joining available in CoAP
 # This is a workaround for <http://bugs.python.org/issue23759>.
@@ -43,7 +43,7 @@ class Message(object):
 
     * :attr:`mid`: The message ID. Managed by the :class:`.Context`.
     * :attr:`token`: The message's token as bytes. Managed by the :class:`.Context`.
-    * :attr:`remote`: The socket address of the  side, managed by the
+    * :attr:`remote`: The socket address of the other side, managed by the
       :class:`.protocol.Request` by resolving the ``.opt.uri_host`` or
       ``unresolved_remote``, or the :class:`.Responder` by echoing the incoming
       request's. (If you choose to set this explicitly set this, make sure not
@@ -52,9 +52,10 @@ class Message(object):
 
     * requested_*: Managed by the :class:`.protocol.Request` a response results
       from, and filled with the request's URL data. Non-roundtrippable.
-    * unresolved_remote: ``host[:port]`` formatted string. If this attribute is
-      set, it overrides ``.opt.uri_host`` (and ``-_port``) when it comes to
-      filling the ``remote`` in an outgoing request.
+    * unresolved_remote: ``host[:port]`` (strictly speaking; hostinfo as in a
+      URI) formatted string. If this attribute is set, it overrides
+      ``.opt.uri_host`` (and ``-_port``) when it comes to filling the
+      ``remote`` in an outgoing request.
 
       Use this when you want to send a request with a host name that would not
       normally resolve to the destination address. (Typically, this is used for
@@ -62,9 +63,13 @@ class Message(object):
 
     * :attr:`prepath`, :attr:`postpath`: Not sure, will probably go away when
       resources are overhauled. Non-roundtrippable.
+
+    Options can be given as further keyword arguments at message construction
+    time. This feature is experimental, as future message parameters could
+    collide with options.
     """
 
-    def __init__(self, *, mtype=None, mid=None, code=EMPTY, payload=b'', token=b'', uri=None):
+    def __init__(self, *, mtype=None, mid=None, code=None, payload=b'', token=b'', uri=None, **kwargs):
         self.version = 1
         if mtype is None:
             # leave it unspecified for convenience, sending functions will know what to do
@@ -72,7 +77,11 @@ class Message(object):
         else:
             self.mtype = Type(mtype)
         self.mid = mid
-        self.code = Code(code)
+        if code is None:
+            # as above with mtype
+            self.code = None
+        else:
+            self.code = Code(code)
         self.token = token
         self.payload = payload
         self.opt = Options()
@@ -90,8 +99,7 @@ class Message(object):
         # example by self.opt.uri_path
         self.requested_proxy_uri = None
         self.requested_scheme = None
-        self.requested_host = None
-        self.requested_port = None
+        self.requested_hostinfo = None
         self.requested_path = None
         self.requested_query = None
 
@@ -101,6 +109,9 @@ class Message(object):
 
         if uri:
             self.set_request_uri(uri)
+
+        for k, v in kwargs.items():
+            setattr(self.opt, k, v)
 
     def __repr__(self):
         return "<aiocoap.Message at %#x: %s %s (ID %r, token %r) remote %s%s%s>"%(
@@ -134,8 +145,8 @@ class Message(object):
 
     def encode(self):
         """Create binary representation of message from Message object."""
-        if self.mtype is None or self.mid is None:
-            raise TypeError("Fatal Error: Message Type and Message ID must not be None.")
+        if self.code is None or self.mtype is None or self.mid is None:
+            raise TypeError("Fatal Error: Code, Message Type and Message ID must not be None.")
         rawdata = bytes([(self.version << 6) + ((self.mtype & 0x03) << 4) + (len(self.token) & 0x0F)])
         rawdata += struct.pack('!BH', self.code, self.mid)
         rawdata += self.token
@@ -266,17 +277,11 @@ class Message(object):
     #
 
     @staticmethod
-    def _build_request_uri(scheme, host, port, path, query):
+    def _build_request_uri(scheme, hostinfo, path, query):
         """Assemble path components as found in CoAP options into a URL. Helper
         for :meth:`get_request_uri`."""
 
-        if ':' in host:
-            host = '[%s]'%host
-
-        if port is None:
-            netloc = host
-        else:
-            netloc = "%s:%d"%(host, port)
+        netloc = hostinfo
 
         # FIXME this should follow coap section 6.5 more closely
         query = "&".join(query)
@@ -300,6 +305,9 @@ class Message(object):
         # maybe this function does not belong exactly *here*, but it belongs to
         # the results of .request(message), which is currently a message itself.
 
+        hostinfo = None
+        host = None
+
         if self.code.is_response():
             proxyuri = self.requested_proxy_uri
             scheme = self.requested_scheme or 'coap'
@@ -311,31 +319,32 @@ class Message(object):
             query = self.opt.uri_query or ()
             path = self.opt.uri_path
 
-        if self.code.is_response() and self.requested_host is not None:
-            host = self.requested_host
+        if self.code.is_response() and self.requested_hostinfo is not None:
+            hostinfo = self.requested_hostinfo
         elif self.code.is_request() and self.opt.uri_host is not None:
             host = self.opt.uri_host
+        elif self.code.is_request() and self.unresolved_remote is not None:
+            hostinfo = self.unresolved_remote
         else:
-            host = self.remote[0]
+            hostinfo = self.remote.hostinfo
 
-        if self.code.is_response() and self.requested_port is not None:
-            port = self.requested_port
-        elif self.code.is_request() and self.opt.uri_port is not None:
+        if self.code.is_request() and self.opt.uri_port is not None:
             port = self.opt.uri_port
-        elif self.remote is not None:
-            port = self.remote[1]
-            if port == COAP_PORT:
-                # don't explicitly add port if not required
-                port = None
         else:
             port = None
 
         if proxyuri is not None:
             return proxyuri
 
-        return self._build_request_uri(scheme, host, port, path, query)
+        if hostinfo is None and host is None:
+            raise ValueError("Can not construct URI without any information on the set host")
 
-    def set_request_uri(self, uri):
+        if hostinfo is None:
+            hostinfo = hostportjoin(host, port)
+
+        return self._build_request_uri(scheme, hostinfo, path, query)
+
+    def set_request_uri(self, uri, *, set_uri_host=True):
         """Parse a given URI into the uri_* fields of the options.
 
         The remote does not get set automatically; instead, the remote data is
@@ -343,7 +352,12 @@ class Message(object):
         is coupled with network specifics the protocol will know better by the
         time the message is sent. Whatever sends the message, be it the
         protocol itself, a proxy wrapper or an alternative transport, will know
-        how to handle the information correctly."""
+        how to handle the information correctly.
+
+        When ``set_uri_host=False`` is passed, the host/port is stored in the
+        ``unresolved_remote`` message property instead of the uri_host option;
+        as a result, the unresolved host name is not sent on the wire, which
+        breaks virtual hosts but makes message sizes smaller."""
 
         parsed = urllib.parse.urlparse(uri, allow_fragments=False)
 
@@ -365,11 +379,9 @@ class Message(object):
         else:
             self.opt.uri_query = []
 
-        if parsed.port:
-            self.opt.uri_port = parsed.port
-        self.opt.uri_host = parsed.hostname
-
-    def has_multicast_remote(self):
-        """Return True if the message's remote needs to be considered a multicast remote."""
-        address = ipaddress.ip_address(self.remote[0])
-        return address.is_multicast
+        if set_uri_host:
+            if parsed.port:
+                self.opt.uri_port = parsed.port
+            self.opt.uri_host = parsed.hostname
+        else:
+            self.unresolved_remote = parsed.netloc

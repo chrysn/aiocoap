@@ -9,24 +9,29 @@
 """This module contains the classes that are responsible for keeping track of messages:
 
 * :class:`Context` roughly represents the CoAP endpoint (basically a UDP
-  socket) -- something that can send requests and possibly can answer incoming
-  requests.
+    socket) -- something that can send requests and possibly can answer incoming
+    requests.
+
 * a :class:`Request` gets generated whenever a request gets sent to keep
-  track of the response
+    track of the response
+
 * a :class:`Responder` keeps track of a single incoming request
 """
 
+
+import os
 import random
 import struct
 import binascii
 import functools
 import socket
 import asyncio
-import urllib.parse
+import weakref
 
 from .util.queuewithend import QueueWithEnd
 from .util.asyncio import cancel_thoroughly
-from .dump import TextDumper
+from .util import hostportjoin
+from . import error
 
 import logging
 # log levels used:
@@ -104,16 +109,14 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         self._backlogs = {} #: per-remote list of (backlogged package, exchange-monitor) tupless (keys exist iff there is an active_exchange with that node)
         self.outgoing_requests = {}  #: Unfinished outgoing requests (identified by token and remote)
         self.incoming_requests = {}  #: Unfinished incoming requests. ``(path-tuple, remote): Request``
-        self.outgoing_observations = {} #: Observations where this context acts as client. ``(token, remote) -> ClientObservation``
+        self.outgoing_observations = {} #: Observations where this context acts as client. ``(token, remote) -> weak(ClientObservation)``
         self.incoming_observations = {} #: Observation where this context acts as server. ``(token, remote) -> ServerObservation``. This is managed by :cls:ServerObservation and :meth:`.Responder.handle_observe_request`.
 
         self.log = logging.getLogger(loggername)
 
         self.loop = loop or asyncio.get_event_loop()
 
-        self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
-
-        self._shutting_down = None #: Future created and used in the .shutdown() method.
+        self.transport_endpoints = []
 
     @asyncio.coroutine
     def shutdown(self):
@@ -121,8 +124,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         After this coroutine terminates, and once all external references to
         the object are dropped, it should be garbage-collectable."""
-
-        self._shutting_down = asyncio.Future()
 
         self.log.debug("Shutting down context")
         for exchange_monitor, cancellable in self._active_exchanges.values():
@@ -132,48 +133,8 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         for observation in list(self.incoming_observations.values()):
             observation.deregister("Server going down")
         self._active_exchanges = None
-        self.transport.close()
 
-        yield from self._shutting_down
-
-    #
-    # implementing the typical DatagramProtocol interfaces.
-    #
-    # note from the documentation: we may rely on connection_made to be called
-    # before datagram_received -- but sending immediately after context
-    # creation will still fail
-
-    def connection_made(self, transport):
-        """Implementation of the DatagramProtocol interface, called by the transport."""
-        self.ready.set_result(True)
-        self.transport = transport
-
-    def datagram_received(self, data, address):
-        """Implementation of the DatagramProtocol interface, called by the transport."""
-        try:
-            message = Message.decode(data, address)
-        except error.UnparsableMessage:
-            self.log.warning("Ignoring unparsable message from %s"%(address,))
-            return
-
-        self._dispatch_message(message)
-
-    def error_received(self, exc):
-        """Implementation of the DatagramProtocol interface, called by the transport."""
-        # TODO: set IP_RECVERR to receive icmp "destination unreachable (port
-        # unreachable)" & co to stop retransmitting and err back quickly
-        self.log.error("Error received: %s"%exc)
-
-    def connection_lost(self, exc):
-        # TODO better error handling -- find out what can cause this at all
-        # except for a shutdown
-        if exc is not None:
-            self.log.error("Connection lost: %s"%exc)
-
-        if self._shutting_down is None:
-            self.log.error("Connection loss was not expected.")
-        else:
-            self._shutting_down.set_result(None)
+        yield from asyncio.wait([te.shutdown() for te in self.transport_endpoints], timeout=3, loop=self.loop)
 
     # pause_writing and resume_writing are not implemented, as the protocol
     # should take care of not flooding the output itself anyway (NSTART etc).
@@ -216,6 +177,37 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
                 self.send_message(rst)
         else:
             self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it."%(message.code, message.mtype, message.remote))
+
+    def _dispatch_error(self, errno, remote):
+        self.log.debug("Incoming error %d from %r", errno, remote)
+
+        # cancel requests first, and then exchanges: cancelling the pending
+        # exchange would trigger enqueued requests to be transmitted
+
+        keys_for_removal = []
+        for key, request in self.outgoing_requests.items():
+            (token, request_remote) = key
+            if request_remote == remote:
+                request.response.set_exception(OSError(errno, os.strerror(errno)))
+            keys_for_removal.append(key)
+        for k in keys_for_removal:
+            self.outgoing_requests.pop(key)
+
+        # not cancelling incoming requests, as they have even less an API for
+        # that than the outgoing ones; clearing the exchange monitors at least
+        # spares them retransmission hell, and apart from that, they'll need to
+        # timeout by themselves.
+
+        keys_for_removal = []
+        for key, (monitor, cancellable_timeout) in self._active_exchanges.items():
+            (exchange_remote, message_id) = key
+            if remote == exchange_remote:
+                if monitor is not None:
+                    monitor.rst() # FIXME: add API for better errors
+                cancel_thoroughly(cancellable_timeout)
+                keys_for_removal.append(key)
+        for k in keys_for_removal:
+            self._active_exchanges.pop(k)
 
     #
     # coap dispatch, message-id sublayer: duplicate handling
@@ -283,7 +275,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         key = (message.remote, message.mid)
 
         if key not in self._active_exchanges:
-            self.log.info("Received %s from %s, but could not match it to a running exchange."%(message.mtype, message.remote))
+            self.log.warn("Received %s from %s, but could not match it to a running exchange."%(message.mtype, message.remote))
             return
 
         exchange_monitor, next_retransmission = self._active_exchanges.pop(key)
@@ -313,7 +305,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         while not any(r == remote for r, mid in self._active_exchanges.keys()):
             if self._backlogs[remote] != []:
                 next_message, exchange_monitor = self._backlogs[remote].pop(0)
-                self._send(next_message, exchange_monitor)
+                self._send_initially(next_message, exchange_monitor)
             else:
                 del self._backlogs[remote]
                 break
@@ -347,7 +339,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         if retransmission_counter < MAX_RETRANSMIT:
             self.log.info("Retransmission, Message ID: %d." % message.mid)
-            self.transport.sendto(message.encode(), message.remote)
+            self._send_via_transport(message)
             retransmission_counter += 1
             timeout *= 2
 
@@ -403,14 +395,15 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
             request.handle_response(response)
             return True
 
-        observation = self.outgoing_observations.get((response.token, response.remote), None)
-        if observation is not None:
+        obsref = self.outgoing_observations.get((response.token, response.remote), None)
+        if obsref is not None:
+            observation = obsref()
             ## @TODO: deduplication based on observe option value, collecting
             # the rest of the resource if blockwise
             observation.callback(response)
 
             if response.opt.observe is None:
-                self.outgoing_observations[(response.token, response.remote)].error(error.ObservationCancelled())
+                observation.error(error.ObservationCancelled())
 
             return True
 
@@ -419,6 +412,11 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     #
     # outgoing messages
     #
+
+    @asyncio.coroutine
+    def fill_remote(self, message):
+      te, = self.transport_endpoints
+      yield from te.fill_remote(message)
 
     def send_message(self, message, exchange_monitor=None):
         """Encode and send message. This takes care of retransmissions (if
@@ -430,7 +428,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         ExchangeMonitor can be passed in, which will receive the appropriate
         callbacks."""
 
-        if message.mtype == CON and message.has_multicast_remote():
+        if message.mtype == CON and message.remote.is_multicast:
             raise ValueError("Refusing to send CON message to multicast address")
 
         if message.mid is None:
@@ -442,10 +440,10 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
                 exchange_monitor.enqueued()
             self._backlogs[message.remote].append((message, exchange_monitor))
         else:
-            self._send(message, exchange_monitor)
+            self._send_initially(message, exchange_monitor)
 
-    def _send(self, message, exchange_monitor=None):
-        """Put the message on the wire, starting retransmission timeouts"""
+    def _send_initially(self, message, exchange_monitor=None):
+        """Put the message on the wire for the first time, starting retransmission timeouts"""
 
         self.log.debug("Sending message %r" % message)
 
@@ -457,8 +455,13 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
         self._store_response_for_duplicates(message)
 
-        encoded = message.encode()
-        self.transport.sendto(encoded, message.remote)
+        self._send_via_transport(message)
+
+    def _send_via_transport(self, message):
+        """Put the message on the wire"""
+
+        te, = self.transport_endpoints
+        te.send(message)
 
     def _next_message_id(self):
         """Reserve and return a new message ID."""
@@ -500,23 +503,13 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         if loop is None:
             loop = asyncio.get_event_loop()
 
-        protofact = lambda: cls(loop, None, loggername=loggername)
-        if dump_to is not None:
-            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), cls)
+        self = cls(loop=loop, serversite=None, loggername=loggername)
 
-        #transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET)
+        from .transports.udp6 import TransportEndpointUDP6
 
-        # use the following lines instead, and change the address to `::ffff:127.0.0.1`
-        # in order to see acknowledgement handling fail with hybrid stack operation
-        transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
-        transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
 
-        if dump_to is not None:
-            protocol = protocol.protocol
-
-        yield from protocol.ready
-
-        return protocol
+        return self
 
     @classmethod
     @asyncio.coroutine
@@ -530,20 +523,13 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         if loop is None:
             loop = asyncio.get_event_loop()
 
-        protofact = lambda: cls(loop, site, loggername=loggername)
-        if dump_to is not None:
-            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
+        self = cls(loop=loop, serversite=site, loggername=loggername)
 
-        transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
-        transport._sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        transport._sock.bind(bind)
+        from .transports.udp6 import TransportEndpointUDP6
 
-        if dump_to is not None:
-            protocol = protocol.protocol
+        self.transport_endpoints.append((yield from TransportEndpointUDP6.create_server_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to, bind=bind)))
 
-        yield from protocol.ready
-
-        return protocol
+        return self
 
     def kill_transactions(self, remote, exception=error.CommunicationKilled):
         """Abort all pending exchanges and observations to a given remote.
@@ -575,7 +561,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         for ((token, obs_remote), clientobservation) in list(self.outgoing_observations.items()):
             if remote != obs_remote:
                 continue
-            clientobservation.error(exception())
+            clientobservation().error(exception())
 
         for ((token, obs_remote), serverobservation) in list(self.incoming_observations.items()):
             if remote != obs_remote:
@@ -585,33 +571,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
 class BaseRequest(object):
     """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
-
-    @asyncio.coroutine
-    def _fill_remote(self, request):
-        if request.remote is None:
-            if request.unresolved_remote is not None or request.opt.uri_host:
-                ## @TODO this is very rudimentary; happy-eyeballs or
-                # similar could be employed.
-
-                if request.unresolved_remote is not None:
-                    pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
-                    host = pseudoparsed.hostname
-                    port = pseudoparsed.port or COAP_PORT
-                else:
-                    host = request.opt.uri_host
-                    port = request.opt.uri_port or COAP_PORT
-
-                addrinfo = yield from self.protocol.loop.getaddrinfo(
-                    host,
-                    port,
-                    family=self.protocol.transport._sock.family,
-                    type=0,
-                    proto=self.protocol.transport._sock.proto,
-                    flags=socket.AI_V4MAPPED,
-                    )
-                request.remote = addrinfo[0][-1]
-            else:
-                raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
 class Request(BaseRequest, interfaces.Request):
     """Class used to handle single outgoing request.
@@ -640,9 +599,9 @@ class Request(BaseRequest, interfaces.Request):
 
         if self.app_request.opt.observe is not None:
             self.observation = ClientObservation(self.app_request)
-            self.response.add_done_callback(self.register_observation)
+            self._observation_handled = False
 
-        asyncio.async(self._init_phase2())
+        asyncio.Task(self._init_phase2())
 
     @asyncio.coroutine
     def _init_phase2(self):
@@ -653,9 +612,12 @@ class Request(BaseRequest, interfaces.Request):
         depend on async results."""
 
         try:
-            yield from self._fill_remote(self.app_request)
+            yield from self.protocol.fill_remote(self.app_request)
 
             size_exp = DEFAULT_BLOCK_SIZE_EXP
+            if self.app_request.opt.block1 is not None and self.handle_blockwise:
+                assert self.app_request.opt.block1.block_number == 0, "Unexpected block number in app_request"
+                size_exp = self.app_request.opt.block1.size_exponent
             if len(self.app_request.payload) > (2 ** (size_exp + 4)) and self.handle_blockwise:
                 request = self.app_request._extract_block(0, size_exp)
                 self.app_request.opt.block1 = request.opt.block1
@@ -665,7 +627,13 @@ class Request(BaseRequest, interfaces.Request):
 
             self.send_request(request)
         except Exception as e:
-            self.response.set_exception(e)
+            self._set_response_and_observation_error(e)
+
+    def _set_response_and_observation_error(self, e):
+        self.response.set_exception(e)
+        if self.app_request.opt.observe is not None:
+            self._observation_handled = True
+            self.observation.error(e)
 
     def cancel(self):
         # TODO cancel ongoing exchanges
@@ -693,7 +661,7 @@ class Request(BaseRequest, interfaces.Request):
 
             self.log.info("Request timed out")
             del self.protocol.outgoing_requests[(request.token, request.remote)]
-            self.response.set_exception(error.RequestTimedOut())
+            self._set_response_and_observation_error(error.RequestTimedOut())
 
         if request.mtype is None:
             request.mtype = CON
@@ -702,7 +670,7 @@ class Request(BaseRequest, interfaces.Request):
         try:
             self.protocol.send_message(request, self._exchange_monitor_factory(request))
         except Exception as e:
-            self.response.set_exception(e)
+            self._set_response_and_observation_error(e)
         else:
             if self._requesttimeout:
                 cancel_thoroughly(self._requesttimeout)
@@ -732,7 +700,7 @@ class Request(BaseRequest, interfaces.Request):
         self.log.debug("Response with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
 
         if block1.block_number != self.app_request.opt.block1.block_number:
-            self.response.set_exception(UnexpectedBlock1Option())
+            self._set_response_and_observation_error(UnexpectedBlock1Option())
 
         if block1.size_exponent < self.app_request.opt.block1.size_exponent:
             next_number = (self.app_request.opt.block1.block_number + 1) * 2 ** (self.app_request.opt.block1.size_exponent - block1.size_exponent)
@@ -752,7 +720,7 @@ class Request(BaseRequest, interfaces.Request):
                 self._request_transmitted_completely = True
                 self.process_block2_in_response(response)
             else:
-                self.response.set_exception(UnexpectedBlock1Option())
+                self._set_response_and_observation_error(UnexpectedBlock1Option())
 
     def process_block2_in_response(self, response):
         """Process incoming response with regard to Block2 option."""
@@ -760,6 +728,10 @@ class Request(BaseRequest, interfaces.Request):
         if self.response.done():
             self.log.info("Disregarding incoming message as response Future is done (probably cancelled)")
             return
+
+        if self.app_request.opt.observe is not None and self._assembled_response == None:
+            # assembled response indicates it's the first response package
+            self.register_observation(response)
 
         if response.opt.block2 is not None and self.handle_blockwise:
             block2 = response.opt.block2
@@ -789,31 +761,56 @@ class Request(BaseRequest, interfaces.Request):
             self.handle_final_response(response)
 
     def handle_final_response(self, response):
-        response.requested_host = self.app_request.opt.uri_host
-        response.requested_port = self.app_request.opt.uri_port
+        if self.app_request.opt.uri_host:
+            response.requested_hostinfo = hostportjoin(self.app_request.opt.uri_host, self.app_request.opt.uri_port)
+        else:
+            response.requested_hostinfo = self.app_request.unresolved_remote
         response.requested_path = self.app_request.opt.uri_path
         response.requested_query = self.app_request.opt.uri_query
 
         self.response.set_result(response)
 
-    def register_observation(self, response_future):
-        # we could have this be a coroutine, then it would be launched
-        # immediately instead of as add_done_callback to self.response, but it
-        # doesn't give an advantage, we'd still have to check for whether the
-        # observation has been cancelled before setting an error, and we'd just
-        # one more task around
-        try:
-            response = response_future.result()
-        except Exception as e:
-            if not self.observation.cancelled:
-                self.observation.error(e)
-            return
+    def register_observation(self, response):
+        assert self._observation_handled == False
+        self._observation_handled = True
 
-        if response.opt.observe is None:
+        if not response.code.is_successful() or response.opt.observe is None:
             if not self.observation.cancelled:
                 self.observation.error(error.NotObservable())
         else:
             self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
+
+    ### Alternatives to waiting for .response
+
+    @property
+    @asyncio.coroutine
+    def response_raising(self):
+        """An awaitable that returns if a response comes in and is successful,
+        otherwise raises generic network exception or a
+        :class:`.error.ResponseWrappingError` for unsuccessful responses.
+
+        Experimental Interface."""
+
+        response = yield from self.response
+        if not response.code.is_successful():
+            raise error.ResponseWrappingError(response)
+
+        return response
+
+    @property
+    @asyncio.coroutine
+    def response_nonraising(self):
+        """An awaitable that rather returns a 500ish fabricated message (as a
+        proxy would return) instead of raising an exception.
+
+        Experimental Interface."""
+
+        try:
+            return (yield from self.response)
+        except error.RenderableError:
+            return e.to_message()
+        except Exception as e:
+            return Message(code=INTERNAL_SERVER_ERROR)
 
 class MulticastRequest(BaseRequest):
     def __init__(self, protocol, request):
@@ -826,13 +823,13 @@ class MulticastRequest(BaseRequest):
 
         self.responses = QueueWithEnd()
 
-        asyncio.async(self._init_phase2())
+        asyncio.Task(self._init_phase2())
 
     @asyncio.coroutine
     def _init_phase2(self):
         """See :meth:`Request._init_phase2`"""
         try:
-            yield from self._fill_remote(self.request)
+            yield from self.protocol.fill_remote(self.request)
 
             yield from self._send_request(self.request)
         except Exception as e:
@@ -858,12 +855,12 @@ class MulticastRequest(BaseRequest):
             self.protocol.send_message(request)
 
     def handle_response(self, response):
-        # not setting requested_host / port, that needs to come from the remote
+        # not setting requested_hostinfo, that needs to come from the remote
         response.requested_path = self.request.opt.uri_path
         response.requested_query = self.request.opt.get_option(OptionNumber.URI_QUERY) or ()
 
-        # FIXME this should somehow backblock, but it's udp
-        asyncio.async(self.responses.put(response))
+        # FIXME this should somehow backblock, but it's udp -- maybe rather limit queue length?
+        asyncio.Task(self.responses.put(response))
 
     def _timeout(self):
         self.protocol.outgoing_requests.pop(self.request.token, None)
@@ -997,8 +994,12 @@ class Responder(object):
             self.log.error("An exception occurred while rendering a resource: %r"%e)
             self.log.exception(e)
         else:
+            if response.code is None:
+                response.code = CONTENT
             if not response.code.is_response():
                 self.log.warning("Response does not carry response code (%r), application probably violates protocol."%response.code)
+
+            self.handle_observe_response(request, response)
 
             if needs_blockwise:
                 self.respond(response, request)
@@ -1019,8 +1020,6 @@ class Responder(object):
 
         # if there was an error, make sure nobody hopes to get a result any more
         self.app_request.cancel()
-
-        self.handle_observe_response(request, app_response)
 
         self.log.debug("Preparing response...")
         self.app_response = app_response
@@ -1159,6 +1158,11 @@ class Responder(object):
                 sobs.deregister("Resource does not provide observation")
 
     def handle_observe_response(self, request, response):
+        """Modify the response according to the Responder's understanding of
+        the involved observation (eg. drop the observe flag it's not involved
+        in an observation or the observation was cancelled), and update the
+        Responder/context if the response modifies the observation state (eg.
+        by being unsuccessful)."""
         if request.mtype is None:
             # this is the indicator that the request was just injected
             response.mtype = CON
@@ -1352,16 +1356,55 @@ class ClientObservation(object):
 
         self._registry_data = None
 
+    def __aiter__(self):
+        """`async for` interface to observations. Currently, this still loses
+        information to the application (the reason for the termination is
+        unclear).
+
+        Experimental Interface."""
+        it = self._Iterator()
+        self.register_callback(it.push)
+        self.register_errback(it.push_err)
+        return it
+
+    class _Iterator:
+        def __init__(self):
+            self._future = asyncio.Future()
+
+        def push(self, item):
+            if self._future.done():
+                # we don't care whether we overwrite anything, this is a lossy queue as observe is lossy
+                self._future = asyncio.Future()
+            self._future.set_result(item)
+
+        def push_err(self, e):
+            if self._future.done():
+                self._future = asyncio.Future()
+            self._future.set_exception(e)
+
+        @asyncio.coroutine
+        def __anext__(self):
+            f = self._future
+            try:
+                result = (yield from self._future)
+                if f is self._future:
+                    self._future = asyncio.Future()
+                return result
+            except Exception:
+                raise StopAsyncIteration
+
     def register_callback(self, callback):
         """Call the callback whenever a response to the message comes in, and
         pass the response to it."""
         self.callbacks.append(callback)
+        self._set_nonweak()
 
     def register_errback(self, callback):
         """Call the callback whenever something goes wrong with the
         observation, and pass an exception to the callback. After such a
         callback is called, no more callbacks will be issued."""
         self.errbacks.append(callback)
+        self._set_nonweak()
 
     def callback(self, response):
         """Notify all listeners of an incoming response"""
@@ -1404,13 +1447,29 @@ class ClientObservation(object):
 
         self._registry_data = (observation_dict, key)
 
-        observation_dict[key] = self
+        observation_dict[key] = weakref.ref(self)
+
+    def _set_nonweak(self):
+        """Prevent the observation from being garbage collected (because it has
+        actual callbacks). Not reversible right now because callbacks can't be
+        deregistered anyway."""
+        if self._registry_data and isinstance(self._registry_data[0][self._registry_data[1]], weakref.ref):
+            self._registry_data[0][self._registry_data[1]] = lambda self=self: self
 
     def _unregister(self):
         """Undo the registration done in _register if it was ever done."""
 
         if self._registry_data is not None:
             del self._registry_data[0][self._registry_data[1]]
+            self._registry_data = None
 
     def __repr__(self):
         return '<%s %s at %#x>'%(type(self).__name__, "(cancelled)" if self.cancelled else "(%s call-, %s errback(s))"%(len(self.callbacks), len(self.errbacks)), id(self))
+
+    def __del__(self):
+        if self._registry_data is not None:
+            # if we want to go fully gc-driven later, the warning can be
+            # dropped -- but for observations it's probably better to
+            # explicitly state disinterest.
+            logging.warning("Observation deleted without explicit cancellation")
+            self._unregister()

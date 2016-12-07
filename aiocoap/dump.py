@@ -8,8 +8,10 @@
 
 from datetime import datetime
 
-class TextDumper(object):
-    """Plain text etwork data dumper
+from .util.asyncio import RecvmsgDatagramProtocol
+
+class TextDumper(RecvmsgDatagramProtocol):
+    """Plain text network data dumper
 
     A TextDumper can be used to log network traffic into a file that can be
     converted to a PCAP-NG file as described in its header.
@@ -19,9 +21,11 @@ class TextDumper(object):
     simultaneously staying at application level and staying ignorant of
     particular underlying protocols' data structures.
 
-    It can be used stand-alone (outside of the asyncio transport/protocol
-    mechanisms) when instanciated only with an output file; in that case, us
-    the :meth:datagram_received and :meth:sendto methods.
+    It could previously be used stand-alone (outside of the asyncio
+    transport/protocol mechanisms) when instanciated only with an output file
+    (the :meth:`datagram_received` and :meth:`sendto` were used), but with the
+    :meth:`datagram_msg_received` substitute method, this is probably
+    impractical now.
 
     To use it between an asyncio transport and protocol, use the
     :meth:endpointfactory method."""
@@ -55,19 +59,19 @@ class TextDumper(object):
 
     # methods for both direct use and transport/protocol use
 
-    def datagram_received(self, data, address):
+    def datagram_msg_received(self, data, ancdata, flags, address):
         self._outfile.write("I %s 000 %s\n"%(datetime.now(), " ".join("%02x"%c for c in data)))
         if self._protocol is not None:
-            self._protocol.datagram_received(data, address)
+            self._protocol.datagram_msg_received(data, ancdata, flags, address)
 
-    def sendto(self, data, address):
+    def sendmsg(self, data, ancdata, flags, address):
         self._outfile.write("O %s 000 %s\n"%(datetime.now(), " ".join("%02x"%c for c in data)))
         if self._protocol is not None:
             # it's not an error to check for _protocol and not for _transport
             # here: if the protocol got hold of this fake transport by other
             # means than connection_made, writing before connection_made should
             # still create an error.
-            self._transport.sendto(data, address)
+            self._transport.sendmsg(data, ancdata, flags, address)
 
     # passed-through properties and methods
 

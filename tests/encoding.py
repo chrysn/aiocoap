@@ -17,7 +17,7 @@ import unittest
 class TestMessage(unittest.TestCase):
 
     def test_encode(self):
-        msg1 = aiocoap.Message(mtype=aiocoap.CON, mid=0)
+        msg1 = aiocoap.Message(mtype=aiocoap.CON, mid=0, code=aiocoap.EMPTY)
         binary1 = bytes((64,0,0,0))
         self.assertEqual(msg1.encode(), binary1, "wrong encode operation for empty CON message")
 
@@ -45,18 +45,18 @@ class TestMessage(unittest.TestCase):
         msg4 = aiocoap.Message(mtype=aiocoap.CON, mid=2<<16)
         self.assertRaises(Exception, msg4.encode)
 
-        msg5 = aiocoap.Message(mtype=aiocoap.CON, mid=0)
+        msg5 = aiocoap.Message(mtype=aiocoap.CON, mid=0, code=aiocoap.EMPTY)
         o = aiocoap.optiontypes.OpaqueOption(1234, value=b"abcd")
         msg5.opt.add_option(o)
         binary5 = binary1 + bytes((0xe4, 0x03, 0xc5)) + b"abcd"
         self.assertEqual(msg5.encode(), binary5, "wrong encoding for high option numbers")
 
-        msg6 = aiocoap.Message(mtype=aiocoap.CON, mid=0)
+        msg6 = aiocoap.Message(mtype=aiocoap.CON, mid=0, code=aiocoap.EMPTY)
         o = aiocoap.optiontypes.OpaqueOption(12345678, value=b"abcd")
         msg6.opt.add_option(o)
         self.assertRaises(ValueError, msg6.encode)
 
-        msg7 = aiocoap.Message(mtype=aiocoap.CON, mid=0)
+        msg7 = aiocoap.Message(mtype=aiocoap.CON, mid=0, code=aiocoap.EMPTY)
         def set_unknown_opt():
             msg7.opt.foobar = 42
         self.assertRaises(AttributeError, set_unknown_opt)
@@ -204,3 +204,16 @@ class TestOptiontypes(unittest.TestCase):
             else:
                 self.assertRaises(ValueError, o.is_nocachekey)
                 self.assertRaises(ValueError, o.is_cachekey)
+
+class TestMessageOptionConstruction(unittest.TestCase):
+    def test_uri_construction(self):
+        message = aiocoap.Message(uri="coap://localhost:1234/some/path/")
+        self.assertEqual(message.opt.uri_host, "localhost")
+        self.assertEqual(message.opt.uri_port, 1234)
+        self.assertEqual(message.opt.uri_path, ("some", "path", ""))
+
+    def test_opt_construction(self):
+        message = aiocoap.Message(content_format=40, observe=0, uri_path=())
+        self.assertEqual(message.opt.content_format, 40)
+        self.assertEqual(message.opt.observe, 0)
+        self.assertEqual(message.opt.uri_path, ())

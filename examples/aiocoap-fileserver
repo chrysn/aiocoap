@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+
+# This file is part of the Python aiocoap library project.
+#
+# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
+#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+#
+# aiocoap is free software, this file is published under the MIT license as
+# described in the accompanying LICENSE file.
+
+"""A demo that acts as a file server over CoAP"""
+
+import argparse
+import sys
+import asyncio
+from pathlib import Path
+import logging
+from stat import S_ISREG, S_ISDIR
+import mimetypes
+
+import aiocoap
+import aiocoap.error as error
+import aiocoap.numbers.codes as codes
+from aiocoap.resource import Resource
+
+class InvalidPathError(error.RenderableError):
+    code = codes.BAD_REQUEST
+
+class TrailingSlashMissingError(error.RenderableError):
+    code = codes.BAD_REQUEST
+    message = "Error: Not a file (add trailing slash)"
+
+class NoSuchFile(error.NoResource): # just for the better error msg
+    message = "Error: File not found!"
+
+class FileServer(Resource, aiocoap.interfaces.ObservableResource):
+    # Resource is only used to give the nice render_xxx methods
+
+    def __init__(self, root, log):
+        self.root = root
+        self.log = log
+
+        self._observations = {} # path -> [last_stat, [callbacks]]
+
+        asyncio.Task(self.check_files_for_refreshes())
+
+    async def check_files_for_refreshes(self):
+        while True:
+            await asyncio.sleep(10)
+
+            for path, data in list(self._observations.items()):
+                last_stat, callbacks = data
+                if last_stat is None:
+                    continue # this hit before the original response even triggered
+                try:
+                    new_stat = path.stat()
+                except:
+                    new_stat = False
+                relevant = lambda s: (s.st_ino, s.st_dev, s.st_size, s.st_mtime, s.st_ctime)
+                if relevant(new_stat) != relevant(last_stat):
+                    self.log.info("New stat for %s"%path)
+                    data[0] = new_stat
+                    for cb in callbacks: cb()
+
+    def request_to_localpath(self, request):
+        path = request.opt.uri_path
+        if any('/' in p or p in ('.', '..') for p in path):
+            raise InvalidPathError()
+
+        return self.root / "/".join(path)
+
+    async def needs_blockwise_assembly(self, request):
+        return False
+
+    async def render_get(self, request):
+        if request.opt.uri_path == ('.well-known', 'core'):
+            return aiocoap.Message(payload=b"</>;ct=40", content_format=40)
+
+        path = self.request_to_localpath(request)
+        try:
+            st = path.stat()
+        except FileNotFoundError:
+            raise NoSuchFile()
+
+        if S_ISDIR(st.st_mode):
+            return await self.render_get_dir(request, path)
+        elif S_ISREG(st.st_mode):
+            return await self.render_get_file(request, path)
+
+    async def render_get_dir(self, request, path):
+        if request.opt.uri_path and request.opt.uri_path[-1] != '':
+            raise TrailingSlashMissingError()
+
+        self.log.info("Serving directory %s"%path)
+
+        response = ""
+        for f in path.iterdir():
+            rel = f.relative_to(path)
+            if f.is_dir():
+                response += "<%s/>;ct=40,"%rel
+            else:
+                response += "<%s>,"%rel
+        return aiocoap.Message(payload=response[:-1].encode('utf8'), content_format=40)
+
+    async def render_get_file(self, request, path):
+        self.log.info("Serving file %s"%path)
+
+        block_in = request.opt.block2 or aiocoap.optiontypes.BlockOption.BlockwiseTuple(0, 0, 6)
+
+        with path.open('rb') as f:
+            f.seek(block_in.start)
+            data = f.read(block_in.size + 1)
+
+        if path in self._observations and self._observations[path][0] is None:
+            # FIXME this is not *completely* precise, as it might mean that in
+            # a (Observation 1 established, check loop run, file modified,
+            # observation 2 established) situation, observation 2 could receive
+            # a needless update on the next check, but it's simple and errs on
+            # the side of caution.
+            self._observations[path][0] = path.stat()
+
+        guessed_type, _ = mimetypes.guess_type(str(path))
+
+        block_out = aiocoap.optiontypes.BlockOption.BlockwiseTuple(block_in.block_number, len(data) > block_in.size, block_in.size_exponent)
+        return aiocoap.Message(
+                payload=data[:block_in.size],
+                block2=block_out,
+                content_format=aiocoap.numbers.media_types_rev.get(guessed_type,
+                    0 if guessed_type is not None and guessed_type.startswith('text/') else 42),
+                observe=request.opt.observe
+                )
+
+    async def add_observation(self, request, serverobservation):
+        path = self.request_to_localpath(request)
+
+        # the actual observable flag will only be set on files anyway, the
+        # library will cancel the file observation accordingly if the requested
+        # thing is not actually a file -- so it can be done unconditionally here
+
+        last_stat, callbacks = self._observations.setdefault(path, [None, []])
+        cb = serverobservation.trigger
+        callbacks.append(cb)
+        serverobservation.accept(lambda self=self, path=path, cb=cb: self._observations[path][1].remove(cb))
+
+async def main(path, verbosity=0):
+    log = logging.getLogger('fileserver')
+    coaplog = logging.getLogger('coap-server')
+
+    if verbosity == 1:
+        log.setLevel(logging.INFO)
+    elif verbosity == 2:
+        log.setLevel(logging.DEBUG)
+        coaplog.setLevel(logging.INFO)
+    elif verbosity >= 3:
+        log.setLevel(logging.DEBUG)
+        coaplog.setLevel(logging.DEBUG)
+
+    server = FileServer(path, log)
+    context = await aiocoap.Context.create_server_context(server)
+
+    log.info("Initialization completed")
+
+if __name__ == "__main__":
+    logging.basicConfig()
+
+    p = argparse.ArgumentParser()
+    p.add_argument("-v", "--verbose", help="Be more verbose (repeat to debug)", action='count', dest="verbosity", default=0)
+    p.add_argument("path", help="Root directory of the server", nargs="?", default=".", type=Path)
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main(**vars(p.parse_args())))
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        sys.exit(1)

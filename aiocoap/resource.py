@@ -112,7 +112,15 @@ class ObservableResource(Resource, interfaces.ObservableResource):
     @asyncio.coroutine
     def add_observation(self, request, serverobservation):
         self._observations.add(serverobservation)
-        serverobservation.accept((lambda s=self._observations, obs=serverobservation: s.remove(obs)))
+        def _cancel(self=self, obs=serverobservation):
+            self._observations.remove(serverobservation)
+            self.update_observation_count(len(self._observations))
+        serverobservation.accept(_cancel)
+        self.update_observation_count(len(self._observations))
+
+    def update_observation_count(self, newcount):
+        """Hook into this method to be notified when the number of observations
+        on the resource changes."""
 
     def updated_state(self, response=None):
         """Call this whenever the resource was updated, and a notification

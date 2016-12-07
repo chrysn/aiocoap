@@ -29,18 +29,15 @@ class BlockResource(resource.Resource):
                 "with numbers to be large enough to trigger blockwise "\
                 "transfer.\n" + "0123456789\n" * 100).encode("ascii")
 
-    @asyncio.coroutine
-    def render_get(self, request):
-        response = aiocoap.Message(code=aiocoap.CONTENT, payload=self.content)
-        return response
+    async def render_get(self, request):
+        return aiocoap.Message(payload=self.content)
 
-    @asyncio.coroutine
-    def render_put(self, request):
+    async def render_put(self, request):
         print('PUT payload: %s' % request.payload)
         self.content = request.payload
         payload = ("I've accepted the new payload. You may inspect it here in "\
                 "Python's repr format:\n\n%r"%self.content).encode('utf8')
-        return aiocoap.Message(code=aiocoap.CHANGED, payload=payload)
+        return aiocoap.Message(payload=payload)
 
 
 class SeparateLargeResource(resource.Resource):
@@ -54,15 +51,14 @@ class SeparateLargeResource(resource.Resource):
         super(SeparateLargeResource, self).__init__()
 #        self.add_param(resource.LinkParam("title", "Large resource."))
 
-    @asyncio.coroutine
-    def render_get(self, request):
-        yield from asyncio.sleep(3)
+    async def render_get(self, request):
+        await asyncio.sleep(3)
 
         payload = "Three rings for the elven kings under the sky, seven rings"\
                 "for dwarven lords in their halls of stone, nine rings for"\
                 "mortal men doomed to die, one ring for the dark lord on his"\
                 "dark throne.".encode('ascii')
-        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+        return aiocoap.Message(payload=payload)
 
 class TimeResource(resource.ObservableResource):
     """
@@ -76,12 +72,18 @@ class TimeResource(resource.ObservableResource):
 
     def notify(self):
         self.updated_state()
-        asyncio.get_event_loop().call_later(60, self.notify)
+        asyncio.get_event_loop().call_later(6, self.notify)
 
-    @asyncio.coroutine
-    def render_get(self, request):
+    def update_observation_count(self, count):
+        if count:
+            # not that it's actually implemented like that here -- unconditional updating works just as well
+            print("Keeping the clock nearby to trigger observations")
+        else:
+            print("Stowing away the clock until someone asks again")
+
+    async def render_get(self, request):
         payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii')
-        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+        return aiocoap.Message(payload=payload)
 
 #class CoreResource(resource.Resource):
 #    """
@@ -96,14 +98,11 @@ class TimeResource(resource.ObservableResource):
 #        resource.Resource.__init__(self)
 #        self.root = root
 #
-#    @asyncio.coroutine
-#    def render_get(self, request):
+#    async def render_get(self, request):
 #        data = []
 #        self.root.generate_resource_list(data, "")
 #        payload = ",".join(data).encode('utf-8')
-#        response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
-#        response.opt.content_format = 40
-#        return response
+#        return aiocoap.Message(payload=payload, content_format=40)
 
 # logging setup
 
@@ -122,7 +121,7 @@ def main():
 
     root.add_resource(('other', 'separate'), SeparateLargeResource())
 
-    asyncio.async(aiocoap.Context.create_server_context(root))
+    asyncio.Task(aiocoap.Context.create_server_context(root))
 
     asyncio.get_event_loop().run_forever()
 

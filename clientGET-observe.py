@@ -18,15 +18,16 @@ logging.basicConfig(level=logging.INFO)
 async def main():
     protocol = await Context.create_client_context()
 
-    request = Message(code=GET, uri='coap://localhost/time')
+    request = Message(code=GET, uri='coap://localhost/time', observe=0)
 
-    try:
-        response = await protocol.request(request).response
-    except Exception as e:
-        print('Failed to fetch resource:')
-        print(e)
-    else:
-        print('Result: %s\n%r'%(response.code, response.payload))
+    pr = protocol.request(request)
+
+    # Note that it is necessary to start sending
+    r = await pr.response
+    print("First response: %s\n%r"%(r, r.payload))
+
+    async for r in pr.observation:
+        print("Next result: %s\n%r"%(r, r.payload))
 
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(main())
