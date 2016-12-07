@@ -18,8 +18,9 @@ probably more useful to you than aiocoap.
 Usage
 -----
 
-For details on how to use the aiocoap library, have a look at the :mod:`aiocoap`
-module documentation, or at the :doc:`examples` and :doc:`tools` provided.
+For how to use the aiocoap library, have a look at the :doc:`guidedtour`, or at
+the :doc:`examples` and :doc:`tools` provided. All the details are in the
+:mod:`aiocoap` module documentation.
 
 All examples can be run directly from a source code copy. If you prefer to
 install it, the usual Python mechanisms apply.

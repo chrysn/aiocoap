@@ -4,6 +4,8 @@
    :glob:
    :titlesonly:
 
+   guidedtour
+
    aiocoap
    aiocoap.protocol
    aiocoap.message
@@ -27,6 +29,7 @@
    aiocoap.util.asyncio
    aiocoap.util.queuewithend
    aiocoap.util.socknumbers
+
    examples
    tools
    LICENSE
