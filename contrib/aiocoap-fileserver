@@ -22,6 +22,7 @@ import aiocoap
 import aiocoap.error as error
 import aiocoap.numbers.codes as codes
 from aiocoap.resource import Resource
+from aiocoap.util.cli import AsyncCLIDaemon
 
 class InvalidPathError(error.RenderableError):
     code = codes.BAD_REQUEST
@@ -41,8 +42,6 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         self.log = log
 
         self._observations = {} # path -> [last_stat, [callbacks]]
-
-        asyncio.Task(self.check_files_for_refreshes())
 
     async def check_files_for_refreshes(self):
         while True:
@@ -142,45 +141,48 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         callbacks.append(cb)
         serverobservation.accept(lambda self=self, path=path, cb=cb: self._observations[path][1].remove(cb))
 
-async def main(path, verbosity=0, simple_rd=None):
-    log = logging.getLogger('fileserver')
-    coaplog = logging.getLogger('coap-server')
+class FileServerProgram(AsyncCLIDaemon):
+    async def start(self):
+        logging.basicConfig()
 
-    if verbosity == 1:
-        log.setLevel(logging.INFO)
-    elif verbosity == 2:
-        log.setLevel(logging.DEBUG)
-        coaplog.setLevel(logging.INFO)
-    elif verbosity >= 3:
-        log.setLevel(logging.DEBUG)
-        coaplog.setLevel(logging.DEBUG)
+        p = argparse.ArgumentParser()
+        p.add_argument("-v", "--verbose", help="Be more verbose (repeat to debug)", action='count', dest="verbosity", default=0)
+        p.add_argument("--simple-rd", help="Register with the given resource directory using Simple Publishing")
+        p.add_argument("path", help="Root directory of the server", nargs="?", default=".", type=Path)
 
-    server = FileServer(path, log)
-    context = await aiocoap.Context.create_server_context(server)
+        await self.start_with_options(**vars(p.parse_args()))
 
-    if simple_rd is not None:
-        if '://' not in simple_rd:
-            log.warn("Resource directory does not look like a CoAP URI")
-        elif simple_rd.count('/') > 2:
-            log.warn("Resource directory does not look like a host-only CoAP URI")
-        try:
-            await context.request(aiocoap.Message(code=aiocoap.POST, uri=simple_rd + "/.well-known/core")).response_raising
-        except Exception:
-            log.exception("Registration at the RD failed")
+    async def start_with_options(self, path, verbosity=0, simple_rd=None):
+        log = logging.getLogger('fileserver')
+        coaplog = logging.getLogger('coap-server')
 
-    log.info("Initialization completed")
+        if verbosity == 1:
+            log.setLevel(logging.INFO)
+        elif verbosity == 2:
+            log.setLevel(logging.DEBUG)
+            coaplog.setLevel(logging.INFO)
+        elif verbosity >= 3:
+            log.setLevel(logging.DEBUG)
+            coaplog.setLevel(logging.DEBUG)
+
+        server = FileServer(path, log)
+        self.context = await aiocoap.Context.create_server_context(server)
+
+        self.refreshes = asyncio.Task(server.check_files_for_refreshes())
+
+        if simple_rd is not None:
+            if '://' not in simple_rd:
+                log.warn("Resource directory does not look like a CoAP URI")
+            elif simple_rd.count('/') > 2:
+                log.warn("Resource directory does not look like a host-only CoAP URI")
+            try:
+                await self.context.request(aiocoap.Message(code=aiocoap.POST, uri=simple_rd + "/.well-known/core")).response_raising
+            except Exception:
+                log.exception("Registration at the RD failed")
+
+    async def shutdown(self):
+        self.refreshes.cancel()
+        await self.context.shutdown()
 
 if __name__ == "__main__":
-    logging.basicConfig()
-
-    p = argparse.ArgumentParser()
-    p.add_argument("-v", "--verbose", help="Be more verbose (repeat to debug)", action='count', dest="verbosity", default=0)
-    p.add_argument("--simple-rd", help="Register with the given resource directory using Simple Publishing")
-    p.add_argument("path", help="Root directory of the server", nargs="?", default=".", type=Path)
-
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main(**vars(p.parse_args())))
-    try:
-        loop.run_forever()
-    except KeyboardInterrupt:
-        sys.exit(1)
+    FileServerProgram.sync_main()
