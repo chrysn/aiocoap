@@ -32,4 +32,5 @@
 
    examples
    tools
+   news
    LICENSE

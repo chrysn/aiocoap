@@ -1,32 +1,32 @@
 Version 0.3
-===========
+-----------
 
 Features
---------
+~~~~~~~~
 
 * 4d07615: ICMP errors are handled
 * 1b61a29: Accept 'fe80::...%eth0' style addresses
-* 3c0120a: Observations provide modern `async for` interface
+* 3c0120a: Observations provide modern ``async for`` interface
 * 4e4ff7c: New demo: file server
 * ef2e45e, 991098b, 684ccdd: Messages can be constructed with options, 
-    modified copies can be created with the .copy method, and default codes are
-    provided
-* 08845f2: Request objects have .response_nonraising and .response_raising
-    interfaces for easier error handling
+  modified copies can be created with the ``.copy`` method, and default codes
+  are provided
+* 08845f2: Request objects have ``.response_nonraising`` and
+  ``.response_raising`` interfaces for easier error handling
 * ab5b88a, c49b5c8: Sites can be nested by adding them to an existing site,
-    catch-all resources can be created by subclasing PathCapable
+  catch-all resources can be created by subclassing PathCapable
 
 Possibly breaking changes
--------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 * ab5b88a: Site nesting means that server resources do not get their original
-    Uri-Path any more
+  Uri-Path any more
 * bc76a7c: Location-{Path,Query} were opaque (bytes) objects instead of
-    strings; disctinction between accidental and intentional opaque options is
-    now clarified
+  strings; disctinction between accidental and intentional opaque options is
+  now clarified
 
 Small features
---------------
+~~~~~~~~~~~~~~
 
 * 2bb645e: set_request_uri allows URI parsing without sending Uri-Host
 * e6b4839: Take block1.size_exponent as a sizing hint when sending block1 data
@@ -38,15 +38,15 @@ Small features
 * fabcfd5: .well-known/core supports filtering
 
 Internals
----------
+~~~~~~~~~
 
-* f968d3a All low-level networking is now done in aiocoap.transports; it's not
-    really hotpluggable yet and only UDPv6 (with implicit v4 support) is
-    implemented, but an extension point for alternative transports.
-* bde8c42 recvmsg is used instead of recvfrom, requiring some asyncio hacks
+* f968d3a: All low-level networking is now done in aiocoap.transports; it's not
+  really hotpluggable yet and only UDPv6 (with implicit v4 support) is
+  implemented, but an extension point for alternative transports.
+* bde8c42: recvmsg is used instead of recvfrom, requiring some asyncio hacks
 
 Package management
-------------------
+~~~~~~~~~~~~~~~~~~
 
 * 01f7232, 0a9d03c: aiocoap-client and -proxy are entry points
 * 0e4389c: Establish an extra requirement for LinkHeader
