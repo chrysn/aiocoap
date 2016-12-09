@@ -1,6 +1,5 @@
-"""Copy of the queuewithend from
-https://gitorious.org/asyncio-for-loop-replacement/, copied in here until it
-stabilizes"""
+"""This is a relic from before the ``__aiter__`` protocol was established; it
+will be phased out before aiocoap 1.0 is released."""
 
 import abc
 import enum
