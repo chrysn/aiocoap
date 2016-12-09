@@ -30,8 +30,8 @@ class AsyncCLIDaemon:
     Implement the :meth:`shutdown` coroutine and to do cleanup; what actually
     runs your program will, if possible, call that and await its return.
 
-    Typical application for this is running `MyClass.sync_main(sys.argv[1:])`
-    in the program's `if __name__ == "__main__":` section."""
+    Typical application for this is running ``MyClass.sync_main()`` in the
+    program's ``if __name__ == "__main__":`` section."""
 
     def __init__(self, *args, **kwargs):
         self.initializing = asyncio.Task(self.start(*args, **kwargs))
