@@ -69,8 +69,10 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
 
+    python_requires='>=3.3',
     extras_require={
         'linkheader': ['LinkHeader'],
+        ':python_version<"3.4"': ['asyncio'],
         },
 
     entry_points={
