@@ -1,0 +1,12 @@
+Notes to the maintainer on what to do during a release
+======================================================
+
+* Bump versions in setup.py and doc/conf.py
+* git tag
+* git clean, or clone into a new directory (to avoid including uncommitted
+  files)
+* ./setup.py sdist upload
+* merge tag into for-readthedocs
+* tag for readthedocs
+* push everything including tags
+* log in to readthedocs, add new tag as new version
