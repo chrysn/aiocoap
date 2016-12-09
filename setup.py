@@ -55,7 +55,7 @@ setup(
     packages=find_packages(),
 
     author="Maciej Wasilak, Christian Amsüss",
-    author_email="Christian Amsüss <c.amsuess@energyharvesting.at>",
+    author_email="c.amsuess@energyharvesting.at",
     url="https://github.com/chrysn/aiocoap",
 
     keywords=['coap', 'asyncio', 'iot'],
