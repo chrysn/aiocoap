@@ -31,6 +31,9 @@ class Code(ExtensibleIntEnum):
     POST = 2
     PUT = 3
     DELETE = 4
+    FETCH = 5 # draft-ietf-core-etch-04
+    PATCH = 6 # draft-ietf-core-etch-04
+    iPATCH = 7 # draft-ietf-core-etch-04
     CREATED = 65
     DELETED = 66
     VALID = 67
@@ -45,9 +48,11 @@ class Code(ExtensibleIntEnum):
     METHOD_NOT_ALLOWED = 133
     NOT_ACCEPTABLE = 134
     REQUEST_ENTITY_INCOMPLETE = 136
+    CONFLICT = (4 << 5) + 9 # draft-ietf-core-etch-04
     PRECONDITION_FAILED = 140
     REQUEST_ENTITY_TOO_LARGE = 141
     UNSUPPORTED_MEDIA_TYPE = 143
+    UNPROCESSABLE_ENTITY = (4 << 5) + 22 # draft-ietf-core-etch-04
     INTERNAL_SERVER_ERROR = 160
     NOT_IMPLEMENTED = 161
     BAD_GATEWAY = 162

@@ -4,9 +4,9 @@ aiocoap -- The Python CoAP library
 The aiocoap package is a Python implementation of CoAP, the Constrained
 Application Protocol (`RFC 7252`_, more info at http://coap.technology/).
 
-It uses the asyncio module introduced in Python 3.4 to facilitate concurrent
-operations while maintaining a simple to use interface and not depending on
-anything outside the standard library.
+It uses the Python 3's asynchronous I/O to facilitate concurrent operations
+while maintaining a simple to use interface and not depending on anything
+outside the standard library.
 
 aiocoap is originally based on txThings_. If you want to use CoAP in your
 existing twisted application, or can not migrate to Python 3 yet, that is
@@ -18,8 +18,9 @@ probably more useful to you than aiocoap.
 Usage
 -----
 
-For details on how to use the aiocoap library, have a look at the :mod:`aiocoap`
-module documentation, or at the :doc:`examples` and :doc:`tools` provided.
+For how to use the aiocoap library, have a look at the :doc:`guidedtour`, or at
+the :doc:`examples` and :doc:`tools` provided. All the details are in the
+:mod:`aiocoap` module documentation.
 
 All examples can be run directly from a source code copy. If you prefer to
 install it, the usual Python mechanisms apply.
@@ -34,6 +35,8 @@ This library supports the following standards in full or partially:
 * RFC7641_ (Observe): Reordering, re-registration, and active cancellation are
   missing.
 * RFC7959_ (Blockwise): Multicast exceptions missing.
+* draft-ietf-core-etch-04_: Only registry entries added, but that should be all
+  that's neede on the library side.
 
 If something described by one of the standards but not implemented, it is
 considered a bug; please file at the `github issue tracker`_. (If it's not on
@@ -42,6 +45,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC7252: https://tools.ietf.org/html/rfc7252
 .. _RFC7641: https://tools.ietf.org/html/rfc7641
 .. _RFC7959: https://tools.ietf.org/html/rfc7959
+.. _draft-ietf-core-etch-04: https://tools.ietf.org/html/draft-ietf-core-etch-04
 
 Dependencies
 ------------
@@ -52,8 +56,10 @@ additional asyncio_ module, it works with version 3.3 as well. The
 
 When application/link-format typed resources (`RFC 6690`_) are supposed to be
 used, the `link_header`_ module is required as well. When the respective code
-paths are used without the module, an `ImportError` will be raised, or a `5.00`
-status code will be returned.
+paths are used without the module, an ``ImportError`` will be raised, or a
+5.00 status code will be returned. Python modules that implement servers or
+use discovery with aiocoap should declare a dependency on
+``'aiocoap[linkheader]'`` instead of ``'aiocoap'``.
 
 .. _Python: https://www.python.org/
 .. _asyncio: https://pypi.python.org/pypi/asyncio
@@ -65,15 +71,16 @@ Development
 
 aiocoap tries to stay close to PEP8_ recommendations and general best practice,
 and should thus be easy to contribute to. Unit tests are implemented in the
-``./tests/`` directory; complete test coverage is aimed for, but not yet
-complete (and might never be, as the error handling for pathological network
-partners is hard to trigger with a library designed not to misbehave).
+``./tests/`` directory and easiest run using ``./setup.py test``; complete test
+coverage is aimed for, but not yet complete (and might never be, as the error
+handling for pathological network partners is hard to trigger with a library
+designed not to misbehave).
 
-Documentation is built using sphinx_; hacks used there are described in
-``./doc/README.doc``.
+Documentation is built using sphinx_ with ``./setup.py build_sphinx``; hacks
+used there are described in ``./doc/README.doc``.
 
-Bugs from design goal and wishlist to typos are currently tracked in the
-`github issue tracker`_.
+Bugs (ranging from "design goal" and "wishlist" to typos) are currently tracked
+in the `github issue tracker`_.
 
 .. _PEP8: http://legacy.python.org/dev/peps/pep-0008/
 .. _sphinx: http://sphinx-doc.org/
@@ -91,6 +98,10 @@ Relevant URLs
 
   Online documentation built from the sources.
 
+* http://coap.technology/
+
+  Further general information on CoAP, the standard documents involved, and
+  other implementations and tools available.
 
 Licensing
 ---------

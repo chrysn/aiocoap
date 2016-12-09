@@ -22,7 +22,10 @@ media_types = {0: 'text/plain',
                41: 'application/xml',
                42: 'application/octet-stream',
                47: 'application/exi',
-               50: 'application/json'}
+               50: 'application/json',
+               51: 'application/json-patch+json', # draft-ietf-core-etch-04
+               52: 'application/merge-patch+json', # draft-ietf-core-etch-04
+               }
 """A map from CoAP-assigned integral codes to Internet media type descriptions."""
 
 media_types_rev = {v:k for k, v in media_types.items()}

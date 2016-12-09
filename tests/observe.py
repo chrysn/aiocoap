@@ -43,25 +43,44 @@ class ObservableReplacingResource(ReplacingResource, ObservableResource):
         return result
 
 class ObserveTestingSite(aiocoap.resource.Site):
+    prefix = ()
+
     def __init__(self):
         super(ObserveTestingSite, self).__init__()
 
         self.counter = ObservableCounter()
 
-        self.add_resource(('unobservable',), MultiRepresentationResource())
-        self.add_resource(('count',), self.counter)
-        self.add_resource(('echo',), ObservableReplacingResource())
+        self.add_resource(self.prefix + ('unobservable',), MultiRepresentationResource())
+        self.add_resource(self.prefix + ('count',), self.counter)
+        self.add_resource(self.prefix + ('echo',), ObservableReplacingResource())
+
+class NestedSite(aiocoap.resource.Site):
+    def __init__(self):
+        super().__init__()
+
+        self.subsite = ObserveTestingSite()
+
+        self.add_resource(('deep',), self.subsite)
+
+    counter = property(lambda self: self.subsite.counter)
+
+class UnnestedSite(ObserveTestingSite):
+    prefix = ('deep',)
 
 class WithObserveTestServer(WithTestServer):
     def create_testing_site(self):
-        self.testingsite = ObserveTestingSite()
+        self.testingsite = NestedSite()
+        # use this when you suspect that things go wrong due to nesting;
+        # usually not running this because it has no way to fail without nested
+        # failing too
+        #self.testingsite = UnnestedSite()
         return self.testingsite
 
 class TestObserve(WithObserveTestServer, WithClient):
     @no_warnings
     def test_normal_get(self):
         request = aiocoap.Message(code=aiocoap.GET)
-        request.opt.uri_path = ['count']
+        request.opt.uri_path = ['deep', 'count']
         request.unresolved_remote = self.servernetloc
 
         response = self.loop.run_until_complete(self.client.request(request).response)
@@ -87,7 +106,7 @@ class TestObserve(WithObserveTestServer, WithClient):
     def test_unobservable(self):
         yieldfrom = self.loop.run_until_complete
 
-        requester, observation_results, notinterested = self.build_observer(['unobservable'])
+        requester, observation_results, notinterested = self.build_observer(['deep', 'unobservable'])
 
         response = self.loop.run_until_complete(requester.response)
         self.assertEqual(response.code, aiocoap.CONTENT, "Unobservable base request did not succede")
@@ -100,7 +119,7 @@ class TestObserve(WithObserveTestServer, WithClient):
     def test_counter(self):
         yieldfrom = self.loop.run_until_complete
 
-        requester, observation_results, notinterested = self.build_observer(['count'])
+        requester, observation_results, notinterested = self.build_observer(['deep', 'count'])
 
         response = self.loop.run_until_complete(requester.response)
         self.assertEqual(response.code, aiocoap.CONTENT, "Observe base request did not succede")
@@ -123,13 +142,13 @@ class TestObserve(WithObserveTestServer, WithClient):
         def put(b):
             m = aiocoap.Message(code=aiocoap.PUT, payload=b)
             m.unresolved_remote = self.servernetloc
-            m.opt.uri_path = ['echo']
+            m.opt.uri_path = ['deep', 'echo']
             response = yieldfrom(self.client.request(m).response)
             self.assertEqual(response.code, aiocoap.CHANGED)
 
         put(b'test data 1')
 
-        requester, observation_results, notinterested = self.build_observer(['echo'])
+        requester, observation_results, notinterested = self.build_observer(['deep', 'echo'])
         response = self.loop.run_until_complete(requester.response)
         self.assertEqual(response.code, aiocoap.CONTENT, "Observe base request did not succede")
         self.assertEqual(response.payload, b'test data 1', "Observe base request gave unexpected result")
@@ -150,7 +169,7 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         request = aiocoap.Message(code=aiocoap.GET)
         request.unresolved_remote = self.servernetloc
-        request.opt.uri_path = ['count']
+        request.opt.uri_path = ['deep', 'count']
         request.opt.observe = 0
 
         requester = self.client.request(request)
