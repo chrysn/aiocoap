@@ -27,6 +27,7 @@
    aiocoap.dump
    aiocoap.util
    aiocoap.util.asyncio
+   aiocoap.util.cli
    aiocoap.util.queuewithend
    aiocoap.util.socknumbers
 
