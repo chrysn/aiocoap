@@ -18,7 +18,10 @@ import socket
 import shlex
 # even though not used directly, this has side effects on the input() function
 # used in interactive mode
-import readline
+try:
+    import readline
+except ImportError:
+    pass # that's normal on some platforms, and ok since it's just a usability enhancement
 
 import aiocoap
 import aiocoap.proxy.client
