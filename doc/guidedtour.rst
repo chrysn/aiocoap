@@ -29,7 +29,8 @@ Start off with the sample server by running the following in a terminal::
 This has started a CoAP server with some demo content, and keeps running until
 you terminate it with Ctrl-C.
 
-In a separate terminal, use the aiocoap-client tool to query the server::
+In a separate terminal, use :doc:`the aiocoap-client tool <tools>` to send a
+GET request to the server::
 
     $ ./aiocoap-client coap://localhost/.well-known/core
     </time>; obs, </.well-known/core>; ct=40, </other/separate>, </other/block>
@@ -58,7 +59,7 @@ Let's see what ``/time`` gives us::
 
 The response should have arrived immediately: The client sent a message to the
 server in which it requested the resource at ``/time``, and the server could
-right away send a message back. In contrast, ``/other/separate`` is slower:
+right away send a message back. In contrast, ``/other/separate`` is slower::
 
     $ ./aiocoap-client coap://localhost/others/separate
     Three rings for the elven kings [abbreviated]
