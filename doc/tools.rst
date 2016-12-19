@@ -16,6 +16,9 @@ scripts are available in the root directory. In some instances, it might be
 practical to access their functionality from within Python; see the
 :mod:`aiocoap.cli` module documentation for details.
 
+All tools provide details on their invocation and arguments when called with
+the ``--help`` option.
+
 contrib
 -------
 
