@@ -24,6 +24,9 @@ from aiocoap import error
 import link_header
 from link_header import Link, LinkHeader
 
+def query_split(msg):
+    return dict(q.split('=', 1) if '=' in q else (q, True) for q in msg.opt.uri_query)
+
 class CommonRD:
     # the `key` of an endpoint is not really worked out yet. currently it's
     # (ep, d) 2-tuples; code that handles key internals should be limited to
@@ -78,8 +81,7 @@ class CommonRD:
         # just ignore them unless something otherwise unchangeable (et, d)
         # changes.
 
-    def update_endpoint(self, lt=None, con=None):
-        # FIXME this has no callers
+    def update_endpoint(self, key, lt=None, con=None):
         endpoint = self._endpoints[key]
         if lt:
             endpoint.lt = lt
@@ -91,6 +93,7 @@ class CommonRD:
         self._endpoints[key].links = data
 
     def update_published_links(self, key, data):
+        # FIXME did i get rel= right here? why should it be done like that? 
         original = self._endpoints[key]
         original_indexed = {(l.href, getattr(l, 'rel', None)): l for l in original.links.links}
         for l in data.links:
@@ -160,13 +163,13 @@ class RDFunctionSet(ThingWithCommonRD, Resource):
     def render_post(self, request):
         links = link_format_from_message(request)
 
-        query = dict(q.split('=', 1) for q in request.opt.uri_query if '=' in q)
+        query = query_split(request)
         try:
             key = self.common_rd.get_key_from_ep_d(query['ep'], query.get('d', None))
         except KeyError:
             return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=b"Mandatory ep parameter missing")
 
-        # FIXME continue here
+        # FIXME deduplicate with _update_params
         if 'lt' in query:
             try:
                 lt = int(query['lt'])
@@ -174,12 +177,14 @@ class RDFunctionSet(ThingWithCommonRD, Resource):
                 return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=b"lt parameter not integer")
         else:
             lt = None
+        # FIXME con needs a good default
         self.common_rd.initialize_endpoint(key, lt=lt, con=query.get('con', None))
         self.common_rd.set_published_links(key, links)
 
         return aiocoap.Message(code=aiocoap.CREATED, location_path=self.common_rd.get_path_for_key(key))
 
 class RDFunctionSetLocations(ThingWithCommonRD, Resource, PathCapable):
+    # FIXME the render_ functions look too similar on this one!
     def render_get(self, request):
         full_path = self.common_rd.registration_path_prefix + request.opt.uri_path
         try:
@@ -196,11 +201,25 @@ class RDFunctionSetLocations(ThingWithCommonRD, Resource, PathCapable):
         full_path = self.common_rd.registration_path_prefix + request.opt.uri_path
         try:
             key = self.common_rd.get_key_for_path(full_path)
+            self._update_params(key, request)
             self.common_rd.update_published_links(key, links)
         except KeyError:
             return aiocoap.Message(code=aiocoap.NOT_FOUND)
 
-        # FIXME: update lt, con, last-seen
+        return aiocoap.Message(code=aiocoap.CHANGED)
+
+    def render_put(self, request):
+        # this is not mentioned in the spec, but seems to make sense
+        links = link_format_from_message(request)
+
+        full_path = self.common_rd.registration_path_prefix + request.opt.uri_path
+        try:
+            key = self.common_rd.get_key_for_path(full_path)
+            self._update_params(key, request)
+            self.common_rd.set_published_links(key, links)
+        except KeyError:
+            return aiocoap.Message(code=aiocoap.NOT_FOUND)
+
         return aiocoap.Message(code=aiocoap.CHANGED)
 
     def render_delete(self, request):
@@ -212,6 +231,18 @@ class RDFunctionSetLocations(ThingWithCommonRD, Resource, PathCapable):
             return aiocoap.Message(code=aiocoap.NOT_FOUND)
 
         return aiocoap.Message(code=aiocoap.DELETED)
+
+    # FIXME patch not implemented
+
+    def _update_params(self, key, msg): # may raise ValueError
+        # FIXME: deduplicate with RDFunctionSet.render_post
+        query = query_split(msg)
+        args = {}
+        if 'lt' in query:
+            args['lt'] = int(query['lt'])
+        if 'con' in query:
+            args['con'] = query['con']
+        self.common_rd.update_endpoint(key, **args)
 
 class RDGroupFunctionSet(ThingWithCommonRD, Resource):
     ct = 40
@@ -234,6 +265,7 @@ class RDLookupFunctionSet(Site):
     class EP(ThingWithCommonRD, Resource):
         @asyncio.coroutine
         def render_get(self, request):
+            query = request.opt.uri_query
             return aiocoap.Message(payload=b"EP got!")
 
     class D(ThingWithCommonRD, Resource):
