@@ -45,4 +45,5 @@ from the web::
 With the ``-e`` option, that is also a viable option if you want to modify
 aiocoap and pip's `choice of checkout directories`_ is suitable for you.
 
+.. _`Python package index`: https://pypi.python.org/pypi/aiocoap/
 .. _`choice of checkout directories`: https://pip.pypa.io/en/stable/reference/pip_install/#vcs-support

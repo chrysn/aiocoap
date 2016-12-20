@@ -18,12 +18,12 @@ probably more useful to you than aiocoap.
 Usage
 -----
 
-For how to use the aiocoap library, have a look at the :doc:`guidedtour`, or at
-the :doc:`examples` and :doc:`tools` provided. All the details are in the
-:mod:`aiocoap` module documentation.
+For how to use the aiocoap library, have a look at the guidedtour_, or at
+the examples_ and tools_ provided. All the details are in the
+`aiocoap module`_ documentation.
 
 All examples can be run directly from a source code copy. If you prefer to
-install it, the usual Python mechanisms apply (see :doc:`installation`).
+install it, the usual Python mechanisms apply (see installation_).
 
 Features / Standards
 --------------------
@@ -52,7 +52,7 @@ Dependencies
 
 The core aiocoap functionality works out of the box with Python_ 3.4; with the
 additional asyncio_ module, it works with version 3.3 as well. The
-:doc:`examples` require Python 3.5 or newer.
+examples_ require Python 3.5 or newer.
 
 When application/link-format typed resources (`RFC 6690`_) are supposed to be
 used, the `link_header`_ module is required as well. When the respective code
@@ -106,10 +106,18 @@ Relevant URLs
 Licensing
 ---------
 
-aiocoap is published under the MIT License, see :doc:`LICENSE` for details.
+aiocoap is published under the MIT License, see LICENSE_ for details.
 
 When using aiocoap for a publication, please cite it according to the output of
 ``./setup.py cite [--bibtex]``.
 
 Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+
+
+.. _guidedtour: http://aiocoap.readthedocs.io/en/latest/guidedtour.html
+.. _examples: http://aiocoap.readthedocs.io/en/latest/examples.html
+.. _tools: http://aiocoap.readthedocs.io/en/latest/tools.html
+.. _installation: http://aiocoap.readthedocs.io/en/latest/installation.html
+.. _`aiocoap module`: http://aiocoap.readthedocs.io/en/latest/aiocoap.html
+.. _LICENSE: LICENSE
