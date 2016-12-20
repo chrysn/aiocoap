@@ -1,3 +1,6 @@
+per-module documentation hack
+=============================
+
 in order to have auto-buildable documentation with sphinx (using `./setup.py
 build_sphinx`), you must first run
 
@@ -17,3 +20,13 @@ build_sphinx`), you must first run
 
 for readthedocs to work, a branch `for-readthedocs` has been generated that
 contains those files statically checked in.
+
+index hack
+==========
+
+in order to have a readme that is usable for simple ReST builders like github,
+the readme now contains hardwired links to readthedocs or local files.
+sphinx (and thus readthedocs) sees, via the aiocoap_index.py sphinx extension,
+a preprocessed version where all the static links to readthedocs are replaced
+with sphinx-internal directives and properly resolved in the locally built
+docs.

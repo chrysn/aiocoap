@@ -1,4 +1,4 @@
-.. include:: ../README.rst
+.. include_preprocessed:: ../README.rst
 
 .. toctree::
    :glob:
