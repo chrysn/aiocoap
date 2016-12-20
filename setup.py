@@ -16,7 +16,7 @@ from setuptools import setup, find_packages
 from distutils.core import Command
 
 name = "aiocoap"
-version = "0.3-rc1"
+version = "0.3"
 description = "Python CoAP library"
 longdescription = __doc__
 
