@@ -23,7 +23,7 @@ the :doc:`examples` and :doc:`tools` provided. All the details are in the
 :mod:`aiocoap` module documentation.
 
 All examples can be run directly from a source code copy. If you prefer to
-install it, the usual Python mechanisms apply.
+install it, the usual Python mechanisms apply (see :doc:`installation`).
 
 Features / Standards
 --------------------

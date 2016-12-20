@@ -4,6 +4,7 @@
    :glob:
    :titlesonly:
 
+   installation
    guidedtour
 
    aiocoap
