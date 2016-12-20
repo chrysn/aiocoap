@@ -61,13 +61,21 @@ class CommonRD:
             self.timeout.cancel()
             self._set_timeout()
 
-        def as_con_link(self):
+        def get_host_link(self):
             args = {'ep': self.ep}
             if self.d:
                 args['d'] = self.d
             if self.et:
                 args['et'] = self.et
             return Link(href=self.con, **args)
+
+        def get_all_links(self):
+            result = []
+            for l in self.links.links:
+                href = self.con + l.href if l.href.startswith('/') else l.href
+                data = [[k, self.con + v if (k == 'anchor' and v.startswith('/')) else v] for (k, v) in l.attr_pairs]
+                result.append(Link(href, data))
+            return LinkHeader(result)
 
     @asyncio.coroutine
     def shutdown(self):
@@ -303,9 +311,9 @@ class RDLookupFunctionSet(Site):
             except (KeyError, ValueError):
                 raise BadRequest("page requires count, and both must be ints")
 
-            result = [c.as_con_link() for c in candidates]
+            result = [c.get_host_link() for c in candidates]
 
-            return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'))
+            return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'), content_format=40)
 
     class D(ThingWithCommonRD, Resource):
         @asyncio.coroutine
@@ -334,10 +342,42 @@ class RDLookupFunctionSet(Site):
             except (KeyError, ValueError):
                 raise BadRequest("page requires count, and both must be ints")
 
-            return aiocoap.Message(payload=",".join('<>;d="%s"'%c for c in candidates).encode('utf8'))
+            return aiocoap.Message(payload=",".join('<>;d="%s"'%c for c in candidates).encode('utf8'), content_format=40)
 
     class Res(ThingWithCommonRD, Resource):
-        pass
+        @asyncio.coroutine
+        def render_get(self, request):
+            query = query_split(request)
+
+            eps = self.common_rd.get_endpoints()
+            candidates = sum(([(e, l) for l in e.get_all_links().links] for e in eps), [])
+            if 'd' in query:
+                candidates = ([e, l] for [e, l] in candidates if e.d == query['d'])
+            if 'ep' in query:
+                candidates = ([e, l] for [e, l] in candidates if e.ep == query['ep'])
+            if 'gp' in query:
+                pass # FIXME
+            if 'rt' in query:
+                candidates = ([e, l] for [e, l] in candidates if query['rt'] in l.rt)
+            if 'et' in query:
+                candidates = ([e, l] for [e, l] in candidates if e.et == query['et'])
+            for other_query in query:
+                if other_query in ('d', 'ep', 'gp', 'rt', 'et', 'page', 'count'):
+                    continue
+                candidates = ([e, l] for [e, l] in candidates if getattr(e, other_query) == query[other_query])
+
+            try:
+                candidates = list(candidates)
+                if 'page' in query:
+                    candidates = candidates[int(query['page']) * int(query['count'])]
+                if 'count' in query:
+                    candidates = candidates[:int(query['count'])]
+            except (KeyError, ValueError):
+                raise BadRequest("page requires count, and both must be ints")
+
+            result = [l for (e, l) in candidates]
+
+            return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'), content_format=40)
 
     class Gp(ThingWithCommonRD, Resource):
         pass
