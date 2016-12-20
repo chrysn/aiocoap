@@ -20,7 +20,8 @@ one thing as its serversite, and that is a Resource too (typically of the
 Resources are most easily implemented by deriving from :class:`.Resource` and
 implementing ``render_get``, ``render_post`` and similar coroutine methods.
 Those take a single request message object and must return a
-:class:`aiocoap.Message` object.
+:class:`aiocoap.Message` object or raise an
+:class:`.error.RenderableError` (eg. ``raise UnsupportedMediaType()``).
 
 To serve more than one resource on a site, use the :class:`Site` class to
 dispatch requests based on the Uri-Path header.
@@ -88,8 +89,8 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
     and responds appropriately to unsupported methods.
 
     Moreover, this class provides a ``get_link_description`` method as used by
-    .well-known/core to expose a resource's ct, rt and if_ (alternative name
-    for `if` as that's a Python keyword) attributes.
+    .well-known/core to expose a resource's ``.ct``, ``.rt`` and ``.if_``
+    (alternative name for ``if`` as that's a Python keyword) attributes.
     """
 
     @asyncio.coroutine
@@ -193,11 +194,16 @@ class Site(_ExposesWellknownAttributes, interfaces.ObservableResource, PathCapab
 
     This provides easy registration of statical resources.
 
-    Add resources at absolute locations using the :meth:`.add_observation`
+    Add resources at absolute locations using the :meth:`.add_resource`
     method. You can add another Site as well, those will be nested and
     integrally reported in a WKCResource. The path of a site should not end
     with an empty string (ie. a slash in the URI) -- the child site's own root
-    resource will then have the trailing slash address."""
+    resource will then have the trailing slash address.
+
+    Resources added to a site will receive only messages that are directed to
+    that very resource (ie. ``/spam/eggs`` will not receive requests for
+    ``/spam/eggs/42``) unless they are :class:`PathCapable` (like another
+    Site)."""
 
     def __init__(self):
         self._resources = {}
