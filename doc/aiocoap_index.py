@@ -1,5 +1,10 @@
 import functools
 import re
+import os
+import tempfile
+import textwrap
+import glob
+import os.path
 
 from docutils.parsers.rst.directives.misc import Include
 
@@ -40,6 +45,46 @@ class IncludePreprocessed(Include):
             del self.state_machine.insert_input
         return result
 
+def build_moduledocs(app):
+    srcdir = app.builder.srcdir
+
+    moddir = srcdir + '/module'
+    os.makedirs(moddir, exist_ok=True)
+
+    basedir = os.path.dirname(srcdir)
+    docs = [x[len(basedir)+1:-3].replace('/', '.').replace('.__init__', '') for x in glob.glob(basedir + '/aiocoap/**/*.py', recursive=True)]
+
+    for x in docs:
+        text = textwrap.dedent("""\
+            {x} module
+            ========================================
+            """).format(x=x)
+        if x == 'aiocoap.numbers':
+            text += textwrap.dedent("""
+                .. automodule:: {x}
+                .. toctree::
+                    :glob:
+
+                    aiocoap.numbers.*
+                """).format(x=x)
+        else:
+            text += textwrap.dedent("""
+                .. automodule:: {x}
+                    :members:
+                    :undoc-members:
+                    :show-inheritance:
+                """).format(x=x)
+        docname = "%s/%s.rst"%(moddir, x)
+
+        if os.path.exists(docname) and open(docname).read() == text:
+            continue
+        else:
+            with open(moddir + '/' + x + '.rst', 'w') as outfile:
+                outfile.write(text)
+
+    for f in os.listdir(moddir):
+        if f.endswith('.rst') and f[:-4] not in docs:
+            os.unlink(moddir + '/' + f)
 
 def setup(app):
     """Sphinx extension that builds the aiocoap index page from a non-sphinx
@@ -47,3 +92,4 @@ def setup(app):
     per-module pages customized to what I'd like to see there"""
 
     app.add_directive('include_preprocessed', IncludePreprocessed)
+    app.connect('builder-inited', build_moduledocs)

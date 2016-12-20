@@ -1,26 +1,3 @@
-per-module documentation hack
-=============================
-
-in order to have auto-buildable documentation with sphinx (using `./setup.py
-build_sphinx`), you must first run
-
-    for x in $(find aiocoap -name '*.py' | sed -e 's@.py$@@' -e 's@/__init__$@@' -e 's@/@.@g')
-    do
-        rm doc/$x.rst
-        echo "$x module\n=========================================\n\n.. automodule:: $x" > doc/$x.rst
-        if [[ $x != "aiocoap.numbers" ]]
-        then
-           echo "    :members:\n    :undoc-members:\n    :show-inheritance:" >> doc/$x.rst
-        else
-           echo ".. toctree::\n    :glob:\n\n    aiocoap.numbers.*\n" >> doc/$x.rst
-        fi
-    done
-
-(sphinx-apidoc is less customizable and does not seem to do more).
-
-for readthedocs to work, a branch `for-readthedocs` has been generated that
-contains those files statically checked in.
-
 index hack
 ==========
 
@@ -30,3 +7,16 @@ sphinx (and thus readthedocs) sees, via the aiocoap_index.py sphinx extension,
 a preprocessed version where all the static links to readthedocs are replaced
 with sphinx-internal directives and properly resolved in the locally built
 docs.
+
+per-module documentation hack
+=============================
+
+pages similar to sphinx-apidoc's output are built by the sphinx module
+aiocoap_index.py in the doc/module/ directory. sphinx-apidoc is not used here
+because it would need to be invoked outside of sphinx (which is not practical
+with tools like readthedocs), and because some customization is done (eg. for
+aiocoap.numbers).
+
+
+for both hacks, suggestions for cleaner solutions that keep the git tree free
+of generated files are appreciated.

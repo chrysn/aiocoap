@@ -7,30 +7,30 @@
    installation
    guidedtour
 
-   aiocoap
-   aiocoap.protocol
-   aiocoap.message
-   aiocoap.options
+   module/aiocoap
+   module/aiocoap.protocol
+   module/aiocoap.message
+   module/aiocoap.options
 
-   aiocoap.interfaces
-   aiocoap.transports
-   aiocoap.transports.udp6
-   aiocoap.proxy
-   aiocoap.proxy.client
-   aiocoap.proxy.server
-   aiocoap.cli
-   aiocoap.cli.client
-   aiocoap.cli.proxy
-   aiocoap.numbers
-   aiocoap.error
-   aiocoap.optiontypes
-   aiocoap.resource
-   aiocoap.dump
-   aiocoap.util
-   aiocoap.util.asyncio
-   aiocoap.util.cli
-   aiocoap.util.queuewithend
-   aiocoap.util.socknumbers
+   module/aiocoap.interfaces
+   module/aiocoap.transports
+   module/aiocoap.transports.udp6
+   module/aiocoap.proxy
+   module/aiocoap.proxy.client
+   module/aiocoap.proxy.server
+   module/aiocoap.cli
+   module/aiocoap.cli.client
+   module/aiocoap.cli.proxy
+   module/aiocoap.numbers
+   module/aiocoap.error
+   module/aiocoap.optiontypes
+   module/aiocoap.resource
+   module/aiocoap.dump
+   module/aiocoap.util
+   module/aiocoap.util.asyncio
+   module/aiocoap.util.cli
+   module/aiocoap.util.queuewithend
+   module/aiocoap.util.socknumbers
 
    examples
    tools
