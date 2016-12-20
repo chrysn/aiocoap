@@ -215,6 +215,9 @@ is numeric in CoAP).
 
     WIP
 
+This is currently the end of the guided tour; see the :mod:`aiocoap.resource`
+documentation for the server side until the tour covers that too.is complete.
+
 
 .. _IPython: http://ipython.org/
 .. _`yet?`: https://github.com/ipython/ipython/issues/9166
