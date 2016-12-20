@@ -43,8 +43,9 @@ class CommonRD:
     class RegisteredEndpoint:
         grace_period = 15
 
-        def __init__(self, con, timeout_cb, d=None, lt=None, et=None):
+        def __init__(self, con, timeout_cb, ep, d=None, lt=None, et=None):
             self.links = LinkHeader([])
+            self.ep = ep
             self.d = d
             self.lt = lt or 86400
             self.et = et
@@ -60,11 +61,19 @@ class CommonRD:
             self.timeout.cancel()
             self._set_timeout()
 
+        def as_con_link(self):
+            args = {'ep': self.ep}
+            if self.d:
+                args['d'] = self.d
+            if self.et:
+                args['et'] = self.et
+            return Link(href=self.con, **args)
+
     @asyncio.coroutine
     def shutdown(self):
         pass
 
-    def initialize_endpoint(self, key, con, lt=None, et=None, d=None):
+    def initialize_endpoint(self, key, con, ep, lt=None, et=None, d=None):
         try:
             self._endpoints[key].timeout.cancel()
             del self._endpoints[key]
@@ -73,12 +82,12 @@ class CommonRD:
 
         self._endpoints[key] = self.RegisteredEndpoint(con=con,
                 timeout_cb=functools.partial(self.delete_key, key),
-                lt=lt, et=et, d=d)
+                ep=ep, lt=lt, et=et, d=d)
 
         # this was the brutal way towards idempotency (delete and re-create).
         # if any actions based on that are implemented here, they have yet to
         # decide wheter they'll treat idempotent recreations like deletions or
-        # just ignore them unless something otherwise unchangeable (et, d)
+        # just ignore them unless something otherwise unchangeable (ep, d)
         # changes.
 
     def update_endpoint(self, key, lt=None, con=None):
@@ -138,6 +147,12 @@ class CommonRD:
         needs to change."""
         return (ep, d)
 
+    def get_endpoints(self):
+        # FIXME if we start handing out RegisteredEndpoint objects here, we can
+        # just as well embrace that and deal in RegisteredEndpoint objects (eg
+        # instead of keys) in other places too
+        return self._endpoints.values()
+
 
 def link_format_from_message(message):
     try:
@@ -178,7 +193,7 @@ class RDFunctionSet(ThingWithCommonRD, Resource):
         else:
             lt = None
         # FIXME con needs a good default
-        self.common_rd.initialize_endpoint(key, lt=lt, con=query.get('con', None))
+        self.common_rd.initialize_endpoint(key, ep=query['ep'], lt=lt, con=query.get('con', request.remote.uri), d=query.get('d', None), et=query.get('et', None))
         self.common_rd.set_published_links(key, links)
 
         return aiocoap.Message(code=aiocoap.CREATED, location_path=self.common_rd.get_path_for_key(key))
@@ -265,8 +280,32 @@ class RDLookupFunctionSet(Site):
     class EP(ThingWithCommonRD, Resource):
         @asyncio.coroutine
         def render_get(self, request):
-            query = request.opt.uri_query
-            return aiocoap.Message(payload=b"EP got!")
+            query = query_split(request)
+
+            candidates = self.common_rd.get_endpoints()
+            if 'd' in query:
+                candidates = (c for c in candidates if c.d == query['d'])
+            if 'ep' in query:
+                candidates = (c for c in candidates if c.ep == query['ep'])
+            if 'gp' in query:
+                pass # FIXME
+            if 'rt' in query:
+                pass # FIXME
+            if 'et' in query:
+                candidates = (c for c in candidates if c.et == query['et'])
+
+            try:
+                candidates = list(candidates)
+                if 'page' in query:
+                    candidates = candidates[int(query['page']) * int(query['count'])]
+                if 'count' in query:
+                    candidates = candidates[:int(query['count'])]
+            except (KeyError, ValueError):
+                raise BadRequest("page requires count, and both must be ints")
+
+            result = [c.as_con_link() for c in candidates]
+
+            return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'))
 
     class D(ThingWithCommonRD, Resource):
         pass
