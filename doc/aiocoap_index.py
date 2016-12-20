@@ -18,6 +18,14 @@ from docutils.parsers.rst.directives.misc import Include
 rtd_re = re.compile("^\\.\\. _([^:]+): http://aiocoap.readthedocs.io/en/latest/(.*)\\.html$")
 filelink_re = re.compile("^\\.\\. _([^:]+): ([^:]+)$")
 
+def addrepl(replacements, pattern, prefix, linkbody):
+    pretty = pattern.strip('`')
+    if pretty != linkbody:
+        sphinxlink = ':%s:`%s <%s>`'%(prefix, pretty, linkbody)
+    else:
+        sphinxlink = ':%s:`%s`'%(prefix, linkbody)
+    replacements[pattern + '_'] = sphinxlink
+
 def modified_insert_input(include_lines, path, original=None):
     new_lines = []
     replacements = {}
@@ -26,19 +34,17 @@ def modified_insert_input(include_lines, path, original=None):
         filelink_match = filelink_re.match(line)
         if rtd_match:
             pattern, linkbody = rtd_match.groups()
-            pretty = pattern.strip('`')
             if 'module' in pattern: # dirty hint
-                sphinxlink = ':mod:`%s <%s>`'%(pretty, linkbody)
+                prefix = 'mod'
             else:
-                sphinxlink = ':doc:`%s <%s>`'%(pretty, linkbody)
-            replacements[pattern + '_'] = sphinxlink
-            # and drop the line
+                prefix = 'doc'
+            addrepl(replacements, pattern, prefix, linkbody)
         elif filelink_match:
             # for things like LICENSE
             pattern, linkbody = filelink_match.groups()
-            pretty = pattern.strip('`')
-            replacements[pattern + '_'] = ':doc:`%s <%s>`'%(pretty, linkbody)
+            addrepl(replacements, pattern, 'doc', linkbody)
         else:
+            # only keep lines that are still relevant (that's most lines)
             new_lines.append(line)
     new_lines = [functools.reduce(lambda s, rep: s.replace(*rep), replacements.items(), x) for x in new_lines]
     original(new_lines, path)
