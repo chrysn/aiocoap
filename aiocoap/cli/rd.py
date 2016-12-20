@@ -308,7 +308,33 @@ class RDLookupFunctionSet(Site):
             return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'))
 
     class D(ThingWithCommonRD, Resource):
-        pass
+        @asyncio.coroutine
+        def render_get(self, request):
+            query = query_split(request)
+
+            candidates = self.common_rd.get_endpoints()
+            if 'd' in query:
+                candidates = (c for c in candidates if c.d == query['d'])
+            if 'ep' in query:
+                candidates = (c for c in candidates if c.ep == query['ep'])
+            if 'gp' in query:
+                pass # FIXME
+            if 'rt' in query:
+                pass # FIXME
+            if 'et' in query:
+                candidates = (c for c in candidates if c.et == query['et'])
+
+            candidates = sorted(set(c.d for c in candidates))
+
+            try:
+                if 'page' in query:
+                    candidates = candidates[int(query['page']) * int(query['count'])]
+                if 'count' in query:
+                    candidates = candidates[:int(query['count'])]
+            except (KeyError, ValueError):
+                raise BadRequest("page requires count, and both must be ints")
+
+            return aiocoap.Message(payload=",".join('<>;d="%s"'%c for c in candidates).encode('utf8'))
 
     class Res(ThingWithCommonRD, Resource):
         pass
