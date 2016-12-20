@@ -14,16 +14,18 @@ def modified_insert_input(include_lines, path, original=None):
         filelink_match = filelink_re.match(line)
         if rtd_match:
             pattern, linkbody = rtd_match.groups()
+            pretty = pattern.strip('`')
             if 'module' in pattern: # dirty hint
-                sphinxlink = ':mod:`%s`'%linkbody
+                sphinxlink = ':mod:`%s <%s>`'%(pretty, linkbody)
             else:
-                sphinxlink = ':doc:`%s`'%linkbody
+                sphinxlink = ':doc:`%s <%s>`'%(pretty, linkbody)
             replacements[pattern + '_'] = sphinxlink
             # and drop the line
         elif filelink_match:
             # for things like LICENSE
             pattern, linkbody = filelink_match.groups()
-            replacements[pattern + '_'] = ':doc:`%s`'%linkbody
+            pretty = pattern.strip('`')
+            replacements[pattern + '_'] = ':doc:`%s <%s>`'%(pretty, linkbody)
         else:
             new_lines.append(line)
     new_lines = [functools.reduce(lambda s, rep: s.replace(*rep), replacements.items(), x) for x in new_lines]
