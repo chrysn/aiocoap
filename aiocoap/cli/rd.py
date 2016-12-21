@@ -128,9 +128,9 @@ class CommonRD:
 
     def get_path_for_key(self, key):
         if key[1] is None:
-            return (*self.registration_path_prefix, key[0])
+            return self.registration_path_prefix + (key[0], )
         else:
-            return (*self.registration_path_prefix, key[1], key[0])
+            return self.registration_path_prefix + (key[1], key[0])
 
     def get_key_for_path(self, path):
         if path[:len(self.registration_path_prefix)] != self.registration_path_prefix:
