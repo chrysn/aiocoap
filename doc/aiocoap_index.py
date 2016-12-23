@@ -19,6 +19,8 @@ rtd_re = re.compile("^\\.\\. _([^:]+): http://aiocoap.readthedocs.io/en/latest/(
 filelink_re = re.compile("^\\.\\. _([^:]+): ([^:]+)$")
 
 def addrepl(replacements, pattern, prefix, linkbody):
+    """Given details of a sphinx-ified link, place an entry in the replacements
+    dictionary that is suitable for full-text substitution later on"""
     pretty = pattern.strip('`')
     if pretty != linkbody:
         sphinxlink = ':%s:`%s <%s>`'%(prefix, pretty, linkbody)
