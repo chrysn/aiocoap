@@ -50,6 +50,10 @@ class UDP6EndpointAddress:
     def hostinfo(self):
         return hostportjoin(self.sockaddr[0], self.sockaddr[1] if self.sockaddr[1] != COAP_PORT else None)
 
+    @property
+    def uri(self):
+        return 'coap://' + self.hostinfo
+
     # those are currently the inofficial metadata interface
     port = property(lambda self: self.sockaddr[1])
     is_multicast = property(lambda self: ipaddress.ip_address(self.sockaddr[0].split('%', 1)[0]).is_multicast)
