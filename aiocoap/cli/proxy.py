@@ -17,7 +17,7 @@ import aiocoap
 from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ReverseProxyWithPooledObservations, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector
 from aiocoap.util.cli import AsyncCLIDaemon
 
-def parse_commandline(args):
+def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
 
     mode = p.add_argument_group("mode", "Required argument for setting the operation mode")
@@ -38,12 +38,13 @@ def parse_commandline(args):
     r.add_argument('--pathbased', help="If a requested path starts with PATH, split that part off and route to DEST", metavar="PATH:DEST", action=TypedAppend, dest='r')
     r.add_argument('--unconditional', help="Route all requests not previously matched to DEST", metavar="DEST", action=TypedAppend, dest='r')
 
-    return p, p.parse_args(args)
+    return p
 
 class Main(AsyncCLIDaemon):
     @asyncio.coroutine
     def start(self, args=None):
-        parser, options = parse_commandline(args if args is not None else sys.argv[1:])
+        parser = build_parser()
+        options = parser.parse_args(args if args is not None else sys.argv[1:])
 
         if options.direction is None:
             raise parser.error("Either --forward or --reverse must be given.")
