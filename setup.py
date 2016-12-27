@@ -82,14 +82,6 @@ setup(
             ]
         },
 
-    command_options={
-        'build_sphinx': {
-            'project': ('setup.py', name),
-            'version': ('setup.py', version),
-            'release': ('setup.py', version),
-            }
-        },
-
     cmdclass={
         'cite': Cite,
         },
