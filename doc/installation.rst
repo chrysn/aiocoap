@@ -7,9 +7,10 @@ use Python's virtual environments, this is done with
 
 ::
 
-    $ pip install --upgrade "aiocoap[linkheader]"
+    $ pip install --upgrade "aiocoap[linkheader,docs]"
 
-The ``[linkheader]`` makes sure that even optional dependencies are installed.
+The ``[linkheader,`` makes sure that even optional dependencies are installed,
+and ``docs]`` is to allow building the documentation.
 
 .. is there an "install all extas" option?
 
@@ -33,14 +34,14 @@ You can then use the project from that location, or install it with
 
 ::
 
-    $ pip install --upgrade ".[linkheader]"
+    $ pip install --upgrade ".[linkheader,docs]"
 
 If you need to install the latest development version of aiocoap but do not
 plan on editing (eg. because you were asked in the course of a bug report to
 test something against the latest aiocoap version), you can install it directly
 from the web::
 
-    $ pip install --upgrade "git+https://github.com/chrysn/aiocoap#egg=aiocoap[linkheader]"
+    $ pip install --upgrade "git+https://github.com/chrysn/aiocoap#egg=aiocoap[linkheader,docs]"
 
 With the ``-e`` option, that is also a viable option if you want to modify
 aiocoap and pip's `choice of checkout directories`_ is suitable for you.

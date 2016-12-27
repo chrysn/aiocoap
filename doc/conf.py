@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.abspath('..'))
 extensions = [
     'sphinx.ext.autodoc',
     'aiocoap_index',
+    'sphinxarg.ext',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -184,3 +185,9 @@ html_static_path = ['_static']
 htmlhelp_basename = 'aiocoap'
 
 autodoc_member_order = 'bysource'
+
+
+man_pages = [
+        ('module/aiocoap.cli.client', 'aiocoap-client', 'query CoAP servers from the command line', '', 1),
+        ('module/aiocoap.cli.proxy', 'aiocoap-proxy', 'forward and reverse proxy server for CoAP', '', 1),
+        ]

@@ -20,3 +20,12 @@ aiocoap.numbers).
 
 for both hacks, suggestions for cleaner solutions that keep the git tree free
 of generated files are appreciated.
+
+man pages
+=========
+
+the build_sphinx command sphinx hooks into distutils is only capable of
+building one output format (and html is a sane default). if you want man pages,
+run the following:
+
+    $ python3 -m sphinx -b man doc/ build/sphinx/man

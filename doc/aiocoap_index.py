@@ -82,6 +82,19 @@ def build_moduledocs(app):
 
                     aiocoap.numbers.*
                 """).format(x=x)
+        elif x.startswith('aiocoap.cli.'):
+            executablename = "aiocoap-" + x[len('aiocoap.cli.'):]
+            # no ".. automodule:: {x}" because the doc string is already used
+            # by the argparse, and thus would be repeated
+            text = textwrap.dedent("""
+                    {executablename}
+                    ==============================
+
+                    .. argparse::
+                        :ref: {x}.build_parser
+                        :prog: {executablename}
+
+                    """).format(x=x, executablename=executablename)
         else:
             text += textwrap.dedent("""
                 .. automodule:: {x}

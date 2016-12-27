@@ -19,8 +19,6 @@
    module/aiocoap.proxy.client
    module/aiocoap.proxy.server
    module/aiocoap.cli
-   module/aiocoap.cli.client
-   module/aiocoap.cli.proxy
    module/aiocoap.numbers
    module/aiocoap.error
    module/aiocoap.optiontypes

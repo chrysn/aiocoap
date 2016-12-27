@@ -72,6 +72,7 @@ setup(
     python_requires='>=3.3',
     extras_require={
         'linkheader': ['LinkHeader'],
+        'docs': ['sphinx', 'sphinx-argparse'],
         ':python_version<"3.4"': ['asyncio'],
         },
 
