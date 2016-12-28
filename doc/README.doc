@@ -21,6 +21,14 @@ aiocoap.numbers).
 for both hacks, suggestions for cleaner solutions that keep the git tree free
 of generated files are appreciated.
 
+dependency hack
+===============
+
+readthedocs allows running an install of the python package, but does not allow
+specifying which extras are required to build the documentation. thus, setup.py
+injects an additional dependency (that's otherwise an extra of the docs
+category) when building in a READTHEDOCS environment is detected.
+
 man pages
 =========
 

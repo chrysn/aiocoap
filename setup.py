@@ -14,6 +14,7 @@
 
 from setuptools import setup, find_packages
 from distutils.core import Command
+import os
 
 name = "aiocoap"
 version = "0.3"
@@ -75,6 +76,9 @@ setup(
         'docs': ['sphinx', 'sphinx-argparse'],
         ':python_version<"3.4"': ['asyncio'],
         },
+
+    # see doc/README.doc seciton "dependency hack"
+    install_requires=['sphinx-argparse'] if 'READTHEDOCS' in os.environ else [],
 
     entry_points={
         'console_scripts': [
