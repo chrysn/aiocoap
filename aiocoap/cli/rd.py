@@ -389,8 +389,50 @@ class SimpleRegistrationWKC(WKCResource):
 
     @asyncio.coroutine
     def render_post(self, request):
-        # FIXME that's not an implementation
+        # FIXME deduplicate with _update_params / RDFunctionSet.render_post
+
+        query = query_split(request)
+        try:
+            key = self.common_rd.get_key_from_ep_d(query['ep'], query.get('d', None))
+        except KeyError:
+            return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=b"Mandatory ep parameter missing")
+
+        if 'lt' in query:
+            try:
+                lt = int(query['lt'])
+            except ValueError:
+                return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=b"lt parameter not integer")
+        else:
+            lt = None
+
+        asyncio.ensure_future(self.process_request(
+                ep=query['ep'],
+                lt=lt,
+                con=query.get('con', request.remote.uri),
+                d=query.get('d', None),
+                et=query.get('et', None),
+            ))
+
         return aiocoap.Message(code=aiocoap.CHANGED)
+
+    @asyncio.coroutine
+    def process_request(self, ep, lt, con, d, et):
+        # FIXME actually we should have complained about the con uri not being in host-only form ... and is that defined at all?
+        fetch_address = (con + '/.well-known/core')
+
+        print(fetch_address)
+
+        try:
+            response = yield from self.context.request(aiocoap.Message(code=aiocoap.GET, uri=fetch_address)).response_raising
+            links = link_format_from_message(response)
+        except Exception as e:
+            logging.error("The request triggered for simple registration of %s failed.", con)
+            logging.exception(e)
+            return
+
+        key = self.common_rd.get_key_from_ep_d(ep, d)
+        self.common_rd.initialize_endpoint(key, ep=ep, lt=lt, con=con, d=d)
+        self.common_rd.set_published_links(key, links)
 
 class StandaloneResourceDirectory(Site):
     """A site that contains all function sets of the CoAP Resource Directoru
@@ -409,7 +451,8 @@ class StandaloneResourceDirectory(Site):
         if common_rd is None:
             common_rd = CommonRD()
 
-        self.add_resource((".well-known", "core"), SimpleRegistrationWKC(self.get_resources_as_linkheader, common_rd=common_rd))
+        self._simple_wkc = SimpleRegistrationWKC(self.get_resources_as_linkheader, common_rd=common_rd)
+        self.add_resource((".well-known", "core"), self._simple_wkc)
 
         self.add_resource(self.rd_path, RDFunctionSet(common_rd=common_rd))
         self.add_resource(self.group_path, RDGroupFunctionSet(common_rd=common_rd))
@@ -417,6 +460,12 @@ class StandaloneResourceDirectory(Site):
 
         self.add_resource(common_rd.registration_path_prefix, RDFunctionSetLocations(common_rd=common_rd))
         self.add_resource(common_rd.group_path_prefix, RDGroupFunctionSetLocations(common_rd=common_rd))
+
+    # the need to pass this around crudely demonstrates that the setup of sites
+    # and contexts direly needs improvement, and thread locals are giggling
+    # about my stubbornness
+    def set_context(self, new_context):
+        self._simple_wkc.context = new_context
 
 def parse_commandline(args):
     p = argparse.ArgumentParser(description=__doc__)
@@ -436,6 +485,7 @@ class Main(AsyncCLIDaemon):
         site = StandaloneResourceDirectory(common_rd=self.common_rd)
 
         self.context = yield from aiocoap.Context.create_server_context(site, bind=(options.server_address, options.server_port))
+        site.set_context(self.context)
 
     @asyncio.coroutine
     def shutdown(self):
