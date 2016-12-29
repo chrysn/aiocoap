@@ -467,18 +467,19 @@ class StandaloneResourceDirectory(Site):
     def set_context(self, new_context):
         self._simple_wkc.context = new_context
 
-def parse_commandline(args):
+def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
 
     p.add_argument('--server-address', help="Address to bind the server context to", metavar="HOST", default="::")
     p.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=aiocoap.COAP_PORT, type=int)
 
-    return p, p.parse_args(args)
+    return p
 
 class Main(AsyncCLIDaemon):
     @asyncio.coroutine
     def start(self, args=None):
-        parser, options = parse_commandline(args if args is not None else sys.argv[1:])
+        parser = build_parser()
+        options = parser.parse_args(args if args is not None else sys.argv[1:])
 
         self.common_rd = CommonRD()
 
