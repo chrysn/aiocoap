@@ -17,6 +17,7 @@ from pathlib import Path
 import logging
 from stat import S_ISREG, S_ISDIR
 import mimetypes
+import socket
 
 import aiocoap
 import aiocoap.error as error
@@ -175,8 +176,14 @@ class FileServerProgram(AsyncCLIDaemon):
                 log.warn("Resource directory does not look like a CoAP URI")
             elif simple_rd.count('/') > 2:
                 log.warn("Resource directory does not look like a host-only CoAP URI")
+
+            ep, _, d = socket.getfqdn().partition('.')
+            uri = simple_rd + "/.well-known/core?ep=%s"%ep
+            if d:
+                uri += '&d=' + d
+
             try:
-                await self.context.request(aiocoap.Message(code=aiocoap.POST, uri=simple_rd + "/.well-known/core")).response_raising
+                await self.context.request(aiocoap.Message(code=aiocoap.POST, uri=uri)).response_raising
             except Exception:
                 log.exception("Registration at the RD failed")
 
