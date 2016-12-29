@@ -21,6 +21,19 @@ version = "0.3"
 description = "Python CoAP library"
 longdescription = __doc__
 
+extras_require = {
+        'linkheader': ['LinkHeader'],
+        'docs': ['sphinx', 'sphinx-argparse'], # extended below
+        ':python_version<"3.4"': ['asyncio'],
+        }
+tests_require = [] # populated below
+
+for k, v in extras_require.items():
+    if k.startswith(':') or k == 'docs':
+        continue
+    extras_require['docs'].extend(v)
+    tests_require.extend(v)
+
 class Cite(Command):
     description = """Print how to cite aiocoap in a publication"""
 
@@ -71,14 +84,11 @@ setup(
         ],
 
     python_requires='>=3.3',
-    extras_require={
-        'linkheader': ['LinkHeader'],
-        'docs': ['sphinx', 'sphinx-argparse'],
-        ':python_version<"3.4"': ['asyncio'],
-        },
+    extras_require=extras_require,
+    tests_require=tests_require,
 
     # see doc/README.doc seciton "dependency hack"
-    install_requires=['sphinx-argparse'] if 'READTHEDOCS' in os.environ else [],
+    install_requires=extras_require['docs'] if 'READTHEDOCS' in os.environ else [],
 
     entry_points={
         'console_scripts': [
