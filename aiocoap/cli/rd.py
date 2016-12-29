@@ -332,7 +332,7 @@ class RDLookupFunctionSet(Site):
             if 'et' in query:
                 candidates = (c for c in candidates if c.et == query['et'])
 
-            candidates = sorted(set(c.d for c in candidates))
+            candidates = sorted(set(c.d for c in candidates if c.d is not None))
 
             try:
                 if 'page' in query:
