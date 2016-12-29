@@ -7,8 +7,10 @@ aiocoap. Still, they can serve as examples of how to deal with user-provided
 addresses (as opposed to the fixed addresses in the examples), or of
 integration in a bigger project in general.
 
-* :doc:`module/aiocoap.cli.client`: A CoAP client that supports observations and proxying.
-* :doc:`module/aiocoap.cli.proxy`: A command-line configurable forward and reverse proxy.
+.. toctree::
+   aiocoap-client: A CoAP client that supports observations and proxying <module/aiocoap.cli.client>
+   aiocoap-proxy: A command-line configurable forward and reverse proxy <module/aiocoap.cli.proxy>
+   aiocoap-rd: A standalone resource directory server <module/aiocoap.cli.rd>
 
 Those utilities are installed by `setup.py` at the usual executable locations;
 during development or when working from a git checkout of the project, wrapper
@@ -33,7 +35,3 @@ There is currently onely one tool in there:
 * ``aiocoap-fileserver``: Serves the current directory's contents as CoAP
   resources, implementing directory listing and observation. No write support
   yet.
-
-.. toctree::
-   module/aiocoap.cli.client
-   module/aiocoap.cli.proxy
