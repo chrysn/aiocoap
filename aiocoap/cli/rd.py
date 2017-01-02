@@ -55,7 +55,18 @@ class CommonRD:
             self._set_timeout()
 
         def _set_timeout(self):
-            self.timeout = asyncio.get_event_loop().call_later(self.lt + self.grace_period, self.timeout_cb)
+            delay = self.lt + self.grace_period
+            # workaround for python issue20493
+
+            @asyncio.coroutine
+            def longwait(delay, callback):
+                almostday = 24*60*60 - 10
+                while delay > almostday:
+                    yield from asyncio.sleep(almostday)
+                    delay -= almostday
+                yield from asyncio.sleep(delay)
+                callback()
+            self.timeout = asyncio.Task(longwait(delay, self.timeout_cb))
 
         def refresh_timeout(self):
             self.timeout.cancel()
