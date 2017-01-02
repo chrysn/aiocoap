@@ -405,7 +405,7 @@ class SimpleRegistrationWKC(WKCResource):
         else:
             lt = None
 
-        asyncio.ensure_future(self.process_request(
+        asyncio.Task(self.process_request(
                 ep=query['ep'],
                 lt=lt,
                 con=query.get('con', request.remote.uri),
