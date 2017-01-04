@@ -25,15 +25,17 @@ extras_require = {
         'linkheader': ['LinkHeader'],
         'oscoap': ['hkdf', 'cbor'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
+        'all': [], # populated below, contains everything but documentation dependencies for easier installation
         ':python_version<"3.4"': ['asyncio'],
         ':python_version<"3.6"': ['secrets'],
         }
 tests_require = [] # populated below
 
 for k, v in extras_require.items():
-    if k.startswith(':') or k == 'docs':
+    if k.startswith(':') or k == 'all' or k == 'docs':
         continue
     extras_require['docs'].extend(v)
+    extras_require['all'].extend(v)
     tests_require.extend(v)
 
 class Cite(Command):

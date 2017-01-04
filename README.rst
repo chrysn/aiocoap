@@ -65,7 +65,7 @@ resources, OSCOAP) require additional packages to be present (eg. the
 `link_heder`_ module or Python 3.6's backported secrets module); those are
 reflected in "extras" dependencies, see ``setup.py`` for details. Python
 modules that require all features should declare a dependency on
-``aiocoap[linkheader,oscoap]``.
+``aiocoap[all]``.
 
 .. _Python: https://www.python.org/
 .. _asyncio: https://pypi.python.org/pypi/asyncio
