@@ -23,8 +23,10 @@ longdescription = __doc__
 
 extras_require = {
         'linkheader': ['LinkHeader'],
+        'oscoap': ['hkdf', 'cbor'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         ':python_version<"3.4"': ['asyncio'],
+        ':python_version<"3.6"': ['secrets'],
         }
 tests_require = [] # populated below
 
