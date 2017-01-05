@@ -51,7 +51,7 @@ static const EVP_CIPHER *type_from_keylen(int keylen) {
 }
 
 int encryptccm(unsigned const char *plaintext, int plaintext_len, unsigned const char *aad,
-        int aad_len, unsigned const char *key, int key_len, unsigned const char *iv,
+        int aad_len, unsigned const char *key, int key_len, unsigned const char *iv, int iv_len,
         unsigned char *ciphertext, unsigned char *tag, int tag_len)
 {
     EVP_CIPHER_CTX *ctx;
@@ -71,9 +71,7 @@ int encryptccm(unsigned const char *plaintext, int plaintext_len, unsigned const
     if(1 != EVP_EncryptInit_ex(ctx, type, NULL, NULL, NULL))
         return -2;
 
-    /* Setting IV len to 7. Not strictly necessary as this is the default
-     * but shown here for the purposes of this example */
-    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 7, NULL))
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, iv_len, NULL))
         return -3;
 
     /* Set tag length */
@@ -118,7 +116,7 @@ int encryptccm(unsigned const char *plaintext, int plaintext_len, unsigned const
 
 
 int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned const char *aad,
-        int aad_len, unsigned const char *tag, int tag_length, unsigned const char *key, int key_len, unsigned const char *iv,
+        int aad_len, unsigned const char *tag, int tag_length, unsigned const char *key, int key_len, unsigned const char *iv, int iv_len,
         unsigned char *plaintext)
 {
     EVP_CIPHER_CTX *ctx;
@@ -136,9 +134,7 @@ int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned con
     if(1 != EVP_DecryptInit_ex(ctx, type, NULL, NULL, NULL))
         return -3;
 
-    /* Setting IV len to 7. Not strictly necessary as this is the default
-     * but shown here for the purposes of this example */
-    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 7, NULL))
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, iv_len, NULL))
         return -4;
 
     /* Set expected tag value. */
@@ -187,11 +183,11 @@ int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned con
 
 _FFI.cdef('''
 int encryptccm(unsigned const char *plaintext, int plaintext_len, unsigned const char *aad,
-        int aad_len, unsigned char *key, int key_len, unsigned char *iv,
+        int aad_len, unsigned char *key, int key_len, unsigned char *iv, int iv_len,
         unsigned char *ciphertext, unsigned char *tag, int tag_len);
 
 int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned const char *aad,
-        int aad_len, unsigned const char *tag, int tag_length, unsigned const char *key, int key_len, unsigned const char *iv,
+        int aad_len, unsigned const char *tag, int tag_length, unsigned const char *key, int key_len, unsigned const char *iv, int iv_len,
         unsigned char *plaintext);
 ''')
 
@@ -201,11 +197,10 @@ int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned con
 _C = _FFI.verify(ccm_code, libraries=['crypto'], extra_compile_args=['-Wno-deprecated-declarations'])
 
 def encrypt_ccm(plaintext, aad, key, iv, tag_length):
-    assert len(iv) == 7, "IV length mismatch"
     tag_data = _FFI.new("char[%d]" % (tag_length + 1))
     ciphertext_data = _FFI.new("char[%d]" % (len(plaintext) + 1))
     result = _C.encryptccm(plaintext, len(plaintext), aad, len(aad),
-            key, len(key), iv, ciphertext_data, tag_data, tag_length)
+            key, len(key), iv, len(iv), ciphertext_data, tag_data, tag_length)
     if result != len(plaintext):
         raise RuntimeError("Encryption backend returned error state: %d"%result)
     assert _FFI.buffer(tag_data)[tag_length] == b'\0', "C function wrote out of bounds."
@@ -220,7 +215,7 @@ def decrypt_ccm(ciphertext, aad, tag, key, iv):
     assert len(iv) == 7, "IV length mismatch"
     plaintext_data = _FFI.new("char[%d]" % (len(ciphertext) + 1))
     result = _C.decryptccm(ciphertext, len(ciphertext), aad, len(aad),
-            tag, len(tag), key, len(key), iv, plaintext_data)
+            tag, len(tag), key, len(key), iv, len(iv), plaintext_data)
     if result == -1:
         raise InvalidAEAD()
     elif result != len(ciphertext):
