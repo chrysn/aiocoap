@@ -74,6 +74,10 @@ int encryptccm(unsigned const char *plaintext, int plaintext_len, unsigned const
     if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, iv_len, NULL))
         return -3;
 
+    /* not sure if required when iv length is already explicitly set */
+    if (1 !=  EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_L, 15 - iv_len, NULL))
+        return -3;
+
     /* Set tag length */
     EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG, tag_len, NULL);
 
@@ -135,6 +139,10 @@ int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned con
         return -3;
 
     if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, iv_len, NULL))
+        return -4;
+
+    /* not sure if required when iv length is already explicitly set */
+    if (1 !=  EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_L, 15 - iv_len, NULL))
         return -4;
 
     /* Set expected tag value. */
