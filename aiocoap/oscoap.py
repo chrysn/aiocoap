@@ -37,7 +37,7 @@ class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
 class AES_CCM_64_64_128(AES_CCM):
     # from draft-ietf-cose-msg-24 and draft-ietf-core-object-security 3.2.1
     value = 12
-    key_bytes = 32
+    key_bytes = 16
     iv_bytes = 7 # 56 bit nonce
     tag_length = 8 # 64 bit tag
 
