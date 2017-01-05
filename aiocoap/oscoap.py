@@ -40,8 +40,45 @@ hashfunctions = {
         }
 
 class SecurityContext:
-    # FIXME: protcol, abc
-    pass
+    # FIXME: protcol
+
+    # message processing
+
+    def _extract_enc_structure(self, message, i_am_sender):
+        external_aad = [
+                1, # ver
+                message.code,
+                self.algorithm.value,
+                ]
+        if message.code.is_request():
+            external_aad.extend([
+                message.get_request_uri(),
+                # FIXME blockwise
+                ])
+        else:
+            external_aad.extend([
+                self.cid,
+                self.other_id if i_am_sender else self.my_id,
+                request_seq, # FIXME where will this come from?
+                # FIXME blockwise
+                ])
+
+        return ['Encrypted', protected, external_aad]
+
+    def protect(self, message):
+        # any options to move out?
+        inner_message = message
+
+        # FIXME verify that cbor.dumps follows cose-msg-24 section 14
+        aad = cbor.dumps(self._extract_enc_structure(message, True))
+        key = self.my_key
+
+        plaintext = inner_message.opt.encode()
+        if inner_message.payload:
+            plaintext += byes([0xFF])
+            plaintext += inner_message.payload
+
+        self.algorithm.encrypt(key, plaintext, aad)
 
 class ReplayWindow:
     # FIXME: protcol, abc
