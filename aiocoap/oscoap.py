@@ -28,18 +28,25 @@ class Algorithm(metaclass=abc.ABCMeta):
     pass
 
 class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
-    def encrypt(self, plaintext, aad, key, iv):
-        return aiocoap.util.crypto.encrypt_ccm(plaintext, aad, key, iv, self.tag_length)
+    @classmethod
+    def encrypt(cls, plaintext, aad, key, iv):
+        return aiocoap.util.crypto.encrypt_ccm(plaintext, aad, key, iv, cls.tag_bytes)
 
-    def decrypt(self, ciphertext, tag, aad, key, iv):
-        return aiocoap.util.crypto.decrypt_ccm(ciphertext, aad, tag, key,iv)
+    @classmethod
+    def decrypt(cls, ciphertext, tag, aad, key, iv):
+        if len(tag) != cls.tag_bytes:
+            # this would be caught by the backend too, but i prefer not to pass
+            # untrusted information to the crypto library where it might not
+            # expect it to be untrusted
+            raise ValueError("Unsuitable tag length for algorithm")
+        return aiocoap.util.crypto.decrypt_ccm(ciphertext, aad, tag, key, iv)
 
 class AES_CCM_64_64_128(AES_CCM):
     # from draft-ietf-cose-msg-24 and draft-ietf-core-object-security 3.2.1
     value = 12
-    key_bytes = 16
-    iv_bytes = 7 # 56 bit nonce
-    tag_length = 8 # 64 bit tag
+    key_bytes = 16 # 128 bit, the 'k' column
+    iv_bytes = 7 # 56 bit nonce. Implies the 64bit (8 bytes = 15 - 7) in the 'L' column
+    tag_bytes = 8 # 64 bit tag, the 'M' column
 
 algorithms = {
         'AES-CCM-64-64-128': AES_CCM_64_64_128,
