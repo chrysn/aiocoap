@@ -28,8 +28,9 @@ class Algorithm:
 class AES_CCM_64_64_128(Algorithm):
     # from draft-ietf-cose-msg-24 and draft-ietf-core-object-security 3.2.1
     value = 12
-    key_length = 128
-    iv_length = 56 # 7 byte nonce
+    key_bytes = 32
+    iv_bytes = 7 # 56 bit nonce
+    tag_length = 8 # 64 bit tag
 
 algorithms = {
         'AES-CCM-64-64-128': AES_CCM_64_64_128,
@@ -202,21 +203,20 @@ class FilesystemSecurityContext(SecurityContext):
                         "currently not supported.")
 
     def _kdf(self, master_secret, role_id, out_type):
-        out_len = {'Key': self.algorithm.key_length, 'IV': self.algorithm.iv_length}[out_type]
+        out_bytes = {'Key': self.algorithm.key_bytes * 8, 'IV': self.algorithm.iv_bytes}[out_type]
 
         info = cbor.dumps([
             self.cid,
             role_id,
             self.algorithm.value,
             out_type,
-            out_len
+            out_bytes * 8
             ])
-        assert out_len == (out_len//8) * 8
         # salt being null sequence is already the default of hkdf, no need to
         # be explicit again
         extracted = hkdf.hkdf_extract(None, master_secret, hash=self.hashfun)
         expanded = hkdf.hkdf_expand(extracted, info=info, hash=self.hashfun,
-                length=out_len // 8)
+                length=out_bytes)
         return expanded
 
     # FIXME when/how will this be called?
