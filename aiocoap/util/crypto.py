@@ -50,9 +50,14 @@ static const EVP_CIPHER *type_from_keylen(int keylen) {
     }
 }
 
-int encryptccm(unsigned const char *plaintext, int plaintext_len, unsigned const char *aad,
-        int aad_len, unsigned const char *key, int key_len, unsigned const char *iv, int iv_len,
-        unsigned char *ciphertext, unsigned char *tag, int tag_len)
+int encryptccm(
+        unsigned const char *plaintext, int plaintext_len,
+        unsigned const char *aad, int aad_len,
+        unsigned const char *key, int key_len,
+        unsigned const char *iv, int iv_len,
+        unsigned char *ciphertext,
+        unsigned char *tag, int tag_len
+        )
 {
     EVP_CIPHER_CTX *ctx;
 
@@ -119,8 +124,12 @@ int encryptccm(unsigned const char *plaintext, int plaintext_len, unsigned const
 }
 
 
-int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned const char *aad,
-        int aad_len, unsigned const char *tag, int tag_length, unsigned const char *key, int key_len, unsigned const char *iv, int iv_len,
+int decryptccm(
+        unsigned const char *ciphertext, int ciphertext_len,
+        unsigned const char *aad, int aad_len,
+        unsigned const char *tag, int tag_length,
+        unsigned const char *key, int key_len,
+        unsigned const char *iv, int iv_len,
         unsigned char *plaintext)
 {
     EVP_CIPHER_CTX *ctx;
@@ -190,12 +199,21 @@ int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned con
 # this largely follows https://gist.github.com/vishvananda/980132c0970f8621bb3c
 
 _FFI.cdef('''
-int encryptccm(unsigned const char *plaintext, int plaintext_len, unsigned const char *aad,
-        int aad_len, unsigned char *key, int key_len, unsigned char *iv, int iv_len,
-        unsigned char *ciphertext, unsigned char *tag, int tag_len);
+int encryptccm(
+        unsigned const char *plaintext, int plaintext_len,
+        unsigned const char *aad, int aad_len,
+        unsigned const char *key, int key_len,
+        unsigned const char *iv, int iv_len,
+        unsigned char *ciphertext,
+        unsigned char *tag, int tag_len
+        );
 
-int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned const char *aad,
-        int aad_len, unsigned const char *tag, int tag_length, unsigned const char *key, int key_len, unsigned const char *iv, int iv_len,
+int decryptccm(
+        unsigned const char *ciphertext, int ciphertext_len,
+        unsigned const char *aad, int aad_len,
+        unsigned const char *tag, int tag_length,
+        unsigned const char *key, int key_len,
+        unsigned const char *iv, int iv_len,
         unsigned char *plaintext);
 ''')
 
