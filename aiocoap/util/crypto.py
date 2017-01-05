@@ -30,7 +30,7 @@ b'Hello Bob, this is Alice.'
 >>> decrypt_ccm(ciphertext, b"The envelope said this is from Michelle to Bob.", tag, key, iv)
 Traceback (most recent call last):
   ...
-crypto.InvalidAEAD
+aiocoap.util.crypto.InvalidAEAD
 """
 
 import cffi

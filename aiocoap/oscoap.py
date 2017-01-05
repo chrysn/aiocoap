@@ -17,7 +17,7 @@ import os, os.path
 import warnings
 import tempfile
 
-import secrets
+from aiocoap.util import secrets
 
 import hkdf
 import cbor

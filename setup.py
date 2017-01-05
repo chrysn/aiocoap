@@ -27,7 +27,6 @@ extras_require = {
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         'all': [], # populated below, contains everything but documentation dependencies for easier installation
         ':python_version<"3.4"': ['asyncio'],
-        ':python_version<"3.6"': ['secrets'],
         }
 tests_require = [] # populated below
 
