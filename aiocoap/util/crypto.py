@@ -29,7 +29,7 @@ ones from established cryptographic library bindings.
 b'Hello Bob, this is Alice.'
 >>> decrypt_ccm(ciphertext, b"The envelope said this is from Michelle to Bob.", tag, key, iv)
 Traceback (most recent call last):
-  ...
+...
 aiocoap.util.crypto.InvalidAEAD
 """
 
@@ -51,135 +51,135 @@ static const EVP_CIPHER *type_from_keylen(int keylen) {
 }
 
 int encryptccm(unsigned const char *plaintext, int plaintext_len, unsigned const char *aad,
-	int aad_len, unsigned const char *key, int key_len, unsigned const char *iv,
-	unsigned char *ciphertext, unsigned char *tag, int tag_len)
+        int aad_len, unsigned const char *key, int key_len, unsigned const char *iv,
+        unsigned char *ciphertext, unsigned char *tag, int tag_len)
 {
-	EVP_CIPHER_CTX *ctx;
+    EVP_CIPHER_CTX *ctx;
 
-	int len;
+    int len;
 
-	int ciphertext_len;
+    int ciphertext_len;
 
 
-	/* Create and initialise the context */
-	if(!(ctx = EVP_CIPHER_CTX_new())) return -1;
+    /* Create and initialise the context */
+    if(!(ctx = EVP_CIPHER_CTX_new())) return -1;
 
-	const EVP_CIPHER *type = type_from_keylen(key_len);
-	if (type == NULL) return -2;
+    const EVP_CIPHER *type = type_from_keylen(key_len);
+    if (type == NULL) return -2;
 
-	/* Initialise the encryption operation. */
-	if(1 != EVP_EncryptInit_ex(ctx, type, NULL, NULL, NULL))
-		return -2;
+    /* Initialise the encryption operation. */
+    if(1 != EVP_EncryptInit_ex(ctx, type, NULL, NULL, NULL))
+        return -2;
 
-	/* Setting IV len to 7. Not strictly necessary as this is the default
-	 * but shown here for the purposes of this example */
-	if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 7, NULL))
-		return -3;
+    /* Setting IV len to 7. Not strictly necessary as this is the default
+     * but shown here for the purposes of this example */
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 7, NULL))
+        return -3;
 
-	/* Set tag length */
-	EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG, tag_len, NULL);
+    /* Set tag length */
+    EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG, tag_len, NULL);
 
-	/* Initialise key and IV */
-	if(1 != EVP_EncryptInit_ex(ctx, NULL, NULL, key, iv)) return -4;
+    /* Initialise key and IV */
+    if(1 != EVP_EncryptInit_ex(ctx, NULL, NULL, key, iv)) return -4;
 
-	/* Provide the total plaintext length
-	 */
-	if(1 != EVP_EncryptUpdate(ctx, NULL, &len, NULL, plaintext_len))
-		return -5;
+    /* Provide the total plaintext length
+     */
+    if(1 != EVP_EncryptUpdate(ctx, NULL, &len, NULL, plaintext_len))
+        return -5;
 
-	/* Provide any AAD data. This can be called zero or one times as
-	 * required
-	 */
-	if(1 != EVP_EncryptUpdate(ctx, NULL, &len, aad, aad_len))
-		return -6;
+    /* Provide any AAD data. This can be called zero or one times as
+     * required
+     */
+    if(1 != EVP_EncryptUpdate(ctx, NULL, &len, aad, aad_len))
+        return -6;
 
-	/* Provide the message to be encrypted, and obtain the encrypted output.
-	 * EVP_EncryptUpdate can only be called once for this
-	 */
-	if(1 != EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len))
-		return -7;
-	ciphertext_len = len;
+    /* Provide the message to be encrypted, and obtain the encrypted output.
+     * EVP_EncryptUpdate can only be called once for this
+     */
+    if(1 != EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len))
+        return -7;
+    ciphertext_len = len;
 
-	/* Finalise the encryption. Normally ciphertext bytes may be written at
-	 * this stage, but this does not occur in CCM mode
-	 */
-	if(1 != EVP_EncryptFinal_ex(ctx, ciphertext + len, &len)) return -8;
-	ciphertext_len += len;
+    /* Finalise the encryption. Normally ciphertext bytes may be written at
+     * this stage, but this does not occur in CCM mode
+     */
+    if(1 != EVP_EncryptFinal_ex(ctx, ciphertext + len, &len)) return -8;
+    ciphertext_len += len;
 
-	/* Get the tag */
-	if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_GET_TAG, tag_len, tag))
-		return -9;
+    /* Get the tag */
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_GET_TAG, tag_len, tag))
+        return -9;
 
-	/* Clean up */
-	EVP_CIPHER_CTX_free(ctx);
+    /* Clean up */
+    EVP_CIPHER_CTX_free(ctx);
 
-	return ciphertext_len;
+    return ciphertext_len;
 }
 
 
 int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned const char *aad,
-	int aad_len, unsigned const char *tag, int tag_length, unsigned const char *key, int key_len, unsigned const char *iv,
-	unsigned char *plaintext)
+        int aad_len, unsigned const char *tag, int tag_length, unsigned const char *key, int key_len, unsigned const char *iv,
+        unsigned char *plaintext)
 {
-	EVP_CIPHER_CTX *ctx;
-	int len;
-	int plaintext_len;
-	int ret;
+    EVP_CIPHER_CTX *ctx;
+    int len;
+    int plaintext_len;
+    int ret;
 
-	/* Create and initialise the context */
-	if(!(ctx = EVP_CIPHER_CTX_new())) return -2;
+    /* Create and initialise the context */
+    if(!(ctx = EVP_CIPHER_CTX_new())) return -2;
 
-	const EVP_CIPHER *type = type_from_keylen(key_len);
-	if (type == NULL) return -3;
+    const EVP_CIPHER *type = type_from_keylen(key_len);
+    if (type == NULL) return -3;
 
-	/* Initialise the decryption operation. */
-	if(1 != EVP_DecryptInit_ex(ctx, type, NULL, NULL, NULL))
-		return -3;
+    /* Initialise the decryption operation. */
+    if(1 != EVP_DecryptInit_ex(ctx, type, NULL, NULL, NULL))
+        return -3;
 
-	/* Setting IV len to 7. Not strictly necessary as this is the default
-	 * but shown here for the purposes of this example */
-	if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 7, NULL))
-		return -4;
+    /* Setting IV len to 7. Not strictly necessary as this is the default
+     * but shown here for the purposes of this example */
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_IVLEN, 7, NULL))
+        return -4;
 
-	/* Set expected tag value. */
-	if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG, tag_length, tag))
-		return -5;
+    /* Set expected tag value. */
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG, tag_length, tag))
+        return -5;
 
-	/* Initialise key and IV */
-	if(1 != EVP_DecryptInit_ex(ctx, NULL, NULL, key, iv)) return -6;
+    /* Initialise key and IV */
+    if(1 != EVP_DecryptInit_ex(ctx, NULL, NULL, key, iv)) return -6;
 
 
-	/* Provide the total ciphertext length
-	 */
-	if(1 != EVP_DecryptUpdate(ctx, NULL, &len, NULL, ciphertext_len))
-		return -7;
+    /* Provide the total ciphertext length
+     */
+    if(1 != EVP_DecryptUpdate(ctx, NULL, &len, NULL, ciphertext_len))
+        return -7;
 
-	/* Provide any AAD data. This can be called zero or more times as
-	 * required
-	 */
-	if(1 != EVP_DecryptUpdate(ctx, NULL, &len, aad, aad_len))
-		return -8;
+    /* Provide any AAD data. This can be called zero or more times as
+     * required
+     */
+    if(1 != EVP_DecryptUpdate(ctx, NULL, &len, aad, aad_len))
+        return -8;
 
-	/* Provide the message to be decrypted, and obtain the plaintext output.
-	 * EVP_DecryptUpdate can be called multiple times if necessary
-	 */
-	ret = EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len);
+    /* Provide the message to be decrypted, and obtain the plaintext output.
+     * EVP_DecryptUpdate can be called multiple times if necessary
+     */
+    ret = EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len);
 
-	plaintext_len = len;
+    plaintext_len = len;
 
-	/* Clean up */
-	EVP_CIPHER_CTX_free(ctx);
+    /* Clean up */
+    EVP_CIPHER_CTX_free(ctx);
 
-	if(ret > 0)
-	{
-		/* Success */
-		return plaintext_len;
-	}
-	else
-	{
-		/* Verify failed */
-		return -1;
-	}
+    if(ret > 0)
+    {
+        /* Success */
+        return plaintext_len;
+    }
+    else
+    {
+        /* Verify failed */
+        return -1;
+    }
 }
 '''
 
@@ -187,14 +187,13 @@ int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned con
 
 _FFI.cdef('''
 int encryptccm(unsigned const char *plaintext, int plaintext_len, unsigned const char *aad,
-	int aad_len, unsigned char *key, int key_len, unsigned char *iv,
-	unsigned char *ciphertext, unsigned char *tag, int tag_len);
-
+        int aad_len, unsigned char *key, int key_len, unsigned char *iv,
+        unsigned char *ciphertext, unsigned char *tag, int tag_len);
 
 int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned const char *aad,
-	int aad_len, unsigned const char *tag, int tag_length, unsigned const char *key, int key_len, unsigned const char *iv,
-	unsigned char *plaintext);
-        ''')
+        int aad_len, unsigned const char *tag, int tag_length, unsigned const char *key, int key_len, unsigned const char *iv,
+        unsigned char *plaintext);
+''')
 
 # for extra_compile_args, see
 # https://gist.github.com/vishvananda/980132c0970f8621bb3c for reasons (they
