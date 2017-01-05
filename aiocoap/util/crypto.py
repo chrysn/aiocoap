@@ -145,8 +145,8 @@ int decryptccm(unsigned const char *ciphertext, int ciphertext_len, unsigned con
     if (1 !=  EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_L, 15 - iv_len, NULL))
         return -4;
 
-    /* Set expected tag value. */
-    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG, tag_length, tag))
+    /* Set expected tag value. discarding const qualifier because it's a set operation. */
+    if(1 != EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_CCM_SET_TAG, tag_length, (void*)tag))
         return -5;
 
     /* Initialise key and IV */
