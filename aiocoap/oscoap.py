@@ -16,16 +16,25 @@ import binascii
 import os, os.path
 import warnings
 import tempfile
+import abc
 
 from aiocoap.util import secrets
+import aiocoap.util.crypto
 
 import hkdf
 import cbor
 
-class Algorithm:
+class Algorithm(metaclass=abc.ABCMeta):
     pass
 
-class AES_CCM_64_64_128(Algorithm):
+class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
+    def encrypt(self, plaintext, aad, key, iv):
+        return aiocoap.util.crypto.encrypt_ccm(plaintext, aad, key, iv, self.tag_length)
+
+    def decrypt(self, ciphertext, tag, aad, key, iv):
+        return aiocoap.util.crypto.decrypt_ccm(ciphertext, aad, tag, key,iv)
+
+class AES_CCM_64_64_128(AES_CCM):
     # from draft-ietf-cose-msg-24 and draft-ietf-core-object-security 3.2.1
     value = 12
     key_bytes = 32
@@ -79,7 +88,7 @@ class SecurityContext:
             plaintext += byes([0xFF])
             plaintext += inner_message.payload
 
-        self.algorithm.encrypt(key, plaintext, aad)
+        ciphertext = self.algorithm.encrypt(key, plaintext, aad)
 
 class ReplayWindow:
     # FIXME: protcol, abc
