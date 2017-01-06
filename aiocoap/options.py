@@ -169,3 +169,4 @@ class Options(object):
     proxy_uri = _single_value_view(OptionNumber.PROXY_URI)
     proxy_scheme = _single_value_view(OptionNumber.PROXY_SCHEME)
     size1 = _single_value_view(OptionNumber.SIZE1)
+    object_security = _single_value_view(OptionNumber.OBJECT_SECURITY)
