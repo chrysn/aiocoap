@@ -18,14 +18,34 @@ import warnings
 import tempfile
 import abc
 
+from aiocoap.message import Message
+from aiocoap import numbers
 from aiocoap.util import secrets
 import aiocoap.util.crypto
 
 import hkdf
 import cbor
 
+class NotAProtectedMessage(ValueError):
+    """Raised when verification is attempted on a non-OSCOAP message"""
+
+class ProtectionInvalid(ValueError):
+    """Raised when verification of an OSCOAP message fails"""
+
+def _xor_bytes(a, b):
+    # FIXME is this an efficient thing to do, or should we store everything
+    # that possibly needs xor'ing as long integers with an associated length?
+    return bytes(_a ^ _b for (_a, _b) in zip(a, b))
+
 class Algorithm(metaclass=abc.ABCMeta):
-    pass
+    @abc.abstractmethod
+    def encrypt(cls, plaintext, aad, key, iv):
+        """Return (ciphertext, tag) for given input data"""
+
+    @abc.abstractmethod
+    def decrypt(cls, ciphertext, tag, aad, key, iv):
+        """Reverse encryption. Must raise ProtectionInvalid on any error
+        stemming from untrusted data."""
 
 class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
     @classmethod
@@ -38,8 +58,13 @@ class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
             # this would be caught by the backend too, but i prefer not to pass
             # untrusted information to the crypto library where it might not
             # expect it to be untrusted
-            raise ValueError("Unsuitable tag length for algorithm")
-        return aiocoap.util.crypto.decrypt_ccm(ciphertext, aad, tag, key, iv)
+            raise ProtectionInvalid("Unsuitable tag length for algorithm")
+        try:
+            return aiocoap.util.crypto.decrypt_ccm(ciphertext, aad, tag, key, iv)
+        except aiocoap.util.crypto.InvalidAEAD:
+            raise ProtectionInvalid
+
+    max_seqno = property(lambda self: 2**(8 * self.iv_bytes) - 1)
 
 class AES_CCM_64_64_128(AES_CCM):
     # from draft-ietf-cose-msg-24 and draft-ietf-core-object-security 3.2.1
@@ -49,7 +74,7 @@ class AES_CCM_64_64_128(AES_CCM):
     tag_bytes = 8 # 64 bit tag, the 'M' column
 
 algorithms = {
-        'AES-CCM-64-64-128': AES_CCM_64_64_128,
+        'AES-CCM-64-64-128': AES_CCM_64_64_128(),
         }
 
 hashfunctions = {
@@ -61,7 +86,7 @@ class SecurityContext:
 
     # message processing
 
-    def _extract_enc_structure(self, message, i_am_sender):
+    def _extract_external_aad(self, message, i_am_sender, request_seq=None):
         external_aad = [
                 1, # ver
                 message.code,
@@ -76,26 +101,144 @@ class SecurityContext:
             external_aad.extend([
                 self.cid,
                 self.other_id if i_am_sender else self.my_id,
-                request_seq, # FIXME where will this come from?
+                request_seq,
                 # FIXME blockwise
                 ])
 
-        return ['Encrypted', protected, external_aad]
+        return external_aad
 
-    def protect(self, message):
-        # any options to move out?
+    def protect(self, message, request_seq=None):
+        # not trying to preserve token or mid, they're up to the transport
+        outer_message = Message(code=message.code)
+        protected_uri = message.get_request_uri()
+        if protected_uri.count('/') >= 3:
+            protected_uri = protected_uri[:protected_uri.index('/', protected_uri.index('/', protected_uri.index('/') + 1) + 1)]
+        outer_message.set_request_uri(protected_uri)
+
+        # FIXME any options to move out?
         inner_message = message
 
+        seqno = self.new_sequence_number()
+        partial_iv = binascii.unhexlify("%014x"%seqno)
+        iv = _xor_bytes(self.my_iv, partial_iv)
+
+        protected = {
+                6: partial_iv.lstrip(b'\0'),
+                }
+        if inner_message.code.is_request():
+            protected[4] = self.cid # the kid
+
+        unprotected = {}
+
         # FIXME verify that cbor.dumps follows cose-msg-24 section 14
-        aad = cbor.dumps(self._extract_enc_structure(message, True))
+        protected_serialized = cbor.dumps(protected)
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, True, request_seq)]
+        aad = cbor.dumps(enc_structure)
         key = self.my_key
 
         plaintext = inner_message.opt.encode()
         if inner_message.payload:
-            plaintext += byes([0xFF])
+            plaintext += bytes([0xFF])
             plaintext += inner_message.payload
 
-        ciphertext = self.algorithm.encrypt(key, plaintext, aad)
+
+        ciphertext, tag = self.algorithm.encrypt(plaintext, aad, key, iv)
+
+        cose_encrypt0 = [protected_serialized, unprotected, ciphertext + tag]
+
+        # FIXME determine whether the data might need to be in the option instead of the payload
+        if True:
+            outer_message.opt.object_security = b''
+            outer_message.payload = cbor.dumps(cose_encrypt0)
+            outer_message.opt.content_format = numbers.media_types_rev['application/oscon']
+        else:
+            outer_message.opt.object_security = cbor.dumps(cose_encrypt0)
+
+        # FIXME go through options section
+        return outer_message, seqno
+
+    def unprotect(self, protected_message, request_seqno=None):
+        protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message)
+
+        if unprotected:
+            raise ProtectionInvalid("The unprotected field is not empty")
+
+        # FIXME check for duplicate keys
+        try:
+            hexlified = binascii.hexlify(protected[6])
+            seqno = int(hexlified, 16) if hexlified else 0
+        except (TypeError, KeyError):
+            raise ProtectionInvalid("No serial number provided")
+
+        if request_seqno is None:
+            if protected.get(4, None) != self.cid:
+                raise ProtectionInvalid("Protected CID does not match")
+        else:
+            # FIXME: is it ok to be present, and if yes, do i need to check it?
+            if 4 in protected:
+                raise ProtectionInvalid("CID in response")
+
+        # FIXME is it an error for additional data to be present?
+
+        # FIXME check sid if present
+
+        if len(ciphertext) < self.algorithm.tag_bytes:
+            raise ProtectionInvalid("Ciphertext shorter than tag length")
+
+        try:
+            self.other_replay_window.strike_out(seqno)
+        except ValueError:
+            raise ProtectionInvalid("Sequence number was re-used")
+
+        tag = ciphertext[-self.algorithm.tag_bytes:]
+        ciphertext = ciphertext[:-self.algorithm.tag_bytes]
+
+        partial_iv = binascii.unhexlify("%014x"%seqno)
+        iv = _xor_bytes(self.other_iv, partial_iv)
+
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, False, request_seqno)]
+        aad = cbor.dumps(enc_structure)
+
+        plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.other_key, iv)
+
+        # FIXME add options from unprotected
+
+        unprotected_message = aiocoap.message.Message(code=protected_message.code)
+        unprotected_message.payload = unprotected_message.opt.decode(plaintext)
+
+        return unprotected_message, seqno
+
+    @classmethod
+    def _extract_encrypted0(cls, message):
+        if message.opt.object_security:
+            raise NotAProtectedMessage("No Object-Security option present")
+
+        serialized = message.opt.object_security or message.payload
+
+        try:
+            encrypted0 = cbor.loads(serialized)
+        except ValueError:
+            raise ProtectionInvalid("Error parsing the CBOR payload")
+
+        if not isinstance(encrypted0, list) or len(encrypted0) != 3:
+            raise ProtectionInvalid("CBOR payload is not structured like Encrypt0")
+
+        try:
+            protected = cbor.loads(encrypted0[0])
+        except ValueError:
+            raise ProtectionInvalid("Error parsing the CBOR protected data")
+
+        return encrypted0[0], protected, encrypted0[1], encrypted0[2]
+
+    # sequence number handling
+
+    def new_sequence_number(self):
+        retval = self.my_sequence_number
+        if retval > self.algorithm.max_seqno:
+            raise ValueError("Sequence number too large, context is exhausted.")
+        self.my_sequence_number += 1
+        # FIXME maybe _store now?
+        return retval
 
 class ReplayWindow:
     # FIXME: protcol, abc
@@ -219,7 +362,7 @@ class FilesystemSecurityContext(SecurityContext):
                         "currently not supported.")
 
     def _kdf(self, master_secret, role_id, out_type):
-        out_bytes = {'Key': self.algorithm.key_bytes * 8, 'IV': self.algorithm.iv_bytes}[out_type]
+        out_bytes = {'Key': self.algorithm.key_bytes, 'IV': self.algorithm.iv_bytes}[out_type]
 
         info = cbor.dumps([
             self.cid,
@@ -293,3 +436,17 @@ class FilesystemSecurityContext(SecurityContext):
                     '  "secret_hex": "%s"\n'
                     '}'%binascii.hexlify(master_secret).decode('ascii'))
         os.rename(tmpnam, os.path.join(basedir, 'secret.json'))
+
+def verify_start(message):
+    """Extract a CID from a message for the verifier to then pick a security
+    context to actually verify the message. Raises Not"""
+
+    _, protected, _, _ = SecurityContext._extract_encrypted0(message)
+
+    try:
+        # FIXME raise on duplicate key
+        cid = protected[4]
+    except KeyError:
+        raise NotAProtectedMessage("No CID present")
+
+    return (cid, None)
