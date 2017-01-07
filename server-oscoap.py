@@ -62,6 +62,9 @@ class PrivateSite(resource.Site):
 
         protected_response, _ = sc.protect(response, request_seq=seqno)
 
+        # FIXME who should trigger this?
+        sc._store()
+
         return protected_response
 
 def main():

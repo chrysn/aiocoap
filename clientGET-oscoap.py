@@ -20,14 +20,19 @@ async def main():
 
     request = Message(code=GET, uri='coap://localhost/time')
 
-    protected, seqno = security_context.protect(request)
+    try:
+        protected, seqno = security_context.protect(request)
 
-    response = await protocol.request(protected).response
-    print(response)
+        response = await protocol.request(protected).response
+        print(response)
 
-    unprotected_response, _ = security_context.unprotect(response, seqno)
+        unprotected_response, _ = security_context.unprotect(response, seqno)
 
-    print(unprotected_response, unprotected_response.payload)
+        print(unprotected_response, unprotected_response.payload)
+
+    finally:
+        # FIXME who should trigge this?
+        security_context._store()
 
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(main())
