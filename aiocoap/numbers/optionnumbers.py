@@ -79,7 +79,7 @@ class OptionNumber(ExtensibleIntEnum):
     PROXY_URI = 35
     PROXY_SCHEME = 39
     SIZE1 = 60
-    OBJECT_SECURITY = 65000 # FIXME
+    OBJECT_SECURITY = 65025 # preliminary for plug tests
 
     def is_critical(self):
         return self & 0x01 == 0x01
