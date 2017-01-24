@@ -35,4 +35,8 @@ async def main():
         security_context._store()
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    task = main()
+    try:
+        asyncio.get_event_loop().run_until_complete(task)
+    except KeyboardInterrupt:
+        task.throw(KeyboardInterrupt())
