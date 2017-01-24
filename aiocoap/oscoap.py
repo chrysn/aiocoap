@@ -145,14 +145,14 @@ class SecurityContext:
         ciphertext, tag = self.algorithm.encrypt(plaintext, aad, key, iv)
 
         cose_encrypt0 = [protected_serialized, unprotected, ciphertext + tag]
+        oscoap_data = cbor.dumps(cose_encrypt0)
 
-        # FIXME determine whether the data might need to be in the option instead of the payload
-        if True:
+        if inner_message.code.can_have_payload():
             outer_message.opt.object_security = b''
-            outer_message.payload = cbor.dumps(cose_encrypt0)
+            outer_message.payload = oscoap_data
             outer_message.opt.content_format = numbers.media_types_rev['application/oscon']
         else:
-            outer_message.opt.object_security = cbor.dumps(cose_encrypt0)
+            outer_message.opt.object_security = oscoap_data
 
         # FIXME go through options section
         return outer_message, seqno
@@ -210,7 +210,7 @@ class SecurityContext:
 
     @classmethod
     def _extract_encrypted0(cls, message):
-        if message.opt.object_security:
+        if message.opt.object_security is None:
             raise NotAProtectedMessage("No Object-Security option present")
 
         serialized = message.opt.object_security or message.payload
