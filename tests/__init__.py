@@ -8,4 +8,5 @@
 
 """Module that contains the various test scenarios.
 
-Can be used most easily from setup.py as `./setup.py test`."""
+Can be used most easily from setup.py as `./setup.py test` (which installs als
+test dependencies), or `python3 -m unittest` (which just runs the tests)."""

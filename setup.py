@@ -104,5 +104,7 @@ setup(
         'cite': Cite,
         },
 
+    # not strictly required any more since tests are now runnable as `-m
+    # unittest`, but results in more concise output
     test_suite='tests',
 )

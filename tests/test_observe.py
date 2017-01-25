@@ -18,7 +18,7 @@ import unittest
 import gc
 
 from aiocoap.resource import ObservableResource
-from .server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource
+from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource
 
 class ObservableCounter(ObservableResource):
     def __init__(self):

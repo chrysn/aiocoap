@@ -11,7 +11,7 @@ import aiocoap
 import unittest
 import errno
 
-from .server import WithTestServer, WithClient, no_warnings
+from .test_server import WithTestServer, WithClient, no_warnings
 
 class TestClientWithSetHost(WithTestServer, WithClient):
     set_uri_host = True
