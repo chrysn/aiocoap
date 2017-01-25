@@ -223,8 +223,8 @@ int decryptccm(
 _C = _FFI.verify(ccm_code, libraries=['crypto'], extra_compile_args=['-Wno-deprecated-declarations'])
 
 def encrypt_ccm(plaintext, aad, key, iv, tag_length):
-    tag_data = _FFI.new("char[%d]" % (tag_length + 1))
-    ciphertext_data = _FFI.new("char[%d]" % (len(plaintext) + 1))
+    tag_data = _FFI.new("unsigned char[%d]" % (tag_length + 1))
+    ciphertext_data = _FFI.new("unsigned char[%d]" % (len(plaintext) + 1))
     result = _C.encryptccm(plaintext, len(plaintext), aad, len(aad),
             key, len(key), iv, len(iv), ciphertext_data, tag_data, tag_length)
     if result != len(plaintext):
@@ -239,7 +239,7 @@ class InvalidAEAD(Exception): pass
 
 def decrypt_ccm(ciphertext, aad, tag, key, iv):
     assert len(iv) == 7, "IV length mismatch"
-    plaintext_data = _FFI.new("char[%d]" % (len(ciphertext) + 1))
+    plaintext_data = _FFI.new("unsigned char[%d]" % (len(ciphertext) + 1))
     result = _C.decryptccm(ciphertext, len(ciphertext), aad, len(aad),
             tag, len(tag), key, len(key), iv, len(iv), plaintext_data)
     if result == -1:
