@@ -130,7 +130,8 @@ int decryptccm(
         unsigned const char *tag, int tag_length,
         unsigned const char *key, int key_len,
         unsigned const char *iv, int iv_len,
-        unsigned char *plaintext)
+        unsigned char *plaintext
+        )
 {
     EVP_CIPHER_CTX *ctx;
     int len;
@@ -214,7 +215,8 @@ int decryptccm(
         unsigned const char *tag, int tag_length,
         unsigned const char *key, int key_len,
         unsigned const char *iv, int iv_len,
-        unsigned char *plaintext);
+        unsigned char *plaintext
+        );
 ''')
 
 # for extra_compile_args, see
@@ -225,8 +227,14 @@ _C = _FFI.verify(ccm_code, libraries=['crypto'], extra_compile_args=['-Wno-depre
 def encrypt_ccm(plaintext, aad, key, iv, tag_length):
     tag_data = _FFI.new("unsigned char[%d]" % (tag_length + 1))
     ciphertext_data = _FFI.new("unsigned char[%d]" % (len(plaintext) + 1))
-    result = _C.encryptccm(plaintext, len(plaintext), aad, len(aad),
-            key, len(key), iv, len(iv), ciphertext_data, tag_data, tag_length)
+    result = _C.encryptccm(
+            plaintext, len(plaintext),
+            aad, len(aad),
+            key, len(key),
+            iv, len(iv),
+            ciphertext_data,
+            tag_data, tag_length
+            )
     if result != len(plaintext):
         raise RuntimeError("Encryption backend returned error state: %d"%result)
     assert _FFI.buffer(tag_data)[tag_length] == b'\0', "C function wrote out of bounds."
@@ -240,8 +248,14 @@ class InvalidAEAD(Exception): pass
 def decrypt_ccm(ciphertext, aad, tag, key, iv):
     assert len(iv) == 7, "IV length mismatch"
     plaintext_data = _FFI.new("unsigned char[%d]" % (len(ciphertext) + 1))
-    result = _C.decryptccm(ciphertext, len(ciphertext), aad, len(aad),
-            tag, len(tag), key, len(key), iv, len(iv), plaintext_data)
+    result = _C.decryptccm(
+            ciphertext, len(ciphertext),
+            aad, len(aad),
+            tag, len(tag),
+            key, len(key),
+            iv, len(iv),
+            plaintext_data
+            )
     if result == -1:
         raise InvalidAEAD()
     elif result != len(ciphertext):
