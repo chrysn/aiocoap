@@ -24,11 +24,37 @@ async def main():
         protected, seqno = security_context.protect(request)
 
         response = await protocol.request(protected).response
-        print(response)
+        print("unprotected:", response, response.payload)
 
         unprotected_response, _ = security_context.unprotect(response, seqno)
 
-        print(unprotected_response, unprotected_response.payload)
+        print("protected:", unprotected_response, unprotected_response.payload)
+
+
+
+        request = Message(code=GET, uri='coap://localhost/other/separate')
+
+        protected, seqno = security_context.protect(request)
+
+        response = await protocol.request(protected).response
+        print("unprotected:", response, response.payload)
+
+        unprotected_response, _ = security_context.unprotect(response, seqno)
+
+        print("protected:", unprotected_response, unprotected_response.payload)
+
+
+
+        request = Message(code=PUT, uri='coap://localhost/other/block', payload=b'Hello World!'*200)
+
+        protected, seqno = security_context.protect(request)
+
+        response = await protocol.request(protected).response
+        print("unprotected:", response, response.payload)
+
+        unprotected_response, _ = security_context.unprotect(response, seqno)
+
+        print("protected:", unprotected_response, unprotected_response.payload)
 
     finally:
         # FIXME who should trigge this?
