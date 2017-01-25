@@ -14,23 +14,6 @@ r"""This module contains cryptographic helpers for OSCOAP
 
 The module should be abandoned as soon as the functions can be replaced with
 ones from established cryptographic library bindings.
-
->>> #FIXME move this into a unit test instead of a docstring (because it's only
->>> # test not documentation), and verify it instead of just freezing what the
->>> # output of when i first ran this was
->>> key = b"0123456789----------0123456789--"
->>> iv = b"1234567"
->>> message = b"Hello Bob, this is Alice."
->>> aad = b"The envelope said that this is from Alice to Bob."
->>> ciphertext, tag = encrypt_ccm(message, aad, key, iv, 14)
->>> ciphertext, tag
-(b'g^\xc9X\xednx\xd5\xc6\xab\x8c\x85\xaa\xed\\f\xee\xebk\xbc]SCZ\x85', b'P\xce0{K\xaf*\xf9\xb1\xb4\xbc\x1c\x84_')
->>> decrypt_ccm(ciphertext, aad, tag, key, iv)
-b'Hello Bob, this is Alice.'
->>> decrypt_ccm(ciphertext, b"The envelope said this is from Michelle to Bob.", tag, key, iv)
-Traceback (most recent call last):
-...
-aiocoap.util.crypto.InvalidAEAD
 """
 
 import cffi
