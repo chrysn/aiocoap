@@ -51,6 +51,11 @@ class ConstructionRenderableError(RenderableError):
     RenderableError that is constructed from class attrinutes :attr:`code` and
     :attr:`message`
     """
+
+    def to_message(self):
+        from .message import Message
+        return Message(code=self.code, payload=self.message.encode('utf8'))
+
     code = codes.INTERNAL_SERVER_ERROR
     message = ""
 
