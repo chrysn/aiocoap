@@ -94,7 +94,6 @@ class SecurityContext:
                 ]
         if message.code.is_request():
             external_aad.extend([
-                message.get_request_uri(),
                 # FIXME blockwise
                 ])
         else:

@@ -51,14 +51,6 @@ class PrivateSite(resource.Site):
         if response.code is None:
             # FIXME: this duplicates the default setting in aiocoap.protocol
             response.code = aiocoap.CONTENT
-        # FIXME: this will be present on the client because their Request
-        # object populates it; not sure yet how/where this should be passed
-        # here; worse, only setting requested_hostinfo possibly doesn't
-        # cover proxy uris or schemes
-        response.requested_hostinfo = hostportjoin(request.opt.uri_host, request.opt.uri_port)
-        response.requested_scheme = 'coap'
-        response.requested_query = ()
-        response.requested_path = ()
 
         protected_response, _ = sc.protect(response, request_seq=seqno)
 
