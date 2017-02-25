@@ -109,10 +109,11 @@ class SecurityContext:
     def protect(self, message, request_seq=None):
         # not trying to preserve token or mid, they're up to the transport
         outer_message = Message(code=message.code)
-        protected_uri = message.get_request_uri()
-        if protected_uri.count('/') >= 3:
-            protected_uri = protected_uri[:protected_uri.index('/', protected_uri.index('/', protected_uri.index('/') + 1) + 1)]
-        outer_message.set_request_uri(protected_uri)
+        if message.code.is_request():
+            protected_uri = message.get_request_uri()
+            if protected_uri.count('/') >= 3:
+                protected_uri = protected_uri[:protected_uri.index('/', protected_uri.index('/', protected_uri.index('/') + 1) + 1)]
+            outer_message.set_request_uri(protected_uri)
 
         # FIXME any options to move out?
         inner_message = message
