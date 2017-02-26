@@ -13,6 +13,7 @@
 See https://github.com/EricssonResearch/OSCOAP for the test suite
 description."""
 
+import logging
 import argparse
 
 import aiocoap
@@ -133,6 +134,8 @@ class PlugtestSite(resource.Site):
 
 class PlugtestServerProgram(AsyncCLIDaemon):
     async def start(self):
+        logging.root.setLevel(logging.WARNING)
+
         p = argparse.ArgumentParser("Server for the OSCOAP plug test. Requires a test number to be present.")
         p.add_argument("testno", type=int, help="Test number to run (integer part)")
         opts = p.parse_args()
