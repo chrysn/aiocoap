@@ -108,6 +108,18 @@ class PlugtestClientProgram:
         print(unprotected_response)
         additional_verify("Delete as expected", NOT_FOUND, unprotected_response.code)
 
+    @__implements_tests([8, 9, 10, 11, 12, 13, 14, 15])
+    async def test_oscoaperror(self):
+        request = Message(code=GET, uri='coap://' + self.host+ '/helloworld')
+        request.opt.accept = 0
+        protected, seqno = self.regular_context.protect(request)
+        response = await self.ctx.request(protected).response
+        unprotected_response, _ = self.regular_context.unprotect(response, seqno)
+
+        print(unprotected_response)
+        additional_verify("Content-Type as expected", 0, unprotected_response.opt.content_format)
+        additional_verify("ETag as expected", b"\x2b" if self.testno >= 2 else None, unprotected_response.opt.etag)
+        additional_verify("Max-Age as expected", 5 if self.testno >= 3 else None, unprotected_response.opt.max_age)
 
 if __name__ == "__main__":
     PlugtestClientProgram.sync_run()

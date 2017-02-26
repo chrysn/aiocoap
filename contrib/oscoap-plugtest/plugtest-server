@@ -35,10 +35,10 @@ class TestnoInitialized:
 class HelloResource(resource.Resource, TestnoInitialized):
     def render_get(self, request):
         additional_verify("Accept as expected", 0, request.opt.accept)
-        additional_verify("Query as expected", {1: (), 2: ("first=1",), 3: ("second=2",)}[self.testno], request.opt.uri_query)
+        additional_verify("Query as expected", {2: ("first=1",), 3: ("second=2",)}.get(self.testno, ()), request.opt.uri_query)
 
-        etag = b"\x2b" if self.testno >= 2 else None
-        max_age = 5 if self.testno >= 3 else None
+        etag = b"\x2b" if self.testno in (2, 3) else None
+        max_age = 5 if self.testno == 3 else None
         return aiocoap.Message(content_format=0, payload="Hello World!".encode('ascii'), etag=etag, max_age=max_age)
 
 class CounterResource(resource.Resource, TestnoInitialized):
@@ -102,7 +102,7 @@ class PlugtestSite(resource.Site):
         except error.RenderableError as err:
             response = err.to_message()
         except Exception as rr:
-            response = Message(code=INTERNAL_SERVER_ERROR)
+            response = aiocoap.Message(code=aiocoap.INTERNAL_SERVER_ERROR)
             self.log.error("An exception occurred while rendering a protected resource: %r"%err)
             self.log.exception(err)
 
