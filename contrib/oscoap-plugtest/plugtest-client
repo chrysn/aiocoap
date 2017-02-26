@@ -97,6 +97,7 @@ class PlugtestClientProgram:
         unprotected_response, _ = self.regular_context.unprotect(response, seqno)
 
         print("Unprotected response:", unprotected_response)
+        additional_verify("Delete resonse code as expected", DELETED, unprotected_response.code)
 
     @__implements_tests([7])
     async def test_delete_error(self):
@@ -106,7 +107,7 @@ class PlugtestClientProgram:
         unprotected_response, _ = self.regular_context.unprotect(response, seqno)
 
         print("Unprotected response:", unprotected_response)
-        additional_verify("Delete as expected", NOT_FOUND, unprotected_response.code)
+        additional_verify("Delete error as expected", NOT_FOUND, unprotected_response.code)
 
     @__implements_tests([8, 9, 10, 14])
     async def test_oscoaperror_failserverside(self):
