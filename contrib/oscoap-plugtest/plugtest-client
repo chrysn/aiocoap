@@ -82,7 +82,7 @@ class PlugtestClientProgram:
 
     @__implements_tests([5])
     async def test_put(self):
-        request = Message(code=PUT, uri='coap://' + self.host+ '/counter', payload=b"\x5a"*4, content_format=0, if_match=b"\x5b\x5b")
+        request = Message(code=PUT, uri='coap://' + self.host+ '/counter', payload=b"\x5a"*4, content_format=0, if_match=[b"\x5b\x5b"])
         protected, seqno = self.regular_context.protect(request)
         response = await self.ctx.request(protected).response
         unprotected_response, _ = self.regular_context.unprotect(response, seqno)
