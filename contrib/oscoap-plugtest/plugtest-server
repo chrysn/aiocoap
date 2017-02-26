@@ -13,6 +13,7 @@
 See https://github.com/EricssonResearch/OSCOAP for the test suite
 description."""
 
+import asyncio
 import logging
 import argparse
 
@@ -61,10 +62,11 @@ class CounterResource(resource.Resource, TestnoInitialized):
         return aiocoap.Message(code=aiocoap.DELETED)
 
 class PlugtestSite(resource.Site):
-    def __init__(self, testno, *, contexts=[]):
+    def __init__(self, testno, response_callback, *, contexts=[]):
         super().__init__()
 
         self.testno = testno
+        self.response_callback = response_callback
 
         regular_context = get_security_context(testno, 'recipient')
 
@@ -133,6 +135,8 @@ class PlugtestSite(resource.Site):
         # FIXME who should trigger this?
         sc._store()
 
+        self.response_callback()
+
         return protected_response
 
 class PlugtestServerProgram(AsyncCLIDaemon):
@@ -141,9 +145,34 @@ class PlugtestServerProgram(AsyncCLIDaemon):
 
         p = argparse.ArgumentParser("Server for the OSCOAP plug test. Requires a test number to be present.")
         p.add_argument("testno", type=int, help="Test number to run (integer part)")
+        p.add_argument("--auto-increment", dest="action", action="store_const", const=self.auto_increment, help="After an encrypted request was processed, start the server again with the next test number")
+        p.add_argument("--auto-exit", dest="action", action="store_const", const=self.exit, help="After an encrypted request was processed, stop the server")
         opts = p.parse_args()
 
-        self.context = await aiocoap.Context.create_server_context(PlugtestSite(opts.testno))
+        self.latest_testno = opts.testno
+        self.context = await aiocoap.Context.create_server_context(PlugtestSite(opts.testno, self.request_was_processed))
+        self.action = opts.action
+
+    def request_was_processed(self):
+        if self.action:
+            asyncio.Task(self.action())
+
+    async def exit(self):
+        await asyncio.sleep(2)
+        print("Auto-exit: Shutting down.")
+        asyncio.get_event_loop().stop()
+
+    async def auto_increment(self):
+        await asyncio.sleep(2)
+
+        print("Auto-Increment busy")
+        testno = self.latest_testno + 1
+        self.latest_testno = testno
+
+        await self.context.shutdown()
+        self.context = await aiocoap.Context.create_server_context(PlugtestSite(testno, self.request_was_processed))
+
+        print("Auto-Increment: Now ready for test %d"%testno)
 
     async def shutdown(self):
         await self.context.shutdown()
