@@ -104,7 +104,21 @@ class PlugtestSite(resource.Site):
         except KeyError:
             raise PleaseUseOscoap() # may we disclose the reason?
 
-        unprotected, seqno = sc.unprotect(request)
+        try:
+            unprotected, seqno = sc.unprotect(request)
+        except oscoap.ProtectionInvalid as e:
+            print("Unprotect failed (%s)"%(e,))
+            # hack explanation: there is no implementation of a "no response"
+            # response in aiocoap yet. the string here is not a sentinel but an
+            # exploitation of aiocoap not handling the type error of not having
+            # a message early enough to send a 5.00 error instead; it just
+            # fails to reply at all.
+
+            # this also bypasses .response_callback (which might
+            # auto-increment), which is a good thing because retransmissions
+            # would send the auto-incrementor off and away
+            return "NO RESPONSE"
+
         print("Unprotected request:", unprotected)
 
         if self.testno == 16:
