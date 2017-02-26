@@ -170,3 +170,4 @@ class Options(object):
     proxy_scheme = _single_value_view(OptionNumber.PROXY_SCHEME)
     size1 = _single_value_view(OptionNumber.SIZE1)
     object_security = _single_value_view(OptionNumber.OBJECT_SECURITY)
+    max_age = _single_value_view(OptionNumber.MAX_AGE)
