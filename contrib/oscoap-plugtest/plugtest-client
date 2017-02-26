@@ -121,9 +121,9 @@ class PlugtestClientProgram:
 
         print(unprotected_response)
 
-    @__implements_tests([11, 12, 13, 15])
+    @__implements_tests([11, 12, 13, 15, 16])
     async def test_oscoaperror_failclientside(self):
-        request = Message(code=GET, uri='coap://' + self.host+ '/helloworld')
+        request = Message(code=GET, uri='coap://' + self.host + ('/change-tid' if self.testno == 16 else '/helloworld'))
         request.opt.accept = 0
         protected, seqno = self.regular_context.protect(request)
         response = await self.ctx.request(protected).response

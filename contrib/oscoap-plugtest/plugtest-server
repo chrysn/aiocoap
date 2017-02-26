@@ -63,13 +63,22 @@ class PlugtestSite(resource.Site):
     def __init__(self, testno, *, contexts=[]):
         super().__init__()
 
+        self.testno = testno
+
         regular_context = get_security_context(testno, 'recipient')
 
         self.contexts = {c.cid: c for c in [regular_context, ]}
 
         self.add_resource(('.well-known', 'core'), resource.WKCResource(self.get_resources_as_linkheader))
-        self.add_resource(('helloworld',), HelloResource(testno))
-        self.add_resource(('counter',), CounterResource(testno))
+        if testno == 16:
+            # export only this one and only here, as what this implementation
+            # actually does is *always* tamper with the Tid if test 16 is
+            # active, and exporting change-id exclusively if testno==16 should
+            # make sure nobody ever expects a different behavior
+            self.add_resource(('change-tid',), HelloResource(testno))
+        else:
+            self.add_resource(('helloworld',), HelloResource(testno))
+            self.add_resource(('counter',), CounterResource(testno))
 
     whitelist = (
             ('.well-known', 'core'),
@@ -93,6 +102,11 @@ class PlugtestSite(resource.Site):
             raise PleaseUseOscoap() # may we disclose the reason?
 
         unprotected, seqno = sc.unprotect(request)
+
+        if self.testno == 16:
+            # it seems this is the easiest way to tamper with the Tid as
+            # requested for test 16.
+            seqno = seqno + 1
 
         # FIXME the render doesn't provide a way to provide context in the
         # sense of "who is the user"; obviously, the render interface needs
