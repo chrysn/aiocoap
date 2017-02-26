@@ -90,7 +90,7 @@ class PlugtestClientProgram:
         print("Unprotected response:", unprotected_response)
 
     @__implements_tests([6])
-    async def test_put(self):
+    async def test_delete(self):
         request = Message(code=DELETE, uri='coap://' + self.host+ '/counter')
         protected, seqno = self.regular_context.protect(request)
         response = await self.ctx.request(protected).response
@@ -99,7 +99,7 @@ class PlugtestClientProgram:
         print("Unprotected response:", unprotected_response)
 
     @__implements_tests([7])
-    async def test_put(self):
+    async def test_delete_error(self):
         request = Message(code=DELETE, uri='coap://' + self.host+ '/error')
         protected, seqno = self.regular_context.protect(request)
         response = await self.ctx.request(protected).response
