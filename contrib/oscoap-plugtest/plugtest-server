@@ -103,6 +103,7 @@ class PlugtestSite(resource.Site):
             raise PleaseUseOscoap() # may we disclose the reason?
 
         unprotected, seqno = sc.unprotect(request)
+        print("Unprotected request:", unprotected)
 
         if self.testno == 16:
             # it seems this is the easiest way to tamper with the Tid as
@@ -124,6 +125,8 @@ class PlugtestSite(resource.Site):
         if response.code is None:
             # FIXME: this duplicates the default setting in aiocoap.protocol
             response.code = aiocoap.CONTENT
+
+        print("Unprotected response:", response)
 
         protected_response, _ = sc.protect(response, request_seq=seqno)
 

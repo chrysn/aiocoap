@@ -64,7 +64,7 @@ class PlugtestClientProgram:
         response = await self.ctx.request(protected).response
         unprotected_response, _ = self.regular_context.unprotect(response, seqno)
 
-        print(unprotected_response)
+        print("Unprotected response:", unprotected_response)
         additional_verify("Content-Type as expected", 0, unprotected_response.opt.content_format)
         additional_verify("ETag as expected", b"\x2b" if self.testno >= 2 else None, unprotected_response.opt.etag)
         additional_verify("Max-Age as expected", 5 if self.testno >= 3 else None, unprotected_response.opt.max_age)
@@ -76,7 +76,7 @@ class PlugtestClientProgram:
         response = await self.ctx.request(protected).response
         unprotected_response, _ = self.regular_context.unprotect(response, seqno)
 
-        print(unprotected_response)
+        print("Unprotected response:", unprotected_response)
         additional_verify("Location-Path as expected", ('counter',), unprotected_response.opt.location_path)
         additional_verify("Location-Query as expected", ('first=1', "second=2"), unprotected_response.opt.location_query)
 
@@ -87,7 +87,7 @@ class PlugtestClientProgram:
         response = await self.ctx.request(protected).response
         unprotected_response, _ = self.regular_context.unprotect(response, seqno)
 
-        print(unprotected_response)
+        print("Unprotected response:", unprotected_response)
 
     @__implements_tests([6])
     async def test_put(self):
@@ -96,7 +96,7 @@ class PlugtestClientProgram:
         response = await self.ctx.request(protected).response
         unprotected_response, _ = self.regular_context.unprotect(response, seqno)
 
-        print(unprotected_response)
+        print("Unprotected response:", unprotected_response)
 
     @__implements_tests([7])
     async def test_put(self):
@@ -105,7 +105,7 @@ class PlugtestClientProgram:
         response = await self.ctx.request(protected).response
         unprotected_response, _ = self.regular_context.unprotect(response, seqno)
 
-        print(unprotected_response)
+        print("Unprotected response:", unprotected_response)
         additional_verify("Delete as expected", NOT_FOUND, unprotected_response.code)
 
     @__implements_tests([8, 9, 10, 14])
@@ -119,7 +119,7 @@ class PlugtestClientProgram:
 
         unprotected_response, _ = self.regular_context.unprotect(response, seqno)
 
-        print(unprotected_response)
+        print("Unprotected response:", unprotected_response)
 
     @__implements_tests([11, 12, 13, 15, 16])
     async def test_oscoaperror_failclientside(self):
@@ -134,7 +134,7 @@ class PlugtestClientProgram:
             print("Check passed: The validation failed. (%s)"%e)
         else:
             print("Violation: The validation passed.")
-            print(unprotected_response)
+            print("Unprotected response:", unprotected_response)
 
     @__implements_tests([17])
     async def test_no_oscoap(self):
