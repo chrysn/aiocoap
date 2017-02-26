@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+
+# This file is part of the Python aiocoap library project.
+#
+# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
+#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+#
+# aiocoap is free software, this file is published under the MIT license as
+# described in the accompanying LICENSE file.
+
+"""A server suitable for running the OSCOAP plug test series against it
+
+See https://github.com/EricssonResearch/OSCOAP for the test suite
+description."""
+
+import argparse
+
+import aiocoap
+import aiocoap.oscoap as oscoap
+import aiocoap.error as error
+from aiocoap.util.cli import AsyncCLIDaemon
+import aiocoap.resource as resource
+
+from plugtest_common import *
+
+class PleaseUseOscoap(error.ConstructionRenderableError):
+    code = aiocoap.UNAUTHORIZED
+    message = "This is an OSCOAP plugtest, please use option %d"%aiocoap.numbers.optionnumbers.OptionNumber.OBJECT_SECURITY
+
+
+class TestnoInitialized:
+    def __init__(self, testno):
+        self.testno = testno
+
+class HelloResource(resource.Resource, TestnoInitialized):
+    def render_get(self, request):
+        additional_verify("Accept as expected", 0, request.opt.accept)
+        additional_verify("Query as expected", {1: (), 2: ("first=1",), 3: ("second=2",)}[self.testno], request.opt.uri_query)
+
+        etag = b"\x2b" if self.testno >= 2 else None
+        max_age = 5 if self.testno >= 3 else None
+        return aiocoap.Message(content_format=0, payload="Hello World!".encode('ascii'), etag=etag, max_age=max_age)
+
+class CounterResource(resource.Resource, TestnoInitialized):
+    def render_post(self, request):
+        additional_verify("Method matches test number", 4, self.testno)
+        additional_verify("Content-Format as expeted", 0, request.opt.content_format)
+        additional_verify("Payload as expected", b"\x4a"*4, request.payload)
+        return aiocoap.Message(code=aiocoap.CHANGED, location_path=('counter',), location_query=('first=1', 'second=2'))
+
+    def render_put(self, request):
+        additional_verify("Method matches test number", 5, self.testno)
+        additional_verify("Content-Format as expeted", 0, request.opt.content_format)
+        additional_verify("If-Match as expected", b"\x5b\x5b", request.opt.if_match)
+        additional_verify("Payload as expected", b"\x5a"*4, request.payload)
+        return aiocoap.Message(code=aiocoap.CHANGED)
+
+    def render_delete(self, request):
+        additional_verify("Method matches test number", 6, self.testno)
+        return aiocoap.Message(code=aiocoap.DELETED)
+
+class PlugtestSite(resource.Site):
+    def __init__(self, testno, *, contexts=[]):
+        super().__init__()
+
+        regular_context = get_security_context(testno, 'recipient')
+
+        self.contexts = {c.cid: c for c in [regular_context, ]}
+
+        self.add_resource(('.well-known', 'core'), resource.WKCResource(self.get_resources_as_linkheader))
+        self.add_resource(('helloworld',), HelloResource(testno))
+        self.add_resource(('counter',), CounterResource(testno))
+
+    whitelist = (
+            ('.well-known', 'core'),
+            )
+
+    # Most of this is copied from server-oscoap, and needs yet to move into the library
+    async def render(self, request):
+        try:
+            cid, sid = oscoap.verify_start(request)
+        except oscoap.NotAProtectedMessage:
+            if request.opt.uri_path in self.whitelist:
+                return await super().render(request)
+            else:
+                raise PleaseUseOscoap()
+
+        # right now we'll rely on the sid to match, especially as it's not sent
+        # unconditionally anyway
+        try:
+            sc = self.contexts[cid]
+        except KeyError:
+            raise PleaseUseOscoap() # may we disclose the reason?
+
+        unprotected, seqno = sc.unprotect(request)
+
+        # FIXME the render doesn't provide a way to provide context in the
+        # sense of "who is the user"; obviously, the render interface needs
+        # rework
+        try:
+            response = await super().render(unprotected)
+        except error.RenderableError as err:
+            response = err.to_message()
+        except Exception as rr:
+            response = Message(code=INTERNAL_SERVER_ERROR)
+            self.log.error("An exception occurred while rendering a protected resource: %r"%err)
+            self.log.exception(err)
+
+        if response.code is None:
+            # FIXME: this duplicates the default setting in aiocoap.protocol
+            response.code = aiocoap.CONTENT
+
+        protected_response, _ = sc.protect(response, request_seq=seqno)
+
+        # FIXME who should trigger this?
+        sc._store()
+
+        return protected_response
+
+class PlugtestServerProgram(AsyncCLIDaemon):
+    async def start(self):
+        p = argparse.ArgumentParser("Server for the OSCOAP plug test. Requires a test number to be present.")
+        p.add_argument("testno", type=int, help="Test number to run (integer part)")
+        opts = p.parse_args()
+
+        self.context = await aiocoap.Context.create_server_context(PlugtestSite(opts.testno))
+
+    async def shutdown(self):
+        await self.context.shutdown()
+
+if __name__ == "__main__":
+    PlugtestServerProgram.sync_main()
