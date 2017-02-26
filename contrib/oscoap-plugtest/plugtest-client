@@ -136,5 +136,13 @@ class PlugtestClientProgram:
             print("Violation: The validation passed.")
             print(unprotected_response)
 
+    @__implements_tests([17])
+    async def test_no_oscoap(self):
+        request = Message(code=GET, uri='coap://' + self.host+ '/helloworld')
+        request.opt.accept = 0
+        response = await self.ctx.request(request).response
+
+        additional_verify("Response is 'unauthorized'", response.code, UNAUTHORIZED)
+
 if __name__ == "__main__":
     PlugtestClientProgram.sync_run()
