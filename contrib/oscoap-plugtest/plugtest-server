@@ -55,14 +55,39 @@ class CounterResource(resource.Resource):
     def render_delete(self, request):
         return aiocoap.Message(code=aiocoap.DELETED)
 
+class SeqnoManager(resource.Resource):
+    def __init__(self, contexts):
+        self.contexts = contexts
+
+    def render_get(self, request):
+        the_context, = self.contexts.values()
+
+        # this direct access is technically outside the interface for a
+        # SecurityContext, but then again, there isn't one yet
+        text = """Next sequence number I will use: %d\n""" % the_context.my_sequence_number
+        text += """I've seen all sequence numbers up to including %d%s.""" % (
+                the_context.other_replay_window.seen[0],
+                ", and also %s" % the_context.other_replay_window.seen[1:] if len(the_context.other_replay_window.seen) > 1 else ""
+                )
+        return aiocoap.Message(payload=text.encode('utf-8'), content_format=0)
+
+    def render_put(self, request):
+        try:
+            number = int(request.payload.decode('utf8'))
+        except (ValueError, UnicodeDecodeError):
+            raise aiocoap.error.BadRequest("Only numeric values are accepted.")
+
+        new_context = get_security_context(number, 'recipient')
+        self.contexts[new_context.cid] = new_context
+
+        return aiocoap.Message(code=aiocoap.CHANGED)
+
 class PlugtestSite(resource.Site):
-    def __init__(self, testno, response_callback, *, contexts=[]):
+    def __init__(self, *, contexts=[]):
         super().__init__()
 
-        self.response_callback = response_callback
-
         # by now, the testno here should only be used to initialize the sequence numbers
-        regular_context = get_security_context(testno, 'recipient')
+        regular_context = get_security_context(1, 'recipient')
 
         self.contexts = {c.cid: c for c in [regular_context, ]}
 
@@ -70,9 +95,11 @@ class PlugtestSite(resource.Site):
         self.add_resource(('change-tid',), HelloResource())
         self.add_resource(('helloworld',), HelloResource())
         self.add_resource(('counter',), CounterResource())
+        self.add_resource(('sequence-numbers',), SeqnoManager(self.contexts))
 
     whitelist = (
             ('.well-known', 'core'),
+            ('sequence-numbers',)
             )
 
     # Most of this is copied from server-oscoap, and needs yet to move into the library
@@ -137,44 +164,16 @@ class PlugtestSite(resource.Site):
         # FIXME who should trigger this?
         sc._store()
 
-        self.response_callback()
-
         return protected_response
 
 class PlugtestServerProgram(AsyncCLIDaemon):
     async def start(self):
         logging.root.setLevel(logging.WARNING)
 
-        p = argparse.ArgumentParser("Server for the OSCOAP plug test. Requires a test number to be present.")
-        p.add_argument("testno", type=int, help="Test number to run (integer part)")
-        p.add_argument("--auto-increment", dest="action", action="store_const", const=self.auto_increment, help="After an encrypted request was processed, start the server again with the next test number")
-        p.add_argument("--auto-exit", dest="action", action="store_const", const=self.exit, help="After an encrypted request was processed, stop the server")
+        p = argparse.ArgumentParser(description="Server for the OSCOAP plug test. Requires a test number to be present.")
         opts = p.parse_args()
 
-        self.latest_testno = opts.testno
-        self.context = await aiocoap.Context.create_server_context(PlugtestSite(opts.testno, self.request_was_processed))
-        self.action = opts.action
-
-    def request_was_processed(self):
-        if self.action:
-            asyncio.Task(self.action())
-
-    async def exit(self):
-        await asyncio.sleep(2)
-        print("Auto-exit: Shutting down.")
-        asyncio.get_event_loop().stop()
-
-    async def auto_increment(self):
-        await asyncio.sleep(2)
-
-        print("Auto-Increment busy")
-        testno = self.latest_testno + 1
-        self.latest_testno = testno
-
-        await self.context.shutdown()
-        self.context = await aiocoap.Context.create_server_context(PlugtestSite(testno, self.request_was_processed))
-
-        print("Auto-Increment: Now ready for test %d"%testno)
+        self.context = await aiocoap.Context.create_server_context(PlugtestSite())
 
     async def shutdown(self):
         await self.context.shutdown()
