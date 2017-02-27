@@ -124,7 +124,7 @@ class PlugtestSite(resource.Site):
         if self.testno == 16:
             # it seems this is the easiest way to tamper with the Tid as
             # requested for test 16.
-            seqno = seqno + 1
+            seqno = seqno + b'?'
 
         # FIXME the render doesn't provide a way to provide context in the
         # sense of "who is the user"; obviously, the render interface needs
@@ -144,7 +144,7 @@ class PlugtestSite(resource.Site):
 
         print("Unprotected response:", response)
 
-        protected_response, _ = sc.protect(response, request_seq=seqno)
+        protected_response, _ = sc.protect(response, seqno)
 
         # FIXME who should trigger this?
         sc._store()
