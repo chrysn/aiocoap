@@ -104,6 +104,8 @@ class SecurityContext:
                 # FIXME blockwise
                 ])
 
+        external_aad = cbor.dumps(external_aad)
+
         return external_aad
 
     def protect(self, message, request_partiv=None):
