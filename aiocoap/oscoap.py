@@ -86,7 +86,7 @@ class SecurityContext:
 
     # message processing
 
-    def _extract_external_aad(self, message, i_am_sender, request_seq=None):
+    def _extract_external_aad(self, message, i_am_sender, request_partiv=None):
         external_aad = [
                 1, # ver
                 message.code,
@@ -100,13 +100,13 @@ class SecurityContext:
             external_aad.extend([
                 self.cid,
                 self.other_id if i_am_sender else self.my_id,
-                request_seq,
+                request_partiv
                 # FIXME blockwise
                 ])
 
         return external_aad
 
-    def protect(self, message, request_seq=None):
+    def protect(self, message, request_partiv=None):
         # not trying to preserve token or mid, they're up to the transport
         outer_message = Message(code=message.code)
         if message.code.is_request():
@@ -132,7 +132,7 @@ class SecurityContext:
 
         # FIXME verify that cbor.dumps follows cose-msg-24 section 14
         protected_serialized = cbor.dumps(protected)
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, True, request_seq)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, True, request_partiv)]
         aad = cbor.dumps(enc_structure)
         key = self.my_key
 
@@ -155,9 +155,9 @@ class SecurityContext:
             outer_message.opt.object_security = oscoap_data
 
         # FIXME go through options section
-        return outer_message, seqno
+        return outer_message, protected[6]
 
-    def unprotect(self, protected_message, request_seqno=None):
+    def unprotect(self, protected_message, request_partiv=None):
         protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message)
 
         if unprotected:
@@ -170,7 +170,7 @@ class SecurityContext:
         except (TypeError, KeyError):
             raise ProtectionInvalid("No serial number provided")
 
-        if request_seqno is None:
+        if request_partiv is None:
             if protected.get(4, None) != self.cid:
                 raise ProtectionInvalid("Protected CID does not match")
         else:
@@ -196,7 +196,7 @@ class SecurityContext:
         partial_iv = binascii.unhexlify("%014x"%seqno)
         iv = _xor_bytes(self.other_iv, partial_iv)
 
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, False, request_seqno)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, False, request_partiv)]
         aad = cbor.dumps(enc_structure)
 
         plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.other_key, iv)
@@ -206,7 +206,7 @@ class SecurityContext:
         unprotected_message = aiocoap.message.Message(code=protected_message.code)
         unprotected_message.payload = unprotected_message.opt.decode(plaintext)
 
-        return unprotected_message, seqno
+        return unprotected_message, protected[6]
 
     @classmethod
     def _extract_encrypted0(cls, message):
