@@ -53,7 +53,7 @@ class CounterResource(resource.Resource, TestnoInitialized):
     def render_put(self, request):
         additional_verify("Method matches test number", 5, self.testno)
         additional_verify("Content-Format as expeted", 0, request.opt.content_format)
-        additional_verify("If-Match as expected", b"\x5b\x5b", request.opt.if_match)
+        additional_verify("If-Match as expected", (b"\x5b\x5b",), request.opt.if_match)
         additional_verify("Payload as expected", b"\x5a"*4, request.payload)
         return aiocoap.Message(code=aiocoap.CHANGED)
 
