@@ -152,7 +152,6 @@ class SecurityContext:
         if inner_message.code.can_have_payload():
             outer_message.opt.object_security = b''
             outer_message.payload = oscoap_data
-            outer_message.opt.content_format = numbers.media_types_rev['application/oscon']
         else:
             outer_message.opt.object_security = oscoap_data
 
