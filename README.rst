@@ -55,7 +55,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 Dependencies
 ------------
 
-Basic aiocoap works out of the box on Pyton_ 3.4 or greater, and on 3.3 with
+Basic aiocoap works out of the box on Python_ 3.4 or greater, and on 3.3 with
 additional dependencies.
 
 The examples_ require Python 3.5 as they use newer syntax.
