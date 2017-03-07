@@ -6,13 +6,15 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""asyncio workarounds"""
+"""Extensions to asyncio and workarounds around its shortcomings"""
 
 import asyncio.events
 
 def cancel_thoroughly(handle):
     """Use this on a (Timer)Handle when you would .cancel() it, just also drop
     the callback and arguments for them to be freed soon."""
+    # obsolete as of f68bd88a (around 3.4.3) -- so can be dropped when 3.4
+    # support is dropped
 
     assert isinstance(handle, asyncio.events.Handle)
 

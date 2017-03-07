@@ -10,7 +10,7 @@
 # licensed under the terms of the OpenSSL license; see
 # http://www.openssl.org/source/license.html for details
 
-r"""This module contains cryptographic helpers for OSCOAP
+"""This module contains cryptographic helpers for OSCOAP
 
 The module should be abandoned as soon as the functions can be replaced with
 ones from established cryptographic library bindings.
