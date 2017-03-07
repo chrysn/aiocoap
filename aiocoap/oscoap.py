@@ -186,9 +186,7 @@ class SecurityContext:
         if len(ciphertext) < self.algorithm.tag_bytes:
             raise ProtectionInvalid("Ciphertext shorter than tag length")
 
-        try:
-            self.other_replay_window.strike_out(seqno)
-        except ValueError:
+        if not self.other_replay_window.is_valid(seqno):
             raise ProtectionInvalid("Sequence number was re-used")
 
         tag = ciphertext[-self.algorithm.tag_bytes:]
@@ -201,6 +199,8 @@ class SecurityContext:
         aad = cbor.dumps(enc_structure)
 
         plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.other_key, iv)
+
+        self.other_replay_window.strike_out(seqno)
 
         # FIXME add options from unprotected
 
