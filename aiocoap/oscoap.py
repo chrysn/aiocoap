@@ -62,7 +62,7 @@ class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
         try:
             return aiocoap.util.crypto.decrypt_ccm(ciphertext, aad, tag, key, iv)
         except aiocoap.util.crypto.InvalidAEAD:
-            raise ProtectionInvalid
+            raise ProtectionInvalid("Tag invalid")
 
     max_seqno = property(lambda self: 2**(8 * self.iv_bytes) - 1)
 
