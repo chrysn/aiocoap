@@ -48,6 +48,14 @@ def get_security_context(testno, role):
         assert hexlify(secctx.other_iv) == b'58f91a5cdff4f5'
         secctx.other_iv = unhexlify(b'11f91a5cdff4f5')
 
+
+    original_extract_external_aad = secctx._extract_external_aad
+    def _extract_extenal_aad(message, i_am_sender, request_partiv=None):
+        result = original_extract_external_aad(message, i_am_sender, request_partiv)
+        print("Verify: External AAD: %s"%(result,))
+        return result
+    secctx._extract_external_aad = _extract_extenal_aad
+
     return secctx
 
 def additional_verify(description, lhs, rhs):
