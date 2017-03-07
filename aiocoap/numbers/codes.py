@@ -74,6 +74,11 @@ class Code(ExtensibleIntEnum):
         """True if the code is in the successful subrange of the response code range"""
         return True if (self >= 64 and self < 96) else False
 
+    def can_have_payload(self):
+        """True if a message with that code can carry a payload. This is not
+        checked for strictly, but used as an indicator."""
+        return self.is_response() or self in (self.POST, self.PUT, self.FETCH, self.PATCH, self.iPATCH)
+
     @property
     def dotted(self):
         """The numeric value three-decimal-digits (c.dd) form"""

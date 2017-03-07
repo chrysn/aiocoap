@@ -23,15 +23,18 @@ longdescription = __doc__
 
 extras_require = {
         'linkheader': ['LinkHeader'],
+        'oscoap': ['hkdf', 'cbor', 'cffi'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
+        'all': [], # populated below, contains everything but documentation dependencies for easier installation
         ':python_version<"3.4"': ['asyncio'],
         }
 tests_require = [] # populated below
 
 for k, v in extras_require.items():
-    if k.startswith(':') or k == 'docs':
+    if k.startswith(':') or k == 'all' or k == 'docs':
         continue
     extras_require['docs'].extend(v)
+    extras_require['all'].extend(v)
     tests_require.extend(v)
 
 class Cite(Command):
@@ -101,5 +104,7 @@ setup(
         'cite': Cite,
         },
 
+    # not strictly required any more since tests are now runnable as `-m
+    # unittest`, but results in more concise output
     test_suite='tests',
 )

@@ -79,6 +79,7 @@ class OptionNumber(ExtensibleIntEnum):
     PROXY_URI = 35
     PROXY_SCHEME = 39
     SIZE1 = 60
+    OBJECT_SECURITY = 65025 # preliminary for plug tests
 
     def is_critical(self):
         return self & 0x01 == 0x01
@@ -155,3 +156,7 @@ OptionNumber.SIZE2.format = optiontypes.UintOption
 # RFC 7641
 
 OptionNumber.OBSERVE.format = optiontypes.UintOption
+
+# draft-ietf-core-object-security
+
+OptionNumber.OBJECT_SECURITY.format = optiontypes.OpaqueOption

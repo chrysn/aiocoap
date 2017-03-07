@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+
+# This file is part of the Python aiocoap library project.
+#
+# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
+#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+#
+# aiocoap is free software, this file is published under the MIT license as
+# described in the accompanying LICENSE file.
+
+"""A client suitable for running the OSCOAP plug test series against a given
+server
+
+See https://github.com/EricssonResearch/OSCOAP for the test suite
+description."""
+
+import argparse
+import asyncio
+
+from aiocoap import *
+
+from plugtest_common import *
+
+class PlugtestClientProgram:
+    async def run(self):
+        p = argparse.ArgumentParser("Client for the OSCOAP plug test..")
+        p.add_argument("host", help="Hostname of the server")
+        p.add_argument("testno", type=int, help="Test number to run (integer part)")
+        opts = p.parse_args()
+
+        self.host = opts.host
+
+        # FIXME deduplicate from server when i see what i need to do for non-correct use
+        self.regular_context = get_security_context(opts.testno, 'sender')
+
+        self.ctx = await Context.create_client_context()
+
+        await self.run_test(opts.testno)
+
+    @classmethod
+    def sync_run(cls):
+        asyncio.get_event_loop().run_until_complete(cls().run())
+
+
+    async def run_test(self, testno):
+        self.testno = testno
+        testfun = self.__methods[testno]
+        await getattr(self, testfun)()
+
+    __methods = {}
+    def __implements_tests(numbers, __methods=__methods):
+        def registerer(method):
+            for n in numbers:
+                __methods[n] = method.__name__
+            return method
+        return registerer
+
+
+    @__implements_tests([1, 2, 3])
+    async def test_hellotests(self):
+        request = Message(code=GET, uri='coap://' + self.host+ '/helloworld' + ("?first=1" if self.testno == 2 else "?second=2" if self.testno == 3 else ""))
+        request.opt.accept = 0
+        protected, seqno = self.regular_context.protect(request)
+        response = await self.ctx.request(protected).response
+        unprotected_response, _ = self.regular_context.unprotect(response, seqno)
+
+        print("Unprotected response:", unprotected_response)
+        additional_verify("Content-Type as expected", 0, unprotected_response.opt.content_format)
+        additional_verify("ETag as expected", b"\x2b" if self.testno >= 2 else None, unprotected_response.opt.etag)
+        additional_verify("Max-Age as expected", 5 if self.testno >= 3 else None, unprotected_response.opt.max_age)
+
+    @__implements_tests([4])
+    async def test_post(self):
+        request = Message(code=POST, uri='coap://' + self.host+ '/counter', payload=b"\x4a"*4, content_format=0)
+        protected, seqno = self.regular_context.protect(request)
+        response = await self.ctx.request(protected).response
+        unprotected_response, _ = self.regular_context.unprotect(response, seqno)
+
+        print("Unprotected response:", unprotected_response)
+        additional_verify("Location-Path as expected", ('counter',), unprotected_response.opt.location_path)
+        additional_verify("Location-Query as expected", ('first=1', "second=2"), unprotected_response.opt.location_query)
+
+    @__implements_tests([5])
+    async def test_put(self):
+        request = Message(code=PUT, uri='coap://' + self.host+ '/counter', payload=b"\x5a"*4, content_format=0, if_match=[b"\x5b\x5b"])
+        protected, seqno = self.regular_context.protect(request)
+        response = await self.ctx.request(protected).response
+        unprotected_response, _ = self.regular_context.unprotect(response, seqno)
+
+        print("Unprotected response:", unprotected_response)
+
+    @__implements_tests([6])
+    async def test_delete(self):
+        request = Message(code=DELETE, uri='coap://' + self.host+ '/counter')
+        protected, seqno = self.regular_context.protect(request)
+        response = await self.ctx.request(protected).response
+        unprotected_response, _ = self.regular_context.unprotect(response, seqno)
+
+        print("Unprotected response:", unprotected_response)
+        additional_verify("Delete resonse code as expected", DELETED, unprotected_response.code)
+
+    @__implements_tests([7])
+    async def test_delete_error(self):
+        request = Message(code=DELETE, uri='coap://' + self.host+ '/error')
+        protected, seqno = self.regular_context.protect(request)
+        response = await self.ctx.request(protected).response
+        unprotected_response, _ = self.regular_context.unprotect(response, seqno)
+
+        print("Unprotected response:", unprotected_response)
+        additional_verify("Delete error as expected", NOT_FOUND, unprotected_response.code)
+
+    @__implements_tests([8, 9, 10, 14])
+    async def test_oscoaperror_failserverside(self):
+        request = Message(code=GET, uri='coap://' + self.host+ '/helloworld')
+        request.opt.accept = 0
+        protected, seqno = self.regular_context.protect(request)
+        response = await self.ctx.request(protected).response
+
+        print("Violation: we should not have received a message in return")
+
+        unprotected_response, _ = self.regular_context.unprotect(response, seqno)
+
+        print("Unprotected response:", unprotected_response)
+
+    @__implements_tests([11, 12, 13, 15, 16])
+    async def test_oscoaperror_failclientside(self):
+        request = Message(code=GET, uri='coap://' + self.host + ('/change-tid' if self.testno == 16 else '/helloworld'))
+        request.opt.accept = 0
+        protected, seqno = self.regular_context.protect(request)
+        response = await self.ctx.request(protected).response
+
+        try:
+            unprotected_response, _ = self.regular_context.unprotect(response, seqno)
+        except oscoap.ProtectionInvalid as e:
+            print("Check passed: The validation failed. (%s)"%e)
+        else:
+            print("Violation: The validation passed.")
+            print("Unprotected response:", unprotected_response)
+
+    @__implements_tests([17])
+    async def test_no_oscoap(self):
+        request = Message(code=GET, uri='coap://' + self.host+ '/helloworld')
+        request.opt.accept = 0
+        response = await self.ctx.request(request).response
+
+        additional_verify("Response is 'unauthorized'", response.code, UNAUTHORIZED)
+
+if __name__ == "__main__":
+    PlugtestClientProgram.sync_run()

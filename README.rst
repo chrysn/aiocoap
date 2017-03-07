@@ -55,16 +55,17 @@ the list or in the excluded items, file a wishlist item at the same location).
 Dependencies
 ------------
 
-The core aiocoap functionality works out of the box with Python_ 3.4; with the
-additional asyncio_ module, it works with version 3.3 as well. The
-examples_ require Python 3.5 or newer.
+Basic aiocoap works out of the box on Pyton_ 3.4 or greater, and on 3.3 with
+additional dependencies.
 
-When application/link-format typed resources (`RFC 6690`_) are supposed to be
-used, the `link_header`_ module is required as well. When the respective code
-paths are used without the module, an ``ImportError`` will be raised, or a
-5.00 status code will be returned. Python modules that implement servers or
-use discovery with aiocoap should declare a dependency on
-``'aiocoap[linkheader]'`` instead of ``'aiocoap'``.
+The examples_ require Python 3.5 as they use newer syntax.
+
+Some components (eg. servers that should auto-generate ``.well-known/core``
+resources, OSCOAP) require additional packages to be present (eg. the
+`link_heder`_ module or Python 3.6's backported secrets module); those are
+reflected in "extras" dependencies, see ``setup.py`` for details. Python
+modules that require all features should declare a dependency on
+``aiocoap[all]``.
 
 .. _Python: https://www.python.org/
 .. _asyncio: https://pypi.python.org/pypi/asyncio

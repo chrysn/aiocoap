@@ -8,8 +8,8 @@
 
 import asyncio
 
-from .server import WithAsyncLoop, Destructing, WithClient, TestServer, CLEANUPTIME
-from .client import TestClientWithSetHost
+from .test_server import WithAsyncLoop, Destructing, WithClient, TestServer, CLEANUPTIME
+from .test_client import TestClientWithSetHost
 import aiocoap.proxy.client
 import aiocoap.cli.proxy
 

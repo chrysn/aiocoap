@@ -25,6 +25,7 @@ media_types = {0: 'text/plain',
                50: 'application/json',
                51: 'application/json-patch+json', # draft-ietf-core-etch-04
                52: 'application/merge-patch+json', # draft-ietf-core-etch-04
+               70: 'application/oscon', # draft-ietf-core-object-security-01
                }
 """A map from CoAP-assigned integral codes to Internet media type descriptions."""
 
