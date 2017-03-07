@@ -23,7 +23,7 @@ longdescription = __doc__
 
 extras_require = {
         'linkheader': ['LinkHeader'],
-        'oscoap': ['hkdf', 'cbor'],
+        'oscoap': ['hkdf', 'cbor', 'cffi'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         'all': [], # populated below, contains everything but documentation dependencies for easier installation
         ':python_version<"3.4"': ['asyncio'],
