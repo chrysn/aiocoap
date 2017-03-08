@@ -1023,23 +1023,8 @@ class Responder(object):
 
         self.log.debug("Preparing response...")
         self.app_response = app_response
-        requested_block = request.opt.block2
-        if requested_block is None:
-            requested_block = BlockOption.BlockwiseTuple(0, 0, DEFAULT_BLOCK_SIZE_EXP)
-        # the application may guide the choice of block sizes
-        if app_response.opt.block2:
-            requested_block = requested_block.reduced_to(app_response.opt.block2.size_exponent)
-        else:
-            requested_block = requested_block.reduced_to(DEFAULT_BLOCK_SIZE_EXP)
-        if requested_block.start != 0 or len(self.app_response.payload) > requested_block.size:
-            immediate_block = self.app_response._extract_block(requested_block.block_number, requested_block.size_exponent)
-            if immediate_block is None:
-                # TODO is this the right error code here?
-                self.send_final_response(Message(code=REQUEST_ENTITY_INCOMPLETE, payload=b"Request out of range"), request)
-                return
-            self.send_non_final_response(immediate_block, request)
-        else:
-            self.send_final_response(app_response, request)
+
+        self.process_block2_in_request(request)
 
     def process_block2_in_request(self, request):
         """Process incoming request with regard to Block2 option
@@ -1054,15 +1039,20 @@ class Responder(object):
         else:
             self.log.debug("Request with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
 
+        # the application may guide the choice of block sizes
         if self.app_response.opt.block2:
             block2 = block2.reduced_to(self.app_response.opt.block2.size_exponent)
         else:
             block2 = block2.reduced_to(DEFAULT_BLOCK_SIZE_EXP)
 
+        if block2.start == 0 and block2.size >= len(self.app_response.payload):
+            self.send_final_response(self.app_response, request)
+            return
+
         next_block = self.app_response._extract_block(block2.block_number, block2.size_exponent)
         if next_block is None:
             # TODO is this the right error code here?
-            self.respond_with_error(request, REQUEST_ENTITY_INCOMPLETE, "Request out of range")
+            self.send_final_response(Message(code=REQUEST_ENTITY_INCOMPLETE, payload=b"Request out of range"), request)
             return
         if next_block.opt.block2.more is True:
             self.app_response.opt.block2 = next_block.opt.block2
@@ -1075,6 +1065,7 @@ class Responder(object):
         client. This also registers the responder with the protocol again to
         receive the next message."""
 
+        self.log.debug("Keeping the app_response around for some more time")
         key = tuple(request.opt.uri_path), request.remote
 
         def timeout_non_final_response(self):
