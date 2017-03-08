@@ -62,7 +62,7 @@ The examples_ require Python 3.5 as they use newer syntax.
 
 Some components (eg. servers that should auto-generate ``.well-known/core``
 resources, OSCOAP) require additional packages to be present (eg. the
-`link_heder`_ module or Python 3.6's backported secrets module); those are
+`link_header`_ module or Python 3.6's backported secrets module); those are
 reflected in "extras" dependencies, see ``setup.py`` for details. Python
 modules that require all features should declare a dependency on
 ``aiocoap[all]``.
