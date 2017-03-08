@@ -370,12 +370,14 @@ class TestServer(WithTestServer, WithClient):
         self.assertEqual(response.code, aiocoap.CONTENT, "Replacing resource could not be POSTed to successfully")
         self.assertEqual(response.payload, testpattern.replace(b"0", b"O"), "Replacing resource did not replace as expected when POSTed")
 
-#logging.basicConfig()
-#logging.getLogger("coap").setLevel(logging.DEBUG)
-#logging.getLogger("coap-server").setLevel(logging.INFO)
-
 # for testing the server standalone
 if __name__ == "__main__":
+    import sys
+    if '-v' in sys.argv:
+        logging.basicConfig()
+        logging.getLogger("coap").setLevel(logging.DEBUG)
+        logging.getLogger("coap-server").setLevel(logging.DEBUG)
+
     print("Running test server")
     s = WithTestServer()
     s.setUp()
