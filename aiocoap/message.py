@@ -238,6 +238,8 @@ class Message(object):
             raise ValueError("_append_request_block only works on requests.")
 
         block1 = next_block.opt.block1
+        if block1.more and len(next_block.payload) != block1.size:
+            raise error.BadRequest("Payload size does not match Block1")
         if block1.start == len(self.payload):
             self.payload += next_block.payload
             self.opt.block1 = block1
@@ -253,6 +255,8 @@ class Message(object):
             raise ValueError("_append_response_block only works on responses.")
 
         block2 = next_block.opt.block2
+        if block2.more and len(next_block.payload) != block2.size:
+            raise error.UnexpectedBlock2("Payload size does not match Block2")
         if block2.start != len(self.payload):
             raise error.NotImplemented()
 
