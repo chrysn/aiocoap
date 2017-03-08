@@ -129,6 +129,21 @@ class BlockOption(OptionType):
         def start(self):
             return self.block_number * self.size
 
+        def reduced_to(self, maximum_exponent):
+            """Return a BlockwiseTuple whose exponent is capped to the given
+            maximum_exponent
+
+            >>> initial = BlockOption.BlockwiseTuple(10, 0, 5)
+            >>> initial == initial.reduced_to(6)
+            True
+            >>> initial.reduced_to(3)
+            BlockwiseTuple(block_number=40, more=0, size_exponent=3)
+            """
+            if maximum_exponent >= self.size_exponent:
+                return self
+            increasednumber = self.block_number << (self.size_exponent - maximum_exponent)
+            return type(self)(increasednumber, self.more, maximum_exponent)
+
     def __init__(self, number, value=None):
         if value is not None:
             self._value = self.BlockwiseTuple._make(value)

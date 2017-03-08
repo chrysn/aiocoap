@@ -981,8 +981,6 @@ class Responder(object):
         else:
             request = initial_block
 
-        #TODO: Request with Block2 option and non-zero block number should get error response
-
         delayed_ack = self.protocol.loop.call_later(EMPTY_ACK_DELAY, self.send_empty_ack, request)
 
         yield from self.handle_observe_request(request)
@@ -1025,11 +1023,21 @@ class Responder(object):
 
         self.log.debug("Preparing response...")
         self.app_response = app_response
-        size_exp = min(request.opt.block2.size_exponent if request.opt.block2 is not None else DEFAULT_BLOCK_SIZE_EXP, DEFAULT_BLOCK_SIZE_EXP)
-        if len(self.app_response.payload) > (2 ** (size_exp + 4)):
-            first_block = self.app_response._extract_block(0, size_exp)
-            self.app_response.opt.block2 = first_block.opt.block2
-            self.send_non_final_response(first_block, request)
+        requested_block = request.opt.block2
+        if requested_block is None:
+            requested_block = BlockOption.BlockwiseTuple(0, 0, DEFAULT_BLOCK_SIZE_EXP)
+        # the application may guide the choice of block sizes
+        if app_response.opt.block2:
+            requested_block = requested_block.reduced_to(app_response.opt.block2.size_exponent)
+        else:
+            requested_block = requested_block.reduced_to(DEFAULT_BLOCK_SIZE_EXP)
+        if requested_block.start != 0 or len(self.app_response.payload) > requested_block.size:
+            immediate_block = self.app_response._extract_block(requested_block.block_number, requested_block.size_exponent)
+            if immediate_block is None:
+                # TODO is this the right error code here?
+                self.send_final_response(Message(code=REQUEST_ENTITY_INCOMPLETE, payload=b"Request out of range"), request)
+                return
+            self.send_non_final_response(immediate_block, request)
         else:
             self.send_final_response(app_response, request)
 
@@ -1045,6 +1053,11 @@ class Responder(object):
             block2 = BlockOption.BlockwiseTuple(0, 0, DEFAULT_BLOCK_SIZE_EXP)
         else:
             self.log.debug("Request with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
+
+        if self.app_response.opt.block2:
+            block2 = block2.reduced_to(self.app_response.opt.block2.size_exponent)
+        else:
+            block2 = block2.reduced_to(DEFAULT_BLOCK_SIZE_EXP)
 
         next_block = self.app_response._extract_block(block2.block_number, block2.size_exponent)
         if next_block is None:
