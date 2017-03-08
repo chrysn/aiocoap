@@ -2,4 +2,4 @@ image: "python:3"
 
 test:
   script:
-    - ./setup.py test
+    - pip3 install coverage && python3 -m coverage run ./setup.py test && python3 -m coverage report --include=aiocoap/\*
