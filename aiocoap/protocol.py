@@ -33,6 +33,7 @@ from .util.queuewithend import QueueWithEnd
 from .util.asyncio import cancel_thoroughly
 from .util import hostportjoin
 from . import error
+from .optiontypes import BlockOption
 
 import logging
 # log levels used:
@@ -1038,23 +1039,23 @@ class Responder(object):
         Method is recursive - calls itself until all response blocks are sent
         to client."""
 
-        if request.opt.block2 is not None:
-            block2 = request.opt.block2
+        block2 = request.opt.block2
+        if block2 is None:
+            self.log.debug("Request without block option received into exting blockwise transfer, treating it as first block request.")
+            block2 = BlockOption.BlockwiseTuple(0, 0, DEFAULT_BLOCK_SIZE_EXP)
+        else:
             self.log.debug("Request with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
 
-            next_block = self.app_response._extract_block(block2.block_number, block2.size_exponent)
-            if next_block is None:
-                # TODO is this the right error code here?
-                self.respond_with_error(request, REQUEST_ENTITY_INCOMPLETE, "Request out of range")
-                return
-            if next_block.opt.block2.more is True:
-                self.app_response.opt.block2 = next_block.opt.block2
-                self.send_non_final_response(next_block, request)
-            else:
-                self.send_final_response(next_block, request)
-        else:
+        next_block = self.app_response._extract_block(block2.block_number, block2.size_exponent)
+        if next_block is None:
             # TODO is this the right error code here?
-            self.respond_with_error(request, REQUEST_ENTITY_INCOMPLETE, "Requests after a block2 response must carry the block2 option.")
+            self.respond_with_error(request, REQUEST_ENTITY_INCOMPLETE, "Request out of range")
+            return
+        if next_block.opt.block2.more is True:
+            self.app_response.opt.block2 = next_block.opt.block2
+            self.send_non_final_response(next_block, request)
+        else:
+            self.send_final_response(next_block, request)
 
     def send_non_final_response(self, response, request):
         """Helper method to send a response to client, and setup a timeout for
