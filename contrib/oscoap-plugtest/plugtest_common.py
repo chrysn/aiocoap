@@ -5,13 +5,15 @@ from binascii import hexlify, unhexlify
 
 from aiocoap import oscoap
 
+contextdir = os.path.dirname(__file__) + '/common-context/'
+
 def get_security_context(testno, role):
     os.makedirs('temp-contexts', exist_ok=True)
     contextcopy = tempfile.mkdtemp(prefix='context-', dir='temp-contexts')
-    secretdata = json.load(open('./common-context/secret.json'))
+    secretdata = json.load(open(contextdir + 'secret.json'))
     with open(os.path.join(contextcopy, 'secret.json'), 'w') as out:
         json.dump(secretdata, out)
-    settingsdata = json.load(open('./common-context/settings.json'))
+    settingsdata = json.load(open(contextdir + 'settings.json'))
     with open(os.path.join(contextcopy, 'settings.json'), 'w') as out:
         # this needs to be messed with early, as key properties are derived
         # from this data

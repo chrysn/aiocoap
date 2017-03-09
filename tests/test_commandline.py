@@ -12,21 +12,16 @@ The aiocoap-proxy utility is tested in test_proxy inside this process as
 orchestration of success reporting is not that easy with a daemon process;
 aiocoap-rd might need to get tested in a similar way to -proxy."""
 
-# FIXME: set the subprocesses up in a way the too can measure coverage if
-# coverage is currently being measured
-
-import sys
 import subprocess
 import asyncio
 
 import aiocoap
 
 from .test_server import WithTestServer, no_warnings
+from .common import PYTHON_PREFIX
 from . import test_server
 
-AIOCOAP_CLIENT = ['./aiocoap-client']
-if 'coverage' in sys.modules:
-    AIOCOAP_CLIENT = ['python3', '-m', 'coverage', 'run', '--parallel-mode'] + AIOCOAP_CLIENT
+AIOCOAP_CLIENT = PYTHON_PREFIX + ['./aiocoap-client']
 
 class TestCommandlineClient(WithTestServer):
     @no_warnings
