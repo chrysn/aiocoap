@@ -13,6 +13,7 @@
 See https://github.com/EricssonResearch/OSCOAP for the test suite
 description."""
 
+import sys
 import asyncio
 import logging
 import argparse
@@ -174,6 +175,9 @@ class PlugtestServerProgram(AsyncCLIDaemon):
         opts = p.parse_args()
 
         self.context = await aiocoap.Context.create_server_context(PlugtestSite())
+
+        print("Plugtest server ready.")
+        sys.stdout.flush() # the unit tests might wait abundantly long for this otherwise
 
     async def shutdown(self):
         await self.context.shutdown()

@@ -44,9 +44,15 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
 
     @asyncio.coroutine
     def run_server(self, readiness, done):
-        self.process = yield from asyncio.create_subprocess_exec(*SERVER, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-
-        yield from asyncio.sleep(0.2) # FIXME: wait for the server to display its "loop ready" message
+        self.process = yield from asyncio.create_subprocess_exec(
+                *SERVER,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                )
+        while True:
+            l = yield from self.process.stdout.readline()
+            if l == b'Plugtest server ready.\n':
+                break
         readiness.set_result(True)
 
         out, err = yield from self.process.communicate()
