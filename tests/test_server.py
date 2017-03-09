@@ -122,13 +122,22 @@ def no_warnings(function, expected_warnings=None):
         startcount = len(self.handler)
         result = function(self, *args)
         messages = [m.msg for m in self.handler[startcount:] if m.levelno >= logging.WARNING]
-        self.assertEqual(messages, expected_warnings, "Function %s had unexpected warnings: %s"%(function.__name__, messages))
+        if len(expected_warnings) != len(messages) or not all(
+                e == m or (e.endswith('...') and m.startswith(e[:-3]))
+                for (e, m)
+                in zip(expected_warnings, messages)):
+            self.assertEqual(messages, expected_warnings, "Function %s had unexpected warnings: %s"%(function.__name__, messages))
         return result
     wrapped.__name__ = function.__name__
     wrapped.__doc__ = function.__doc__
     return wrapped
 
 def precise_warnings(expected_warnings):
+    """Expect that the expected_warnings list are the very warnings shown
+    (no_warnings is a special case with []).
+
+    "precise" is a bit of a misnomer here; the expected warnings may end with
+    "..." indicating that the rest of the line may be arbitrary."""
     return functools.partial(no_warnings, expected_warnings=expected_warnings)
 
 # fixtures
