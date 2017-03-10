@@ -6,6 +6,7 @@ import sys
 import asyncio
 import argparse
 import random
+import time
 
 from aiocoap import *
 from aiocoap.resource import Resource, ObservableResource, Site, WKCResource
@@ -71,6 +72,42 @@ class RGBLight(Resource):
             return
         self.trigger_repaint()
         return Message(code=CHANGED)
+
+class _Throttler:
+    """Wrapper around an argumentless function that silently drops calls if
+    there are too many."""
+    # FIXME i'd rather have the ObservableResource or even the observation
+    # itself handle this
+    def __init__(self, callback):
+        self.callback = callback
+        self.last = 0
+
+    def __call__(self):
+        now = time.time()
+        if now - self.last < 0.2:
+            return
+        self.last = now
+        self.callback()
+
+class Slider(ObservableResource):
+    if_ = 'core.s'
+    unit = 'degC' # FIXME that should be somewhere in core
+
+    def __init__(self, args):
+        super().__init__()
+
+        self.widget = Gtk.Scale()
+        self.widget.props.draw_value = False
+        self.widget.props.adjustment = Gtk.Adjustment()
+        self.widget.props.adjustment.props.lower = -10
+        self.widget.props.adjustment.props.upper = 40
+        self.widget.props.adjustment.props.value = 20
+
+        throttler = _Throttler(self.updated_state)
+        self.widget.props.adjustment.connect('value-changed', lambda *k: throttler())
+
+    def render_get(self, request):
+        return Message(payload=str(self.widget.props.adjustment.props.value).encode('ascii'))
 
 class WindowTitle(Resource):
     if_ = 'core.p'
@@ -150,6 +187,10 @@ async def main(loop):
     bulb = Bulb(None)
     box.add(bulb.widget)
     site.add_resource(('bulb',), bulb)
+
+    slider = Slider(None)
+    box.add(slider.widget)
+    site.add_resource(('slider',), slider)
 
     ctx = await context(site, args)
     win.show_all()
