@@ -48,7 +48,16 @@ class UDP6EndpointAddress:
 
     @property
     def hostinfo(self):
-        return hostportjoin(self.sockaddr[0], self.sockaddr[1] if self.sockaddr[1] != COAP_PORT else None)
+        hostpart = self.sockaddr[0]
+        if hostpart.startswith('::ffff:') and '.' in hostpart:
+            # don't assume other applications can deal with v4mapped addresses
+            hostpart = hostpart[7:]
+
+        port = self.sockaddr[1]
+        if port == COAP_PORT:
+            port = None
+
+        return hostportjoin(hostpart, port)
 
     @property
     def uri(self):
