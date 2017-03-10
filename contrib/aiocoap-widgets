@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+
+"""Graphical utility to represent typical CoAP interfaces"""
+
+import sys
+import asyncio
+import argparse
+import random
+
+from aiocoap import *
+from aiocoap.resource import Resource, ObservableResource, Site, WKCResource
+
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk
+from gi.repository import Gdk
+import gbulb.gtk
+
+class Switch(ObservableResource):
+    if_ = 'core.s'
+
+    def __init__(self, args):
+        super().__init__()
+        self.widget = Gtk.Switch()
+        self.widget.connect('state-set', lambda *k: self.updated_state())
+
+    def render_get(self, request):
+        return Message(payload=b'1' if self.widget.props.state else b'0')
+
+class Bulb(Resource):
+    if_ = 'core.a'
+
+    def __init__(self, args):
+        super().__init__()
+        self.widget = Gtk.Image()
+
+    def render_put(self, request):
+        new_state = {b'1': True, b'0': False}[request.payload]
+        self.widget.props.icon_name = {
+                True: 'weather-clear',
+                False: 'weather-clear-night',
+                }[new_state]
+        return Message(code=CHANGED)
+
+class RGBLight(Resource):
+    if_ = 'core.a'
+
+    def __init__(self, args):
+        super().__init__()
+
+        self.color = (0, 0, 0)
+
+        self.widget = Gtk.DrawingArea()
+        self.widget.set_size_request(200, 100)
+        self.widget.connect('draw', self.cb_draw)
+
+    def cb_draw(self, widget, cr):
+        Gdk.cairo_set_source_rgba(cr, Gdk.RGBA(*self.color))
+        cr.paint()
+
+    def trigger_repaint(self):
+        # this is assuming that GtkPaintable doesn't have its own window, which
+        # seems not to have been the case for quite some time
+        self.widget.queue_draw_area(0, 0, self.widget.get_allocated_width(), self.widget.get_allocated_height())
+
+    def render_put(self, request):
+        if len(request.payload) == 7 and request.payload[0:1] == b'#':
+            self.color = tuple(int(request.payload[i:i+2].decode('ascii'), 16)/255 for i in (1, 3, 5))
+        else:
+            return Message(code=BAD_REQUEST)
+            return
+        self.trigger_repaint()
+        return Message(code=CHANGED)
+
+class WindowTitle(Resource):
+    if_ = 'core.p'
+
+    def __init__(self, window):
+        self.window = window
+
+    def render_get(self, request):
+        return Message(payload=self.window.props.title.encode('utf8'))
+
+    def render_put(self, request):
+        self.window.props.title = request.payload.decode('utf8')
+        return Message(code=CHANGED)
+
+class ArgumentParser(argparse.ArgumentParser):
+    def __init__(self):
+        super().__init__(description=__doc__.split("\n")[0])
+
+        self.add_argument('--anyport', help="Bind to a non-default port (useful for multiple instances on one computer, and in connection with --register-at)", action='store_true')
+        self.add_argument('--register-at', help="Resource directory to register at", metavar='RD')
+        self.add_argument('--register-as', help="Endpoint name (or name.domain) to register as at the resource directory (Default: %(default)s)", default='widget', metavar='EP')
+
+async def registration_loop(ctx, rd, ep, domain=None):
+    # for now: simple registration
+    last_success = None
+
+    while True:
+        req = Message(code=POST, uri='coap://' + rd + '/.well-known/core?lt=600&ep=' + ep + ('&d=' + domain if domain else ''))
+        response = await ctx.request(req).response_nonraising
+        if response.code.is_successful() != last_success:
+            if response.code.is_successful():
+                print("Now registered at", rd)
+            else:
+                print("Registration at %s failed (%s %s)"%(rd, response.code, response.payload))
+            last_success = response.code.is_successful()
+
+        await asyncio.sleep(600)
+
+    # FIXME arrange for the task to be cancelled & deregister (yes this probably means proper registration and not simple)
+
+async def context(site, args):
+    if args.anyport:
+        ctx = await Context.create_client_context()
+        ctx.serversite = site
+    else:
+        ctx = await Context.create_server_context(site)
+
+    if args.register_at:
+        asyncio.ensure_future(registration_loop(ctx, args.register_at, *args.register_as.split('.', 1)))
+
+    return ctx
+
+async def main(loop):
+    p = ArgumentParser()
+    args = p.parse_args()
+
+    shutdown = asyncio.Future()
+    win = Gtk.Window()
+    win.connect("delete-event", lambda *args: shutdown.set_result(True))
+
+    site = Site()
+    site.add_resource(('.well-known', 'core'), WKCResource(site.get_resources_as_linkheader))
+    site.add_resource(('window-title',), WindowTitle(win))
+
+    # temporary show-all
+    box = Gtk.VBox()
+    win.add(box)
+
+    rgb = RGBLight(None)
+    box.add(rgb.widget)
+    site.add_resource(('spot',), rgb)
+
+    switch = Switch(None)
+    box.add(switch.widget)
+    site.add_resource(('switch',), switch)
+
+    bulb = Bulb(None)
+    box.add(bulb.widget)
+    site.add_resource(('bulb',), bulb)
+
+    ctx = await context(site, args)
+    win.show_all()
+
+    await shutdown
+
+def sync_main():
+    asyncio.set_event_loop_policy(gbulb.gtk.GtkEventLoopPolicy())
+
+    loop = asyncio.get_event_loop()
+    task = asyncio.ensure_future(main(loop), loop=loop)
+    try:
+        loop.run_until_complete(task)
+    except KeyboardInterrupt as e:
+        task.cancel()
+
+if __name__ == "__main__":
+    sync_main()

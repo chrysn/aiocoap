@@ -30,8 +30,16 @@ necessarily production tools, and simple enough to be useful as an inspiration
 for writing other tools; none of this is set in stone, though, so that area can
 serve as a noncommittal playground.
 
-There is currently onely one tool in there:
+These tools are currently present:
 
 * ``aiocoap-fileserver``: Serves the current directory's contents as CoAP
   resources, implementing directory listing and observation. No write support
   yet.
+
+* ``aiocoap-widgets``: Graphical software implementations of example CoAP
+  devices as servers (eg. light bulb, switch). They should become an example of
+  how CoRE interfaces and dynlinks can be used to discover and connect servers.
+  
+  The GUI is implemented in Gtk3 using the gbulb_ asyncio loop.
+
+.. _gbulb: https://github.com/nathan-hoad/gbulb
