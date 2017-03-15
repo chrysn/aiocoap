@@ -52,6 +52,10 @@ class ConstructionRenderableError(RenderableError):
     :attr:`message`
     """
 
+    def __init__(self, message=None):
+        if message is not None:
+            self.message = message
+
     def to_message(self):
         from .message import Message
         return Message(code=self.code, payload=self.message.encode('utf8'))
