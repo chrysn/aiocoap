@@ -52,6 +52,10 @@ class ConstructionRenderableError(RenderableError):
     :attr:`message`
     """
 
+    def __init__(self, message=None):
+        if message is not None:
+            self.message = message
+
     def to_message(self):
         from .message import Message
         return Message(code=self.code, payload=self.message.encode('utf8'))
@@ -67,8 +71,11 @@ class NotFound(ConstructionRenderableError):
 class MethodNotAllowed(ConstructionRenderableError):
     code = codes.METHOD_NOT_ALLOWED
 
-class UnsupportedMediaType(ConstructionRenderableError):
-    code = codes.UNSUPPORTED_MEDIA_TYPE
+class UnsupportedContentFormat(ConstructionRenderableError):
+    code = codes.UNSUPPORTED_CONTENT_FORMAT
+
+# deprecated alias
+UnsupportedMediaType = UnsupportedContentFormat
 
 class BadRequest(ConstructionRenderableError):
     code = codes.BAD_REQUEST
