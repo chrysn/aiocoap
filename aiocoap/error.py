@@ -67,8 +67,11 @@ class NotFound(ConstructionRenderableError):
 class MethodNotAllowed(ConstructionRenderableError):
     code = codes.METHOD_NOT_ALLOWED
 
-class UnsupportedMediaType(ConstructionRenderableError):
-    code = codes.UNSUPPORTED_MEDIA_TYPE
+class UnsupportedContentFormat(ConstructionRenderableError):
+    code = codes.UNSUPPORTED_CONTENT_FORMAT
+
+# deprecated alias
+UnsupportedMediaType = UnsupportedContentFormat
 
 class BadRequest(ConstructionRenderableError):
     code = codes.BAD_REQUEST
