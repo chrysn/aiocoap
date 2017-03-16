@@ -198,7 +198,10 @@ class Site(_ExposesWellknownAttributes, interfaces.ObservableResource, PathCapab
     method. You can add another Site as well, those will be nested and
     integrally reported in a WKCResource. The path of a site should not end
     with an empty string (ie. a slash in the URI) -- the child site's own root
-    resource will then have the trailing slash address.
+    resource will then have the trailing slash address. Subsites *can* have
+    link-header attributes on their own (eg. `rt`), but it can be indicative of
+    an odd design (eg. a batch should be `</first/>;if=core.b` and not
+    `</first>`); try adding them in the root resource instead.
 
     Resources added to a site will receive only messages that are directed to
     that very resource (ie. ``/spam/eggs`` will not receive requests for
