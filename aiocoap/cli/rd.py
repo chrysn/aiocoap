@@ -286,9 +286,6 @@ class RDGroupFunctionSetLocations(ThingWithCommonRD, Resource, PathCapable):
     pass
 
 class RDLookupFunctionSet(Site):
-    ct = 40
-    rt = "core.rd-lookup"
-
     def __init__(self, common_rd):
         super().__init__()
         self.add_resource(('ep',), self.EP(common_rd=common_rd))
@@ -297,6 +294,9 @@ class RDLookupFunctionSet(Site):
         self.add_resource(('gp',), self.Gp(common_rd=common_rd))
 
     class EP(ThingWithCommonRD, Resource):
+        ct = 40
+        rt = "core.rd-lookup-ep"
+
         @asyncio.coroutine
         def render_get(self, request):
             query = query_split(request)
@@ -327,6 +327,9 @@ class RDLookupFunctionSet(Site):
             return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'), content_format=40)
 
     class D(ThingWithCommonRD, Resource):
+        ct = 40
+        rt = "core.rd-lookup-d"
+
         @asyncio.coroutine
         def render_get(self, request):
             query = query_split(request)
@@ -356,6 +359,9 @@ class RDLookupFunctionSet(Site):
             return aiocoap.Message(payload=",".join('<>;d="%s"'%c for c in candidates).encode('utf8'), content_format=40)
 
     class Res(ThingWithCommonRD, Resource):
+        ct = 40
+        rt = "core.rd-lookup-res"
+
         @asyncio.coroutine
         def render_get(self, request):
             query = query_split(request)
@@ -391,6 +397,9 @@ class RDLookupFunctionSet(Site):
             return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'), content_format=40)
 
     class Gp(ThingWithCommonRD, Resource):
+        ct = 40
+        rt = "core.rd-lookup-gp"
+
         pass
 
 class SimpleRegistrationWKC(WKCResource):

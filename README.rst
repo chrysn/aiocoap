@@ -37,7 +37,7 @@ This library supports the following standards in full or partially:
 * RFC7959_ (Blockwise): Multicast exceptions missing.
 * draft-ietf-core-etch-04_: Only registry entries added, but that should be all
   that's neede on the library side.
-* draft-ietf-core-resource-directory-09_: A standalone resource directory
+* draft-ietf-core-resource-directory-10_: A standalone resource directory
   server is provided. It lacks support for groups, PATCHes to endpoint
   locations, DNS-SD mapping and security considerations, and is generally
   rather experimental.
@@ -50,7 +50,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC7641: https://tools.ietf.org/html/rfc7641
 .. _RFC7959: https://tools.ietf.org/html/rfc7959
 .. _draft-ietf-core-etch-04: https://tools.ietf.org/html/draft-ietf-core-etch-04
-.. _draft-ietf-core-resource-directory-09: https://tools.ietf.org/html/draft-ietf-core-resource-directory-09
+.. _draft-ietf-core-resource-directory-10: https://tools.ietf.org/html/draft-ietf-core-resource-directory-10
 
 Dependencies
 ------------
