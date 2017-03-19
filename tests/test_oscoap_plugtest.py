@@ -47,7 +47,7 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         self.process = yield from asyncio.create_subprocess_exec(
                 *SERVER,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
                 )
         while True:
             l = yield from self.process.stdout.readline()
