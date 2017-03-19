@@ -7,9 +7,16 @@ import asyncio
 import argparse
 import random
 import time
+from collections import namedtuple, defaultdict
+import abc
+import inspect
 
 from aiocoap import *
-from aiocoap.resource import Resource, ObservableResource, Site, WKCResource
+from aiocoap.error import BadRequest, UnsupportedContentFormat, UnallowedMethod
+from aiocoap import resource
+
+import json
+import cbor
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -17,61 +24,331 @@ from gi.repository import Gtk
 from gi.repository import Gdk
 import gbulb.gtk
 
-class Switch(ObservableResource):
+_ContenttypeRenderedHandler = namedtuple("_ContenttypeRenderedHandler", ("method", "accept", "contentformat", "implementation", "responseformat"))
+
+class _ContenttypeRenderedMeta(abc.ABCMeta): # FIXME i suppose i can't make that a mixin? it feels odd that i have to state that here just because the classes that use it happen to also implement abcmeta interfaces
+    def __new__(cls, *args):
+        ret = super().__new__(cls, *args)
+        ret._cls_setup()
+        return ret
+
+# this could become an alternative to the resource.Resource currently implemented in aiocoap.resource
+
+#class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resource, metaclass=_ContenttypeRenderedMeta):
+class ContenttypeRendered(resource.ObservableResource, metaclass=_ContenttypeRenderedMeta): # FIXME i'd rather use the above and be independent from the aiocoap.resource implementations (especially as i'm overriding everything that resource.Resource defines here), but Observable is handy right now
+    def __init__(self):
+        super().__init__()
+
+    @classmethod
+    def _cls_setup(cls):
+        # __new__ code moved in here to use __ properties
+        cls.__handlers = defaultdict(lambda: {})
+        for member in vars(cls).values():
+            if isinstance(member, _ContenttypeRenderedHandler):
+                for accept in member.accept:
+                    for contentformat in member.contentformat:
+                        cls.__handlers[member.method][(accept, contentformat)] = (member.implementation, member.responseformat)
+
+    @staticmethod
+    def get_handler(accept, *, default=False):
+        """Decorate a method with this to make it the GET handler for a given
+        method and Accept value (or additionally the empty one if default=True).
+
+        FIXME move to ContenttypeRendered
+
+        Methods that accept a payload will get the payload passed as an
+        argument, and be decided based on the Content-Format header (with the
+        Accept header being ignored; possibly, that's a reasons to split this
+        decorator up per-method).
+
+        The method will not be usable by its name any more. It is recommended
+        to use a double-underscore name for thusly decorated methods (eg.
+        __get_plain).
+
+        The method has some freedom in the types it may return (None is treated
+        as an empty payload, strings are encoded in UTF-8). It is unclear yet
+        whether more complex conversions (eg. JSON, CBOR) will be supported by
+        this or need additonal decorators."""
+        def wrapper(func):
+            cf = numbers.media_types_rev[accept]
+            return _ContenttypeRenderedHandler(GET, (cf, None) if default else (cf,), (None,), func, cf)
+        return wrapper
+
+    @staticmethod
+    def put_handler(contentformat, *, default=False):
+        def wrapper(func):
+            cf = numbers.media_types_rev[contentformat]
+            return _ContenttypeRenderedHandler(PUT, (None,), (cf, None) if default else (cf,), func, None)
+        return wrapper
+
+    @staticmethod
+    def empty_post_handler():
+        # i suppose this'll be replaced with something more generic when i add something that needs request or response payloads
+        def wrapper(func):
+            return _ContenttypeRenderedHandler(POST, (None,), (None,), func, None)
+        return wrapper
+
+    @asyncio.coroutine
+    def needs_blockwise_assembly(self, request):
+        return True
+
+    @asyncio.coroutine
+    def render(self, request):
+        cf = request.opt.content_format
+        acc = request.opt.accept
+        raise_class = UnallowedMethod
+        method_would_have_worked = False
+
+        # FIXME: manually walking the MRO is not a nice way to go about this;
+        # is there no other way to query the registered handlers according to
+        # the regular inheritance patterns?
+        for cls in type(self).mro():
+            if not issubclass(cls, ContenttypeRendered):
+                continue
+            for_method = cls.__handlers.get(request.code, None)
+            if for_method is None:
+                continue
+            raise_class = UnsupportedContentFormat
+            handler, responseformat = for_method.get((acc, cf), (None, None))
+            if handler is not None:
+                break
+        else:
+            raise raise_class()
+
+        sig = inspect.signature(handler)
+        if any(i != 0 and a.kind not in (inspect.Parameter.KEYWORD_ONLY, inspect.Parameter.VAR_KEYWORD) for (i, a) in enumerate(sig.parameters.values())):
+            # there's a positional argument
+            args = (request.payload,)
+        else:
+            if request.payload:
+                raise BadRequest("Unexpected payload")
+            args = ()
+        # FIXME add query as kwargs?
+        payload = handler(self, *args)
+
+        if payload is None:
+            payload = b""
+        elif isinstance(payload, str):
+            payload = payload.encode('utf8')
+
+        return Message(payload=payload, content_format=responseformat)
+
+class SenmlResource(ContenttypeRendered):
+    """A resource that has its state in .value; this class implements SenML
+    getters and setters as well as plain text.
+
+    Implementors need to provide a .value instance property as well as
+    .jsonsenml_key / .cborsenml_key class properties for picking the right
+    value key in the respective SenML serialization, and a .valuetype type that
+    is used both for converting any text/plain'ly PUT string as well as for
+    filtering (typically copy-constructing) data from SenML."""
+
+    @ContenttypeRendered.get_handler('application/senml+json')
+    def __jsonsenml_get(self):
+        return json.dumps([{self.jsonsenml_key: self.value}])
+
+    @ContenttypeRendered.get_handler('application/senml+cbor')
+    def __cborsenml_get(self):
+        return cbor.dumps([{self.cborsenml_key: self.value}])
+
+    @ContenttypeRendered.get_handler('text/plain', default=True)
+    def __textplain_get(self):
+        return str(self.value)
+
+    @ContenttypeRendered.put_handler('application/senml+json')
+    def __jsonsenml_set(self, new):
+        try:
+            self.value = self.valuetype(new[self.jsonsenml_key])
+        except (KeyError, ValueError):
+            raise BadRequest()
+
+    @ContenttypeRendered.put_handler('application/senml+cbor')
+    def __cborsenml_set(self, value):
+        try:
+            self.value = self.valuetype(new[self.cborsenml_key])
+        except (KeyError, ValueError):
+            raise BadRequest()
+
+    @ContenttypeRendered.put_handler('text/plain', default=True)
+    def __textplain_set(self, new):
+        try:
+            self.value = self.valuetype(new.decode('utf8').strip())
+        except ValueError:
+            raise BadRequest()
+
+class BooleanResource(SenmlResource):
+    jsonsenml_key = "vb"
+    cborsenml_key = 4
+    valuetype = bool
+
+    @ContenttypeRendered.get_handler('text/plain', default=True)
+    def __textplain_get(self):
+        return "01"[self.value]
+
+    @ContenttypeRendered.put_handler('text/plain', default=True)
+    def __textplain_set(self, new):
+        try:
+            self.value = {"0": False, "1": True}[new.decode('utf8').strip()]
+        except (KeyError, ValueError):
+            raise BadRequest()
+
+class FloatResource(SenmlResource):
+    jsonsenml_key = "v"
+    cborsenml_key = 2
+    valuetype = float
+
+class StringResource(SenmlResource):
+    jsonsenml_key = "vs"
+    cborsenml_key = 3
+    valuetype = str
+
+class SubsiteBatch(ContenttypeRendered):
+    """An implementation of a CoRE interfaces batch that is the root resource
+    of a subsite
+
+    This currently depends on being added to the site after all other
+    resources; it can enumerate them later, but it installs its own hooks into
+    the updated_state callbacks of other members at initialization time."""
+
+    if_ = 'core.b'
+
+    def __init__(self, site):
+        self.site = site
+        super().__init__()
+
+        # FIXME this ties in directly into resource.Site's privates, AND it
+        # should actually react to changes in the site, AND overriding the
+        # callback to install an own hook is not compatible with any other
+        # ObservableResource implementations
+        for path, subres in self.site._resources.items():
+            original_method = subres.updated_state
+            def patched(): # moreover, this does not accept responses injected directly
+                self.updated_state()
+                original_method()
+            subres.updated_state = patched
+
+    @ContenttypeRendered.get_handler('application/senml+json', default=True)
+    def __regular_get(self):
+        records = []
+        # FIXME this ties in directly into resource.Site's privates
+        for path, subres in self.site._resources.items():
+            if isinstance(subres, SenmlResource): # this conveniently filters out self as well
+                records.append({'n': '/'.join(path), subres.jsonsenml_key: subres.value})
+        return json.dumps(records)
+
+class GobjectBacked(SenmlResource):
+    """Provides a .value bound to the self.widget_property property of the
+    self.backend_widget Gobject. The widget and widget_property need to be set
+    before this class's __init__ is called."""
+
+    def __init__(self):
+        super().__init__()
+        throttler = _Throttler(self.updated_state)
+        self.backend_widget.connect('notify::' + self.widget_property, lambda *k: throttler())
+
+    def _get_value(self):
+        return self.backend_widget.get_property(self.widget_property)
+
+    def _set_value(self, updated):
+        self.backend_widget.set_property(self.widget_property, updated)
+
+    value = property(_get_value, _set_value)
+
+class PythonBacked(SenmlResource):
+    """Provides a .value stored in regular Python, but pulls the
+    .updated_state() trigger on every change"""
+
+    def _set_value(self, value):
+        changed = not hasattr(self, '_value') or self._value != value
+        self._value = value
+        if changed:
+            self.updated_state()
+
+    value = property(lambda self: self._value, _set_value)
+
+class Switch(BooleanResource, GobjectBacked):
     if_ = 'core.s'
+    # FIXME export as read-only
+
+    widget_property = 'state'
 
     def __init__(self, args):
+        self.widget = self.backend_widget = Gtk.Switch()
         super().__init__()
-        self.widget = Gtk.Switch()
-        self.widget.connect('state-set', lambda *k: self.updated_state())
 
-    def render_get(self, request):
-        return Message(payload=b'1' if self.widget.props.state else b'0')
-
-class Bulb(Resource):
+class Bulb(BooleanResource):
     if_ = 'core.a'
+    # FIXME export as write-only
+
+    def _get_value(self):
+        #raise RuntimeError("This object is not readable") # this was a nice idea for a demo, but precludes even toggling
+        return self.widget.props.icon_name == 'weather-clear'
+
+    def _set_value(self, new_state):
+        self.widget.props.icon_name = {
+                True: 'weather-clear',
+                False: 'weather-clear-night',
+                }[new_state]
+
+    value = property(_get_value, _set_value)
 
     def __init__(self, args):
         super().__init__()
         self.widget = Gtk.Image()
 
-    def render_put(self, request):
-        new_state = {b'1': True, b'0': False}[request.payload]
-        self.widget.props.icon_name = {
-                True: 'weather-clear',
-                False: 'weather-clear-night',
-                }[new_state]
-        return Message(code=CHANGED)
+    @ContenttypeRendered.empty_post_handler()
+    def emptypost(self):
+        self.value = not self.value
 
-class RGBLight(Resource):
+class RGBChannel(FloatResource, PythonBacked):
     if_ = 'core.a'
 
+    channel_name = property(lambda self: ('r', 'g', 'b')[self.channel])
+
+    def __init__(self, channel):
+        super().__init__()
+
+        self.channel = channel
+        self.value = 0 # FIXME this doesn't cater for notifications
+
+class RGBRoot(SubsiteBatch):
+    @ContenttypeRendered.get_handler('text/plain', default=True)
+    def __regular_get(self):
+        return '#' + "".join("%02x"%int(255 * c.value) for c in self.site.channels)
+
+    def render_put(self, request):
+        if len(request.payload) == 7 and request.payload[0:1] == b'#':
+            values = tuple(int(request.payload[i:i+2].decode('ascii'), 16)/255 for i in (1, 3, 5))
+        else:
+            return Message(code=BAD_REQUEST)
+
+        for i, v in enumerate(values):
+            self.channel[i].value = v
+        self.trigger_repaint()
+        return Message(code=CHANGED)
+
+class RGBLight(resource.Site):
     def __init__(self, args):
         super().__init__()
 
-        self.color = (0, 0, 0)
+        self.channels = [RGBChannel(i) for i in range(3)]
+
+        for c in self.channels:
+            self.add_resource((c.channel_name,), c)
+        self.add_resource(('',), RGBRoot(self))
 
         self.widget = Gtk.DrawingArea()
         self.widget.set_size_request(200, 100)
         self.widget.connect('draw', self.cb_draw)
 
     def cb_draw(self, widget, cr):
-        Gdk.cairo_set_source_rgba(cr, Gdk.RGBA(*self.color))
+        Gdk.cairo_set_source_rgba(cr, Gdk.RGBA(self.channels[0].value, self.channels[1].value, self.channels[2].value))
         cr.paint()
 
     def trigger_repaint(self):
         # this is assuming that GtkPaintable doesn't have its own window, which
         # seems not to have been the case for quite some time
         self.widget.queue_draw_area(0, 0, self.widget.get_allocated_width(), self.widget.get_allocated_height())
-
-    def render_put(self, request):
-        if len(request.payload) == 7 and request.payload[0:1] == b'#':
-            self.color = tuple(int(request.payload[i:i+2].decode('ascii'), 16)/255 for i in (1, 3, 5))
-        else:
-            return Message(code=BAD_REQUEST)
-            return
-        self.trigger_repaint()
-        return Message(code=CHANGED)
 
 class _Throttler:
     """Wrapper around an argumentless function that silently drops calls if
@@ -89,38 +366,33 @@ class _Throttler:
         self.last = now
         self.callback()
 
-class Slider(ObservableResource):
+class Slider(FloatResource, GobjectBacked):
     if_ = 'core.s'
     unit = 'degC' # FIXME that should be somewhere in core
 
-    def __init__(self, args):
-        super().__init__()
+    widget_property = 'value'
 
+    def __init__(self, args):
         self.widget = Gtk.Scale()
         self.widget.props.draw_value = False
-        self.widget.props.adjustment = Gtk.Adjustment()
-        self.widget.props.adjustment.props.lower = -10
-        self.widget.props.adjustment.props.upper = 40
-        self.widget.props.adjustment.props.value = 20
 
-        throttler = _Throttler(self.updated_state)
-        self.widget.props.adjustment.connect('value-changed', lambda *k: throttler())
+        self.backend_widget = self.widget.props.adjustment = Gtk.Adjustment()
 
-    def render_get(self, request):
-        return Message(payload=str(self.widget.props.adjustment.props.value).encode('ascii'))
+        self.backend_widget.props.lower = -10
+        self.backend_widget.props.upper = 40
+        self.backend_widget.props.value = 20
 
-class WindowTitle(Resource):
+        super().__init__()
+
+class WindowTitle(StringResource, GobjectBacked):
     if_ = 'core.p'
 
+    widget_property = 'title'
+
     def __init__(self, window):
-        self.window = window
+        self.backend_widget = self.widget = window
 
-    def render_get(self, request):
-        return Message(payload=self.window.props.title.encode('utf8'))
-
-    def render_put(self, request):
-        self.window.props.title = request.payload.decode('utf8')
-        return Message(code=CHANGED)
+        super().__init__()
 
 class ArgumentParser(argparse.ArgumentParser):
     def __init__(self):
@@ -168,8 +440,8 @@ async def main(loop):
     win = Gtk.Window()
     win.connect("delete-event", lambda *args: shutdown.set_result(True))
 
-    site = Site()
-    site.add_resource(('.well-known', 'core'), WKCResource(site.get_resources_as_linkheader))
+    site = resource.Site()
+    site.add_resource(('.well-known', 'core'), resource.WKCResource(site.get_resources_as_linkheader))
     site.add_resource(('window-title',), WindowTitle(win))
 
     # temporary show-all
@@ -178,7 +450,7 @@ async def main(loop):
 
     rgb = RGBLight(None)
     box.add(rgb.widget)
-    site.add_resource(('spot',), rgb)
+    site.add_resource(('spot', ), rgb)
 
     switch = Switch(None)
     box.add(switch.widget)
