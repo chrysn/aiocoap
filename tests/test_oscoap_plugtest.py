@@ -8,6 +8,7 @@
 
 """Run the OSCOAP plug test"""
 
+import sys
 import asyncio
 import subprocess
 import unittest
@@ -34,6 +35,7 @@ class WithAssertNofaillines(unittest.TestCase):
         errorlines = (l for l in lines if 'fail'in l)
         self.assertEqual([], list(errorlines), message)
 
+@unittest.skipIf(sys.version_info < (3, 5), "OSCOAP plug test server uses Python 3.5 'async def' idioms")
 class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
     def setUp(self):
         super(WithPlugtestServer, self).setUp()
@@ -51,6 +53,8 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
                 )
         while True:
             l = yield from self.process.stdout.readline()
+            if l == b"":
+                raise RuntimeError("OSCOAP server process terminated during startup.")
             if l == b'Plugtest server ready.\n':
                 break
         readiness.set_result(True)
