@@ -29,6 +29,10 @@
    module/aiocoap.util.cli
    module/aiocoap.util.queuewithend
    module/aiocoap.util.socknumbers
+   module/aiocoap.util.crypto
+   module/aiocoap.util.secrets
+
+   module/aiocoap.oscoap
 
    examples
    tools
