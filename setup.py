@@ -26,7 +26,6 @@ extras_require = {
         'oscoap': ['hkdf', 'cbor', 'cffi'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         'all': [], # populated below, contains everything but documentation dependencies for easier installation
-        ':python_version<"3.4"': ['asyncio'],
         }
 tests_require = [] # populated below
 
@@ -86,7 +85,7 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
 
-    python_requires='>=3.3',
+    python_requires='>=3.4',
     extras_require=extras_require,
     tests_require=tests_require,
 
