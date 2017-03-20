@@ -72,8 +72,7 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     In a way, a :class:`.Context` is the single object all CoAP messages that
     get treated by a single application pass by.
 
-    Context creation
-    ----------------
+    **Context creation and destruction**
 
     Instead of passing a protocol factory to the asyncio loop's
     create_datagram_endpoint method, the following convenience functions are
@@ -85,8 +84,9 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     If you choose to create the context manually, make sure to wait for its
     :attr:`ready` future to complete, as only then can messages be sent.
 
-    Dispatching messages
-    --------------------
+    .. automethod:: shutdown
+
+    **Dispatching messages**
 
     A context's public API consists of the :meth:`send_message` function,
     the :attr:`outgoing_requests`, :attr:`incoming_requests` and
@@ -100,6 +100,17 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
 
     If more control is needed, eg. with observations, create a
     :class:`Request` yourself and pass the context to it.
+
+
+    **Other methods and properties**
+
+    The remaining methods and properties are to be considered unstable even
+    when the project reaches a stable version number; please file a feature
+    request for stabilization if you want to reliably access any of them.
+
+    (Sorry for the duplicates, still looking for a way to make autodoc list
+    everything not already mentioned).
+
     """
 
     def __init__(self, loop=None, serversite=None, loggername="coap"):
@@ -125,7 +136,10 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         """Take down the listening socket and stop all related timers.
 
         After this coroutine terminates, and once all external references to
-        the object are dropped, it should be garbage-collectable."""
+        the object are dropped, it should be garbage-collectable.
+
+        This method may take the time to inform communications partners of
+        stopped observations (but currently does not)."""
 
         self.log.debug("Shutting down context")
         for exchange_monitor, cancellable in self._active_exchanges.values():
