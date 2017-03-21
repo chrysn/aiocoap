@@ -33,6 +33,7 @@ class ProtectionInvalid(ValueError):
     """Raised when verification of an OSCOAP message fails"""
 
 def _xor_bytes(a, b):
+    assert len(a) == len(b)
     # FIXME is this an efficient thing to do, or should we store everything
     # that possibly needs xor'ing as long integers with an associated length?
     return bytes(_a ^ _b for (_a, _b) in zip(a, b))
@@ -121,7 +122,7 @@ class SecurityContext:
         inner_message = message
 
         seqno = self.new_sequence_number()
-        partial_iv = binascii.unhexlify("%014x"%seqno)
+        partial_iv = binascii.unhexlify(("%%0%dx" % (2 * self.algorithm.iv_bytes)) % seqno)
         iv = _xor_bytes(self.my_iv, partial_iv)
 
         protected = {
