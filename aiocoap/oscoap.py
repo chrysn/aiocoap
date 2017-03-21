@@ -304,12 +304,16 @@ class FilesystemSecurityContext(SecurityContext):
     """Security context stored in a directory as distinct files containing
     containing
 
-    * CID, and optionally algorithm, sender and recipient ID, and the KDF hash
-      function (settings.json)
-    * the master key / base key (secret.json, typically readable only for the
+    * Master secret, master salt, the IDs of the participants, and optionally
+      algorithm, the KDF hash function, and replay window size (settings.json
+      and secrets.json, where the latter is typically readable only for the
       user)
     * sequence numbers and replay windows (sequence.json, the only file the
       process needs write access to)
+
+    The static parameters can all either be placed in settings.json or
+    secrets.json, but must not be present in both; the presence of either file
+    is sufficient.
 
     Note that the sequence number file is updated in an atomic fashion which
     requires file creation privileges in the directory. If privilege separation
@@ -324,32 +328,42 @@ class FilesystemSecurityContext(SecurityContext):
         self._load(role)
 
     def _load(self, my_role):
-        def data(partname):
-            return json.load(open(os.path.join(self.basedir, partname + ".json")))
+        data = {}
+        for readfile in ("secret.json", "settings.json"):
+            try:
+                filedata = json.load(open(os.path.join(self.basedir, readfile)))
+            except FileNotFoundError:
+                continue
 
-        secret = data('secret')
-        if 'secret_ascii' in secret:
-            master_secret = secret['secret_ascii'].encode('ascii')
-        else:
-            master_secret = binascii.unhexlify(secret['secret_hex'])
+            for (key, value) in filedata.items():
+                if key.endswith('_hex'):
+                    key = key[:-4]
+                    value = binascii.unhexlify(value)
+                elif key.endswith('_ascii'):
+                    key = key[:-6]
+                    value = value.encode('ascii')
 
-        settings = data('settings')
-        self.cid = binascii.unhexlify(settings['cid'])
-        self.algorithm = algorithms[settings.get('algorithm', 'AES-CCM-64-64-128')]
-        self.hashfun = hashfunctions[settings.get('kdf-hashfun', 'sha256')]
+                if key in data:
+                    raise ValueError("Datum %r present in multiple input files at %r."%(key, self.basedir))
 
-        sender_id = binascii.unhexlify(settings.get('sender-id', '00'))
-        recipient_id = binascii.unhexlify(settings.get('recipient-id', '01'))
+                data[key] = value
+
+        self.cid = data['cid']
+        self.algorithm = algorithms[data.get('algorithm', 'AES-CCM-64-64-128')]
+        self.hashfun = hashfunctions[data.get('kdf-hashfun', 'sha256')]
+
+        sender_id = data.get('sender-id', b'\x00')
+        recipient_id = data.get('recipient-id', b'\x01')
         self.my_id = {'sender': sender_id, 'recipient': recipient_id}[my_role]
         self.other_id = {'sender': recipient_id, 'recipient': sender_id}[my_role]
 
-        self.my_key = self._kdf(master_secret, self.my_id, 'Key')
-        self.my_iv = self._kdf(master_secret, self.my_id, 'IV')
-        self.other_key = self._kdf(master_secret, self.other_id, 'Key')
-        self.other_iv = self._kdf(master_secret, self.other_id, 'IV')
+        self.my_key = self._kdf(data['secret'], self.my_id, 'Key')
+        self.my_iv = self._kdf(data['secret'], self.my_id, 'IV')
+        self.other_key = self._kdf(data['secret'], self.other_id, 'Key')
+        self.other_iv = self._kdf(data['secret'], self.other_id, 'IV')
 
         try:
-            sequence = data('sequence')
+            sequence = json.load(open(os.path.join(self.basedir, 'sequence.json')))
         except FileNotFoundError:
             self.my_sequence_number = 0
             self.other_replay_window = SimpleReplayWindow([])
@@ -422,9 +436,9 @@ class FilesystemSecurityContext(SecurityContext):
         os.makedirs(basedir)
         with open(os.path.join(basedir, 'settings.json'), 'w') as settingsfile:
             settingsfile.write("{\n"
-                    '  "cid": "%s",\n\n'
-                    '  "sender-id": "00",\n'
-                    '  "recipient-id": "01",\n'
+                    '  "cid_hex": "%s",\n\n'
+                    '  "sender-id_hex": "00",\n'
+                    '  "recipient-id_hex": "01",\n'
                     '  "algorithm": "AES-CCM-64-64-128",\n'
                     '  "kdf-hashfun": "sha256"\n'
                     '}'%binascii.hexlify(cid).decode('ascii'))

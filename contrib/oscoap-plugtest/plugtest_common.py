@@ -19,14 +19,14 @@ def get_security_context(testno, role):
         # from this data
         if testno == 10 and role == 'sender':
             assert settingsdata['sender-id'] == '636C69656E74'
-            settingsdata['sender-id'] = '116C69656E74'
+            settingsdata['sender-id_hex'] = '116C69656E74'
         if testno == 13 and role == 'sender':
-            settingsdata['recipient-id'] = '116572766572'
+            settingsdata['recipient-id_hex'] = '116572766572'
 
         json.dump(settingsdata, out)
     sequence = {
-            "used": {(settingsdata['recipient-id'] if role == 'recipient' else settingsdata['sender-id']).lower(): testno},
-            "seen": {(settingsdata['sender-id'] if role == 'recipient' else settingsdata['recipient-id']).lower(): list(range(testno))}
+            "used": {(settingsdata['recipient-id_hex'] if role == 'recipient' else settingsdata['sender-id_hex']).lower(): testno},
+            "seen": {(settingsdata['sender-id_hex'] if role == 'recipient' else settingsdata['recipient-id_hex']).lower(): list(range(testno))}
         }
     with open(os.path.join(contextcopy, 'sequence.json'), 'w') as out:
         if testno == 14 and role == 'sender':
