@@ -129,7 +129,7 @@ class SecurityContext:
                 6: partial_iv.lstrip(b'\0'),
                 }
         if inner_message.code.is_request():
-            protected[4] = self.cid # the kid
+            protected[4] = self.my_id
 
         unprotected = {}
 
@@ -173,8 +173,8 @@ class SecurityContext:
             raise ProtectionInvalid("No serial number provided")
 
         if request_partiv is None:
-            if protected.get(4, None) != self.cid:
-                raise ProtectionInvalid("Protected CID does not match")
+            if protected.get(4, None) != self.other_id:
+                raise ProtectionInvalid("Protected recipient ID does not match")
         else:
             # FIXME: is it ok to be present, and if yes, do i need to check it?
             if 4 in protected:
@@ -348,7 +348,6 @@ class FilesystemSecurityContext(SecurityContext):
 
                 data[key] = value
 
-        self.cid = data['cid']
         self.algorithm = algorithms[data.get('algorithm', 'AES-CCM-64-64-128')]
         self.hashfun = hashfunctions[data.get('kdf-hashfun', 'sha256')]
 
@@ -424,10 +423,6 @@ class FilesystemSecurityContext(SecurityContext):
         that the generated context can't be used immediately but first needs to
         be copied to another party and then can be opened in either the sender
         or the recipient role."""
-        # *Probably*, regular random would be sufficient, because cid is not
-        # critical and the master secret is fed through HMAC, but I prefer to
-        # err on the side of caution here
-        cid = secrets.token_bytes(nbytes=8)
         # shorter would probably be OK too (that token might be suitable to
         # even skip extraction), but for the purpose of generating conformant
         # example contexts.
@@ -436,12 +431,11 @@ class FilesystemSecurityContext(SecurityContext):
         os.makedirs(basedir)
         with open(os.path.join(basedir, 'settings.json'), 'w') as settingsfile:
             settingsfile.write("{\n"
-                    '  "cid_hex": "%s",\n\n'
                     '  "sender-id_hex": "00",\n'
                     '  "recipient-id_hex": "01",\n'
                     '  "algorithm": "AES-CCM-64-64-128",\n'
                     '  "kdf-hashfun": "sha256"\n'
-                    '}'%binascii.hexlify(cid).decode('ascii'))
+                    '}')
 
         # atomicity is not really required as this is a new directory, but the
         # readable-by-us-only property is easily achieved with mkstemp
@@ -461,8 +455,7 @@ def verify_start(message):
 
     try:
         # FIXME raise on duplicate key
-        cid = protected[4]
+        return protected[4]
     except KeyError:
         raise NotAProtectedMessage("No CID present")
 
-    return (cid, None)

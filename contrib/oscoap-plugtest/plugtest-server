@@ -79,7 +79,7 @@ class SeqnoManager(resource.Resource):
             raise aiocoap.error.BadRequest("Only numeric values are accepted.")
 
         new_context = get_security_context(number, 'recipient')
-        self.contexts[new_context.cid] = new_context
+        self.contexts[new_context.other_id] = new_context
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
@@ -90,7 +90,7 @@ class PlugtestSite(resource.Site):
         # by now, the testno here should only be used to initialize the sequence numbers
         regular_context = get_security_context(1, 'recipient')
 
-        self.contexts = {c.cid: c for c in [regular_context, ]}
+        self.contexts = {c.other_id: c for c in [regular_context, ]}
 
         self.add_resource(('.well-known', 'core'), resource.WKCResource(self.get_resources_as_linkheader))
         self.add_resource(('change-tid',), HelloResource())
@@ -106,7 +106,7 @@ class PlugtestSite(resource.Site):
     # Most of this is copied from server-oscoap, and needs yet to move into the library
     async def render(self, request):
         try:
-            cid, sid = oscoap.verify_start(request)
+            recipient_id = oscoap.verify_start(request)
         except oscoap.NotAProtectedMessage:
             if request.opt.uri_path in self.whitelist:
                 return await super().render(request)
@@ -116,7 +116,7 @@ class PlugtestSite(resource.Site):
         # right now we'll rely on the sid to match, especially as it's not sent
         # unconditionally anyway
         try:
-            sc = self.contexts[cid]
+            sc = self.contexts[recipient_id]
         except KeyError:
             raise PleaseUseOscoap() # may we disclose the reason?
 
