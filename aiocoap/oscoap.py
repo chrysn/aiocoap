@@ -357,10 +357,13 @@ class FilesystemSecurityContext(SecurityContext):
         self.my_id = {'sender': sender_id, 'recipient': recipient_id}[my_role]
         self.other_id = {'sender': recipient_id, 'recipient': sender_id}[my_role]
 
-        self.my_key = self._kdf(data['secret'], self.my_id, 'Key')
-        self.my_iv = self._kdf(data['secret'], self.my_id, 'IV')
-        self.other_key = self._kdf(data['secret'], self.other_id, 'Key')
-        self.other_iv = self._kdf(data['secret'], self.other_id, 'IV')
+        master_secret = data['secret']
+        master_salt = data.get('salt', b'')
+
+        self.my_key = self._kdf(master_secret, master_salt, self.my_id, 'Key')
+        self.my_iv = self._kdf(master_secret, master_salt, self.my_id, 'IV')
+        self.other_key = self._kdf(master_secret, master_salt, self.other_id, 'Key')
+        self.other_iv = self._kdf(master_secret, master_salt, self.other_id, 'IV')
 
         try:
             sequence = json.load(open(os.path.join(self.basedir, 'sequence.json')))
@@ -377,7 +380,7 @@ class FilesystemSecurityContext(SecurityContext):
                 warnings.warn("Sequence files shared between roles are "
                         "currently not supported.")
 
-    def _kdf(self, master_secret, role_id, out_type):
+    def _kdf(self, master_secret, master_salt, role_id, out_type):
         out_bytes = {'Key': self.algorithm.key_bytes, 'IV': self.algorithm.iv_bytes}[out_type]
 
         info = cbor.dumps([
@@ -387,9 +390,7 @@ class FilesystemSecurityContext(SecurityContext):
             out_type,
             out_bytes * 8
             ])
-        # salt being null sequence is already the default of hkdf, no need to
-        # be explicit again
-        extracted = hkdf.hkdf_extract(None, master_secret, hash=self.hashfun)
+        extracted = hkdf.hkdf_extract(master_salt, master_secret, hash=self.hashfun)
         expanded = hkdf.hkdf_expand(extracted, info=info, hash=self.hashfun,
                 length=out_bytes)
         return expanded
