@@ -384,11 +384,10 @@ class FilesystemSecurityContext(SecurityContext):
         out_bytes = {'Key': self.algorithm.key_bytes, 'IV': self.algorithm.iv_bytes}[out_type]
 
         info = cbor.dumps([
-            self.cid,
             role_id,
             self.algorithm.value,
             out_type,
-            out_bytes * 8
+            out_bytes
             ])
         extracted = hkdf.hkdf_extract(master_salt, master_secret, hash=self.hashfun)
         expanded = hkdf.hkdf_expand(extracted, info=info, hash=self.hashfun,
