@@ -65,7 +65,7 @@ class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
         except aiocoap.util.crypto.InvalidAEAD:
             raise ProtectionInvalid("Tag invalid")
 
-    max_seqno = property(lambda self: 2**(8 * self.iv_bytes) - 1)
+    max_seqno = property(lambda self: 2**(min(8 * self.iv_bytes, 56) - 1) - 1)
 
 class AES_CCM_64_64_128(AES_CCM):
     # from draft-ietf-cose-msg-24 and draft-ietf-core-object-security 3.2.1
