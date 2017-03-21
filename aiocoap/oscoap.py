@@ -123,13 +123,13 @@ class SecurityContext:
 
         seqno = self.new_sequence_number()
         partial_iv = binascii.unhexlify(("%%0%dx" % (2 * self.algorithm.iv_bytes)) % seqno)
-        iv = _xor_bytes(self.my_iv, partial_iv)
+        iv = _xor_bytes(self.sender_iv, partial_iv)
 
         protected = {
                 6: partial_iv.lstrip(b'\0'),
                 }
         if inner_message.code.is_request():
-            protected[4] = self.my_id
+            protected[4] = self.sender_id
 
         unprotected = {}
 
@@ -137,7 +137,7 @@ class SecurityContext:
         protected_serialized = cbor.dumps(protected)
         enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, True, request_partiv)]
         aad = cbor.dumps(enc_structure)
-        key = self.my_key
+        key = self.sender_key
 
         plaintext = inner_message.opt.encode()
         if inner_message.payload:
@@ -173,7 +173,7 @@ class SecurityContext:
             raise ProtectionInvalid("No serial number provided")
 
         if request_partiv is None:
-            if protected.get(4, None) != self.other_id:
+            if protected.get(4, None) != self.recipient_id:
                 raise ProtectionInvalid("Protected recipient ID does not match")
         else:
             # FIXME: is it ok to be present, and if yes, do i need to check it?
@@ -187,21 +187,21 @@ class SecurityContext:
         if len(ciphertext) < self.algorithm.tag_bytes:
             raise ProtectionInvalid("Ciphertext shorter than tag length")
 
-        if not self.other_replay_window.is_valid(seqno):
+        if not self.recipient_replay_window.is_valid(seqno):
             raise ProtectionInvalid("Sequence number was re-used")
 
         tag = ciphertext[-self.algorithm.tag_bytes:]
         ciphertext = ciphertext[:-self.algorithm.tag_bytes]
 
         partial_iv = binascii.unhexlify("%014x"%seqno)
-        iv = _xor_bytes(self.other_iv, partial_iv)
+        iv = _xor_bytes(self.recipient_iv, partial_iv)
 
         enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, False, request_partiv)]
         aad = cbor.dumps(enc_structure)
 
-        plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.other_key, iv)
+        plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.recipient_key, iv)
 
-        self.other_replay_window.strike_out(seqno)
+        self.recipient_replay_window.strike_out(seqno)
 
         # FIXME add options from unprotected
 
@@ -235,10 +235,10 @@ class SecurityContext:
     # sequence number handling
 
     def new_sequence_number(self):
-        retval = self.my_sequence_number
+        retval = self.sender_sequence_number
         if retval > self.algorithm.max_seqno:
             raise ValueError("Sequence number too large, context is exhausted.")
-        self.my_sequence_number += 1
+        self.sender_sequence_number += 1
         # FIXME maybe _store now?
         return retval
 
@@ -304,16 +304,25 @@ class FilesystemSecurityContext(SecurityContext):
     """Security context stored in a directory as distinct files containing
     containing
 
-    * Master secret, master salt, the IDs of the participants, and optionally
-      algorithm, the KDF hash function, and replay window size (settings.json
-      and secrets.json, where the latter is typically readable only for the
-      user)
+    * Master secret, master salt, the sender IDs of the participants, and
+      optionally algorithm, the KDF hash function, and replay window size
+      (settings.json and secrets.json, where the latter is typically readable
+      only for the user)
     * sequence numbers and replay windows (sequence.json, the only file the
       process needs write access to)
 
     The static parameters can all either be placed in settings.json or
     secrets.json, but must not be present in both; the presence of either file
     is sufficient.
+
+    The static files are phrased in a way that allows using the same files for
+    server and client; only by passing "client" or "server" as role parameter
+    at load time, the IDs are are assigned to the context as sender or
+    recipient ID. (The sequence number file is set up in a similar way in
+    preparation for multicast operation; but is not yet usable from a directory
+    shared between server and client; when multicast is actually explored, the
+    sequence file might be renamed to contain the sender ID for shared use of a
+    directory).
 
     Note that the sequence number file is updated in an atomic fashion which
     requires file creation privileges in the directory. If privilege separation
@@ -353,28 +362,34 @@ class FilesystemSecurityContext(SecurityContext):
 
         sender_id = data.get('sender-id', b'\x00')
         recipient_id = data.get('recipient-id', b'\x01')
-        self.my_id = {'sender': sender_id, 'recipient': recipient_id}[my_role]
-        self.other_id = {'sender': recipient_id, 'recipient': sender_id}[my_role]
+        if my_role == 'server':
+            self.sender_id = data['server-sender-id']
+            self.recipient_id = data['client-sender-id']
+        elif my_role == 'client':
+            self.sender_id = data['client-sender-id']
+            self.recipient_id = data['server-sender-id']
+        else:
+            raise ValueError("Unknown role")
 
         master_secret = data['secret']
         master_salt = data.get('salt', b'')
 
-        self.my_key = self._kdf(master_secret, master_salt, self.my_id, 'Key')
-        self.my_iv = self._kdf(master_secret, master_salt, self.my_id, 'IV')
-        self.other_key = self._kdf(master_secret, master_salt, self.other_id, 'Key')
-        self.other_iv = self._kdf(master_secret, master_salt, self.other_id, 'IV')
+        self.sender_key = self._kdf(master_secret, master_salt, self.sender_id, 'Key')
+        self.sender_iv = self._kdf(master_secret, master_salt, self.sender_id, 'IV')
+        self.recipient_key = self._kdf(master_secret, master_salt, self.recipient_id, 'Key')
+        self.recipient_iv = self._kdf(master_secret, master_salt, self.recipient_id, 'IV')
 
         try:
             sequence = json.load(open(os.path.join(self.basedir, 'sequence.json')))
         except FileNotFoundError:
-            self.my_sequence_number = 0
-            self.other_replay_window = SimpleReplayWindow([])
+            self.sender_sequence_number = 0
+            self.recipient_replay_window = SimpleReplayWindow([])
         else:
-            my_hex = binascii.hexlify(self.my_id).decode('ascii')
-            other_hex = binascii.hexlify(self.other_id).decode('ascii')
-            self.my_sequence_number = int(sequence['used'][my_hex])
-            self.other_replay_window = SimpleReplayWindow([int(x) for x in
-                sequence['seen'][other_hex]])
+            sender_hex = binascii.hexlify(self.sender_id).decode('ascii')
+            recipient_hex = binascii.hexlify(self.recipient_id).decode('ascii')
+            self.sender_sequence_number = int(sequence['used'][sender_hex])
+            self.recipient_replay_window = SimpleReplayWindow([int(x) for x in
+                sequence['seen'][recipient_hex]])
             if len(sequence['used']) != 1 or len(sequence['seen']) != 1:
                 warnings.warn("Sequence files shared between roles are "
                         "currently not supported.")
@@ -395,22 +410,22 @@ class FilesystemSecurityContext(SecurityContext):
 
     # FIXME when/how will this be called?
     #
-    # it might be practical to make my_sequence_number and other_replay_window
+    # it might be practical to make sender_sequence_number and recipient_replay_window
     # properties private, and provide access to them in a way that triggers
     # store or at least a delayed store.
     def _store(self):
         tmphand, tmpnam = tempfile.mkstemp(dir=self.basedir,
                 prefix='.sequence-', suffix='.json', text=True)
 
-        my_hex = binascii.hexlify(self.my_id).decode('ascii')
-        other_hex = binascii.hexlify(self.other_id).decode('ascii')
+        sender_hex = binascii.hexlify(self.sender_id).decode('ascii')
+        recipient_hex = binascii.hexlify(self.recipient_id).decode('ascii')
 
         with os.fdopen(tmphand, 'w') as tmpfile:
             tmpfile.write('{\n'
                 '  "used": {"%s": %d},\n'
                 '  "seen": {"%s": %s}\n}'%(
-                my_hex, self.my_sequence_number,
-                other_hex, self.other_replay_window.seen))
+                sender_hex, self.sender_sequence_number,
+                recipient_hex, self.recipient_replay_window.seen))
 
         os.rename(tmpnam, os.path.join(self.basedir, 'sequence.json'))
 

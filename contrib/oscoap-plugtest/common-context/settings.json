@@ -1,7 +1,6 @@
 {
-  "cid_hex": "4B65792330",
   "algorithm": "AES-CCM-64-64-128",
 
-  "sender-id_hex": "636C69656E74",
-  "recipient-id_hex": "736572766572"
+  "client-sender-id_hex": "636C69656E74",
+  "server-sender-id_hex": "736572766572"
 }
