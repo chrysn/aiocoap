@@ -6,6 +6,10 @@ rough familiarity with what CoAP is, and a working knowledge of Python
 development, but introduce you to asynchronous programming and explain some
 CoAP concepts along with the aiocoap API.
 
+If you are already familiar with asynchronous programming and/or some other
+concepts involved, or if you prefer reading code to reading tutorials, you
+might want to go after the :doc:`examples` instead.
+
 First, some tools
 -----------------
 
