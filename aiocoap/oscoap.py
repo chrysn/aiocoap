@@ -26,6 +26,8 @@ import aiocoap.util.crypto
 import hkdf
 import cbor
 
+USE_COMPRESSION = True
+
 class NotAProtectedMessage(ValueError):
     """Raised when verification is attempted on a non-OSCOAP message"""
 
@@ -153,8 +155,21 @@ class SecurityContext:
 
         ciphertext, tag = self.algorithm.encrypt(plaintext, aad, key, iv)
 
-        cose_encrypt0 = [protected_serialized, unprotected, ciphertext + tag]
-        oscoap_data = cbor.dumps(cose_encrypt0)
+        if USE_COMPRESSION:
+            if sorted(protected.keys()) == [4, 6]:
+                shortarray = [protected[6], protected[4], ciphertext + tag]
+                shortarray = cbor.dumps(shortarray)
+                if shortarray[0] & 0b11111000 != 0b10000000 or \
+                        shortarray[1] & 0b11000000 != 0b01000000:
+                    raise RuntimeError("Protection produced a message that has uncmpressable lengths")
+                oscoap_data = bytes((((shortarray[0] & 0b111) << 3) | (shortarray[1] & 0b111),)) + shortarray[2:]
+            elif protected == {}:
+                oscoap_data = ciphertext + tag
+            else:
+                raise RuntimeError("Protection produced a message that has uncompressable fields.")
+        else:
+            cose_encrypt0 = [protected_serialized, unprotected, ciphertext + tag]
+            oscoap_data = cbor.dumps(cose_encrypt0)
 
         if inner_message.code.can_have_payload():
             outer_message.opt.object_security = b''
@@ -166,7 +181,7 @@ class SecurityContext:
         return outer_message, partial_iv
 
     def unprotect(self, protected_message, request_partiv=None):
-        protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message)
+        protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message, is_request=request_partiv == None)
 
         if unprotected:
             raise ProtectionInvalid("The unprotected field is not empty")
@@ -223,26 +238,50 @@ class SecurityContext:
         return unprotected_message, partial_iv
 
     @classmethod
-    def _extract_encrypted0(cls, message):
+    def _extract_encrypted0(cls, message, is_request):
         if message.opt.object_security is None:
             raise NotAProtectedMessage("No Object-Security option present")
 
+        # FIXME it's an error to have this in the wrong place
         serialized = message.opt.object_security or message.payload
 
-        try:
-            encrypted0 = cbor.loads(serialized)
-        except ValueError:
-            raise ProtectionInvalid("Error parsing the CBOR payload")
+        if USE_COMPRESSION:
+            if is_request:
+                # FIXME this will need a little reshaping when dealing with
+                # observe responses, which use the same compression but a
+                # 2-long array
+                if serialized[0] & 0b11000000 != 0:
+                    raise ProtectionInvalid("Message does not look like a compressed request")
+                serialized = bytes((
+                    0b10000000 | ((serialized[0] & 0b00111000) >> 3),
+                    0b01000000 | (serialized[0] & 0b00000111),
+                    )) + serialized[1:]
+                try:
+                    shortarray = cbor.loads(serialized)
+                except ValueError:
+                    raise ProtectionInvalid("Error parsing the compressed CBOR payload")
+                if not isinstance(shortarray, list) or len(shortarray) != 3 or \
+                        not all(isinstance(x, bytes) for x in shortarray):
+                    raise ProtectionInvalid("Compressed CBOR payload has wrong shape")
+                protected = {4: shortarray[1], 6: shortarray[0]}
+                return cbor.dumps(protected), protected, {}, shortarray[2]
+            else:
+                return cbor.dumps({}), {}, {}, serialized
+        else:
+            try:
+                encrypted0 = cbor.loads(serialized)
+            except ValueError:
+                raise ProtectionInvalid("Error parsing the CBOR payload")
 
-        if not isinstance(encrypted0, list) or len(encrypted0) != 3:
-            raise ProtectionInvalid("CBOR payload is not structured like Encrypt0")
+            if not isinstance(encrypted0, list) or len(encrypted0) != 3:
+                raise ProtectionInvalid("CBOR payload is not structured like Encrypt0")
 
-        try:
-            protected = cbor.loads(encrypted0[0])
-        except ValueError:
-            raise ProtectionInvalid("Error parsing the CBOR protected data")
+            try:
+                protected = cbor.loads(encrypted0[0])
+            except ValueError:
+                raise ProtectionInvalid("Error parsing the CBOR protected data")
 
-        return encrypted0[0], protected, encrypted0[1], encrypted0[2]
+            return encrypted0[0], protected, encrypted0[1], encrypted0[2]
 
     # sequence number handling
 
@@ -476,9 +515,13 @@ class FilesystemSecurityContext(SecurityContext):
 
 def verify_start(message):
     """Extract a CID from a message for the verifier to then pick a security
-    context to actually verify the message. Raises Not"""
+    context to actually verify the message.
 
-    _, protected, _, _ = SecurityContext._extract_encrypted0(message)
+    Call this only requests; for responses, you'll have to know the security
+    context anyway, and there is usually no information to be gained (and
+    things would even fail completely in compressed messages)."""
+
+    _, protected, _, _ = SecurityContext._extract_encrypted0(message, is_request=True)
 
     try:
         # FIXME raise on duplicate key
