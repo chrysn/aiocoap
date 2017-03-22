@@ -39,8 +39,7 @@ This library supports the following standards in full or partially:
   that's neede on the library side.
 * draft-ietf-core-resource-directory-10_: A standalone resource directory
   server is provided. It lacks support for groups, PATCHes to endpoint
-  locations, DNS-SD mapping and security considerations, and is generally
-  rather experimental.
+  locations and security considerations, and is generally rather experimental.
 * draft-ietf-core-object-security-02_ (OSCOAP): Infrastructure for supporting
   it is in place (lacking observe and inner-blockwise support), but no simple
   way exists yet for launching protected servers or requests yet.
