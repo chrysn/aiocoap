@@ -31,7 +31,7 @@ class PlugtestClientProgram:
         self.host = opts.host
 
         # FIXME deduplicate from server when i see what i need to do for non-correct use
-        self.regular_context = get_security_context(opts.testno, 'sender')
+        self.regular_context = get_security_context(opts.testno, 'client')
 
         self.ctx = await Context.create_client_context()
 
