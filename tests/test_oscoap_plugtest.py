@@ -83,6 +83,7 @@ class TestOSCOAPPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
         self.assertNoFaillines(out, '"failed" showed up in plugtest client stdout')
         self.assertNoFaillines(err, '"failed" showed up in plugtest client stderr')
+        self.assertEqual(proc.returncode, 0, 'Plugtest client return non-zero exit state')
 
 for x in range(1, 17):
     test = lambda self, x=x: self.loop.run_until_complete(self._test_plugtestclient(x))
