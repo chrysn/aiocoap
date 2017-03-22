@@ -136,7 +136,7 @@ class SecurityContext:
 
             partial_iv = request_partiv
             partial_iv_short = partial_iv.lstrip(b"\x00")
-            iv = _flip_first_bit(_xor_bytes(partial_iv, self.recipient_iv)) # ODD use of recipient_iv
+            iv = _flip_first_bit(_xor_bytes(partial_iv, self.sender_iv))
             protected = {}
 
         unprotected = {}
@@ -191,7 +191,7 @@ class SecurityContext:
         if request_partiv is not None:
             partial_iv_short = request_partiv.lstrip(b"\x00")
             assert 6 not in protected, "Explicit partial IV in response (not implemented)"
-            iv = _flip_first_bit(_xor_bytes(request_partiv, self.sender_iv)) # ODD use of sender_iv
+            iv = _flip_first_bit(_xor_bytes(request_partiv, self.recipient_iv))
             if protected.pop(4, self.recipient_id) != self.recipient_id:
                 # with compression, this can probably not happen any more anyway
                 raise ProtectionInvalid("Explicit sender ID does not match")
