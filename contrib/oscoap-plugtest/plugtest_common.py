@@ -27,7 +27,7 @@ def get_security_context(testno, role):
         json.dump(settingsdata, out)
     sequence = {
             "used": {(settingsdata['server-sender-id_hex'] if role == 'server' else settingsdata['client-sender-id_hex']).lower(): testno},
-            "seen": {(settingsdata['client-sender-id_hex'] if role == 'server' else settingsdata['server-sender-id_hex']).lower(): list(range(testno))}
+            "seen": {(settingsdata['client-sender-id_hex'] if role == 'server' else settingsdata['server-sender-id_hex']).lower(): list([testno - 1])}
         }
     with open(os.path.join(contextcopy, 'sequence.json'), 'w') as out:
         if role == 'client':
