@@ -41,6 +41,9 @@ This library supports the following standards in full or partially:
   server is provided. It lacks support for groups, PATCHes to endpoint
   locations, DNS-SD mapping and security considerations, and is generally
   rather experimental.
+* draft-ietf-core-object-security-02_ (OSCOAP): Infrastructure for supporting
+  it is in place (lacking observe and inner-blockwise support), but no simple
+  way exists yet for launching protected servers or requests yet.
 
 If something described by one of the standards but not implemented, it is
 considered a bug; please file at the `github issue tracker`_. (If it's not on
@@ -51,6 +54,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC7959: https://tools.ietf.org/html/rfc7959
 .. _draft-ietf-core-etch-04: https://tools.ietf.org/html/draft-ietf-core-etch-04
 .. _draft-ietf-core-resource-directory-10: https://tools.ietf.org/html/draft-ietf-core-resource-directory-10
+.. _draft-ietf-core-object-security-02: https://tools.ietf.org/html/draft-ietf-core-object-security-02
 
 Dependencies
 ------------
