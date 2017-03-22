@@ -140,7 +140,7 @@ class PlugtestSite(resource.Site):
         if unprotected.opt.uri_path == ('change-tid',):
             # it seems this is the easiest way to tamper with the Tid as
             # requested for test 16.
-            seqno = seqno + b'?'
+            seqno = bytes(255 - x for x in seqno)
 
         # FIXME the render doesn't provide a way to provide context in the
         # sense of "who is the user"; obviously, the render interface needs
