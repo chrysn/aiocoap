@@ -17,11 +17,12 @@ def get_security_context(testno, role):
     with open(os.path.join(contextcopy, 'settings.json'), 'w') as out:
         # this needs to be messed with early, as key properties are derived
         # from this data
-        if testno == 10 and role == 'client':
-            assert settingsdata['client-sender-id'] == '636C69656E74'
-            settingsdata['client-sender-id_hex'] = '116C69656E74'
-        if testno == 13 and role == 'client':
-            settingsdata['server-sender-id_hex'] = '116572766572'
+        if role == 'client':
+            if testno == 10:
+                assert settingsdata['client-sender-id'] == '636C69656E74'
+                settingsdata['client-sender-id_hex'] = '116C69656E74'
+            if testno == 13:
+                settingsdata['server-sender-id_hex'] = '116572766572'
 
         json.dump(settingsdata, out)
     sequence = {
@@ -29,26 +30,28 @@ def get_security_context(testno, role):
             "seen": {(settingsdata['client-sender-id_hex'] if role == 'server' else settingsdata['server-sender-id_hex']).lower(): list(range(testno))}
         }
     with open(os.path.join(contextcopy, 'sequence.json'), 'w') as out:
-        if testno == 14 and role == 'client':
-            sequence["used"][list(sequence["used"].keys())[0]] = 0;
-        if testno == 15 and role == 'client':
-            sequence["seen"][list(sequence["seen"].keys())[0]] = [65];
+        if role == 'client':
+            if testno == 14:
+                sequence["used"][list(sequence["used"].keys())[0]] = 0;
+            if testno == 15:
+                sequence["seen"][list(sequence["seen"].keys())[0]] = [65];
         json.dump(sequence, out)
     print("Temporary context with seqno %d copied to %s"%(testno, contextcopy))
     secctx = oscoap.FilesystemSecurityContext(contextcopy, role=role)
 
     # this needs to be messed with late, as it is not explicit in the context
     # files
-    if testno == 8 and role == 'client':
-        secctx.sender_key = bytes((11,)) + secctx.sender_key[1:]
-    if testno == 9 and role == 'client':
-        assert hexlify(secctx.sender_iv) == b'e828a479d088c4'
-        secctx.sender_iv = unhexlify(b'1128a479d088c4')
-    if testno == 11 and role == 'client':
-        secctx.recipient_key = bytes((11,)) + secctx.recipient_key[1:]
-    if testno == 12 and role == 'client':
-        assert hexlify(secctx.recipient_iv) == b'58f91a5cdff4f5'
-        secctx.recipient_iv = unhexlify(b'11f91a5cdff4f5')
+    if role == 'client':
+        if testno == 8:
+            secctx.sender_key = bytes((11,)) + secctx.sender_key[1:]
+        if testno == 9:
+            assert hexlify(secctx.sender_iv) == b'e828a479d088c4'
+            secctx.sender_iv = unhexlify(b'1128a479d088c4')
+        if testno == 11:
+            secctx.recipient_key = bytes((11,)) + secctx.recipient_key[1:]
+        if testno == 12:
+            assert hexlify(secctx.recipient_iv) == b'58f91a5cdff4f5'
+            secctx.recipient_iv = unhexlify(b'11f91a5cdff4f5')
 
 
     original_extract_external_aad = secctx._extract_external_aad
