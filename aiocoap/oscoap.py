@@ -38,6 +38,10 @@ def _xor_bytes(a, b):
     # that possibly needs xor'ing as long integers with an associated length?
     return bytes(_a ^ _b for (_a, _b) in zip(a, b))
 
+def _flip_first_bit(a):
+    """Flip the first bit in a hex string"""
+    return _xor_bytes(a, b"\x80" + b"\x00" * (len(a) - 1))
+
 class Algorithm(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def encrypt(cls, plaintext, aad, key, iv):
@@ -87,23 +91,15 @@ class SecurityContext:
 
     # message processing
 
-    def _extract_external_aad(self, message, i_am_sender, request_partiv=None):
+    def _extract_external_aad(self, message, request_kid, request_seq):
         external_aad = [
                 1, # ver
                 message.code,
+                b"", # FIXME that's actually options
                 self.algorithm.value,
+                request_kid,
+                request_seq
                 ]
-        if message.code.is_request():
-            external_aad.extend([
-                # FIXME blockwise
-                ])
-        else:
-            external_aad.extend([
-                self.cid,
-                self.other_id if i_am_sender else self.my_id,
-                request_partiv
-                # FIXME blockwise
-                ])
 
         external_aad = cbor.dumps(external_aad)
 
@@ -121,21 +117,31 @@ class SecurityContext:
         # FIXME any options to move out?
         inner_message = message
 
-        seqno = self.new_sequence_number()
-        partial_iv = binascii.unhexlify(("%%0%dx" % (2 * self.algorithm.iv_bytes)) % seqno)
-        iv = _xor_bytes(self.sender_iv, partial_iv)
+        if request_partiv is None:
+            assert inner_message.code.is_request(), "Trying to protect a response without request IV (possibly this is an observation; that's not supported in this OSCOAP implementation yet)"
 
-        protected = {
-                6: partial_iv.lstrip(b'\0'),
-                }
-        if inner_message.code.is_request():
-            protected[4] = self.sender_id
+            seqno = self.new_sequence_number()
+            partial_iv = binascii.unhexlify(("%%0%dx" % (2 * self.algorithm.iv_bytes)) % seqno)
+            partial_iv_short = partial_iv.lstrip(b'\0')
+            iv = _xor_bytes(self.sender_iv, partial_iv)
+
+            protected = {
+                    6: partial_iv_short,
+                    4: self.sender_id,
+                    }
+        else:
+            assert inner_message.code.is_response()
+
+            partial_iv = request_partiv
+            partial_iv_short = partial_iv.lstrip(b"\x00")
+            iv = _flip_first_bit(_xor_bytes(partial_iv, self.recipient_iv)) # ODD use of recipient_iv
+            protected = {}
 
         unprotected = {}
 
         # FIXME verify that cbor.dumps follows cose-msg-24 section 14
         protected_serialized = cbor.dumps(protected)
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, True, request_partiv)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, self.sender_id, partial_iv_short)]
         aad = cbor.dumps(enc_structure)
         key = self.sender_key
 
@@ -157,7 +163,7 @@ class SecurityContext:
             outer_message.opt.object_security = oscoap_data
 
         # FIXME go through options section
-        return outer_message, protected[6]
+        return outer_message, partial_iv
 
     def unprotect(self, protected_message, request_partiv=None):
         protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message)
@@ -165,50 +171,56 @@ class SecurityContext:
         if unprotected:
             raise ProtectionInvalid("The unprotected field is not empty")
 
-        # FIXME check for duplicate keys
-        try:
-            hexlified = binascii.hexlify(protected[6])
-            seqno = int(hexlified, 16) if hexlified else 0
-        except (TypeError, KeyError):
-            raise ProtectionInvalid("No serial number provided")
+        # FIXME check for duplicate keys in protected
 
-        if request_partiv is None:
-            if protected.get(4, None) != self.recipient_id:
-                raise ProtectionInvalid("Protected recipient ID does not match")
+        if request_partiv is not None:
+            partial_iv_short = request_partiv.lstrip(b"\x00")
+            assert 6 not in protected, "Explicit partial IV in response (not implemented)"
+            iv = _flip_first_bit(_xor_bytes(request_partiv, self.sender_iv)) # ODD use of sender_iv
+            if protected.pop(4, self.recipient_id) != self.recipient_id:
+                # with compression, this can probably not happen any more anyway
+                raise ProtectionInvalid("Explicit sender ID does not match")
+            seqno = None # sentinel for not striking out anyting
+            partial_iv = None # only for being returned
         else:
-            # FIXME: is it ok to be present, and if yes, do i need to check it?
-            if 4 in protected:
-                raise ProtectionInvalid("CID in response")
+            try:
+                partial_iv_short = protected[6]
+                hexlified = binascii.hexlify(partial_iv_short)
+                seqno = int(hexlified, 16) if hexlified else 0
+            except (TypeError, KeyError):
+                raise ProtectionInvalid("No serial number provided")
 
-        # FIXME is it an error for additional data to be present?
+            if protected.pop(4, self.recipient_id) != self.recipient_id:
+                raise ProtectionInvalid("Protected recipient ID does not match")
 
-        # FIXME check sid if present
+            if not self.recipient_replay_window.is_valid(seqno):
+                raise ProtectionInvalid("Sequence number was re-used")
+
+            partial_iv = binascii.unhexlify("%014x"%seqno)
+            iv = _xor_bytes(self.recipient_iv, partial_iv)
+
+        # FIXME is it an error for additional data to be present in protected?
 
         if len(ciphertext) < self.algorithm.tag_bytes:
             raise ProtectionInvalid("Ciphertext shorter than tag length")
 
-        if not self.recipient_replay_window.is_valid(seqno):
-            raise ProtectionInvalid("Sequence number was re-used")
-
         tag = ciphertext[-self.algorithm.tag_bytes:]
         ciphertext = ciphertext[:-self.algorithm.tag_bytes]
 
-        partial_iv = binascii.unhexlify("%014x"%seqno)
-        iv = _xor_bytes(self.recipient_iv, partial_iv)
-
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, False, request_partiv)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, self.recipient_id, partial_iv_short)]
         aad = cbor.dumps(enc_structure)
 
         plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.recipient_key, iv)
 
-        self.recipient_replay_window.strike_out(seqno)
+        if seqno is not None:
+            self.recipient_replay_window.strike_out(seqno)
 
         # FIXME add options from unprotected
 
         unprotected_message = aiocoap.message.Message(code=protected_message.code)
         unprotected_message.payload = unprotected_message.opt.decode(plaintext)
 
-        return unprotected_message, protected[6]
+        return unprotected_message, partial_iv
 
     @classmethod
     def _extract_encrypted0(cls, message):
