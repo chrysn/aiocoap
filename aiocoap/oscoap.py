@@ -157,12 +157,17 @@ class SecurityContext:
 
         if USE_COMPRESSION:
             if sorted(protected.keys()) == [4, 6]:
-                shortarray = [protected[6], protected[4], ciphertext + tag]
+                shortarray = [protected[6], protected[4]]
                 shortarray = cbor.dumps(shortarray)
-                if shortarray[0] & 0b11111000 != 0b10000000 or \
+                # we're using a shortarray shortened by one because that makes
+                # it easier to then "exclude [...] the type and length for the
+                # ciphertext"; the +1 on shortarray[0] makes it appear like a
+                # 3-long array again.
+                if (shortarray[0] + 1) & 0b11111000 != 0b10000000 or \
                         shortarray[1] & 0b11000000 != 0b01000000:
                     raise RuntimeError("Protection produced a message that has uncmpressable lengths")
-                oscoap_data = bytes((((shortarray[0] & 0b111) << 3) | (shortarray[1] & 0b111),)) + shortarray[2:]
+                shortarray = bytes(((((shortarray[0] + 1) & 0b111) << 3) | (shortarray[1] & 0b111),)) + shortarray[2:]
+                oscoap_data = shortarray + ciphertext + tag
             elif protected == {}:
                 oscoap_data = ciphertext + tag
             else:
@@ -252,19 +257,32 @@ class SecurityContext:
                 # 2-long array
                 if serialized[0] & 0b11000000 != 0:
                     raise ProtectionInvalid("Message does not look like a compressed request")
+                # the -1 on the first fragment keeps the cbor serializer from
+                # trying to decode ciphertext field with "excluded [...] type
+                # and length"
                 serialized = bytes((
-                    0b10000000 | ((serialized[0] & 0b00111000) >> 3),
+                    0b10000000 | ((serialized[0] & 0b00111000) >> 3) - 1,
                     0b01000000 | (serialized[0] & 0b00000111),
                     )) + serialized[1:]
                 try:
                     shortarray = cbor.loads(serialized)
                 except ValueError:
                     raise ProtectionInvalid("Error parsing the compressed CBOR payload")
-                if not isinstance(shortarray, list) or len(shortarray) != 3 or \
+                if not isinstance(shortarray, list) or len(shortarray) != 2 or \
                         not all(isinstance(x, bytes) for x in shortarray):
                     raise ProtectionInvalid("Compressed CBOR payload has wrong shape")
                 protected = {4: shortarray[1], 6: shortarray[0]}
-                return cbor.dumps(protected), protected, {}, shortarray[2]
+
+                # FIXME: instead of re-encoding the array, i'd prefer cbor to
+                # have a .loads_and_remainder function
+                reencoded = cbor.dumps(shortarray)
+                if serialized[:len(reencoded)] != reencoded:
+                    # more of an assert, actually; something needs to break
+                    # badly with cbor for this to happen
+                    raise ProtectionInvalid("Failed to re-serialize compressed CBOR identically")
+                ciphertext_and_tag = serialized[len(reencoded):]
+
+                return cbor.dumps(protected), protected, {}, ciphertext_and_tag
             else:
                 return cbor.dumps({}), {}, {}, serialized
         else:
