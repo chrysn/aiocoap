@@ -148,7 +148,7 @@ class PlugtestClientProgram:
         print("Unprotected response:", unprotected_response)
         additional_verify("Delete error as expected", NOT_FOUND, unprotected_response.code)
 
-    @__implements_tests([8, 9, 10, 14])
+    @__implements_tests([8, 9, 14])
     async def test_oscoaperror_failserverside(self):
         request = Message(code=GET, uri='coap://' + self.host+ '/helloworld')
         request.opt.accept = 0
@@ -157,6 +157,24 @@ class PlugtestClientProgram:
 
         print("Violation: we should not have received a message in return")
         print("Unprotected response:", unprotected_response)
+
+    # About test 10: Originally, this should be "fail_serverside"; with draft
+    # -02, the server relies on the sender ID of the client and no context ID
+    # any more, and will treat this as an unauthorized client (ie. there's no
+    # common context), so I think a 4.01 response (which fails to unprotect) is
+    # to be expected.
+    @__implements_tests([10])
+    async def test_oscoaperror_server_wont_find_context(self):
+        request = Message(code=GET, uri='coap://' + self.host + '/helloworld')
+        request.opt.accept = 0
+
+        try:
+            unprotected_response = await self.protected_ctx.request(request).response
+        except oscoap.NotAProtectedMessage as e:
+            print("Check passed: The server responded with something unencrypted (probably 4.01). (%s)"%e)
+        else:
+            print("Violation: The validation passed.")
+            print("Unprotected response:", unprotected_response)
 
     @__implements_tests([11, 12, 13, 15, 16])
     async def test_oscoaperror_failclientside(self):
