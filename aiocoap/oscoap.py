@@ -131,6 +131,7 @@ class SecurityContext:
                     6: partial_iv_short,
                     4: self.sender_id,
                     }
+            request_kid = self.sender_id
         else:
             assert inner_message.code.is_response()
 
@@ -139,11 +140,14 @@ class SecurityContext:
             iv = _flip_first_bit(_xor_bytes(partial_iv, self.sender_iv))
             protected = {}
 
+            # FIXME: better should mirror what was used in request
+            request_kid = self.recipient_id
+
         unprotected = {}
 
         # FIXME verify that cbor.dumps follows cose-msg-24 section 14
         protected_serialized = cbor.dumps(protected)
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, self.sender_id, partial_iv_short)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, request_kid, partial_iv_short)]
         aad = cbor.dumps(enc_structure)
         key = self.sender_key
 
@@ -202,6 +206,9 @@ class SecurityContext:
                 raise ProtectionInvalid("Explicit sender ID does not match")
             seqno = None # sentinel for not striking out anyting
             partial_iv = None # only for being returned
+
+            # FIXME better mirror what was sent before
+            request_kid = self.sender_id
         else:
             try:
                 partial_iv_short = protected[6]
@@ -219,6 +226,8 @@ class SecurityContext:
             partial_iv = binascii.unhexlify("%014x"%seqno)
             iv = _xor_bytes(self.recipient_iv, partial_iv)
 
+            request_kid = self.recipient_id
+
         # FIXME is it an error for additional data to be present in protected?
 
         if len(ciphertext) < self.algorithm.tag_bytes:
@@ -227,7 +236,7 @@ class SecurityContext:
         tag = ciphertext[-self.algorithm.tag_bytes:]
         ciphertext = ciphertext[:-self.algorithm.tag_bytes]
 
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, self.recipient_id, partial_iv_short)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_kid, partial_iv_short)]
         aad = cbor.dumps(enc_structure)
 
         plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.recipient_key, iv)
