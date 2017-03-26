@@ -101,10 +101,12 @@ class ProtectedSite(resource.Site):
         self._inner_site.add_resource(path, resource)
 
     def get_resources_as_linkheader(self):
+        import link_header
+
         links = super().get_resources_as_linkheader().links
 
-        for l in self._innersite.get_resources_as_linkheader().links:
-            l['osc'] = None
+        for l in self._inner_site.get_resources_as_linkheader().links:
+            l.attr_pairs.append(('osc', None))
             links.append(l)
 
         return link_header.LinkHeader(links)

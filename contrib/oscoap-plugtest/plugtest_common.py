@@ -19,7 +19,7 @@ def get_security_context(testno, role):
         # from this data
         if role == 'client':
             if testno == 10:
-                assert settingsdata['client-sender-id'] == '636C69656E74'
+                assert settingsdata['client-sender-id_hex'] == '636C69656E74'
                 settingsdata['client-sender-id_hex'] = '116C69656E74'
             if testno == 13:
                 settingsdata['server-sender-id_hex'] = '116572766572'
@@ -45,7 +45,9 @@ def get_security_context(testno, role):
         if testno == 8:
             secctx.sender_key = bytes((11,)) + secctx.sender_key[1:]
         if testno == 9:
-            assert hexlify(secctx.sender_iv) == b'e828a479d088c4'
+            # the derived keys have changed since the plugtest specification,
+            # but the modified one is still a bad one
+            # assert hexlify(secctx.sender_iv) == b'e828a479d088c4'
             secctx.sender_iv = unhexlify(b'1128a479d088c4')
         if testno == 11:
             secctx.recipient_key = bytes((11,)) + secctx.recipient_key[1:]

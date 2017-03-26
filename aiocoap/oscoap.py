@@ -127,23 +127,27 @@ class SecurityContext:
             partial_iv_short = partial_iv.lstrip(b'\0')
             iv = _xor_bytes(self.sender_iv, partial_iv)
 
-            protected = {
+            unprotected = {
                     6: partial_iv_short,
                     4: self.sender_id,
                     }
+            request_kid = self.sender_id
         else:
             assert inner_message.code.is_response()
 
             partial_iv = request_partiv
             partial_iv_short = partial_iv.lstrip(b"\x00")
             iv = _flip_first_bit(_xor_bytes(partial_iv, self.sender_iv))
-            protected = {}
+            unprotected = {}
 
-        unprotected = {}
+            # FIXME: better should mirror what was used in request
+            request_kid = self.recipient_id
 
-        # FIXME verify that cbor.dumps follows cose-msg-24 section 14
-        protected_serialized = cbor.dumps(protected)
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, self.sender_id, partial_iv_short)]
+        protected = {}
+
+        assert protected == {}
+        protected_serialized = b'' # were it into an empty dict, it'd be the cbor dump
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, request_kid, partial_iv_short)]
         aad = cbor.dumps(enc_structure)
         key = self.sender_key
 
@@ -156,8 +160,10 @@ class SecurityContext:
         ciphertext, tag = self.algorithm.encrypt(plaintext, aad, key, iv)
 
         if USE_COMPRESSION:
-            if sorted(protected.keys()) == [4, 6]:
-                shortarray = [protected[6], protected[4]]
+            if protected:
+                raise RuntimeError("Protection produced a message that has uncompressable fields.")
+            if sorted(unprotected.keys()) == [4, 6]:
+                shortarray = [unprotected[6], unprotected[4]]
                 shortarray = cbor.dumps(shortarray)
                 # we're using a shortarray shortened by one because that makes
                 # it easier to then "exclude [...] the type and length for the
@@ -168,7 +174,7 @@ class SecurityContext:
                     raise RuntimeError("Protection produced a message that has uncmpressable lengths")
                 shortarray = bytes(((((shortarray[0] + 1) & 0b111) << 3) | (shortarray[1] & 0b111),)) + shortarray[2:]
                 oscoap_data = shortarray + ciphertext + tag
-            elif protected == {}:
+            elif unprotected == {}:
                 oscoap_data = ciphertext + tag
             else:
                 raise RuntimeError("Protection produced a message that has uncompressable fields.")
@@ -188,29 +194,32 @@ class SecurityContext:
     def unprotect(self, protected_message, request_partiv=None):
         protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message, is_request=request_partiv == None)
 
-        if unprotected:
-            raise ProtectionInvalid("The unprotected field is not empty")
+        if protected:
+            raise ProtectionInvalid("The protected field is not empty")
 
         # FIXME check for duplicate keys in protected
 
         if request_partiv is not None:
             partial_iv_short = request_partiv.lstrip(b"\x00")
-            assert 6 not in protected, "Explicit partial IV in response (not implemented)"
+            assert 6 not in unprotected, "Explicit partial IV in response (not implemented)"
             iv = _flip_first_bit(_xor_bytes(request_partiv, self.recipient_iv))
-            if protected.pop(4, self.recipient_id) != self.recipient_id:
+            if unprotected.pop(4, self.recipient_id) != self.recipient_id:
                 # with compression, this can probably not happen any more anyway
                 raise ProtectionInvalid("Explicit sender ID does not match")
             seqno = None # sentinel for not striking out anyting
             partial_iv = None # only for being returned
+
+            # FIXME better mirror what was sent before
+            request_kid = self.sender_id
         else:
             try:
-                partial_iv_short = protected[6]
+                partial_iv_short = unprotected[6]
                 hexlified = binascii.hexlify(partial_iv_short)
                 seqno = int(hexlified, 16) if hexlified else 0
             except (TypeError, KeyError):
                 raise ProtectionInvalid("No serial number provided")
 
-            if protected.pop(4, self.recipient_id) != self.recipient_id:
+            if unprotected.pop(4, self.recipient_id) != self.recipient_id:
                 raise ProtectionInvalid("Protected recipient ID does not match")
 
             if not self.recipient_replay_window.is_valid(seqno):
@@ -219,7 +228,9 @@ class SecurityContext:
             partial_iv = binascii.unhexlify("%014x"%seqno)
             iv = _xor_bytes(self.recipient_iv, partial_iv)
 
-        # FIXME is it an error for additional data to be present in protected?
+            request_kid = self.recipient_id
+
+        # FIXME is it an error for additional data to be present in unprotected?
 
         if len(ciphertext) < self.algorithm.tag_bytes:
             raise ProtectionInvalid("Ciphertext shorter than tag length")
@@ -227,7 +238,7 @@ class SecurityContext:
         tag = ciphertext[-self.algorithm.tag_bytes:]
         ciphertext = ciphertext[:-self.algorithm.tag_bytes]
 
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, self.recipient_id, partial_iv_short)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_kid, partial_iv_short)]
         aad = cbor.dumps(enc_structure)
 
         plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.recipient_key, iv)
@@ -271,7 +282,7 @@ class SecurityContext:
                 if not isinstance(shortarray, list) or len(shortarray) != 2 or \
                         not all(isinstance(x, bytes) for x in shortarray):
                     raise ProtectionInvalid("Compressed CBOR payload has wrong shape")
-                protected = {4: shortarray[1], 6: shortarray[0]}
+                unprotected = {4: shortarray[1], 6: shortarray[0]}
 
                 # FIXME: instead of re-encoding the array, i'd prefer cbor to
                 # have a .loads_and_remainder function
@@ -282,9 +293,9 @@ class SecurityContext:
                     raise ProtectionInvalid("Failed to re-serialize compressed CBOR identically")
                 ciphertext_and_tag = serialized[len(reencoded):]
 
-                return cbor.dumps(protected), protected, {}, ciphertext_and_tag
+                return b'', {}, unprotected, ciphertext_and_tag
             else:
-                return cbor.dumps({}), {}, {}, serialized
+                return b'', {}, {}, serialized
         else:
             try:
                 encrypted0 = cbor.loads(serialized)
@@ -539,11 +550,11 @@ def verify_start(message):
     context anyway, and there is usually no information to be gained (and
     things would even fail completely in compressed messages)."""
 
-    _, protected, _, _ = SecurityContext._extract_encrypted0(message, is_request=True)
+    _, _, unprotected, _ = SecurityContext._extract_encrypted0(message, is_request=True)
 
     try:
         # FIXME raise on duplicate key
-        return protected[4]
+        return unprotected[4]
     except KeyError:
         raise NotAProtectedMessage("No CID present")
 
