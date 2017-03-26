@@ -107,7 +107,8 @@ class PlugtestClientProgram:
     @__implements_tests([1, 2, 3])
     async def test_hellotests(self):
         request = Message(code=GET, uri='coap://' + self.host+ '/helloworld' + ("?first=1" if self.testno == 2 else "?second=2" if self.testno == 3 else ""))
-        request.opt.accept = 0
+        if self.testno == 3:
+            request.opt.accept = 0
         unprotected_response = await self.protected_ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
