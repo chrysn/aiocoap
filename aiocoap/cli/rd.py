@@ -230,13 +230,14 @@ class RDFunctionSetLocations(ThingWithCommonRD, Resource, PathCapable):
         return aiocoap.Message(payload=str(data).encode('utf8'), content_format=aiocoap.numbers.media_types_rev['application/link-format'])
 
     def render_post(self, request):
-        links = link_format_from_message(request)
-
         full_path = self.common_rd.registration_path_prefix + request.opt.uri_path
         try:
             key = self.common_rd.get_key_for_path(full_path)
+            # should probably be processed in an atomic fashion... nvm
             self._update_params(key, request)
-            self.common_rd.update_published_links(key, links)
+            if not (request.opt.content_format is None and request.payload == b''):
+                links = link_format_from_message(request)
+                self.common_rd.update_published_links(key, links)
         except KeyError:
             return aiocoap.Message(code=aiocoap.NOT_FOUND)
 
