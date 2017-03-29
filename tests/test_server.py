@@ -78,6 +78,11 @@ class ReplacingResource(aiocoap.resource.Resource):
         response = request.payload.replace(b'0', b'O')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=response)
 
+class RootResource(aiocoap.resource.Resource):
+    @asyncio.coroutine
+    def render_get(self, request):
+        return aiocoap.Message(code=aiocoap.CONTENT, payload=b"Welcome to the test server")
+
 class TestingSite(aiocoap.resource.Site):
     def __init__(self):
         super(TestingSite, self).__init__()
@@ -87,6 +92,7 @@ class TestingSite(aiocoap.resource.Site):
         self.add_resource(('big',), BigResource())
         self.add_resource(('slowbig',), SlowBigResource())
         self.add_resource(('replacing',), self.Subsite())
+        self.add_resource((), RootResource())
 
     class Subsite(aiocoap.resource.Site):
         def __init__(self):
@@ -378,6 +384,13 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Replacing resource could not be POSTed to successfully")
         self.assertEqual(response.payload, testpattern.replace(b"0", b"O"), "Replacing resource did not replace as expected when POSTed")
+
+    @no_warnings
+    def test_root_resource(self):
+        request = self.build_request()
+        request.opt.uri_path = []
+        response = self.fetch_response(request)
+        self.assertEqual(response.code, aiocoap.CONTENT, "Root resource was not found")
 
 # for testing the server standalone
 if __name__ == "__main__":
