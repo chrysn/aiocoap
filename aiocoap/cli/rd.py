@@ -230,13 +230,14 @@ class RDFunctionSetLocations(ThingWithCommonRD, Resource, PathCapable):
         return aiocoap.Message(payload=str(data).encode('utf8'), content_format=aiocoap.numbers.media_types_rev['application/link-format'])
 
     def render_post(self, request):
-        links = link_format_from_message(request)
-
         full_path = self.common_rd.registration_path_prefix + request.opt.uri_path
         try:
             key = self.common_rd.get_key_for_path(full_path)
+            # should probably be processed in an atomic fashion... nvm
             self._update_params(key, request)
-            self.common_rd.update_published_links(key, links)
+            if not (request.opt.content_format is None and request.payload == b''):
+                links = link_format_from_message(request)
+                self.common_rd.update_published_links(key, links)
         except KeyError:
             return aiocoap.Message(code=aiocoap.NOT_FOUND)
 
@@ -286,9 +287,6 @@ class RDGroupFunctionSetLocations(ThingWithCommonRD, Resource, PathCapable):
     pass
 
 class RDLookupFunctionSet(Site):
-    ct = 40
-    rt = "core.rd-lookup"
-
     def __init__(self, common_rd):
         super().__init__()
         self.add_resource(('ep',), self.EP(common_rd=common_rd))
@@ -297,6 +295,9 @@ class RDLookupFunctionSet(Site):
         self.add_resource(('gp',), self.Gp(common_rd=common_rd))
 
     class EP(ThingWithCommonRD, Resource):
+        ct = 40
+        rt = "core.rd-lookup-ep"
+
         @asyncio.coroutine
         def render_get(self, request):
             query = query_split(request)
@@ -327,6 +328,9 @@ class RDLookupFunctionSet(Site):
             return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'), content_format=40)
 
     class D(ThingWithCommonRD, Resource):
+        ct = 40
+        rt = "core.rd-lookup-d"
+
         @asyncio.coroutine
         def render_get(self, request):
             query = query_split(request)
@@ -356,6 +360,9 @@ class RDLookupFunctionSet(Site):
             return aiocoap.Message(payload=",".join('<>;d="%s"'%c for c in candidates).encode('utf8'), content_format=40)
 
     class Res(ThingWithCommonRD, Resource):
+        ct = 40
+        rt = "core.rd-lookup-res"
+
         @asyncio.coroutine
         def render_get(self, request):
             query = query_split(request)
@@ -391,6 +398,9 @@ class RDLookupFunctionSet(Site):
             return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'), content_format=40)
 
     class Gp(ThingWithCommonRD, Resource):
+        ct = 40
+        rt = "core.rd-lookup-gp"
+
         pass
 
 class SimpleRegistrationWKC(WKCResource):

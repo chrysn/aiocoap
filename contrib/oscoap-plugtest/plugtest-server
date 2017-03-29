@@ -65,10 +65,10 @@ class SeqnoManager(resource.Resource):
 
         # this direct access is technically outside the interface for a
         # SecurityContext, but then again, there isn't one yet
-        text = """Next sequence number I will use: %d\n""" % the_context.my_sequence_number
+        text = """Next sequence number I will use: %d\n""" % the_context.sender_sequence_number
         text += """I've seen all sequence numbers up to including %d%s.""" % (
-                the_context.other_replay_window.seen[0],
-                ", and also %s" % the_context.other_replay_window.seen[1:] if len(the_context.other_replay_window.seen) > 1 else ""
+                the_context.recipient_replay_window.seen[0],
+                ", and also %s" % the_context.recipient_replay_window.seen[1:] if len(the_context.recipient_replay_window.seen) > 1 else ""
                 )
         return aiocoap.Message(payload=text.encode('utf-8'), content_format=0)
 
@@ -78,52 +78,61 @@ class SeqnoManager(resource.Resource):
         except (ValueError, UnicodeDecodeError):
             raise aiocoap.error.BadRequest("Only numeric values are accepted.")
 
-        new_context = get_security_context(number, 'recipient')
-        self.contexts[new_context.cid] = new_context
+        new_context = get_security_context(number, 'server')
+        self.contexts[new_context.recipient_id] = new_context
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
-class PlugtestSite(resource.Site):
-    def __init__(self, *, contexts=[]):
-        super().__init__()
+class ProtectedSite(resource.Site):
+    """A site that requires OSCOAP protection for resources added with the
+    :meth:`add_protected_resource` method.
 
-        # by now, the testno here should only be used to initialize the sequence numbers
-        regular_context = get_security_context(1, 'recipient')
+    All resources will be shown in :meth:`get_resources_as_linkheader`."""
 
-        self.contexts = {c.cid: c for c in [regular_context, ]}
+    def __init__(self, *, contexts=[], loggername="oscoap-site"):
+        super().__init__();
+        self.log = logging.getLogger(loggername)
 
-        self.add_resource(('.well-known', 'core'), resource.WKCResource(self.get_resources_as_linkheader))
-        self.add_resource(('change-tid',), HelloResource())
-        self.add_resource(('helloworld',), HelloResource())
-        self.add_resource(('counter',), CounterResource())
-        self.add_resource(('sequence-numbers',), SeqnoManager(self.contexts))
+        self.contexts = {c.recipient_id: c for c in contexts}
 
-    whitelist = (
-            ('.well-known', 'core'),
-            ('sequence-numbers',)
-            )
+        self._inner_site = resource.Site()
 
-    # Most of this is copied from server-oscoap, and needs yet to move into the library
+    def add_protected_resource(self, path, resource):
+        self._inner_site.add_resource(path, resource)
+
+    def get_resources_as_linkheader(self):
+        import link_header
+
+        links = super().get_resources_as_linkheader().links
+
+        for l in self._inner_site.get_resources_as_linkheader().links:
+            l.attr_pairs.append(('osc', None))
+            links.append(l)
+
+        return link_header.LinkHeader(links)
+
     async def render(self, request):
         try:
-            cid, sid = oscoap.verify_start(request)
+            recipient_id = oscoap.verify_start(request)
         except oscoap.NotAProtectedMessage:
-            if request.opt.uri_path in self.whitelist:
+            try:
                 return await super().render(request)
-            else:
+            except error.NotFound:
+                # this will be shown for everything that is not in the
+                # nonprotected resources, to ensure that information about
+                # resources' existence is not leaked if they hide from the
+                # .well-known/core.
                 raise PleaseUseOscoap()
 
-        # right now we'll rely on the sid to match, especially as it's not sent
-        # unconditionally anyway
         try:
-            sc = self.contexts[cid]
+            sc = self.contexts[recipient_id]
         except KeyError:
             raise PleaseUseOscoap() # may we disclose the reason?
 
         try:
             unprotected, seqno = sc.unprotect(request)
         except oscoap.ProtectionInvalid as e:
-            print("Unprotect failed (%s)"%(e,))
+            self.log.warning("Unprotecting a message that looked like OSCOAP failed: %s", e)
             # hack explanation: there is no implementation of a "no response"
             # response in aiocoap yet. the string here is not a sentinel but an
             # exploitation of aiocoap not handling the type error of not having
@@ -135,18 +144,22 @@ class PlugtestSite(resource.Site):
             # would send the auto-incrementor off and away
             return "NO RESPONSE"
 
-        print("Unprotected request:", unprotected)
+        self.log.debug("Message was decrypted successfully. Inner message: %s", unprotected)
 
+        # FIXME this belongs into PlugtestSite
         if unprotected.opt.uri_path == ('change-tid',):
             # it seems this is the easiest way to tamper with the Tid as
             # requested for test 16.
-            seqno = seqno + b'?'
+            seqno = bytes(255 - x for x in seqno)
 
         # FIXME the render doesn't provide a way to provide context in the
         # sense of "who is the user"; obviously, the render interface needs
         # rework
         try:
-            response = await super().render(unprotected)
+            try:
+                response = await self._inner_site.render(unprotected)
+            except error.NotFound:
+                response = await super().render(unprotected)
         except error.RenderableError as err:
             response = err.to_message()
         except Exception as rr:
@@ -158,7 +171,7 @@ class PlugtestSite(resource.Site):
             # FIXME: this duplicates the default setting in aiocoap.protocol
             response.code = aiocoap.CONTENT
 
-        print("Unprotected response:", response)
+        self.log.debug("Will encrypt message as response: %s", response)
 
         protected_response, _ = sc.protect(response, seqno)
 
@@ -166,6 +179,20 @@ class PlugtestSite(resource.Site):
         sc._store()
 
         return protected_response
+
+class PlugtestSite(ProtectedSite):
+    def __init__(self):
+        # by now, the testno here should only be used to initialize the sequence numbers
+        regular_context = get_security_context(1, 'server')
+
+        super().__init__(contexts=[regular_context])
+
+        self.add_resource(('.well-known', 'core'), resource.WKCResource(self.get_resources_as_linkheader))
+        self.add_protected_resource(('change-tid',), HelloResource())
+        self.add_protected_resource(('helloworld',), HelloResource())
+        self.add_protected_resource(('counter',), CounterResource())
+
+        self.add_resource(('sequence-numbers',), SeqnoManager(self.contexts))
 
 class PlugtestServerProgram(AsyncCLIDaemon):
     async def start(self):

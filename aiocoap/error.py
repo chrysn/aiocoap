@@ -35,7 +35,8 @@ class ResponseWrappingError(Error):
     An exception that is raised due to an unsuccessful but received response.
 
     A better relationship with :mod:`.numbers.codes` should be worked out to do
-    `except UnsupportedMediaType`.
+    ``except UnsupportedMediaType`` (similar to the various ``OSError``
+    subclasses).
     """
     def __init__(self, coapmessage):
         self.coapmessage = coapmessage
@@ -48,8 +49,8 @@ class ResponseWrappingError(Error):
 
 class ConstructionRenderableError(RenderableError):
     """
-    RenderableError that is constructed from class attrinutes :attr:`code` and
-    :attr:`message`
+    RenderableError that is constructed from class attributes :attr:`code` and
+    :attr:`message` (where the can be overridden in the constructor).
     """
 
     def __init__(self, message=None):
@@ -60,8 +61,8 @@ class ConstructionRenderableError(RenderableError):
         from .message import Message
         return Message(code=self.code, payload=self.message.encode('utf8'))
 
-    code = codes.INTERNAL_SERVER_ERROR
-    message = ""
+    code = codes.INTERNAL_SERVER_ERROR #: Code assigned to messages built from it
+    message = "" #: Text sent in the built message's payload
 
 # FIXME: this should be comprehensive, maybe generted from the code list
 

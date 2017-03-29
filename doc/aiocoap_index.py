@@ -29,6 +29,13 @@ def addrepl(replacements, pattern, prefix, linkbody):
     replacements[pattern + '_'] = sphinxlink
 
 def modified_insert_input(include_lines, path, original=None):
+    """A filter for the insert_input function that preprocesses the input in
+    the following ways:
+
+    * Remove all external hyperlink targets to readthedocs (and guess the way
+      this link needs to be expressed in Sphinx)
+    * Remove all local (relative) link targets
+    * Replace words referencing them with the appropriate Sphinx reference"""
     new_lines = []
     replacements = {}
     for line in include_lines:
@@ -52,6 +59,8 @@ def modified_insert_input(include_lines, path, original=None):
     original(new_lines, path)
 
 class IncludePreprocessed(Include):
+    """Include a file (like the 'Include' directive), but preprocess its input
+    as described in modified_insert_input."""
     def run(self):
         self.state_machine.insert_input = functools.partial(modified_insert_input, original=self.state_machine.insert_input)
         try:
@@ -61,6 +70,8 @@ class IncludePreprocessed(Include):
         return result
 
 def build_moduledocs(app):
+    """Create per-module sources like sphinx-apidoc, but at build time and with
+    customizations."""
     srcdir = app.builder.srcdir
 
     moddir = srcdir + '/module'
@@ -70,12 +81,15 @@ def build_moduledocs(app):
     docs = [x[len(basedir)+1:-3].replace('/', '.').replace('.__init__', '') for x in glob35(basedir + '/aiocoap/**/*.py', recursive=True)]
 
     for x in docs:
-        text = textwrap.dedent("""\
+        commonstart = textwrap.dedent("""\
             {x} module
             ========================================
             """).format(x=x)
+
         if x == 'aiocoap.numbers':
-            text += textwrap.dedent("""
+            # this does miss out on media_types{,rev}, but they're a mess
+            # anyway so far
+            text = commonstart + textwrap.dedent("""
                 .. automodule:: {x}
                 .. toctree::
                     :glob:
@@ -96,7 +110,7 @@ def build_moduledocs(app):
 
                     """).format(x=x, executablename=executablename)
         else:
-            text += textwrap.dedent("""
+            text = commonstart + textwrap.dedent("""
                 .. automodule:: {x}
                     :members:
                     :undoc-members:

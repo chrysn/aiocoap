@@ -127,6 +127,14 @@ class BlockOption(OptionType):
 
         @property
         def start(self):
+            """The byte offset in the body indicated by block number and size.
+
+            Note that this calculation is only valid for descriptive use and
+            Block2 control use. The semantics of block_number and size in
+            Block1 control use are unrelated (indicating the acknowledged block
+            number in the request Block1 size and the server's preferred block
+            size), and must not be calculated using this property in that
+            case."""
             return self.block_number * self.size
 
         def reduced_to(self, maximum_exponent):

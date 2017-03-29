@@ -8,6 +8,10 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
+"""This is a usage example of aiocoap that demonstrates how to implement a
+simple client. See the "Usage Examples" section in the aiocoap documentation
+for some more information."""
+
 import logging
 import asyncio
 

@@ -37,10 +37,13 @@ This library supports the following standards in full or partially:
 * RFC7959_ (Blockwise): Multicast exceptions missing.
 * draft-ietf-core-etch-04_: Only registry entries added, but that should be all
   that's neede on the library side.
-* draft-ietf-core-resource-directory-09_: A standalone resource directory
-  server is provided. It lacks support for groups, PATCHes to endpoint
-  locations, DNS-SD mapping and security considerations, and is generally
-  rather experimental.
+* draft-ietf-core-resource-directory-10_: A standalone resource directory
+  server is provided along with a library function to register at one. They
+  lack support for groups, PATCHes to endpoint locations and security
+  considerations, and are generally rather simplistic.
+* draft-ietf-core-object-security-02_ (OSCOAP): Infrastructure for supporting
+  it is in place (lacking observe and inner-blockwise support), but no simple
+  way exists yet for launching protected servers or requests yet.
 
 If something described by one of the standards but not implemented, it is
 considered a bug; please file at the `github issue tracker`_. (If it's not on
@@ -50,13 +53,13 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC7641: https://tools.ietf.org/html/rfc7641
 .. _RFC7959: https://tools.ietf.org/html/rfc7959
 .. _draft-ietf-core-etch-04: https://tools.ietf.org/html/draft-ietf-core-etch-04
-.. _draft-ietf-core-resource-directory-09: https://tools.ietf.org/html/draft-ietf-core-resource-directory-09
+.. _draft-ietf-core-resource-directory-10: https://tools.ietf.org/html/draft-ietf-core-resource-directory-10
+.. _draft-ietf-core-object-security-02: https://tools.ietf.org/html/draft-ietf-core-object-security-02
 
 Dependencies
 ------------
 
-Basic aiocoap works out of the box on Python_ 3.4 or greater, and on 3.3 with
-additional dependencies.
+Basic aiocoap works out of the box on Python_ 3.4 or greater.
 
 The examples_ require Python 3.5 as they use newer syntax.
 
