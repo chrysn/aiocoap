@@ -35,10 +35,11 @@ class _ContenttypeRenderedMeta(abc.ABCMeta): # FIXME i suppose i can't make that
 
 # this could become an alternative to the resource.Resource currently implemented in aiocoap.resource
 
-#class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resource, metaclass=_ContenttypeRenderedMeta):
-class ContenttypeRendered(resource.ObservableResource, metaclass=_ContenttypeRenderedMeta): # FIXME i'd rather use the above and be independent from the aiocoap.resource implementations (especially as i'm overriding everything that resource.Resource defines here), but Observable is handy right now
+class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.ObservableResource, metaclass=_ContenttypeRenderedMeta):
     def __init__(self):
         super().__init__()
+
+        self._observations = set()
 
     @classmethod
     def _cls_setup(cls):
@@ -49,6 +50,15 @@ class ContenttypeRendered(resource.ObservableResource, metaclass=_ContenttypeRen
                 for accept in member.accept:
                     for contentformat in member.contentformat:
                         cls.__handlers[member.method][(accept, contentformat)] = (member.implementation, member.responseformat)
+
+    @asyncio.coroutine
+    def add_observation(self, request, serverobservation):
+        self._observations.add(serverobservation)
+        serverobservation.accept(functools.partial(self._observations.remove, serverobservation))
+
+    def updated_state(self):
+        for o in self._observations:
+            o.trigger()
 
     @staticmethod
     def get_handler(accept, *, default=False):
