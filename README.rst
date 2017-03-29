@@ -38,8 +38,9 @@ This library supports the following standards in full or partially:
 * draft-ietf-core-etch-04_: Only registry entries added, but that should be all
   that's neede on the library side.
 * draft-ietf-core-resource-directory-10_: A standalone resource directory
-  server is provided. It lacks support for groups, PATCHes to endpoint
-  locations and security considerations, and is generally rather experimental.
+  server is provided along with a library function to register at one. They
+  lack support for groups, PATCHes to endpoint locations and security
+  considerations, and are generally rather simplistic.
 * draft-ietf-core-object-security-02_ (OSCOAP): Infrastructure for supporting
   it is in place (lacking observe and inner-blockwise support), but no simple
   way exists yet for launching protected servers or requests yet.
