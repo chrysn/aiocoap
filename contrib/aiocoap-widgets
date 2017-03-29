@@ -14,6 +14,7 @@ import inspect
 from aiocoap import *
 from aiocoap.error import BadRequest, UnsupportedContentFormat, UnallowedMethod
 from aiocoap import resource
+from aiocoap.resourcedirectory.client.register import Registerer
 
 import json
 import cbor
@@ -420,7 +421,7 @@ async def registration_loop(ctx, rd, ep, domain=None):
 
     # FIXME arrange for the task to be cancelled & deregister (yes this probably means proper registration and not simple)
 
-async def context(site, args):
+async def start_context(site, args):
     if args.anyport:
         ctx = await Context.create_client_context()
         ctx.serversite = site
@@ -428,17 +429,22 @@ async def context(site, args):
         ctx = await Context.create_server_context(site)
 
     if args.register_at:
-        asyncio.ensure_future(registration_loop(ctx, args.register_at, *args.register_as.split('.', 1)))
+        ep, _, d = args.register_as.partition('.')
+        registerer = Registerer(ctx, ep, args.register_at, d, lt=120)
 
-    return ctx
+    async def shutdown():
+        await registerer.shutdown()
+        await ctx.shutdown()
+
+    return shutdown
 
 async def main(loop):
     p = ArgumentParser()
     args = p.parse_args()
 
-    shutdown = asyncio.Future()
+    shutdown_when_done = asyncio.Future()
     win = Gtk.Window()
-    win.connect("delete-event", lambda *args: shutdown.set_result(True))
+    win.connect("delete-event", lambda *args: shutdown_when_done.set_result(True))
 
     site = resource.Site()
     site.add_resource(('.well-known', 'core'), resource.WKCResource(site.get_resources_as_linkheader))
@@ -464,10 +470,12 @@ async def main(loop):
     box.add(slider.widget)
     site.add_resource(('slider',), slider)
 
-    ctx = await context(site, args)
     win.show_all()
 
-    await shutdown
+    shutdown_function = await start_context(site, args)
+
+    await shutdown_when_done
+    await shutdown_function()
 
 def sync_main():
     asyncio.set_event_loop_policy(gbulb.gtk.GtkEventLoopPolicy())
