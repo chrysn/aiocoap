@@ -187,29 +187,51 @@ class PathCapable:
     option, and can thus be given requests for :meth:`.render`\ ing that
     contain a uri_path"""
 
-class Site(_ExposesWellknownAttributes, interfaces.ObservableResource, PathCapable):
+class Site(interfaces.ObservableResource, PathCapable):
     """Typical root element that gets passed to a :class:`Context` and contains
     all the resources that can be found when the endpoint gets accessed as a
     server.
 
-    This provides easy registration of statical resources.
+    This provides easy registration of statical resources. Add resources at
+    absolute locations using the :meth:`.add_resource` method.
 
-    Add resources at absolute locations using the :meth:`.add_resource`
-    method. You can add another Site as well, those will be nested and
-    integrally reported in a WKCResource. The path of a site should not end
-    with an empty string (ie. a slash in the URI) -- the child site's own root
-    resource will then have the trailing slash address. Subsites *can* have
-    link-header attributes on their own (eg. `rt`), but it can be indicative of
-    an odd design (eg. a batch should be `</first/>;if=core.b` and not
-    `</first>`); try adding them in the root resource instead.
+    For example, the site at
 
-    Resources added to a site will receive only messages that are directed to
-    that very resource (ie. ``/spam/eggs`` will not receive requests for
-    ``/spam/eggs/42``) unless they are :class:`PathCapable` (like another
-    Site)."""
+    >>> site = Site()
+    >>> site.add_resource(["hello"], Resource())
+
+    will have requests to </hello> rendered by the new resource.
+
+    You can add another Site (or another instance of :class:`PathCapable`) as
+    well, those will be nested and integrally reported in a WKCResource. The
+    path of a site should not end with an empty string (ie. a slash in the URI)
+    -- the child site's own root resource will then have the trailing slash
+    address.  Subsites can not have link-header attributes on their own (eg.
+    `rt`) and will never respond to a request that does not at least contain a
+    single slash after the the given path part.
+
+    For example,
+
+    >>> batch = Site()
+    >>> batch.add_resource(["light1"], Resource())
+    >>> batch.add_resource(["light2"], Resource())
+    >>> batch.add_resource([], Resource())
+    >>> s = Site()
+    >>> s.add_resource("batch", batch)
+
+    will have the three created resources rendered at </batch/light1>,
+    </batch/light2> and </batch/>.
+
+    If it is necessary to respond to requests to </batch> or report its
+    attributes in .well-known/core in addition to the above, a non-PathCapable
+    resource can be added with the same path. This is usually considered an odd
+    design, not fully supported, and for example doesn't support removal of
+    resources from the site.
+    """
 
     def __init__(self):
         self._resources = {}
+        self._subsites = {}
 
     @asyncio.coroutine
     def needs_blockwise_assembly(self, request):
@@ -227,12 +249,22 @@ class Site(_ExposesWellknownAttributes, interfaces.ObservableResource, PathCapab
         shortened by the components in the child's path, or raises a
         KeyError."""
 
-        path = request.opt.uri_path
+        if request.opt.uri_path in self._resources:
+            return self._resources[request.opt.uri_path], request.copy(uri_path=())
+
+        if not request.opt.uri_path:
+            raise KeyError()
+
+        remainder = [request.opt.uri_path[-1]]
+        path = request.opt.uri_path[:-1]
         while path:
-            if path in self._resources:
-                res = self._resources[path]
-                if path == request.opt.uri_path or isinstance(res, PathCapable):
-                    return res, request.copy(uri_path=request.opt.uri_path[len(path):])
+            if path in self._subsites:
+                res = self._subsites[path]
+                if remainder == [""]:
+                    # sub-sites should see their root resource like sites
+                    remainder = []
+                return res, request.copy(uri_path=remainder)
+            remainder.insert(0, path[-1])
             path = path[:-1]
         raise KeyError()
 
@@ -258,30 +290,33 @@ class Site(_ExposesWellknownAttributes, interfaces.ObservableResource, PathCapab
             pass
 
     def add_resource(self, path, resource):
-        self._resources[tuple(path)] = resource
+        if isinstance(resource, PathCapable):
+            self._subsites[tuple(path)] = resource
+        else:
+            self._resources[tuple(path)] = resource
 
     def remove_resource(self, path):
-        del self._resources[tuple(path)]
+        try:
+            del self._subsites[tuple(path)]
+        except KeyError:
+            del self._resources[tuple(path)]
 
     def get_resources_as_linkheader(self):
         import link_header
 
         links = []
 
-        selfdetails = self.get_link_description()
-        if selfdetails:
-            links.append(link_header.Link("", **selfdetails))
-
         for path, resource in self._resources.items():
+            if hasattr(resource, "get_link_description"):
+                details = resource.get_link_description()
+            else:
+                details = {}
+            lh = link_header.Link('/' + '/'.join(path), **details)
+
+            links.append(lh)
+
+        for path, resource in self._subsites.items():
             if hasattr(resource, "get_resources_as_linkheader"):
                 for l in resource.get_resources_as_linkheader().links:
                     links.append(link_header.Link('/' + '/'.join(path) + l.href, l.attr_pairs))
-            else:
-                if hasattr(resource, "get_link_description"):
-                    details = resource.get_link_description()
-                else:
-                    details = {}
-                lh = link_header.Link('/' + '/'.join(path), **details)
-
-                links.append(lh)
         return link_header.LinkHeader(links)
