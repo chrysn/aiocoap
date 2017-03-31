@@ -232,6 +232,9 @@ class SubsiteBatch(ContenttypeRendered):
         # callback to install an own hook is not compatible with any other
         # ObservableResource implementations
         for path, subres in self.site._resources.items():
+            if not isinstance(subres, ContenttypeRendered):
+                # FIXME this doesn't work across subsites
+                continue
             original_method = subres.updated_state
             def patched(): # moreover, this does not accept responses injected directly
                 self.updated_state()
@@ -346,7 +349,7 @@ class RGBLight(resource.Site):
 
         for c in self.channels:
             self.add_resource((c.channel_name,), c)
-        self.add_resource(('',), RGBRoot(self))
+        self.add_resource((), RGBRoot(self))
 
         self.widget = Gtk.DrawingArea()
         self.widget.set_size_request(200, 100)
@@ -479,6 +482,9 @@ async def main(loop):
     slider = Slider(None)
     box.add(slider.widget)
     site.add_resource(('slider',), slider)
+
+    bigbatch = SubsiteBatch(site)
+    site.add_resource((), bigbatch)
 
     win.show_all()
 
