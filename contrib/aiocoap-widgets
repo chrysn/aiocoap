@@ -445,11 +445,13 @@ async def start_context(site, args):
         ep, _, d = args.register_as.partition('.')
         registerer = Registerer(ctx, ep, args.register_at, d, lt=120)
 
-    async def shutdown():
-        await registerer.shutdown()
-        await ctx.shutdown()
+        async def shutdown():
+            await registerer.shutdown()
+            await ctx.shutdown()
 
-    return shutdown
+        return shutdown
+    else:
+        return ctx.shutdown
 
 async def main(loop):
     p = ArgumentParser()
