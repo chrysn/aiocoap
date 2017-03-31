@@ -10,6 +10,7 @@ import time
 from collections import namedtuple, defaultdict
 import abc
 import inspect
+import functools
 
 from aiocoap import *
 from aiocoap.util.cli import AsyncCLIDaemon
@@ -36,12 +37,7 @@ class _ContenttypeRenderedMeta(abc.ABCMeta): # FIXME i suppose i can't make that
 
 # this could become an alternative to the resource.Resource currently implemented in aiocoap.resource
 
-class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.ObservableResource, metaclass=_ContenttypeRenderedMeta):
-    def __init__(self):
-        super().__init__()
-
-        self._observations = set()
-
+class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resource, metaclass=_ContenttypeRenderedMeta):
     @classmethod
     def _cls_setup(cls):
         # __new__ code moved in here to use __ properties
@@ -51,15 +47,6 @@ class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Obser
                 for accept in member.accept:
                     for contentformat in member.contentformat:
                         cls.__handlers[member.method][(accept, contentformat)] = (member.implementation, member.responseformat)
-
-    @asyncio.coroutine
-    def add_observation(self, request, serverobservation):
-        self._observations.add(serverobservation)
-        serverobservation.accept(functools.partial(self._observations.remove, serverobservation))
-
-    def updated_state(self):
-        for o in self._observations:
-            o.trigger()
 
     @staticmethod
     def get_handler(accept, *, default=False):
@@ -145,7 +132,23 @@ class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Obser
 
         return Message(payload=payload, content_format=responseformat)
 
-class SenmlResource(ContenttypeRendered):
+class ObservableContenttypeRendered(ContenttypeRendered, interfaces.ObservableResource):
+    def __init__(self):
+        super().__init__()
+
+        self._observations = set()
+
+    @asyncio.coroutine
+    def add_observation(self, request, serverobservation):
+        self._observations.add(serverobservation)
+        serverobservation.accept(functools.partial(self._observations.remove, serverobservation))
+
+    def updated_state(self):
+        for o in self._observations:
+            o.trigger()
+
+
+class SenmlResource(ObservableContenttypeRendered):
     """A resource that has its state in .value; this class implements SenML
     getters and setters as well as plain text.
 
@@ -214,7 +217,7 @@ class StringResource(SenmlResource):
     cborsenml_key = 3
     valuetype = str
 
-class SubsiteBatch(ContenttypeRendered):
+class SubsiteBatch(ObservableContenttypeRendered):
     """An implementation of a CoRE interfaces batch that is the root resource
     of a subsite
 
@@ -233,7 +236,7 @@ class SubsiteBatch(ContenttypeRendered):
         # callback to install an own hook is not compatible with any other
         # ObservableResource implementations
         for path, subres in self.site._resources.items():
-            if not isinstance(subres, ContenttypeRendered):
+            if not isinstance(subres, ObservableContenttypeRendered):
                 # FIXME this doesn't work across subsites
                 continue
             original_method = subres.updated_state
