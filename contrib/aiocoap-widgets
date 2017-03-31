@@ -12,6 +12,7 @@ import abc
 import inspect
 
 from aiocoap import *
+from aiocoap.util.cli import AsyncCLIDaemon
 from aiocoap.error import BadRequest, UnsupportedContentFormat, UnallowedMethod
 from aiocoap import resource
 from aiocoap.resourcedirectory.client.register import Registerer
@@ -453,57 +454,50 @@ async def start_context(site, args):
     else:
         return ctx.shutdown
 
-async def main(loop):
-    p = ArgumentParser()
-    args = p.parse_args()
+class WidgetApplication(AsyncCLIDaemon):
+    async def start(self):
+        p = ArgumentParser()
+        args = p.parse_args()
 
-    shutdown_when_done = asyncio.Future()
-    win = Gtk.Window()
-    win.connect("delete-event", lambda *args: shutdown_when_done.set_result(True))
+        win = Gtk.Window()
+        win.connect("delete-event", lambda *args: self.stop(0))
 
-    site = resource.Site()
-    site.add_resource(('.well-known', 'core'), resource.WKCResource(site.get_resources_as_linkheader))
-    site.add_resource(('window-title',), WindowTitle(win))
+        site = resource.Site()
+        site.add_resource(('.well-known', 'core'), resource.WKCResource(site.get_resources_as_linkheader))
+        site.add_resource(('window-title',), WindowTitle(win))
 
-    # temporary show-all
-    box = Gtk.VBox()
-    win.add(box)
+        # temporary show-all
+        box = Gtk.VBox()
+        win.add(box)
 
-    rgb = RGBLight(None)
-    box.add(rgb.widget)
-    site.add_resource(('spot', ), rgb)
+        rgb = RGBLight(None)
+        box.add(rgb.widget)
+        site.add_resource(('spot', ), rgb)
 
-    switch = Switch(None)
-    box.add(switch.widget)
-    site.add_resource(('switch',), switch)
+        switch = Switch(None)
+        box.add(switch.widget)
+        site.add_resource(('switch',), switch)
 
-    bulb = Bulb(None)
-    box.add(bulb.widget)
-    site.add_resource(('bulb',), bulb)
+        bulb = Bulb(None)
+        box.add(bulb.widget)
+        site.add_resource(('bulb',), bulb)
 
-    slider = Slider(None)
-    box.add(slider.widget)
-    site.add_resource(('slider',), slider)
+        slider = Slider(None)
+        box.add(slider.widget)
+        site.add_resource(('slider',), slider)
 
-    bigbatch = SubsiteBatch(site)
-    site.add_resource((), bigbatch)
+        bigbatch = SubsiteBatch(site)
+        site.add_resource((), bigbatch)
 
-    win.show_all()
+        win.show_all()
 
-    shutdown_function = await start_context(site, args)
-
-    await shutdown_when_done
-    await shutdown_function()
+        self.shutdown = await start_context(site, args)
 
 def sync_main():
     asyncio.set_event_loop_policy(gbulb.gtk.GtkEventLoopPolicy())
 
-    loop = asyncio.get_event_loop()
-    task = asyncio.ensure_future(main(loop), loop=loop)
-    try:
-        loop.run_until_complete(task)
-    except KeyboardInterrupt as e:
-        task.cancel()
+    # this will not react correctly to ctrl-c yet because of https://github.com/nathan-hoad/gbulb/issues/20
+    WidgetApplication.sync_main()
 
 if __name__ == "__main__":
     sync_main()
