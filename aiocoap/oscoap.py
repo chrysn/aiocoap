@@ -17,6 +17,7 @@ import os, os.path
 import warnings
 import tempfile
 import abc
+from io import BytesIO
 
 from aiocoap.message import Message
 from aiocoap import numbers
@@ -275,6 +276,8 @@ class SecurityContext:
                     0b10000000 | ((serialized[0] & 0b00111000) >> 3) - 1,
                     0b01000000 | (serialized[0] & 0b00000111),
                     )) + serialized[1:]
+                # this seems to be the easiest way to get the tail of the CBOR object
+                serialized = BytesIO(serialized)
                 try:
                     shortarray = cbor.loads(serialized)
                 except ValueError:
@@ -284,14 +287,7 @@ class SecurityContext:
                     raise ProtectionInvalid("Compressed CBOR payload has wrong shape")
                 unprotected = {4: shortarray[1], 6: shortarray[0]}
 
-                # FIXME: instead of re-encoding the array, i'd prefer cbor to
-                # have a .loads_and_remainder function
-                reencoded = cbor.dumps(shortarray)
-                if serialized[:len(reencoded)] != reencoded:
-                    # more of an assert, actually; something needs to break
-                    # badly with cbor for this to happen
-                    raise ProtectionInvalid("Failed to re-serialize compressed CBOR identically")
-                ciphertext_and_tag = serialized[len(reencoded):]
+                ciphertext_and_tag = serialized.read()
 
                 return b'', {}, unprotected, ciphertext_and_tag
             else:
