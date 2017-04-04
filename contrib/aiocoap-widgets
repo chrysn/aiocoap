@@ -243,15 +243,40 @@ class SubsiteBatch(ObservableContenttypeRendered):
         for subres in self.site._resources.values():
             if isinstance(subres, ObservableContenttypeRendered):
                 subres.add_valuechange_callback(self.value_changed)
+        for subsite in self.site._subsites.values():
+            if not isinstance(subsite, resource.Site):
+                continue # can't access privates
+            if () not in subsite._resources:
+                continue # no root, better not try
+            rootres = subsite._resources[()]
+            if not isinstance(rootres, SubsiteBatch):
+                continue
+            rootres.add_valuechange_callback(self.value_changed)
 
-    @ContenttypeRendered.get_handler('application/senml+json', default=True)
-    def __regular_get(self):
+    def __get_records(self):
         records = []
         # FIXME this ties in directly into resource.Site's privates
         for path, subres in self.site._resources.items():
             if isinstance(subres, SenmlResource): # this conveniently filters out self as well
                 records.append({'n': '/'.join(path), subres.jsonsenml_key: subres.value})
-        return json.dumps(records)
+        print(self.site, vars(self.site))
+        for path, subsite in self.site._subsites.items():
+            if not isinstance(subsite, resource.Site):
+                continue # can't access privates
+            if () not in subsite._resources:
+                continue # no root, better not try
+            rootres = subsite._resources[()]
+            if not isinstance(rootres, SubsiteBatch):
+                continue
+            for r in rootres.__get_records():
+                r = dict(**r)
+                r['n'] = "/".join(path) + "/" + r['n']
+                records.append(r)
+        return records
+
+    @ContenttypeRendered.get_handler('application/senml+json', default=True)
+    def __regular_get(self):
+        return json.dumps(self.__get_records())
 
 class GobjectBacked(SenmlResource):
     """Provides a .value bound to the self.widget_property property of the
