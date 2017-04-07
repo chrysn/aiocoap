@@ -35,8 +35,7 @@ This library supports the following standards in full or partially:
 * RFC7641_ (Observe): Reordering, re-registration, and active cancellation are
   missing.
 * RFC7959_ (Blockwise): Multicast exceptions missing.
-* draft-ietf-core-etch-04_: Only registry entries added, but that should be all
-  that's neede on the library side.
+* RFC8132_ (PATCH/FETCH): Types and codes known (rest is up to the application)
 * draft-ietf-core-resource-directory-10_: A standalone resource directory
   server is provided along with a library function to register at one. They
   lack support for groups, PATCHes to endpoint locations and security
@@ -52,7 +51,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC7252: https://tools.ietf.org/html/rfc7252
 .. _RFC7641: https://tools.ietf.org/html/rfc7641
 .. _RFC7959: https://tools.ietf.org/html/rfc7959
-.. _draft-ietf-core-etch-04: https://tools.ietf.org/html/draft-ietf-core-etch-04
+.. _RFC8132: https://tools.ietf.org/html/rfc8132
 .. _draft-ietf-core-resource-directory-10: https://tools.ietf.org/html/draft-ietf-core-resource-directory-10
 .. _draft-ietf-core-object-security-02: https://tools.ietf.org/html/draft-ietf-core-object-security-02
 
