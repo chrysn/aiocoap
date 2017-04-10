@@ -15,6 +15,8 @@ from .numbers import *
 from .options import Options
 from .util import hostportjoin, Sentinel
 
+__all__ = ['Message', 'NoResponse']
+
 ## Monkey patch urllib to make URL joining available in CoAP
 # This is a workaround for <http://bugs.python.org/issue23759>.
 urllib.parse.uses_relative.append('coap')
@@ -414,8 +416,9 @@ class Message(object):
         else:
             self.unresolved_remote = parsed.netloc
 
-NoResponse = Sentinel("NoResponse", doc="""Result that can be returned from a
-        render method instead of a Message when due to defaults (eg.
-        multicast link-format queries) or explicit configuration (eg. the
-        No-Response option), no response should be sent at all. Note that per
-        RFC7967 section 2, an ACK is still sent to a CON request.""")
+#: Result that can be returned from a render method instead of a Message when
+#: due to defaults (eg. multicast link-format queries) or explicit
+#: configuration (eg. the No-Response option), no response should be sent at
+#: all. Note that per RFC7967 section 2, an ACK is still sent to a CON
+#: request.
+NoResponse = Sentinel("NoResponse")
