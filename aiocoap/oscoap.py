@@ -279,7 +279,7 @@ class SecurityContext:
                 # this seems to be the easiest way to get the tail of the CBOR object
                 serialized = BytesIO(serialized)
                 try:
-                    shortarray = cbor.loads(serialized)
+                    shortarray = cbor.load(serialized)
                 except ValueError:
                     raise ProtectionInvalid("Error parsing the compressed CBOR payload")
                 if not isinstance(shortarray, list) or len(shortarray) != 2 or \
