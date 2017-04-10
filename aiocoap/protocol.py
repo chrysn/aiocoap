@@ -49,7 +49,7 @@ import logging
 from . import error
 from . import interfaces
 from .numbers import *
-from .message import Message
+from .message import Message, NoResponse
 
 class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
     """An object that passes messages between an application and the network
@@ -1008,6 +1008,10 @@ class Responder(object):
             self.log.error("An exception occurred while rendering a resource: %r"%e)
             self.log.exception(e)
         else:
+            if response is NoResponse:
+                self.send_final_response(response, request)
+                return
+
             if response.code is None:
                 response.code = CONTENT
             if not response.code.is_response():
@@ -1113,6 +1117,12 @@ class Responder(object):
            - sending any error response
         """
 
+        if response is NoResponse:
+            self.log.debug("Sending NoResponse")
+            if request.mtype is CON and not self._sent_empty_ack:
+                self.send_empty_ack(request, "gave NoResponse")
+            return
+
         response.token = request.token
         self.log.debug("Sending token: %s" % (binascii.b2a_hex(response.token).decode('ascii'),))
         response.remote = request.remote
@@ -1131,14 +1141,14 @@ class Responder(object):
         self.log.debug("Sending response, type = %s (request type = %s)" % (response.mtype, request.mtype))
         self.protocol.send_message(response, self._exchange_monitor_factory(request))
 
-    def send_empty_ack(self, request):
+    def send_empty_ack(self, request, _reason="takes too long"):
         """Send separate empty ACK when response preparation takes too long.
 
         Currently, this can happen only once per Responder, that is, when the
         last block1 has been transferred and the first block2 is not ready
         yet."""
 
-        self.log.debug("Response preparation takes too long - sending empty ACK.")
+        self.log.debug("Response preparation %s - sending empty ACK."%_reason)
         ack = Message(mtype=ACK, code=EMPTY, payload=b"")
         # not going via send_response because it's all only about the message id
         ack.remote = request.remote

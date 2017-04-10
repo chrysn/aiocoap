@@ -54,7 +54,12 @@ class Resource(metaclass=abc.ABCMeta):
         """Return a message that can be sent back to the requester.
 
         This does not need to set any low-level message options like remote,
-        token or message type; it does however need to set a response code."""
+        token or message type; it does however need to set a response code.
+
+        The ``aiocoap.message.NoResponse`` sentinel can be returned if the
+        resources wishes to suppress an answer on the request/response
+        layer. (An empty ACK is sent responding to a CON request on message
+        layer nevertheless.)"""
 
     @abc.abstractmethod
     @coroutine
