@@ -52,7 +52,8 @@ def get_security_context(testno, role):
         if testno == 11:
             secctx.recipient_key = bytes((11,)) + secctx.recipient_key[1:]
         if testno == 12:
-            assert hexlify(secctx.recipient_iv) == b'58f91a5cdff4f5'
+            # see nr. 9
+            # assert hexlify(secctx.recipient_iv) == b'58f91a5cdff4f5'
             secctx.recipient_iv = unhexlify(b'11f91a5cdff4f5')
 
 
