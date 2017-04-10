@@ -133,16 +133,11 @@ class ProtectedSite(resource.Site):
             unprotected, seqno = sc.unprotect(request)
         except oscoap.ProtectionInvalid as e:
             self.log.warning("Unprotecting a message that looked like OSCOAP failed: %s", e)
-            # hack explanation: there is no implementation of a "no response"
-            # response in aiocoap yet. the string here is not a sentinel but an
-            # exploitation of aiocoap not handling the type error of not having
-            # a message early enough to send a 5.00 error instead; it just
-            # fails to reply at all.
-
-            # this also bypasses .response_callback (which might
-            # auto-increment), which is a good thing because retransmissions
-            # would send the auto-incrementor off and away
-            return "NO RESPONSE"
+            # There's still doubt on what "not reacting" means at all. This
+            # does not violate the messaging layer, but gives the curious
+            # client information that things failed early (because the response
+            # is faster than the typical EMPTY_ACK_DELAY).
+            return aiocoap.message.NoResponse
 
         self.log.debug("Message was decrypted successfully. Inner message: %s", unprotected)
 
