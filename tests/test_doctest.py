@@ -16,9 +16,6 @@ def load_tests(loader, tests, ignore):
         for f in fn:
             if not f.endswith('.py'):
                 continue
-            if "queuewithend" in f:
-                # exclude queuewithend module, it's unstable yet anyway
-                continue
             p = os.path.join(root, f)
             tests.addTests(doctest.DocTestSuite(p[:-3].replace('/', '.')))
     return tests
