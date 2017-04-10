@@ -22,6 +22,7 @@ import struct
 from collections import namedtuple
 
 from ..message import Message
+from ..numbers import constants
 from .. import error
 from .. import interfaces
 from ..numbers import COAP_PORT
@@ -113,7 +114,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
 
     @classmethod
     @asyncio.coroutine
-    def _create_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to, bind):
+    def _create_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to, bind, multicast=False):
         protofact = lambda: cls(new_message_callback=new_message_callback, new_error_callback=new_error_callback, log=log, loop=loop)
         if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
@@ -121,6 +122,19 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
 
         sock = transport._sock
+
+        if multicast:
+            # FIXME this all registers only for one interface, doesn't it?
+            s = struct.pack('4s4si',
+                    socket.inet_aton(constants.MCAST_IPV4_ALLCOAPNODES),
+                    socket.inet_aton("0.0.0.0"), 0)
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s)
+            for a in constants.MCAST_IPV6_ALL:
+                s = struct.pack('16si',
+                        socket.inet_pton(socket.AF_INET6, a),
+                        0)
+                sock.setsockopt(socket.IPPROTO_IPV6,
+                        socket.IPV6_JOIN_GROUP, s)
 
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
@@ -144,12 +158,12 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
     @classmethod
     @asyncio.coroutine
     def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to):
-        return (yield from cls._create_transport_endpoint(new_message_callback, new_error_callback, log, loop, dump_to, None))
+        return (yield from cls._create_transport_endpoint(new_message_callback, new_error_callback, log, loop, dump_to, None, multicast=False))
 
     @classmethod
     @asyncio.coroutine
     def create_server_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to, bind):
-        return (yield from cls._create_transport_endpoint(new_message_callback, new_error_callback, log, loop, dump_to, bind))
+        return (yield from cls._create_transport_endpoint(new_message_callback, new_error_callback, log, loop, dump_to, bind, multicast=True))
 
     @asyncio.coroutine
     def shutdown(self):
