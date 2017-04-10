@@ -66,13 +66,26 @@ class UDP6EndpointAddress:
     def __repr__(self):
         return "<%s [%s]:%d%s>"%(type(self).__name__, self.sockaddr[0], self.sockaddr[1], " with local address" if self.pktinfo is not None else "")
 
-    def _plainaddress(self):
-        """Return the IP adress part of the sockaddr in IPv4 notation if it is mapped, otherwise the plain v6 address including the interface identifier if set."""
+    @staticmethod
+    def _strip_v4mapped(address):
+        if address.startswith('::ffff:') and '.' in address:
+            return address[7:]
+        return address
 
-        hostpart = self.sockaddr[0]
-        if hostpart.startswith('::ffff:') and '.' in hostpart:
-            hostpart = hostpart[7:]
-        return hostpart
+    def _plainaddress(self):
+        """Return the IP adress part of the sockaddr in IPv4 notation if it is
+        mapped, otherwise the plain v6 address including the interface
+        identifier if set."""
+
+        return self._strip_v4mapped(self.sockaddr[0])
+
+    def _plainaddress_local(self):
+        """Like _plainaddress, but on the address in the pktinfo. Unlike
+        _plainaddress, this does not contain the interface identifier."""
+
+        addr, interface = struct.Struct("16si").unpack_from(self.pktinfo)
+
+        return self._strip_v4mapped(socket.inet_ntop(socket.AF_INET6, addr))
 
     @property
     def hostinfo(self):
@@ -93,6 +106,11 @@ class UDP6EndpointAddress:
     @property
     def is_multicast(self):
         return ipaddress.ip_address(self._plainaddress().split('%', 1)[0]).is_multicast
+
+    @property
+    def is_multicast_locally(self):
+        return ipaddress.ip_address(self._plainaddress_local()).is_multicast
+
 
 class SockExtendedErr(namedtuple("_SockExtendedErr", "ee_errno ee_origin ee_type ee_code ee_pad ee_info ee_data")):
     _struct = struct.Struct("IbbbbII")
@@ -179,7 +197,14 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
     def send(self, message):
         ancdata = []
         if message.remote.pktinfo is not None:
-            ancdata.append((socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, message.remote.pktinfo))
+            if message.remote.is_multicast_locally:
+                # this is kind of a last-resort location; the `response.remote
+                # = request.remote` places should better consider this.
+                self.log.warn("Dropping pktinfo from ancdata because it" \
+                        " indicates a multicast address")
+            else:
+                ancdata.append((socket.IPPROTO_IPV6, socket.IPV6_PKTINFO,
+                    message.remote.pktinfo))
         self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
 
     @asyncio.coroutine
