@@ -65,18 +65,22 @@ class UDP6EndpointAddress:
     def __repr__(self):
         return "<%s [%s]:%d%s>"%(type(self).__name__, self.sockaddr[0], self.sockaddr[1], " with local address" if self.pktinfo is not None else "")
 
-    @property
-    def hostinfo(self):
+    def _plainaddress(self):
+        """Return the IP adress part of the sockaddr in IPv4 notation if it is mapped, otherwise the plain v6 address including the interface identifier if set."""
+
         hostpart = self.sockaddr[0]
         if hostpart.startswith('::ffff:') and '.' in hostpart:
-            # don't assume other applications can deal with v4mapped addresses
             hostpart = hostpart[7:]
+        return hostpart
 
+    @property
+    def hostinfo(self):
         port = self.sockaddr[1]
         if port == COAP_PORT:
             port = None
 
-        return hostportjoin(hostpart, port)
+        # plainaddress: don't assume other applications can deal with v4mapped addresses
+        return hostportjoin(self._plainaddress(), port)
 
     @property
     def uri(self):
@@ -84,7 +88,10 @@ class UDP6EndpointAddress:
 
     # those are currently the inofficial metadata interface
     port = property(lambda self: self.sockaddr[1])
-    is_multicast = property(lambda self: ipaddress.ip_address(self.sockaddr[0].split('%', 1)[0]).is_multicast)
+
+    @property
+    def is_multicast(self):
+        return ipaddress.ip_address(self._plainaddress().split('%', 1)[0]).is_multicast
 
 class SockExtendedErr(namedtuple("_SockExtendedErr", "ee_errno ee_origin ee_type ee_code ee_pad ee_info ee_data")):
     _struct = struct.Struct("IbbbbII")
