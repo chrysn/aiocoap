@@ -31,6 +31,25 @@ from ..util import hostportjoin
 from ..util import socknumbers
 
 class UDP6EndpointAddress:
+    """Remote address type for :cls:`TransportEndpointUDP6`. Remote address is
+    stored in form of a socket address; local address can be roundtripped by
+    opaque pktinfo data.
+
+    >>> local = UDP6EndpointAddress(socket.getaddrinfo('127.0.0.1', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1])
+    >>> local.is_multicast
+    False
+    >>> local.hostinfo
+    '127.0.0.1'
+    >>> all_coap_site = UDP6EndpointAddress(socket.getaddrinfo('ff05:0:0:0:0:0:0:fd', 1234, type=socket.SOCK_DGRAM, family=socket.AF_INET6)[0][-1])
+    >>> all_coap_site.is_multicast
+    True
+    >>> all_coap_site.hostinfo
+    '[ff05::fd]:1234'
+    >>> all_coap4 = UDP6EndpointAddress(socket.getaddrinfo('224.0.1.187', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1])
+    >>> all_coap4.is_multicast
+    True
+    """
+
     # interface work in progress. chances are those should be immutable or at
     # least hashable, as they'll be frequently used as dict keys.
     def __init__(self, sockaddr, *, pktinfo=None):
