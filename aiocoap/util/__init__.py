@@ -55,3 +55,15 @@ def hostportjoin(host, port=None):
     else:
         hostinfo = "%s:%d"%(host, port)
     return hostinfo
+
+class Sentinel:
+    """Class for sentinel that can only be compared for identity. No efforts
+    are taken to make these singletons; it is up to the users to always refer
+    to the same instance, which is typically defined on module level."""
+    def __init__(self, label, doc=None):
+        self._label = label
+        if doc:
+            self.__doc__ = doc
+
+    def __repr__(self):
+        return '<%s>' % self._label
