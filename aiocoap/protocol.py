@@ -29,8 +29,7 @@ import socket
 import asyncio
 import weakref
 
-from .util.queuewithend import QueueWithEnd
-from .util.asyncio import cancel_thoroughly
+from .util.asyncio import AsyncGenerator, cancel_thoroughly
 from .util import hostportjoin
 from . import error
 from .optiontypes import BlockOption
@@ -51,55 +50,45 @@ from . import interfaces
 from .numbers import *
 from .message import Message, NoResponse
 
-class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
-    """An object that passes messages between an application and the network
+class Context(interfaces.RequestProvider):
+    """Applications' entry point to the network
 
-    A :class:`.Context` gets bound to a network interface as an asyncio
-    protocol. It manages the basic CoAP network mechanisms like message
-    deduplication and retransmissions, and delegates management of blockwise
-    transfer as well as the details of matching requests with responses to the
-    :class:`Request` and :class:`Responder` classes.
+    A :class:`.Context` coordinates one or more network transport
+    implementations and dispatches data between them and the application.
 
-    In that respect, a Context (as currently implemented) is also an endpoint.
-    It is anticipated, though, that issues arise due to which the
-    implementation won't get away with creating a single socket, and that it
-    will be required to deal with multiple endpoints. (E.g. the V6ONLY=0 option
-    is not portable to some OS, and implementations might need to bind to
-    different ports on different interfaces in multicast contexts). When those
-    distinctions will be implemented, message dispatch will stay with the
-    context, which will then deal with the individual endpoints.
+    The application can start requests using the message dispatch methods, and
+    set a :class:`resources.Site` that will answer requests directed to the
+    application as a server.
 
-    In a way, a :class:`.Context` is the single object all CoAP messages that
-    get treated by a single application pass by.
+    On the library-internals side, it is the prime implementation of the
+    :class:`interfaces.RequestProvider` interface, creates :class:`Request` and
+    :class:`Response` classes on demand, and decides which transport
+    implementations to start and which are to handle which messages.
+
+    Currently, only one network transport is created, and the details of the
+    messaging layer of CoAP are managed in this class. It is expected that much
+    of the functionality will be moved into transports at latest when CoAP over
+    TCP and websockets is implemented.
 
     **Context creation and destruction**
 
-    Instead of passing a protocol factory to the asyncio loop's
-    create_datagram_endpoint method, the following convenience functions are
-    recommended for creating a context:
+    The following functions are provided for creating and stopping a context:
 
     .. automethod:: create_client_context
     .. automethod:: create_server_context
-
-    If you choose to create the context manually, make sure to wait for its
-    :attr:`ready` future to complete, as only then can messages be sent.
 
     .. automethod:: shutdown
 
     **Dispatching messages**
 
-    A context's public API consists of the :meth:`send_message` function,
-    the :attr:`outgoing_requests`, :attr:`incoming_requests` and
-    :attr:`outgoing_obvservations` dictionaries, and the :attr:`serversite`
-    object, but those are not stabilized yet, and for most applications the
-    following convenience functions are more suitable:
+    CoAP requests can be sent using the following functions:
 
     .. automethod:: request
 
     .. automethod:: multicast_request
 
-    If more control is needed, eg. with observations, create a
-    :class:`Request` yourself and pass the context to it.
+    If more control is needed, you can create a :class:`Request` yourself and
+    pass the context to it.
 
 
     **Other methods and properties**
@@ -151,9 +140,6 @@ class Context(asyncio.DatagramProtocol, interfaces.RequestProvider):
         self._active_exchanges = None
 
         yield from asyncio.wait([te.shutdown() for te in self.transport_endpoints], timeout=3, loop=self.loop)
-
-    # pause_writing and resume_writing are not implemented, as the protocol
-    # should take care of not flooding the output itself anyway (NSTART etc).
 
     #
     # coap dispatch
@@ -837,7 +823,9 @@ class MulticastRequest(BaseRequest):
         if self.request.mtype != NON or self.request.code != GET or self.request.payload:
             raise ValueError("Multicast currently only supportet for NON GET")
 
-        self.responses = QueueWithEnd()
+        #: An asynchronous generator (``__aiter__`` / ``async for``) that
+        #: yields responses until it is exhausted after a timeout
+        self.responses = AsyncGenerator()
 
         asyncio.Task(self._init_phase2())
 
@@ -849,7 +837,7 @@ class MulticastRequest(BaseRequest):
 
             yield from self._send_request(self.request)
         except Exception as e:
-            self.responses.put_exception(e)
+            self.responses.throw(e)
 
     def _send_request(self, request):
         request.token = self.protocol.next_token()
@@ -857,7 +845,7 @@ class MulticastRequest(BaseRequest):
         try:
             self.protocol.send_message(request)
         except Exception as e:
-            self.responses.put_exception(e)
+            self.responses.throw(e)
             return
 
         self.protocol.outgoing_requests[(request.token, None)] = self
@@ -876,7 +864,7 @@ class MulticastRequest(BaseRequest):
         response.requested_query = self.request.opt.get_option(OptionNumber.URI_QUERY) or ()
 
         # FIXME this should somehow backblock, but it's udp -- maybe rather limit queue length?
-        asyncio.Task(self.responses.put(response))
+        self.responses.ayield(response)
 
     def _timeout(self):
         self.protocol.outgoing_requests.pop(self.request.token, None)

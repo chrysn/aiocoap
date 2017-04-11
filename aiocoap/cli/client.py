@@ -28,6 +28,7 @@ import aiocoap.proxy.client
 
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--non', help="Send request as non-confirmable (NON) message", action='store_true')
     p.add_argument('-m', '--method', help="Name or number of request method to use (default: %(default)s)", default="GET")
     p.add_argument('--observe', help="Register an observation on the resource", action='store_true')
     p.add_argument('--observe-exec', help="Run the specified program whenever the observed resource changes, feeding the response data to its stdin", metavar='CMD')
@@ -93,7 +94,7 @@ def single_request(args, context=None):
         if options.dump:
             print("The --dump option is not implemented in interactive mode.", file=sys.stderr)
 
-    request = aiocoap.Message(code=code)
+    request = aiocoap.Message(code=code, mtype=aiocoap.NON if options.non else aiocoap.CON)
     try:
         request.set_request_uri(options.url)
     except ValueError as e:
