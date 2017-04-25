@@ -210,29 +210,28 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
     @asyncio.coroutine
     def fill_remote(self, request):
         if request.remote is None:
-            if request.unresolved_remote is not None or request.opt.uri_host:
-                ## @TODO this is very rudimentary; happy-eyeballs or
-                # similar could be employed.
+            ## @TODO this is very rudimentary; happy-eyeballs or
+            # similar could be employed.
 
-                if request.unresolved_remote is not None:
-                    pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
-                    host = pseudoparsed.hostname
-                    port = pseudoparsed.port or COAP_PORT
-                else:
-                    host = request.opt.uri_host
-                    port = request.opt.uri_port or COAP_PORT
-
-                addrinfo = yield from self.loop.getaddrinfo(
-                    host,
-                    port,
-                    family=self.transport._sock.family,
-                    type=0,
-                    proto=self.transport._sock.proto,
-                    flags=socket.AI_V4MAPPED,
-                    )
-                request.remote = UDP6EndpointAddress(addrinfo[0][-1])
+            if request.unresolved_remote is not None:
+                pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
+                host = pseudoparsed.hostname
+                port = pseudoparsed.port or COAP_PORT
+            elif request.opt.uri_host:
+                host = request.opt.uri_host
+                port = request.opt.uri_port or COAP_PORT
             else:
                 raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
+
+            addrinfo = yield from self.loop.getaddrinfo(
+                host,
+                port,
+                family=self.transport._sock.family,
+                type=0,
+                proto=self.transport._sock.proto,
+                flags=socket.AI_V4MAPPED,
+                )
+            request.remote = UDP6EndpointAddress(addrinfo[0][-1])
 
     #
     # implementing the typical DatagramProtocol interfaces.
