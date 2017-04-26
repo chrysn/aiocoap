@@ -769,6 +769,7 @@ class Request(BaseRequest, interfaces.Request):
             response.requested_hostinfo = self.app_request.unresolved_remote
         response.requested_path = self.app_request.opt.uri_path
         response.requested_query = self.app_request.opt.uri_query
+        response.requested_scheme = self.app_request.requested_scheme
 
         self.response.set_result(response)
 

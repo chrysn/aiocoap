@@ -17,10 +17,15 @@ from .util import hostportjoin, Sentinel
 
 __all__ = ['Message', 'NoResponse']
 
+# FIXME there should be a proper inteface for this that does all the urllib
+# patching possibly required and works with pluggable transports. urls qualify
+# if they can be parsed into the Proxy-Scheme / Uri-* structure.
+coap_schemes = ['coap', 'coaps']
+
 ## Monkey patch urllib to make URL joining available in CoAP
 # This is a workaround for <http://bugs.python.org/issue23759>.
-urllib.parse.uses_relative.append('coap')
-urllib.parse.uses_netloc.append('coap')
+urllib.parse.uses_relative.extend(coap_schemes)
+urllib.parse.uses_netloc.extend(coap_schemes)
 
 class Message(object):
     """CoAP Message with some handling metadata
@@ -54,6 +59,11 @@ class Message(object):
 
     * requested_*: Managed by the :class:`.protocol.Request` a response results
       from, and filled with the request's URL data. Non-roundtrippable.
+
+      requested_scheme is an exception here in that it is also set on requests
+      to indicate which transport should be used when unresolved_remote gets
+      resolved.
+
     * unresolved_remote: ``host[:port]`` (strictly speaking; hostinfo as in a
       URI) formatted string. If this attribute is set, it overrides
       ``.opt.uri_host`` (and ``-_port``) when it comes to filling the
@@ -355,6 +365,7 @@ class Message(object):
             host = self.opt.uri_host
         elif self.code.is_request() and self.unresolved_remote is not None:
             hostinfo = self.unresolved_remote
+            scheme = self.requested_scheme
         else:
             hostinfo = self.remote.hostinfo
 
@@ -391,7 +402,7 @@ class Message(object):
 
         parsed = urllib.parse.urlparse(uri, allow_fragments=False)
 
-        if parsed.scheme != 'coap':
+        if parsed.scheme not in coap_schemes:
             self.opt.proxy_uri = uri
             return
 
@@ -415,6 +426,7 @@ class Message(object):
             self.opt.uri_host = parsed.hostname
         else:
             self.unresolved_remote = parsed.netloc
+        self.requested_scheme = parsed.scheme
 
 #: Result that can be returned from a render method instead of a Message when
 #: due to defaults (eg. multicast link-format queries) or explicit
