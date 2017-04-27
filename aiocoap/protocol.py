@@ -523,8 +523,10 @@ class Context(interfaces.RequestProvider):
         self = cls(loop=loop, serversite=None, loggername=loggername)
 
         from .transports.udp6 import TransportEndpointUDP6
+        from .transports.tinydtls import TransportEndpointTinyDTLS
 
         self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
+        self.transport_endpoints.append((yield from TransportEndpointTinyDTLS.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
 
         return self
 
