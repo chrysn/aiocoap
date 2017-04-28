@@ -44,6 +44,17 @@ DTLS_EVENT_CONNECT = 0x01DC
 DTLS_EVENT_CONNECTED = 0x01DE
 DTLS_EVENT_RENEGOTIATE = 0x01DF
 
+LEVEL_NOALERT = 0 # seems only to be issued by tinydtls-internal events
+
+# from RFC 5246
+LEVEL_WARNING = 1
+LEVEL_FATAL = 2
+CODE_CLOSE_NOTIFY = 0
+
+class DTLSSecurityStore:
+    def _get_psk(self, host, port):
+        return b"Client_identity", b"secretPSK"
+
 class DTLSClientConnection:
     # for now i'd assyme the connection can double as an address. this means it
     # must be able to reconnect, and to manage itself as a member of a pool.
@@ -58,6 +69,9 @@ class DTLSClientConnection:
     # for now i'm ignoring that (FIXME this means that some MUST of the spec
     # are not met!)
 
+    # FIXME not only does this not do error handling, it seems not to even
+    # survive its 2**16th message exchange.
+
     is_multicast = False
 
     def send(self, message):
@@ -67,7 +81,7 @@ class DTLSClientConnection:
 
     @classmethod
     @asyncio.coroutine
-    def start(cls, host, port, main):
+    def start(cls, host, port, pskId, psk, main):
         transport, self = yield from main.loop.create_datagram_endpoint(cls,
                 remote_addr=(host, port),
                 )
@@ -80,14 +94,13 @@ class DTLSClientConnection:
                 read=self._read,
                 write=self._write,
                 event=self._event,
-                pskId=b"Client_identity",
-                pskStore={b"Client_identity": b"secretPSK"},
+                pskId=pskId,
+                pskStore={pskId: psk},
                 )
         self._connection = self._dtls_socket.connect(_SENTINEL_ADDRESS, _SENTINEL_PORT)
 
         self._connecting = asyncio.Future()
         yield from self._connecting
-        del self._connecting
 
         return self
 
@@ -115,14 +128,16 @@ class DTLSClientConnection:
         return len(data)
 
     def _event(self, level, code):
-        if level == 0:
-            # non-alert
-            if code == DTLS_EVENT_CONNECT:
-                return
-            if code == DTLS_EVENT_CONNECTED:
-                self._connecting.set_result(True)
-                return
-            self.log.warning("Unknown event received: code %d", code)
+        if (level, code) == (LEVEL_NOALERT, DTLS_EVENT_CONNECT):
+            return
+        elif (level, code) == (LEVEL_NOALERT, DTLS_EVENT_CONNECTED):
+            self._connecting.set_result(True)
+        elif (level, code) == (LEVEL_FATAL, CODE_CLOSE_NOTIFY):
+            # FIXME how to shut down?
+            pass
+        elif level == LEVEL_FATAL:
+            # FIXME how to shut down?
+            self.log.error("Fatal DTLS error: code %d", code)
         else:
             self.log.warning("Unhandled alert level %d code %d", level, code)
 
@@ -135,7 +150,13 @@ class DTLSClientConnection:
         print("Oups, the connection was lost:", exc)
 
     def error_received(self, exc):
-        print("Error received", exc)
+        if self._connecting.done():
+            self.log.warning("Error received in running connection: %s", exc)
+            self._dtls_socket.resetPeer(self._connection)
+            # FIXME when the package was sent, shut down the socket and deregister
+        else:
+            self.log.warning("Error received before connection established: %s", exc)
+            # FIXME shut down immediately
 
     def datagram_received(self, data, addr):
         self._dtls_socket.handleMessage(self._connection, data, False)
@@ -149,19 +170,21 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
         self.log = log
         self.loop = loop
 
+        self.security = DTLSSecurityStore()
+
     @asyncio.coroutine
-    def _connection_for_address(self, host, port):
+    def _connection_for_address(self, host, port, pskId, psk):
         """Return a DTLSConnection to a given address. This will always give
         the same result for the same host/port combination, at least for as
         long as that result is kept alive (eg. by messages referring to it in
         their .remote)."""
 
         try:
-            return self._pool[(host, port)]
+            return self._pool[(host, port, pskId)]
         except KeyError:
             # FIXME this would need locking so it's bad design
-            connection = yield from DTLSClientConnection.start(host, port, self)
-            self._pool[(host, port)] = connection
+            connection = yield from DTLSClientConnection.start(host, port, pskId, psk, self)
+            self._pool[(host, port, pskId)] = connection
             return connection
 
     @classmethod
@@ -186,7 +209,8 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-        result = yield from self._connection_for_address(host, port)
+        pskId, psk = self.security._get_psk(host, port)
+        result = yield from self._connection_for_address(host, port, pskId, psk)
         return result
 
     def send(self, message):
