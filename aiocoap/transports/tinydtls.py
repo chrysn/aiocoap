@@ -124,7 +124,16 @@ class DTLSClientConnection:
 
     def _write(self, recipient, data):
         # ignoring recipient: it's only _SENTINEL_*
-        self._transport.sendto(data)
+        try:
+            t = self._transport
+        except:
+            # tinydtls sends callbacks very very late during shutdown (ie.
+            # `hasattr` and `AttributeError` are all not available any more,
+            # and even if the DTLSClientConnection class had a ._transport, it
+            # would already be gone), and it seems even a __del__ doesn't help
+            # break things up into the proper sequence.
+            return 0
+        t.sendto(data)
         return len(data)
 
     def _event(self, level, code):
