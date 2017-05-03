@@ -44,6 +44,9 @@ DTLS_EVENT_CONNECT = 0x01DC
 DTLS_EVENT_CONNECTED = 0x01DE
 DTLS_EVENT_RENEGOTIATE = 0x01DF
 
+PSK_STORE = {b"Client_identity": b"secretPSK"}
+
+
 class DTLSClientConnection:
     # for now i'd assyme the connection can double as an address. this means it
     # must be able to reconnect, and to manage itself as a member of a pool.
@@ -81,7 +84,7 @@ class DTLSClientConnection:
                 write=self._write,
                 event=self._event,
                 pskId=b"Client_identity",
-                pskStore={b"Client_identity": b"secretPSK"},
+                pskStore=PSK_STORE,
                 )
         self._connection = self._dtls_socket.connect(_SENTINEL_ADDRESS, _SENTINEL_PORT)
 
