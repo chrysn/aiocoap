@@ -168,7 +168,7 @@ class DTLSClientConnection:
             # FIXME shut down immediately
 
     def datagram_received(self, data, addr):
-        self._dtls_socket.handleMessage(self._connection, data, False)
+        self._dtls_socket.handleMessage(self._connection, data)
 
 class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
     def __init__(self, new_message_callback, new_error_callback, log, loop):
