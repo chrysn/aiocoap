@@ -32,7 +32,7 @@ from ..message import Message
 from .. import interfaces, error
 from ..numbers import COAPS_PORT
 
-import dtls
+from DTLSSocket import dtls
 
 # tinyDTLS passes address information around in its session data, but the way
 # it's used here that will be ignored; this is the data that is sent to / read
