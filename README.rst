@@ -31,7 +31,8 @@ Features / Standards
 This library supports the following standards in full or partially:
 
 * RFC7252_ (CoAP): missing are a caching and cross proxy implementation, proper
-  multicast (support is incomplete), and DTLS.
+  multicast (support is incomplete); DTLS support is client-side only so far,
+  and lacking some security properties.
 * RFC7641_ (Observe): Reordering, re-registration, and active cancellation are
   missing.
 * RFC7959_ (Blockwise): Multicast exceptions missing.

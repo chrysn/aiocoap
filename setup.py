@@ -24,9 +24,13 @@ longdescription = __doc__
 extras_require = {
         'linkheader': ['LinkHeader'],
         'oscoap': ['hkdf', 'cbor', 'cryptography (>= 2.0)'],
+        'tinydtls': ['DTLSSocket >= 0.1.0'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         'all': [], # populated below, contains everything but documentation dependencies for easier installation
         }
+dependency_links = [
+        "git+https://git.fslab.de/jkonra2m/tinydtls-cython.git#egg=DTLSSocket-0.1.0",
+        ]
 tests_require = [] # populated below
 
 for k, v in extras_require.items():
@@ -88,6 +92,8 @@ setup(
     python_requires='>=3.4',
     extras_require=extras_require,
     tests_require=tests_require,
+
+    dependency_links=dependency_links,
 
     # see doc/README.doc seciton "dependency hack"
     install_requires=extras_require['docs'] if 'READTHEDOCS' in os.environ else [],
