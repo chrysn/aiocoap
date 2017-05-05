@@ -87,6 +87,4 @@ class TestOSCOAPPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
 for x in range(1, 17):
     test = lambda self, x=x: self.loop.run_until_complete(self._test_plugtestclient(x))
-    if 8 <= x <= 15:
-        test = unittest.skip("Test requires operator to judge timeout")(test)
     setattr(TestOSCOAPPlugtest, 'test_%d'%x, test)
