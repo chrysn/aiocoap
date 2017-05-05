@@ -97,6 +97,13 @@ class Options(object):
     def __init__(self):
         self._options = {}
 
+    def __eq__(self, other):
+        if not isinstance(other, Options):
+            return NotImplemented
+        # this implementation is much easier than implementing equality on
+        # StringOption etc
+        return self.encode() == other.encode()
+
     def __repr__(self):
         text = ", ".join("%s: %s"%(OptionNumber(k), " / ".join(map(str, v))) for (k, v) in self._options.items())
         return "<aiocoap.options.Options at %#x: %s>"%(id(self), text or "empty")
