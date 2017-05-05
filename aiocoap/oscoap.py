@@ -163,22 +163,26 @@ class SecurityContext:
         if USE_COMPRESSION:
             if protected:
                 raise RuntimeError("Protection produced a message that has uncompressable fields.")
-            if sorted(unprotected.keys()) == [4, 6]:
-                shortarray = [unprotected[6], unprotected[4]]
-                shortarray = cbor.dumps(shortarray)
-                # we're using a shortarray shortened by one because that makes
-                # it easier to then "exclude [...] the type and length for the
-                # ciphertext"; the +1 on shortarray[0] makes it appear like a
-                # 3-long array again.
-                if (shortarray[0] + 1) & 0b11111000 != 0b10000000 or \
-                        shortarray[1] & 0b11000000 != 0b01000000:
-                    raise RuntimeError("Protection produced a message that has uncmpressable lengths")
-                shortarray = bytes(((((shortarray[0] + 1) & 0b111) << 3) | (shortarray[1] & 0b111),)) + shortarray[2:]
-                oscoap_data = shortarray + ciphertext + tag
-            elif unprotected == {}:
-                oscoap_data = ciphertext + tag
-            else:
+
+            if set(unprotected.keys()) - {4, 6}:
                 raise RuntimeError("Protection produced a message that has uncompressable fields.")
+            else:
+                if 6 in unprotected:
+                    # or b"\0": FIXME is this explicit in the spec? this works
+                    # around the piv being treated as absent when decoded.
+                    piv = unprotected[6] or b"\0"
+                    if len(piv) > 0b111:
+                        raise ValueError("Can't encode overly long partial IV")
+                else:
+                    piv = b""
+                firstbyte = len(piv)
+                if 4 in unprotected:
+                    firstbyte |= 0b1000
+                    kid_data = bytes([len(unprotected[4])]) + unprotected[4]
+                else:
+                    kid_data = b""
+
+                oscoap_data = bytes([firstbyte]) + piv + kid_data + ciphertext + tag
         else:
             cose_encrypt0 = [protected_serialized, unprotected, ciphertext + tag]
             oscoap_data = cbor.dumps(cose_encrypt0)
@@ -263,35 +267,26 @@ class SecurityContext:
         serialized = message.opt.object_security or message.payload
 
         if USE_COMPRESSION:
-            if is_request:
-                # FIXME this will need a little reshaping when dealing with
-                # observe responses, which use the same compression but a
-                # 2-long array
-                if serialized[0] & 0b11000000 != 0:
-                    raise ProtectionInvalid("Message does not look like a compressed request")
-                # the -1 on the first fragment keeps the cbor serializer from
-                # trying to decode ciphertext field with "excluded [...] type
-                # and length"
-                serialized = bytes((
-                    0b10000000 | ((serialized[0] & 0b00111000) >> 3) - 1,
-                    0b01000000 | (serialized[0] & 0b00000111),
-                    )) + serialized[1:]
-                # this seems to be the easiest way to get the tail of the CBOR object
-                serialized = BytesIO(serialized)
-                try:
-                    shortarray = cbor.load(serialized)
-                except ValueError:
-                    raise ProtectionInvalid("Error parsing the compressed CBOR payload")
-                if not isinstance(shortarray, list) or len(shortarray) != 2 or \
-                        not all(isinstance(x, bytes) for x in shortarray):
-                    raise ProtectionInvalid("Compressed CBOR payload has wrong shape")
-                unprotected = {4: shortarray[1], 6: shortarray[0]}
+            if not serialized:
+                raise ProtectionInvalid("Protected data too short for uncompression")
 
-                ciphertext_and_tag = serialized.read()
+            if serialized[0] & 0b11110000:
+                raise ProtectionInvalid("Protected data uses reserved fields")
 
-                return b'', {}, unprotected, ciphertext_and_tag
-            else:
-                return b'', {}, {}, serialized
+            unprotected = {}
+
+            k = (serialized[0] >> 3) & 1
+            pivsz = serialized[0] & 0b111
+            if pivsz:
+                unprotected[6] = serialized[1:1 + pivsz]
+            tail = serialized[1 + pivsz:]
+            if k:
+                if not tail:
+                    raise ProtectionInvalid("Protected data too short for kid uncompression")
+                unprotected[4] = tail[1:1 + tail[0]]
+                tail = tail[1 + tail[0]:]
+
+            return b"", {}, unprotected, tail
         else:
             try:
                 encrypted0 = cbor.loads(serialized)
