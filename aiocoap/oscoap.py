@@ -35,6 +35,12 @@ class NotAProtectedMessage(ValueError):
 class ProtectionInvalid(ValueError):
     """Raised when verification of an OSCOAP message fails"""
 
+class DecodeError(ProtectionInvalid):
+    """Raised when verification of an OSCOAP message fails because CBOR or compressed data were erroneous"""
+
+class ReplayError(ProtectionInvalid):
+    """Raised when verification of an OSCOAP message fails because the sequence numbers was already used"""
+
 def _xor_bytes(a, b):
     assert len(a) == len(b)
     # FIXME is this an efficient thing to do, or should we store everything
@@ -228,7 +234,7 @@ class SecurityContext:
                 raise ProtectionInvalid("Protected recipient ID does not match")
 
             if not self.recipient_replay_window.is_valid(seqno):
-                raise ProtectionInvalid("Sequence number was re-used")
+                raise ReplayError("Sequence number was re-used")
 
             partial_iv = binascii.unhexlify("%014x"%seqno)
             iv = _xor_bytes(self.recipient_iv, partial_iv)
@@ -268,10 +274,10 @@ class SecurityContext:
 
         if USE_COMPRESSION:
             if not serialized:
-                raise ProtectionInvalid("Protected data too short for uncompression")
+                raise DecodeError("Protected data too short for uncompression")
 
             if serialized[0] & 0b11110000:
-                raise ProtectionInvalid("Protected data uses reserved fields")
+                raise DecodeError("Protected data uses reserved fields")
 
             unprotected = {}
 
@@ -282,7 +288,7 @@ class SecurityContext:
             tail = serialized[1 + pivsz:]
             if k:
                 if not tail:
-                    raise ProtectionInvalid("Protected data too short for kid uncompression")
+                    raise DecodeError("Protected data too short for kid uncompression")
                 unprotected[4] = tail[1:1 + tail[0]]
                 tail = tail[1 + tail[0]:]
 
@@ -291,15 +297,15 @@ class SecurityContext:
             try:
                 encrypted0 = cbor.loads(serialized)
             except ValueError:
-                raise ProtectionInvalid("Error parsing the CBOR payload")
+                raise DecodeError("Error parsing the CBOR payload")
 
             if not isinstance(encrypted0, list) or len(encrypted0) != 3:
-                raise ProtectionInvalid("CBOR payload is not structured like Encrypt0")
+                raise DecodeError("CBOR payload is not structured like Encrypt0")
 
             try:
                 protected = cbor.loads(encrypted0[0])
             except ValueError:
-                raise ProtectionInvalid("Error parsing the CBOR protected data")
+                raise DecodeError("Error parsing the CBOR protected data")
 
             return encrypted0[0], protected, encrypted0[1], encrypted0[2]
 
