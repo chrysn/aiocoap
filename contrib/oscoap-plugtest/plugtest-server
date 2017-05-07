@@ -37,6 +37,9 @@ class PlugtestResource(resource.Resource):
 
     def render_get(self, request):
         reference = aiocoap.Message(**self.expected_options)
+        if request.opt.observe is not None and 'observe' not in self.expected_options:
+            # workaround for test 4 hitting on Hello1
+            reference.opt.observe = request.opt.observe
         additional_verify("Request options as expected", reference.opt, request.opt)
 
         return aiocoap.Message(payload=self.message.encode('ascii'), **self.options)
@@ -155,6 +158,8 @@ class ProtectedSite(resource.Site):
 
         self._inner_site = resource.Site()
 
+        self.__stored_serverobservation = None
+
     def add_protected_resource(self, path, resource):
         self._inner_site.add_resource(path, resource)
 
@@ -169,7 +174,50 @@ class ProtectedSite(resource.Site):
 
         return link_header.LinkHeader(links)
 
+    async def add_observation(self, request, serverobservation):
+        # this is a workaround i'd prefer to get rid of by changing add_observation
+        class OSCOAPObservation:
+            def __init__(self, serverobservation):
+                self._serverobservation = serverobservation
+                self._accepted = False
+                self._cancelled = False
+
+                # preliminarily accept; can't decide that later in the current
+                # implementation of observation in the Protocol, and i don't want to do
+                # the request decoding twice or early.
+                serverobservation.accept(lambda: self.deregister("Transport observation was cancelled"))
+
+            def deregister(self, reason):
+                if self._cancelled:
+                    return
+
+                self._cancelled = True
+                if self._accepted:
+                    self._canceller()
+                self._serverobservation.deregister("OSCOAP resource said: " + reason)
+
+            def accept(self, canceller):
+                if self._cancelled:
+                    # see ServerObservation.accept note
+                    asyncio.get_event_loop().call_soon(canceller)
+                else:
+                    self._accepted = True
+                    self._canceller = canceller
+
+            def trigger(self, response=None):
+                print("Should trigger now")
+
+        oscobs = OSCOAPObservation(serverobservation)
+
+        assert self.__stored_serverobservation is None
+        self.__stored_serverobservation = (request, oscobs)
+
     async def render(self, request):
+        if self.__stored_serverobservation is not None:
+            _stored_request, oscobs = self.__stored_serverobservation
+            assert _stored_request is request
+            self.__stored_serverobservation = None
+
         try:
             recipient_id = oscoap.verify_start(request)
         except oscoap.NotAProtectedMessage:
@@ -215,6 +263,13 @@ class ProtectedSite(resource.Site):
             # it seems this is the easiest way to tamper with the Tid as
             # requested for test 16.
             seqno = bytes(255 - x for x in seqno)
+
+        if unprotected.opt.observe is not None:
+            await super().add_observation(unprotected, oscobs)
+            if not oscobs._accepted:
+                await self._inner_site.add_observation(unprotected, oscobs)
+            if not oscobs._accepted:
+                oscobs.deregister("OSCOAP resource does not provide observation")
 
         # FIXME the render doesn't provide a way to provide context in the
         # sense of "who is the user"; obviously, the render interface needs

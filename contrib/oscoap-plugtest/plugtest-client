@@ -136,7 +136,7 @@ class PlugtestClientProgram:
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", unprotected_response.code, CONTENT)
-        additional_verify("Unexpected observe response", unprotected_response.opt.observe, None)
+        additional_verify("Observe option is absent", unprotected_response.opt.observe, None)
 
         try:
             async for o in request.observation:
@@ -145,7 +145,7 @@ class PlugtestClientProgram:
             print("Implementation failure: Observation not implemented")
 
     @__implements_tests([5])
-    async def test_nonobservable(self):
+    async def test_observable(self):
         request = Message(code=GET, uri='coap://' + self.host + '/observe', observe=0)
 
         request = self.protected_ctx.request(request)
