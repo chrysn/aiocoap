@@ -86,6 +86,21 @@ def _items_view(option_number, doc=None):
 
     return property(_getter, _setter, _deleter, doc=doc or "Iterable view on the %s option."%option_number)
 
+def _empty_presence_view(option_number, doc=None):
+    """Generate a property for a given option number, where the option is not
+    repeatable and (usually) empty. The values True and False are mapped to
+    presence and absence of the option."""
+
+    def _getter(self, option_number=option_number):
+        return bool(self.get_option(option_number))
+
+    def _setter(self, value, option_number=option_number):
+        self.delete_option(option_number)
+        if value:
+            self.add_option(option_number.create_option())
+
+    return property(_getter, _setter, doc=doc or "Presence of the %s option."%option_number)
+
 class Options(object):
     """Represent CoAP Header Options."""
 
@@ -169,6 +184,7 @@ class Options(object):
     content_format = _single_value_view(OptionNumber.CONTENT_FORMAT)
     etag = _single_value_view(OptionNumber.ETAG, "Single ETag as used in responses")
     etags = _items_view(OptionNumber.ETAG, "List of ETags as used in requests")
+    if_none_match = _empty_presence_view(OptionNumber.IF_NONE_MATCH)
     observe = _single_value_view(OptionNumber.OBSERVE)
     accept = _single_value_view(OptionNumber.ACCEPT)
     uri_host = _single_value_view(OptionNumber.URI_HOST)
