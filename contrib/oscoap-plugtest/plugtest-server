@@ -208,7 +208,7 @@ class ProtectedSite(resource.Site):
             else:
                 return aiocoap.message.NoResponse
 
-        self.log.debug("Message was decrypted successfully. Inner message: %s", unprotected)
+        self.log.debug("Message was decrypted successfully. Request is to %s (%s)", unprotected.opt.uri_path, unprotected)
 
         # FIXME this belongs into PlugtestSite
         if unprotected.opt.uri_path == ('change-tid',):
@@ -265,10 +265,15 @@ class PlugtestSite(ProtectedSite):
 
 class PlugtestServerProgram(AsyncCLIDaemon):
     async def start(self):
-        logging.root.setLevel(logging.WARNING)
-
         p = argparse.ArgumentParser(description="Server for the OSCOAP plug test. Requires a test number to be present.")
+        p.add_argument('--verbose', help="Increase log level", action='store_true')
         opts = p.parse_args()
+
+        if opts.verbose:
+            logging.root.setLevel(logging.DEBUG)
+        else:
+            logging.root.setLevel(logging.WARNING)
+
 
         self.context = await aiocoap.Context.create_server_context(PlugtestSite())
 
