@@ -32,6 +32,10 @@ USE_COMPRESSION = True
 class NotAProtectedMessage(ValueError):
     """Raised when verification is attempted on a non-OSCOAP message"""
 
+    def __init__(self, message, plain_message):
+        super().__init__(message)
+        self.plain_message = plain_message
+
 class ProtectionInvalid(ValueError):
     """Raised when verification of an OSCOAP message fails"""
 
@@ -267,7 +271,7 @@ class SecurityContext:
     @classmethod
     def _extract_encrypted0(cls, message, is_request):
         if message.opt.object_security is None:
-            raise NotAProtectedMessage("No Object-Security option present")
+            raise NotAProtectedMessage("No Object-Security option present", message)
 
         # FIXME it's an error to have this in the wrong place
         serialized = message.opt.object_security or message.payload
@@ -553,5 +557,5 @@ def verify_start(message):
         # FIXME raise on duplicate key
         return unprotected[4]
     except KeyError:
-        raise NotAProtectedMessage("No CID present")
+        raise NotAProtectedMessage("No CID present", message)
 
