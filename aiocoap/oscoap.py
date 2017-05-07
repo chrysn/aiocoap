@@ -105,10 +105,15 @@ class SecurityContext:
     # message processing
 
     def _extract_external_aad(self, message, request_kid, request_seq):
+        if message.code.is_request():
+            class_i_options = Message(observe=message.opt.observe).opt.encode()
+        else:
+            class_i_options = b""
+
         external_aad = [
                 1, # ver
                 message.code,
-                b"", # FIXME that's actually options
+                class_i_options,
                 self.algorithm.value,
                 request_kid,
                 request_seq
@@ -118,17 +123,40 @@ class SecurityContext:
 
         return external_aad
 
-    def protect(self, message, request_partiv=None):
+    def _split_message(self, message):
+        """Given a protected message, return the outer message that contains
+        all Class I and Class U options (but without payload or Object-Security
+        option), and a proto-inner message that contains all Class E options."""
+
+
         # not trying to preserve token or mid, they're up to the transport
         outer_message = Message(code=message.code)
-        if message.code.is_request():
-            protected_uri = message.get_request_uri()
+        inner_message = message
+
+        if inner_message.code.is_request():
+            protected_uri = inner_message.get_request_uri()
+
             if protected_uri.count('/') >= 3:
                 protected_uri = protected_uri[:protected_uri.index('/', protected_uri.index('/', protected_uri.index('/') + 1) + 1)]
             outer_message.set_request_uri(protected_uri)
 
-        # FIXME any options to move out?
-        inner_message = message
+            if inner_message.opt.proxy_uri:
+                # pack them into the separatable fields ... hopefully (FIXME
+                # use a set_request_uri that *never* uses Proxy-Uri)
+                inner_message.set_request_uri(protected_uri)
+
+            inner_message.opt.uri_host = None
+            inner_message.opt.uri_port = None
+            inner_message.opt.proxy_uri = None
+            inner_message.opt.proxy_scheme = None
+
+        outer_message.opt.observe = inner_message.opt.observe
+        inner_message.opt.observe = None
+
+        return outer_message, inner_message
+
+    def protect(self, message, request_partiv=None):
+        outer_message, inner_message = self._split_message(message)
 
         if request_partiv is None:
             assert inner_message.code.is_request(), "Trying to protect a response without request IV (possibly this is an observation; that's not supported in this OSCOAP implementation yet)"
@@ -265,6 +293,13 @@ class SecurityContext:
 
         unprotected_message = aiocoap.message.Message(code=protected_message.code)
         unprotected_message.payload = unprotected_message.opt.decode(plaintext)
+
+        if unprotected_message.code.is_request:
+            unprotected_message.opt.observe = protected_message.opt.observe
+        else:
+            if protected_message.opt.observe is not None:
+                # is it really be as easy as that?
+                unprotected_message.opt.observe = seqno
 
         return unprotected_message, partial_iv
 
