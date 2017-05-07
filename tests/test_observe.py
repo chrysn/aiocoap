@@ -17,7 +17,7 @@ import aiocoap
 import unittest
 import gc
 
-from aiocoap.resource import ObservableResource
+from aiocoap.resource import Resource, ObservableResource
 from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource
 
 class ObservableCounter(ObservableResource):
@@ -42,6 +42,24 @@ class ObservableReplacingResource(ReplacingResource, ObservableResource):
 
         return result
 
+class ObserveLateUnbloomer(Resource):
+    """A resource that accepts the server observation at first but at rendering
+    time decides it can't do it"""
+    def __init__(self):
+        super().__init__()
+        self._cancel_right_away = []
+
+    @asyncio.coroutine
+    def add_observation(self, request, serverobservation):
+        request._cancel_right_away.append(serverobservation.cancel)
+        serverobservation.accept(lambda: None)
+
+    @asyncio.coroutine
+    def render_get(self, request):
+        while self._cancel_right_away:
+            self._cancel_right_away.pop(0)()
+        return aiocoap.Message()
+
 class ObserveTestingSite(aiocoap.resource.Site):
     prefix = ()
 
@@ -53,6 +71,7 @@ class ObserveTestingSite(aiocoap.resource.Site):
         self.add_resource(self.prefix + ('unobservable',), MultiRepresentationResource())
         self.add_resource(self.prefix + ('count',), self.counter)
         self.add_resource(self.prefix + ('echo',), ObservableReplacingResource())
+        self.add_resource(self.prefix + ('notreally',), ObserveLateUnbloomer())
 
 class NestedSite(aiocoap.resource.Site):
     def __init__(self):
@@ -202,3 +221,15 @@ class TestObserve(WithObserveTestServer, WithClient):
         response = yieldfrom(requester.response_nonraising)
 
         self.assertEqual(events, ["Errback"])
+
+    @no_warnings
+    def test_notreally(self):
+        yieldfrom = self.loop.run_until_complete
+
+        m = aiocoap.Message(code=aiocoap.GET, observe=0)
+        m.unresolved_remote = self.servernetloc
+        m.opt.uri_path = ['deep', 'notreally']
+
+        response = yieldfrom(self.client.request(m).response_raising)
+
+        self.assertEqual(response.opt.observe, None)
