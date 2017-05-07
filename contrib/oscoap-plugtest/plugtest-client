@@ -76,7 +76,6 @@ class PlugtestClientProgram:
 
         self.host = opts.host
 
-        # FIXME deduplicate from server when i see what i need to do for non-correct use
         self.regular_context = get_security_context(opts.testno, 'client')
 
         self.ctx = await Context.create_client_context()
@@ -103,89 +102,157 @@ class PlugtestClientProgram:
             return method
         return registerer
 
+    @__implements_tests([0])
+    async def test_plain(self):
+        request = Message(code=GET, uri='coap://' + self.host + '/hello/coap')
+        response = await self.ctx.request(request).response
+        print("Response:", response)
+        additional_verify("Responde had correct code", response.code, CONTENT)
+        additional_verify("Responde had correct payload", response.payload, b"Hello World!")
+        additional_verify("Options as expected", response.opt, Message(content_format=0).opt)
 
     @__implements_tests([1, 2, 3])
     async def test_hellotests(self):
-        request = Message(code=GET, uri='coap://' + self.host+ '/helloworld' + ("?first=1" if self.testno == 2 else "?second=2" if self.testno == 3 else ""))
+        request = Message(code=GET, uri='coap://' + self.host+ '/hello/%d'%self.testno + ("?first=1" if self.testno == 2 else ""))
+        expected = {'content_format': 0}
+        if self.testno == 2:
+            expected['etag'] = b"\x2b"
         if self.testno == 3:
             request.opt.accept = 0
+            expected['max_age'] = 5
         unprotected_response = await self.protected_ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
-        additional_verify("Content-Type as expected", 0, unprotected_response.opt.content_format)
-        additional_verify("ETag as expected", b"\x2b" if self.testno >= 2 else None, unprotected_response.opt.etag)
-        additional_verify("Max-Age as expected", 5 if self.testno >= 3 else None, unprotected_response.opt.max_age)
+        additional_verify("Code as expected", unprotected_response.code, CONTENT)
+        additional_verify("Options as expected", unprotected_response.opt, Message(**expected).opt)
 
     @__implements_tests([4])
-    async def test_post(self):
-        request = Message(code=POST, uri='coap://' + self.host+ '/counter', payload=b"\x4a"*4, content_format=0)
-        unprotected_response = await self.protected_ctx.request(request).response
+    async def test_nonobservable(self):
+        request = Message(code=GET, uri='coap://' + self.host + '/hello/1', observe=0)
+
+        request = self.protected_ctx.request(request)
+
+        unprotected_response = await request.response
 
         print("Unprotected response:", unprotected_response)
-        additional_verify("Location-Path as expected", ('counter',), unprotected_response.opt.location_path)
-        additional_verify("Location-Query as expected", ('first=1', "second=2"), unprotected_response.opt.location_query)
+        additional_verify("Code as expected", unprotected_response.code, CONTENT)
+        additional_verify("Unexpected observe response", unprotected_response.opt.observe, None)
+
+        try:
+            async for o in request.observation:
+                print("Expectation failed: Observe events coming in.")
+        except AttributeError:
+            print("Implementation failure: Observation not implemented")
 
     @__implements_tests([5])
-    async def test_put(self):
-        request = Message(code=PUT, uri='coap://' + self.host+ '/counter', payload=b"\x5a"*4, content_format=0, if_match=[b"\x5b\x5b"])
-        unprotected_response = await self.protected_ctx.request(request).response
+    async def test_nonobservable(self):
+        request = Message(code=GET, uri='coap://' + self.host + '/observe', observe=0)
+
+        request = self.protected_ctx.request(request)
+
+        unprotected_response = await request.response
 
         print("Unprotected response:", unprotected_response)
+        additional_verify("Code as expected", unprotected_response.code, CONTENT)
+        additional_verify("Observe option present", unprotected_response.opt.observe is not None, True)
+
+        try:
+            async for o in request.observation:
+                print("Expectation failed: Observe events coming in.")
+        except AttributeError:
+            print("Implementation failure: Observation not implemented")
 
     @__implements_tests([6])
-    async def test_delete(self):
-        request = Message(code=DELETE, uri='coap://' + self.host+ '/counter')
+    async def test_post(self):
+        request = Message(code=POST, uri='coap://' + self.host+ '/hello/6', payload=b"\x4a", content_format=0)
         unprotected_response = await self.protected_ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
-        additional_verify("Delete resonse code as expected", DELETED, unprotected_response.code)
+        additional_verify("Code as expected", CREATED, unprotected_response.code)
+        additional_verify("Location-Path as expected", ('hello','6'), unprotected_response.opt.location_path)
+        additional_verify("Location-Query as expected", ('first=1',), unprotected_response.opt.location_query)
 
     @__implements_tests([7])
-    async def test_delete_error(self):
-        request = Message(code=DELETE, uri='coap://' + self.host+ '/error')
+    async def test_put_match(self):
+        request = Message(code=PUT, uri='coap://' + self.host+ '/hello/7', payload=b"\x7a", content_format=0, if_match=[b"\x7b"])
         unprotected_response = await self.protected_ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
-        additional_verify("Delete error as expected", NOT_FOUND, unprotected_response.code)
+        additional_verify("Code as expected", CHANGED, unprotected_response.code)
+        additional_verify("Options empty as expected", Message().opt, unprotected_response.opt)
 
-    # About test 10: Originally, this should be "fail_serverside"; with draft
-    # -02, the server relies on the sender ID of the client and no context ID
-    # any more, and will treat this as an unauthorized client (ie. there's no
-    # common context), so I think a 4.01 response (which fails to unprotect) is
-    # to be expected.
-    @__implements_tests([8, 9, 10, 14])
+    @__implements_tests([8])
+    async def test_put_nonmatch(self):
+        request = Message(code=PUT, uri='coap://' + self.host+ '/hello/7', payload=b"\x8a", content_format=0, if_none_match=True)
+        unprotected_response = await self.protected_ctx.request(request).response
+
+        print("Unprotected response:", unprotected_response)
+        additional_verify("Code as expected", PRECONDITION_FAILED, unprotected_response.code)
+        additional_verify("Options empty as expected", Message().opt, unprotected_response.opt)
+
+    @__implements_tests([9])
+    async def test_delete(self):
+        request = Message(code=DELETE, uri='coap://' + self.host+ '/test')
+        unprotected_response = await self.protected_ctx.request(request).response
+
+        print("Unprotected response:", unprotected_response)
+        additional_verify("Code as expected", DELETED, unprotected_response.code)
+        additional_verify("Options empty as expected", Message().opt, unprotected_response.opt)
+
+    @__implements_tests([10, 11])
     async def test_oscoaperror_server_reports_error(self):
-        request = Message(code=GET, uri='coap://' + self.host + '/helloworld')
-        request.opt.accept = 0
+        request = Message(code=GET, uri='coap://' + self.host + '/hello/1')
+
+        if self.testno == 10:
+            expected_code = UNAUTHORIZED
+        elif self.testno == 11:
+            expected_code = BAD_REQUEST
 
         try:
             unprotected_response = await self.protected_ctx.request(request).response
         except oscoap.NotAProtectedMessage as e:
-            print("Check passed: The server responded with something unencrypted (probably 4.something). (%s)"%e)
+            if e.plain_message.code == expected_code:
+                print("Check passed: The server responded with unencrypted %s."%(expected_code))
+            else:
+                print("Failed: Server responded with something unencrypted, but not the expected code %s: %s"%(expected_code, e.plain_message))
         else:
-            print("Violation: The validation passed.")
+            print("Failed: The validation passed.")
             print("Unprotected response:", unprotected_response)
 
-    @__implements_tests([11, 12, 13, 15, 16])
+    @__implements_tests([12])
     async def test_oscoaperror_failclientside(self):
-        request = Message(code=GET, uri='coap://' + self.host + ('/change-tid' if self.testno == 16 else '/helloworld'))
-        request.opt.accept = 0
+        request = Message(code=GET, uri='coap://' + self.host + '/hello/1')
 
         try:
             unprotected_response = await self.protected_ctx.request(request).response
         except oscoap.ProtectionInvalid as e:
             print("Check passed: The validation failed. (%s)"%e)
         else:
-            print("Violation: The validation passed.")
+            print("Failed: the validation passed.")
             print("Unprotected response:", unprotected_response)
 
-    @__implements_tests([17])
-    async def test_no_oscoap(self):
-        request = Message(code=GET, uri='coap://' + self.host+ '/helloworld')
-        request.opt.accept = 0
-        response = await self.ctx.request(request).response
+    @__implements_tests([13])
+    async def test_replay(self):
+        request = Message(code=GET, uri='coap://' + self.host + '/hello/1')
 
-        additional_verify("Response is 'unauthorized'", response.code, UNAUTHORIZED)
+        unprotected_response = await self.protected_ctx.request(request).response # make this _nonraising as soon as there's a proper context backend
+        if unprotected_response.code != CONTENT:
+            print("Failed: Request did not even pass before replay (%s)"%unprotected_response)
+            return
+
+        self.regular_context = get_security_context(self.testno, 'client')
+        self.protected_ctx.set_uri_prefix_context("coap://%s" % self.host, self.regular_context)
+
+        try:
+            unprotected_response = await self.protected_ctx.request(request).response
+        except oscoap.NotAProtectedMessage as e:
+            if e.plain_message.code == BAD_REQUEST:
+                print("Check passed: The server responded with unencrypted replay error.")
+            else:
+                print("Failed: Server responded with something unencrypted, but not the expected code %s: %s"%(expected_code, e.plain_message))
+        else:
+            print("Failed: the validation passed.")
+            print("Unprotected response:", unprotected_response)
 
 if __name__ == "__main__":
     PlugtestClientProgram.sync_run()

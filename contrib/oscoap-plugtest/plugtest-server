@@ -31,30 +31,88 @@ class PleaseUseOscoap(error.ConstructionRenderableError):
     message = "This is an OSCOAP plugtest, please use option %d"%aiocoap.numbers.optionnumbers.OptionNumber.OBJECT_SECURITY
 
 
-class HelloResource(resource.Resource):
+class PlugtestResource(resource.Resource):
+    options = {}
+    expected_options = {}
+
     def render_get(self, request):
-        testno_mode = {('first=1',): 2, ('second=2',): 3}.get(request.opt.uri_query, 1)
+        reference = aiocoap.Message(**self.expected_options)
+        additional_verify("Request options as expected", reference.opt, request.opt)
 
-        additional_verify("Accept as expected", 0 if testno_mode == 3 else None, request.opt.accept)
+        return aiocoap.Message(payload=self.message.encode('ascii'), **self.options)
 
-        etag = b"\x2b" if testno_mode in (2, 3) else None
-        max_age = 5 if testno_mode == 3 else None
-        return aiocoap.Message(content_format=0, payload="Hello World!".encode('ascii'), etag=etag, max_age=max_age)
+class Hello(PlugtestResource):
+    options = {'content_format': 0}
 
-class CounterResource(resource.Resource):
-    def render_post(self, request):
-        additional_verify("Content-Format as expeted", 0, request.opt.content_format)
-        additional_verify("Payload as expected", b"\x4a"*4, request.payload)
-        return aiocoap.Message(code=aiocoap.CHANGED, location_path=('counter',), location_query=('first=1', 'second=2'))
+    expected_options = {} # Uri-Path is stripped by the site
 
-    def render_put(self, request):
-        additional_verify("Content-Format as expeted", 0, request.opt.content_format)
-        additional_verify("If-Match as expected", (b"\x5b\x5b",), request.opt.if_match)
-        additional_verify("Payload as expected", b"\x5a"*4, request.payload)
-        return aiocoap.Message(code=aiocoap.CHANGED)
+    message = "Hello World!"
 
-    def render_delete(self, request):
+Hello1 = Hello # same, just registered with the site for protected access
+
+class Hello2(Hello):
+    expected_options = {'uri_query': ['first=1']}
+
+    options = {'etag': b"\x2b", **Hello1.options}
+
+class Hello3(Hello):
+    expected_options = {'accept': 0}
+
+    options = {'max_age': 5, **Hello1.options}
+
+class Observe(PlugtestResource, aiocoap.interfaces.ObservableResource):
+    expected_options = {'observe': 0}
+    options = {}
+
+    message = "1"
+
+    async def add_observation(self, request, serverobservation):
+        async def keep_entertained():
+            def say(text):
+                return aiocoap.Message(mtype=aiocoap.CON, code=aiocoap.CONTENT, payload=text.encode('utf8'))
+            await asyncio.sleep(2)
+            serverobservation.trigger(say("Zwei"))
+            await asyncio.sleep(2)
+            serverobservation.trigger(say("Drei"))
+            await asyncio.sleep(2)
+            serverobservation.trigger(say("und aus!"))
+            await asyncio.sleep(2)
+            serverobservation.trigger()
+            await asyncio.sleep(2)
+            serverobservation.trigger(aiocoap.Message(
+                mtype=aiocoap.CON, code=aiocoap.INTERNAL_SERVER_ERROR,
+                payload="server is bored with client".encode('utf8')
+                ))
+        t = asyncio.Task(keep_entertained())
+        serverobservation.accept(t.cancel)
+
+class Hello6(resource.Resource):
+    async def render_post(self, request):
+        additional_verify("Request options as expected", aiocoap.Message(content_format=0).opt, request.opt)
+        additional_verify("Request payload as expected", request.payload, b"J")
+
+        return aiocoap.Message(code=aiocoap.CREATED, location_path=["hello", "6"], location_query=["first=1"])
+
+class Hello7(resource.Resource):
+    async def render_put(self, request):
+        if request.opt.if_none_match:
+            print("This looks like test 8b")
+            additional_verify("Request options as expected", aiocoap.Message(content_format=0, if_none_match=True).opt, request.opt)
+            additional_verify("Request payload as expected", request.payload, b"\x8a")
+
+            return aiocoap.Message(code=aiocoap.PRECONDITION_FAILED)
+        else:
+            print("This looks like test 7b")
+            additional_verify("Request options as expected", aiocoap.Message(content_format=0, if_match=[b"{"]).opt, request.opt)
+            additional_verify("Request payload as expected", request.payload, b"z")
+
+            return aiocoap.Message(code=aiocoap.CHANGED)
+
+class DeleteResource(resource.Resource):
+    async def render_delete(self, request):
+        additional_verify("Request options empty as expected", aiocoap.Message().opt, request.opt)
         return aiocoap.Message(code=aiocoap.DELETED)
+
 
 class SeqnoManager(resource.Resource):
     def __init__(self, contexts):
@@ -168,7 +226,7 @@ class ProtectedSite(resource.Site):
                 response = await super().render(unprotected)
         except error.RenderableError as err:
             response = err.to_message()
-        except Exception as rr:
+        except Exception as err:
             response = aiocoap.Message(code=aiocoap.INTERNAL_SERVER_ERROR)
             self.log.error("An exception occurred while rendering a protected resource: %r"%err)
             self.log.exception(err)
@@ -194,9 +252,14 @@ class PlugtestSite(ProtectedSite):
         super().__init__(contexts=[regular_context])
 
         self.add_resource(('.well-known', 'core'), resource.WKCResource(self.get_resources_as_linkheader))
-        self.add_protected_resource(('change-tid',), HelloResource())
-        self.add_protected_resource(('helloworld',), HelloResource())
-        self.add_protected_resource(('counter',), CounterResource())
+        self.add_resource(('hello', 'coap'), Hello())
+        self.add_resource(('hello', '1'), Hello1())
+        self.add_resource(('hello', '2'), Hello2())
+        self.add_resource(('hello', '3'), Hello3())
+        self.add_resource(('observe',), Observe())
+        self.add_resource(('hello', '6'), Hello6())
+        self.add_resource(('hello', '7'), Hello7())
+        self.add_resource(('test',), DeleteResource())
 
         self.add_resource(('sequence-numbers',), SeqnoManager(self.contexts))
 
