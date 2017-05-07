@@ -159,8 +159,6 @@ class SecurityContext:
         outer_message, inner_message = self._split_message(message)
 
         if request_partiv is None:
-            assert inner_message.code.is_request(), "Trying to protect a response without request IV (possibly this is an observation; that's not supported in this OSCOAP implementation yet)"
-
             seqno = self.new_sequence_number()
             partial_iv = binascii.unhexlify(("%%0%dx" % (2 * self.algorithm.iv_bytes)) % seqno)
             partial_iv_short = partial_iv.lstrip(b'\0')
@@ -168,8 +166,10 @@ class SecurityContext:
 
             unprotected = {
                     6: partial_iv_short,
-                    4: self.sender_id,
                     }
+            if inner_message.code.is_request():
+                # this is usually the case; the exception is observe
+                unprotected[4] = self.sender_id
             request_kid = self.sender_id
         else:
             assert inner_message.code.is_response()
