@@ -270,12 +270,6 @@ class ProtectedSite(resource.Site):
 
         self.log.debug("Message was decrypted successfully. Request is to %s (%s)", unprotected.opt.uri_path, unprotected)
 
-        # FIXME this belongs into PlugtestSite
-        if unprotected.opt.uri_path == ('change-tid',):
-            # it seems this is the easiest way to tamper with the Tid as
-            # requested for test 16.
-            seqno = bytes(255 - x for x in seqno)
-
         if unprotected.opt.observe is not None:
             await super().add_observation(unprotected, oscobs)
             if not oscobs._accepted:
