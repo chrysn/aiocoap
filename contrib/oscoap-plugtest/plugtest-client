@@ -277,6 +277,4 @@ class PlugtestClientProgram:
             print("Unprotected response:", unprotected_response)
 
 if __name__ == "__main__":
-    import logging
-    logging.root.setLevel(logging.DEBUG)
     PlugtestClientProgram.sync_run()
