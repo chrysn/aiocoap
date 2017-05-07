@@ -1255,7 +1255,7 @@ class ServerObservation(object):
             # give it the time to finish add_observation and not worry about a
             # few milliseconds. (after all, this is a rare condition and people
             # will not test for it).
-            self.original_protocol.loop.call_later(cancellation_callback)
+            self.original_protocol.loop.call_soon(cancellation_callback)
         else:
             self.resource_cancellation_callback = cancellation_callback
 
