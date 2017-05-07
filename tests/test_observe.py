@@ -60,6 +60,11 @@ class ObserveLateUnbloomer(Resource):
             self._cancel_right_away.pop(0)()
         return aiocoap.Message()
 
+class ObservableFailure(ObservableResource):
+    @asyncio.coroutine
+    def render_get(self, request):
+        return aiocoap.Message(code=aiocoap.UNAUTHORIZED)
+
 class ObserveTestingSite(aiocoap.resource.Site):
     prefix = ()
 
@@ -72,6 +77,7 @@ class ObserveTestingSite(aiocoap.resource.Site):
         self.add_resource(self.prefix + ('count',), self.counter)
         self.add_resource(self.prefix + ('echo',), ObservableReplacingResource())
         self.add_resource(self.prefix + ('notreally',), ObserveLateUnbloomer())
+        self.add_resource(self.prefix + ('failure',), ObservableFailure())
 
 class NestedSite(aiocoap.resource.Site):
     def __init__(self):
@@ -222,14 +228,21 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         self.assertEqual(events, ["Errback"])
 
-    @no_warnings
-    def test_notreally(self):
+    def _test_no_observe(self, path):
         yieldfrom = self.loop.run_until_complete
 
         m = aiocoap.Message(code=aiocoap.GET, observe=0)
         m.unresolved_remote = self.servernetloc
-        m.opt.uri_path = ['deep', 'notreally']
+        m.opt.uri_path = path
 
-        response = yieldfrom(self.client.request(m).response_raising)
+        response = yieldfrom(self.client.request(m).response)
 
         self.assertEqual(response.opt.observe, None)
+
+    @no_warnings
+    def test_notreally(self):
+        self._test_no_observe(['deep', 'notreally'])
+
+    @no_warnings
+    def test_failure(self):
+        self._test_no_observe(['deep', 'failure'])
