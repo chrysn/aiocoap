@@ -80,8 +80,6 @@ class Observe(PlugtestResource, aiocoap.interfaces.ObservableResource):
             await asyncio.sleep(2)
             serverobservation.trigger(say("und aus!"))
             await asyncio.sleep(2)
-            serverobservation.trigger()
-            await asyncio.sleep(2)
             serverobservation.trigger(aiocoap.Message(
                 mtype=aiocoap.CON, code=aiocoap.INTERNAL_SERVER_ERROR,
                 payload="server is bored with client".encode('utf8')
@@ -179,22 +177,25 @@ class ProtectedSite(resource.Site):
         class OSCOAPObservation:
             def __init__(self, serverobservation):
                 self._serverobservation = serverobservation
+                self._original_response_context = None
                 self._accepted = False
                 self._cancelled = False
 
                 # preliminarily accept; can't decide that later in the current
                 # implementation of observation in the Protocol, and i don't want to do
                 # the request decoding twice or early.
-                serverobservation.accept(lambda: self.deregister("Transport observation was cancelled"))
+                serverobservation.accept(lambda: self.deregister("Transport observation was cancelled", True))
 
-            def deregister(self, reason):
+            def deregister(self, reason, coming_from_transport=False):
                 if self._cancelled:
                     return
 
                 self._cancelled = True
                 if self._accepted:
                     self._canceller()
-                self._serverobservation.deregister("OSCOAP resource said: " + reason)
+
+                if not coming_from_transport:
+                    self._serverobservation.deregister("OSCOAP resource said: " + reason)
 
             def accept(self, canceller):
                 if self._cancelled:
@@ -205,7 +206,18 @@ class ProtectedSite(resource.Site):
                     self._canceller = canceller
 
             def trigger(self, response=None):
-                print("Should trigger now")
+                assert self._original_response_context is not None, "Trigger called before rendering"
+
+                if response is None:
+                    self._serverobservation.trigger(aiocoap.Message(code=aiocoap.INTERNAL_SERVER_ERROR))
+                    # the original request won't be decoded any more, and
+                    # OSCOAPObservation is not integrated deeply enough to
+                    # store the decoded request
+                    raise ValueError("Can not use empty triggering with OSCOAP")
+
+                protected, _ = self._original_response_context.protect(response)
+
+                self._serverobservation.trigger(protected)
 
         oscobs = OSCOAPObservation(serverobservation)
 
@@ -270,6 +282,8 @@ class ProtectedSite(resource.Site):
                 await self._inner_site.add_observation(unprotected, oscobs)
             if not oscobs._accepted:
                 oscobs.deregister("OSCOAP resource does not provide observation")
+            else:
+                oscobs._original_response_context = sc
 
         # FIXME the render doesn't provide a way to provide context in the
         # sense of "who is the user"; obviously, the render interface needs

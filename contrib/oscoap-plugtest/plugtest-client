@@ -35,12 +35,6 @@ class ProtectedRequester(interfaces.RequestProvider):
         self._prefixes[prefix] = security_context
 
     def request(self, request_message):
-        return self.Request(self._request(request_message))
-
-    @asyncio.coroutine
-    def _request(self, request_message):
-        # this will probably be moved into self.Request once it does more than provide a .response
-
         uri = request_message.get_request_uri()
         for (prefix, context) in sorted(self._prefixes.items(), reverse=True):
             if uri.startswith(prefix):
@@ -49,23 +43,54 @@ class ProtectedRequester(interfaces.RequestProvider):
         else:
             raise KeyError("No suitable security context found.")
 
-        protected, seqno = security_context.protect(request_message)
-        # FIXME where should this be called from?
-        security_context._store()
-
-        wire_request =  self._wire.request(protected)
-
-        # FIXME do we want to expose anything else of the request? what other
-        # interfaces are there that are applicable?
-
-        wire_response = yield from wire_request.response
-        unprotected_response, _ = security_context.unprotect(wire_response, seqno)
-
-        return unprotected_response
+        return self.Request(self._wire, security_context, request_message)
 
     class Request(interfaces.Request):
-        def __init__(self, response_future):
-            self.response = response_future
+        def __init__(self, wire, security_context, request_message):
+            self.observation = self.Observation(request_message)
+            self._security_context = security_context
+
+            self.response = self._initial(wire, request_message)
+
+        @asyncio.coroutine
+        def _initial(self, wire, request_message):
+            protected, seqno = self._security_context.protect(request_message)
+            # FIXME where should this be called from?
+            self._security_context._store()
+
+            wire_request =  wire.request(protected)
+
+            # FIXME do we want to expose anything else of the request? what other
+            # interfaces are there that are applicable?
+
+            wire_request.observation.register_errback(self.observation.error)
+            wire_request.observation.register_callback(self._observe_message)
+
+            # FIXME something is weak too aggressively here -- proper solution
+            # would probably be keeping references in callback recipients as
+            # mandatory-to-keep callback removers (ie. the handle is not only
+            # for removing one's callback again, but also to keep it alive)
+            self.observation._wire_observation = wire_request.observation
+
+            wire_response = yield from wire_request.response
+            unprotected_response, _ = self._security_context.unprotect(wire_response, seqno)
+            # not storing self._security_context because responses are in mirror iv space
+
+            return unprotected_response
+
+        def _observe_message(self, message):
+            unprotected_message, _ = self._security_context.unprotect(message)
+            self.observation.callback(unprotected_message)
+
+        class Observation(protocol.ClientObservation):
+            # using the inheritance mainly for the __aiter__ that's so nicely generated from register_{call,err}back
+            def cancel(self):
+                """not taking cancellation too seriously until it is properly implemented outside OSCOAP"""
+            def _register(self, *args):
+                raise Exception("This is an OSCOAP observation and doesn't register")
+            def _unregister(self, *args):
+                raise Exception("This is an OSCOAP observation and doesn't unregister")
+
 
 class PlugtestClientProgram:
     async def run(self):
@@ -156,11 +181,8 @@ class PlugtestClientProgram:
         additional_verify("Code as expected", unprotected_response.code, CONTENT)
         additional_verify("Observe option present", unprotected_response.opt.observe is not None, True)
 
-        try:
-            async for o in request.observation:
-                print("Expectation failed: Observe events coming in.")
-        except AttributeError:
-            print("Implementation failure: Observation not implemented")
+        async for o in request.observation:
+            print("Verify: Received message", o, o.payload)
 
     @__implements_tests([6])
     async def test_post(self):
@@ -255,4 +277,6 @@ class PlugtestClientProgram:
             print("Unprotected response:", unprotected_response)
 
 if __name__ == "__main__":
+    import logging
+    logging.root.setLevel(logging.DEBUG)
     PlugtestClientProgram.sync_run()
