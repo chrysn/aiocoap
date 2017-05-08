@@ -178,8 +178,8 @@ class SecurityContext:
         else:
             assert inner_message.code.is_response()
 
-            partial_iv = request_partiv
-            partial_iv_short = partial_iv.lstrip(b"\x00")
+            partial_iv = b"\0" * (self.algorithm.iv_bytes - len(request_partiv)) + request_partiv
+            partial_iv_short = request_partiv
             iv = _flip_first_bit(_xor_bytes(partial_iv, self.sender_iv))
             unprotected = {}
 
@@ -236,7 +236,7 @@ class SecurityContext:
             outer_message.opt.object_security = oscoap_data
 
         # FIXME go through options section
-        return outer_message, partial_iv
+        return outer_message, partial_iv_short
 
     def unprotect(self, protected_message, request_partiv=None):
         protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message, is_request=request_partiv == None)
@@ -247,14 +247,14 @@ class SecurityContext:
         # FIXME check for duplicate keys in protected
 
         if request_partiv is not None:
-            partial_iv_short = request_partiv.lstrip(b"\x00")
+            partial_iv_short = request_partiv
+            partial_iv = b"\0" * (self.algorithm.iv_bytes - len(request_partiv)) + request_partiv
             assert 6 not in unprotected, "Explicit partial IV in response (not implemented)"
-            iv = _flip_first_bit(_xor_bytes(request_partiv, self.recipient_iv))
+            iv = _flip_first_bit(_xor_bytes(partial_iv, self.recipient_iv))
             if unprotected.pop(4, self.recipient_id) != self.recipient_id:
                 # with compression, this can probably not happen any more anyway
                 raise ProtectionInvalid("Explicit sender ID does not match")
             seqno = None # sentinel for not striking out anyting
-            partial_iv = None # only for being returned
 
             # FIXME better mirror what was sent before
             request_kid = self.sender_id
@@ -305,7 +305,7 @@ class SecurityContext:
                 # is it really be as easy as that?
                 unprotected_message.opt.observe = seqno
 
-        return unprotected_message, partial_iv
+        return unprotected_message, partial_iv_short
 
     @classmethod
     def _extract_encrypted0(cls, message, is_request):
