@@ -313,13 +313,13 @@ class PlugtestSite(ProtectedSite):
 
         self.add_resource(('.well-known', 'core'), resource.WKCResource(self.get_resources_as_linkheader))
         self.add_resource(('hello', 'coap'), Hello())
-        self.add_resource(('hello', '1'), Hello1())
-        self.add_resource(('hello', '2'), Hello2())
-        self.add_resource(('hello', '3'), Hello3())
-        self.add_resource(('observe',), Observe())
-        self.add_resource(('hello', '6'), Hello6())
-        self.add_resource(('hello', '7'), Hello7())
-        self.add_resource(('test',), DeleteResource())
+        self.add_protected_resource(('hello', '1'), Hello1())
+        self.add_protected_resource(('hello', '2'), Hello2())
+        self.add_protected_resource(('hello', '3'), Hello3())
+        self.add_protected_resource(('observe',), Observe())
+        self.add_protected_resource(('hello', '6'), Hello6())
+        self.add_protected_resource(('hello', '7'), Hello7())
+        self.add_protected_resource(('test',), DeleteResource())
 
         self.add_resource(('sequence-numbers',), SeqnoManager(self.contexts))
 
