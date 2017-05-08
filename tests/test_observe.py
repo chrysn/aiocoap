@@ -51,7 +51,7 @@ class ObserveLateUnbloomer(Resource):
 
     @asyncio.coroutine
     def add_observation(self, request, serverobservation):
-        request._cancel_right_away.append(serverobservation.cancel)
+        self._cancel_right_away.append(lambda: serverobservation.deregister("Changed my mind at render time"))
         serverobservation.accept(lambda: None)
 
     @asyncio.coroutine
