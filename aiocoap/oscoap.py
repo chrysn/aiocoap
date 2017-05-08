@@ -105,10 +105,14 @@ class SecurityContext:
     # message processing
 
     def _extract_external_aad(self, message, request_kid, request_seq):
-        if message.code.is_request():
-            class_i_options = Message(observe=message.opt.observe).opt.encode()
-        else:
-            class_i_options = b""
+        # If any option were actually Class I, it would be something like
+        #
+        # class_i_options = Message(observe=message.opt.observe).opt.encode()
+        #
+        # (but Observe is in proper Class I neither in requests nor in
+        # responses)
+
+        class_i_options = b""
 
         external_aad = [
                 1, # ver
