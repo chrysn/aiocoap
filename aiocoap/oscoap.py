@@ -155,7 +155,8 @@ class SecurityContext:
             inner_message.opt.proxy_scheme = None
 
         outer_message.opt.observe = inner_message.opt.observe
-        inner_message.opt.observe = None
+        if inner_message.code.is_response():
+            inner_message.opt.observe = None
 
         return outer_message, inner_message
 
