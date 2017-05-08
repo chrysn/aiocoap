@@ -82,6 +82,7 @@ class ProtectedRequester(interfaces.RequestProvider):
 
         def _observe_message(self, message):
             unprotected_message, _ = self._security_context.unprotect(message)
+            self._security_context._store()
             self.observation.callback(unprotected_message)
 
         class Observation(protocol.ClientObservation):
