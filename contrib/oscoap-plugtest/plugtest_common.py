@@ -26,7 +26,7 @@ def get_security_context(testno, role):
 
     sequence = {
             "used": {(settingsdata['server-sender-id_hex'] if role == 'server' else settingsdata['client-sender-id_hex']).lower(): testno},
-            "seen": {(settingsdata['client-sender-id_hex'] if role == 'server' else settingsdata['server-sender-id_hex']).lower(): list([testno - 1])}
+            "seen": {(settingsdata['client-sender-id_hex'] if role == 'server' else settingsdata['server-sender-id_hex']).lower(): list([testno - 1]) if role == 'server' else [-1]}
         }
 
     if role == 'client':

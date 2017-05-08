@@ -47,7 +47,8 @@ class ProtectedRequester(interfaces.RequestProvider):
 
     class Request(interfaces.Request):
         def __init__(self, wire, security_context, request_message):
-            self.observation = self.Observation(request_message)
+            if request_message.opt.observe is not None:
+                self.observation = self.Observation(request_message)
             self._security_context = security_context
 
             self.response = self._initial(wire, request_message)
@@ -63,14 +64,15 @@ class ProtectedRequester(interfaces.RequestProvider):
             # FIXME do we want to expose anything else of the request? what other
             # interfaces are there that are applicable?
 
-            wire_request.observation.register_errback(self.observation.error)
-            wire_request.observation.register_callback(self._observe_message)
+            if request_message.opt.observe is not None:
+                wire_request.observation.register_errback(self.observation.error)
+                wire_request.observation.register_callback(self._observe_message)
 
-            # FIXME something is weak too aggressively here -- proper solution
-            # would probably be keeping references in callback recipients as
-            # mandatory-to-keep callback removers (ie. the handle is not only
-            # for removing one's callback again, but also to keep it alive)
-            self.observation._wire_observation = wire_request.observation
+                # FIXME something is weak too aggressively here -- proper solution
+                # would probably be keeping references in callback recipients as
+                # mandatory-to-keep callback removers (ie. the handle is not only
+                # for removing one's callback again, but also to keep it alive)
+                self.observation._wire_observation = wire_request.observation
 
             wire_response = yield from wire_request.response
             unprotected_response, _ = self._security_context.unprotect(wire_response, seqno)
@@ -161,11 +163,8 @@ class PlugtestClientProgram:
         additional_verify("Code as expected", unprotected_response.code, CONTENT)
         additional_verify("Observe option is absent", unprotected_response.opt.observe, None)
 
-        try:
-            async for o in request.observation:
-                print("Expectation failed: Observe events coming in.")
-        except AttributeError:
-            print("Implementation failure: Observation not implemented")
+        async for o in request.observation:
+            print("Expectation failed: Observe events coming in.")
 
     @__implements_tests([5])
     async def test_observable(self):

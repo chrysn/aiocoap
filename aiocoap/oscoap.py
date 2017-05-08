@@ -131,7 +131,7 @@ class SecurityContext:
 
         # not trying to preserve token or mid, they're up to the transport
         outer_message = Message(code=message.code)
-        inner_message = message
+        inner_message = message.copy()
 
         if inner_message.code.is_request():
             protected_uri = inner_message.get_request_uri()
