@@ -84,12 +84,10 @@ class ProtectedRequester(interfaces.RequestProvider):
 
         class Observation(protocol.ClientObservation):
             # using the inheritance mainly for the __aiter__ that's so nicely generated from register_{call,err}back
-            def cancel(self):
-                """not taking cancellation too seriously until it is properly implemented outside OSCOAP"""
             def _register(self, *args):
-                raise Exception("This is an OSCOAP observation and doesn't register")
+                "This is an OSCOAP observation and doesn't register"
             def _unregister(self, *args):
-                raise Exception("This is an OSCOAP observation and doesn't unregister")
+                "This is an OSCOAP observation and doesn't unregister"
 
 
 class PlugtestClientProgram:

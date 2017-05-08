@@ -235,9 +235,13 @@ class TestObserve(WithObserveTestServer, WithClient):
         m.unresolved_remote = self.servernetloc
         m.opt.uri_path = path
 
-        response = yieldfrom(self.client.request(m).response)
+        request = self.client.request(m)
+
+        response = yieldfrom(request.response)
 
         self.assertEqual(response.opt.observe, None)
+
+        return request
 
     @no_warnings
     def test_notreally(self):
@@ -245,4 +249,8 @@ class TestObserve(WithObserveTestServer, WithClient):
 
     @no_warnings
     def test_failure(self):
-        self._test_no_observe(['deep', 'failure'])
+        request = self._test_no_observe(['deep', 'failure'])
+
+        errors = []
+        request.observation.register_errback(errors.append)
+        self.assertEqual(len(errors), 1, "Errback was not called on a failed observation")

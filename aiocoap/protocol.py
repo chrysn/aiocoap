@@ -1414,6 +1414,8 @@ class ClientObservation(object):
     def register_callback(self, callback):
         """Call the callback whenever a response to the message comes in, and
         pass the response to it."""
+        if self.cancelled:
+            return
         self.callbacks.append(callback)
         self._set_nonweak()
 
@@ -1421,6 +1423,9 @@ class ClientObservation(object):
         """Call the callback whenever something goes wrong with the
         observation, and pass an exception to the callback. After such a
         callback is called, no more callbacks will be issued."""
+        if self.cancelled:
+            callback(self._cancellation_reason)
+            return
         self.errbacks.append(callback)
         self._set_nonweak()
 
@@ -1438,8 +1443,11 @@ class ClientObservation(object):
             c(exception)
 
         self.cancel()
+        self._cancellation_reason = exception
 
     def cancel(self):
+        # FIXME determine whether this is called by anything other than error,
+        # and make it private so there is always a _cancellation_reason
         """Cease to generate observation or error events. This will not
         generate an error by itself."""
 
@@ -1452,6 +1460,8 @@ class ClientObservation(object):
         self.cancelled = True
 
         self._unregister()
+
+        self._cancellation_reason = None
 
     def _register(self, observation_dict, key):
         """Insert the observation into a dict (observation_dict) at the given
