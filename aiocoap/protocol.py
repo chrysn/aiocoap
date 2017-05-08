@@ -1185,7 +1185,7 @@ class Responder(object):
             # this is the indicator that the request was just injected
             response.mtype = CON
 
-        if self._serverobservation is None:
+        if self._serverobservation is None or self._serverobservation.cancelled:
             if response.opt.observe is not None:
                 self.log.info("Dropping observe option from response (no server observation was created for this request)")
             response.opt.observe = None
