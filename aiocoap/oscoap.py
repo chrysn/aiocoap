@@ -55,6 +55,11 @@ def _flip_first_bit(a):
     """Flip the first bit in a hex string"""
     return _xor_bytes(a, b"\x80" + b"\x00" * (len(a) - 1))
 
+def _pad_iv(algorithm, short_partial):
+    """Return the short_partial abbreviated version of a Partial IV and return
+    the full Partial IV"""
+    return b"\0" * (algorithm.iv_bytes - len(short_partial)) + short_partial
+
 class Algorithm(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def encrypt(cls, plaintext, aad, key, iv):
@@ -160,38 +165,39 @@ class SecurityContext:
 
         return outer_message, inner_message
 
-    def protect(self, message, request_partiv=None):
+    def protect(self, message, request_data=None, *, can_use_bitflip=True):
+        assert (request_data is None) == message.code.is_request()
+        if request_data is not None:
+            request_kid, request_partiv = request_data
+
         outer_message, inner_message = self._split_message(message)
 
-        if request_partiv is None:
+        if request_data is None or not can_use_bitflip:
             seqno = self.new_sequence_number()
-            partial_iv = binascii.unhexlify(("%%0%dx" % (2 * self.algorithm.iv_bytes)) % seqno)
+
+            partial_iv = seqno.to_bytes(self.algorithm.iv_bytes, 'big')
             partial_iv_short = partial_iv.lstrip(b'\0')
             iv = _xor_bytes(self.sender_iv, partial_iv)
 
             unprotected = {
                     6: partial_iv_short,
                     }
-            if inner_message.code.is_request():
+            if request_data is None:
                 # this is usually the case; the exception is observe
                 unprotected[4] = self.sender_id
-            request_kid = self.sender_id
-        else:
-            assert inner_message.code.is_response()
 
-            partial_iv = b"\0" * (self.algorithm.iv_bytes - len(request_partiv)) + request_partiv
-            partial_iv_short = request_partiv
+                request_kid = self.sender_id
+                request_partiv = partial_iv_short
+        else:
+            partial_iv = _pad_iv(self.algorithm, request_partiv)
             iv = _flip_first_bit(_xor_bytes(partial_iv, self.sender_iv))
             unprotected = {}
-
-            # FIXME: better should mirror what was used in request
-            request_kid = self.recipient_id
 
         protected = {}
 
         assert protected == {}
         protected_serialized = b'' # were it into an empty dict, it'd be the cbor dump
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, request_kid, partial_iv_short)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, request_kid, request_partiv)]
         aad = cbor.dumps(enc_structure)
         key = self.sender_key
 
@@ -237,46 +243,46 @@ class SecurityContext:
             outer_message.opt.object_security = oscoap_data
 
         # FIXME go through options section
-        return outer_message, partial_iv_short
+        return outer_message, (request_kid, request_partiv)
 
-    def unprotect(self, protected_message, request_partiv=None):
-        protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message, is_request=request_partiv == None)
+    def unprotect(self, protected_message, request_data=None):
+        assert (request_data is not None) == protected_message.code.is_response()
+        if request_data is not None:
+            request_kid, request_partiv = request_data
+
+        protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message, is_request=request_data is None)
 
         if protected:
             raise ProtectionInvalid("The protected field is not empty")
 
         # FIXME check for duplicate keys in protected
 
-        if request_partiv is not None:
-            partial_iv_short = request_partiv
-            partial_iv = b"\0" * (self.algorithm.iv_bytes - len(request_partiv)) + request_partiv
-            assert 6 not in unprotected, "Explicit partial IV in response (not implemented)"
+        if unprotected.pop(4, self.recipient_id) != self.recipient_id:
+            # for most cases, this is caught by the session ID dispatch, but in
+            # responses (where explicit sender IDs are atypical), this is a
+            # valid check
+            raise ProtectionInvalid("Sender ID does not match")
+
+        if 6 not in unprotected:
+            if request_data is None:
+                raise ProtectonInvalid("No sequence number provided in request")
+            partial_iv = _pad_iv(self.algorithm, request_partiv)
             iv = _flip_first_bit(_xor_bytes(partial_iv, self.recipient_iv))
-            if unprotected.pop(4, self.recipient_id) != self.recipient_id:
-                # with compression, this can probably not happen any more anyway
-                raise ProtectionInvalid("Explicit sender ID does not match")
             seqno = None # sentinel for not striking out anyting
-
-            # FIXME better mirror what was sent before
-            request_kid = self.sender_id
         else:
-            try:
-                partial_iv_short = unprotected[6]
-                hexlified = binascii.hexlify(partial_iv_short)
-                seqno = int(hexlified, 16) if hexlified else 0
-            except (TypeError, KeyError):
-                raise ProtectionInvalid("No serial number provided")
+            partial_iv_short = unprotected[6]
 
-            if unprotected.pop(4, self.recipient_id) != self.recipient_id:
-                raise ProtectionInvalid("Protected recipient ID does not match")
+            if request_data is None:
+                request_partiv = partial_iv_short
+                request_kid = self.recipient_id
+
+            seqno = int.from_bytes(partial_iv_short, 'big')
 
             if not self.recipient_replay_window.is_valid(seqno):
                 raise ReplayError("Sequence number was re-used")
 
-            partial_iv = binascii.unhexlify("%014x"%seqno)
+            partial_iv = _pad_iv(self.algorithm, partial_iv_short)
             iv = _xor_bytes(self.recipient_iv, partial_iv)
-
-            request_kid = self.recipient_id
 
         # FIXME is it an error for additional data to be present in unprotected?
 
@@ -286,7 +292,7 @@ class SecurityContext:
         tag = ciphertext[-self.algorithm.tag_bytes:]
         ciphertext = ciphertext[:-self.algorithm.tag_bytes]
 
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_kid, partial_iv_short)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_kid, request_partiv)]
         aad = cbor.dumps(enc_structure)
 
         plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.recipient_key, iv)
@@ -306,7 +312,7 @@ class SecurityContext:
                 # is it really be as easy as that?
                 unprotected_message.opt.observe = seqno
 
-        return unprotected_message, partial_iv_short
+        return unprotected_message, (request_kid, request_partiv)
 
     @classmethod
     def _extract_encrypted0(cls, message, is_request):
