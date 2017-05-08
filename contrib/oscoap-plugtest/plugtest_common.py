@@ -7,9 +7,13 @@ from aiocoap import oscoap
 
 contextdir = os.path.dirname(__file__) + '/common-context/'
 
-def get_security_context(testno, role):
-    os.makedirs('temp-contexts', exist_ok=True)
-    contextcopy = tempfile.mkdtemp(prefix='context-', dir='temp-contexts')
+def get_security_context(testno, role, persist=None):
+    if persist is None:
+        os.makedirs('temp-contexts', exist_ok=True)
+        contextcopy = tempfile.mkdtemp(prefix='context-', dir='temp-contexts')
+    else:
+        os.makedirs(persist, exist_ok=True)
+        contextcopy = persist
     secretdata = json.load(open(contextdir + 'secret.json'))
     with open(os.path.join(contextcopy, 'secret.json'), 'w') as out:
         json.dump(secretdata, out)
@@ -24,13 +28,14 @@ def get_security_context(testno, role):
     with open(os.path.join(contextcopy, 'settings.json'), 'w') as out:
         json.dump(settingsdata, out)
 
-    sequence = {
-            "used": {(settingsdata['server-sender-id_hex'] if role == 'server' else settingsdata['client-sender-id_hex']).lower(): testno},
-            "seen": {(settingsdata['client-sender-id_hex'] if role == 'server' else settingsdata['server-sender-id_hex']).lower(): list([testno - 1]) if role == 'server' else [-1]}
-        }
+    if not os.path.exists(os.path.join(contextcopy, 'sequence.json')):
+        sequence = {
+                "used": {(settingsdata['server-sender-id_hex'] if role == 'server' else settingsdata['client-sender-id_hex']).lower(): testno},
+                "seen": {(settingsdata['client-sender-id_hex'] if role == 'server' else settingsdata['server-sender-id_hex']).lower(): list([testno - 1]) if role == 'server' else [-1]}
+            }
 
-    with open(os.path.join(contextcopy, 'sequence.json'), 'w') as out:
-        json.dump(sequence, out)
+        with open(os.path.join(contextcopy, 'sequence.json'), 'w') as out:
+            json.dump(sequence, out)
 
     print("Temporary context with seqno %d copied to %s"%(testno, contextcopy))
     secctx = oscoap.FilesystemSecurityContext(contextcopy, role=role)

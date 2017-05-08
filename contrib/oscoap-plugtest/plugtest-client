@@ -98,11 +98,12 @@ class PlugtestClientProgram:
         p = argparse.ArgumentParser("Client for the OSCOAP plug test..")
         p.add_argument("host", help="Hostname of the server")
         p.add_argument("testno", type=int, help="Test number to run (integer part)")
+        p.add_argument("contextdir", nargs="?", help="Directory name where to persist sequence numbers")
         opts = p.parse_args()
 
         self.host = opts.host
 
-        self.regular_context = get_security_context(opts.testno, 'client')
+        self.regular_context = get_security_context(opts.testno, 'client', opts.contextdir)
 
         self.ctx = await Context.create_client_context()
         self.protected_ctx = ProtectedRequester(self.ctx)

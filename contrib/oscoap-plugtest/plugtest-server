@@ -308,10 +308,7 @@ class ProtectedSite(resource.Site):
         return protected_response
 
 class PlugtestSite(ProtectedSite):
-    def __init__(self):
-        # by now, the testno here should only be used to initialize the sequence numbers
-        regular_context = get_security_context(1, 'server')
-
+    def __init__(self, regular_context):
         super().__init__(contexts=[regular_context])
 
         self.add_resource(('.well-known', 'core'), resource.WKCResource(self.get_resources_as_linkheader))
@@ -329,6 +326,7 @@ class PlugtestSite(ProtectedSite):
 class PlugtestServerProgram(AsyncCLIDaemon):
     async def start(self):
         p = argparse.ArgumentParser(description="Server for the OSCOAP plug test. Requires a test number to be present.")
+        p.add_argument("contextdir", nargs="?", help="Directory name where to persist sequence numbers")
         p.add_argument('--verbose', help="Increase log level", action='store_true')
         opts = p.parse_args()
 
@@ -338,7 +336,9 @@ class PlugtestServerProgram(AsyncCLIDaemon):
             logging.root.setLevel(logging.WARNING)
 
 
-        self.context = await aiocoap.Context.create_server_context(PlugtestSite())
+        regular_context = get_security_context(1, 'server', opts.contextdir)
+
+        self.context = await aiocoap.Context.create_server_context(PlugtestSite(regular_context))
 
         print("Plugtest server ready.")
         sys.stdout.flush() # the unit tests might wait abundantly long for this otherwise
