@@ -336,7 +336,7 @@ class PlugtestServerProgram(AsyncCLIDaemon):
             logging.root.setLevel(logging.WARNING)
 
 
-        regular_context = get_security_context(1, 'server', opts.contextdir)
+        regular_context = get_security_context(0, 'server', opts.contextdir)
 
         self.context = await aiocoap.Context.create_server_context(PlugtestSite(regular_context))
 
