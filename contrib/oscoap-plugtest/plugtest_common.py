@@ -3,6 +3,8 @@ import tempfile
 import json
 from binascii import hexlify, unhexlify
 
+import cbor
+
 from aiocoap import oscoap
 
 contextdir = os.path.dirname(__file__) + '/common-context/'
@@ -51,7 +53,7 @@ def get_security_context(testno, role, persist=None):
     original_extract_external_aad = secctx._extract_external_aad
     def _extract_extenal_aad(message, i_am_sender, request_partiv=None):
         result = original_extract_external_aad(message, i_am_sender, request_partiv)
-        print("Verify: External AAD: %s"%(result,))
+        print("Verify: External AAD: bytes.fromhex(%r), %r"%(result.hex(), cbor.loads(result)))
         return result
     secctx._extract_external_aad = _extract_extenal_aad
 
