@@ -190,6 +190,7 @@ class ProtectedSite(resource.Site):
             def __init__(self, serverobservation):
                 self._serverobservation = serverobservation
                 self._original_response_context = None
+                self._original_request_seqno = None
                 self._accepted = False
                 self._cancelled = False
 
@@ -227,7 +228,7 @@ class ProtectedSite(resource.Site):
                     # store the decoded request
                     raise ValueError("Can not use empty triggering with OSCOAP")
 
-                protected, _ = self._original_response_context.protect(response)
+                protected, _ = self._original_response_context.protect(response, self._original_request_seqno, can_use_bitflip=False)
 
                 self._serverobservation.trigger(protected)
 
@@ -293,6 +294,7 @@ class ProtectedSite(resource.Site):
                 oscobs.deregister("OSCOAP resource does not provide observation")
             else:
                 oscobs._original_response_context = sc
+                oscobs._original_request_seqno = seqno
 
         # FIXME the render doesn't provide a way to provide context in the
         # sense of "who is the user"; obviously, the render interface needs

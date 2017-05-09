@@ -55,7 +55,7 @@ class ProtectedRequester(interfaces.RequestProvider):
 
         @asyncio.coroutine
         def _initial(self, wire, request_message):
-            protected, seqno = self._security_context.protect(request_message)
+            protected, self._original_request_seqno = self._security_context.protect(request_message)
             # FIXME where should this be called from?
             self._security_context._store()
 
@@ -75,13 +75,13 @@ class ProtectedRequester(interfaces.RequestProvider):
                 self.observation._wire_observation = wire_request.observation
 
             wire_response = yield from wire_request.response
-            unprotected_response, _ = self._security_context.unprotect(wire_response, seqno)
-            # not storing self._security_context because responses are in mirror iv space
+            unprotected_response, _ = self._security_context.unprotect(wire_response, self._original_request_seqno)
+            self._security_context._store()
 
             return unprotected_response
 
         def _observe_message(self, message):
-            unprotected_message, _ = self._security_context.unprotect(message)
+            unprotected_message, _ = self._security_context.unprotect(message, self._original_request_seqno)
             self._security_context._store()
             self.observation.callback(unprotected_message)
 
