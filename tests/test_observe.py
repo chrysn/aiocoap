@@ -17,7 +17,7 @@ import aiocoap
 import unittest
 import gc
 
-from aiocoap.resource import ObservableResource
+from aiocoap.resource import Resource, ObservableResource
 from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource
 
 class ObservableCounter(ObservableResource):
@@ -42,6 +42,29 @@ class ObservableReplacingResource(ReplacingResource, ObservableResource):
 
         return result
 
+class ObserveLateUnbloomer(Resource):
+    """A resource that accepts the server observation at first but at rendering
+    time decides it can't do it"""
+    def __init__(self):
+        super().__init__()
+        self._cancel_right_away = []
+
+    @asyncio.coroutine
+    def add_observation(self, request, serverobservation):
+        self._cancel_right_away.append(lambda: serverobservation.deregister("Changed my mind at render time"))
+        serverobservation.accept(lambda: None)
+
+    @asyncio.coroutine
+    def render_get(self, request):
+        while self._cancel_right_away:
+            self._cancel_right_away.pop(0)()
+        return aiocoap.Message()
+
+class ObservableFailure(ObservableResource):
+    @asyncio.coroutine
+    def render_get(self, request):
+        return aiocoap.Message(code=aiocoap.UNAUTHORIZED)
+
 class ObserveTestingSite(aiocoap.resource.Site):
     prefix = ()
 
@@ -53,6 +76,8 @@ class ObserveTestingSite(aiocoap.resource.Site):
         self.add_resource(self.prefix + ('unobservable',), MultiRepresentationResource())
         self.add_resource(self.prefix + ('count',), self.counter)
         self.add_resource(self.prefix + ('echo',), ObservableReplacingResource())
+        self.add_resource(self.prefix + ('notreally',), ObserveLateUnbloomer())
+        self.add_resource(self.prefix + ('failure',), ObservableFailure())
 
 class NestedSite(aiocoap.resource.Site):
     def __init__(self):
@@ -202,3 +227,30 @@ class TestObserve(WithObserveTestServer, WithClient):
         response = yieldfrom(requester.response_nonraising)
 
         self.assertEqual(events, ["Errback"])
+
+    def _test_no_observe(self, path):
+        yieldfrom = self.loop.run_until_complete
+
+        m = aiocoap.Message(code=aiocoap.GET, observe=0)
+        m.unresolved_remote = self.servernetloc
+        m.opt.uri_path = path
+
+        request = self.client.request(m)
+
+        response = yieldfrom(request.response)
+
+        self.assertEqual(response.opt.observe, None)
+
+        return request
+
+    @no_warnings
+    def test_notreally(self):
+        self._test_no_observe(['deep', 'notreally'])
+
+    @no_warnings
+    def test_failure(self):
+        request = self._test_no_observe(['deep', 'failure'])
+
+        errors = []
+        request.observation.register_errback(errors.append)
+        self.assertEqual(len(errors), 1, "Errback was not called on a failed observation")

@@ -75,6 +75,9 @@ class MethodNotAllowed(ConstructionRenderableError):
 class UnsupportedContentFormat(ConstructionRenderableError):
     code = codes.UNSUPPORTED_CONTENT_FORMAT
 
+class Unauthorized(ConstructionRenderableError):
+    code = codes.UNAUTHORIZED
+
 # deprecated alias
 UnsupportedMediaType = UnsupportedContentFormat
 

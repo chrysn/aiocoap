@@ -1185,7 +1185,7 @@ class Responder(object):
             # this is the indicator that the request was just injected
             response.mtype = CON
 
-        if self._serverobservation is None:
+        if self._serverobservation is None or self._serverobservation.cancelled:
             if response.opt.observe is not None:
                 self.log.info("Dropping observe option from response (no server observation was created for this request)")
             response.opt.observe = None
@@ -1255,7 +1255,7 @@ class ServerObservation(object):
             # give it the time to finish add_observation and not worry about a
             # few milliseconds. (after all, this is a rare condition and people
             # will not test for it).
-            self.original_protocol.loop.call_later(cancellation_callback)
+            self.original_protocol.loop.call_soon(cancellation_callback)
         else:
             self.resource_cancellation_callback = cancellation_callback
 
@@ -1414,6 +1414,8 @@ class ClientObservation(object):
     def register_callback(self, callback):
         """Call the callback whenever a response to the message comes in, and
         pass the response to it."""
+        if self.cancelled:
+            return
         self.callbacks.append(callback)
         self._set_nonweak()
 
@@ -1421,6 +1423,9 @@ class ClientObservation(object):
         """Call the callback whenever something goes wrong with the
         observation, and pass an exception to the callback. After such a
         callback is called, no more callbacks will be issued."""
+        if self.cancelled:
+            callback(self._cancellation_reason)
+            return
         self.errbacks.append(callback)
         self._set_nonweak()
 
@@ -1438,8 +1443,11 @@ class ClientObservation(object):
             c(exception)
 
         self.cancel()
+        self._cancellation_reason = exception
 
     def cancel(self):
+        # FIXME determine whether this is called by anything other than error,
+        # and make it private so there is always a _cancellation_reason
         """Cease to generate observation or error events. This will not
         generate an error by itself."""
 
@@ -1452,6 +1460,8 @@ class ClientObservation(object):
         self.cancelled = True
 
         self._unregister()
+
+        self._cancellation_reason = None
 
     def _register(self, observation_dict, key):
         """Insert the observation into a dict (observation_dict) at the given

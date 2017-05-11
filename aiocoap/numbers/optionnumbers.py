@@ -80,7 +80,7 @@ class OptionNumber(ExtensibleIntEnum):
     PROXY_SCHEME = 39
     SIZE1 = 60
     NO_RESPONSE = 258
-    OBJECT_SECURITY = 65025 # preliminary for plug tests
+    OBJECT_SECURITY = 21 # number used for the latest plug tests for draft-ietf-core-object-security
 
     def is_critical(self):
         return self & 0x01 == 0x01

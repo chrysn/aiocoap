@@ -32,8 +32,18 @@ USE_COMPRESSION = True
 class NotAProtectedMessage(ValueError):
     """Raised when verification is attempted on a non-OSCOAP message"""
 
+    def __init__(self, message, plain_message):
+        super().__init__(message)
+        self.plain_message = plain_message
+
 class ProtectionInvalid(ValueError):
     """Raised when verification of an OSCOAP message fails"""
+
+class DecodeError(ProtectionInvalid):
+    """Raised when verification of an OSCOAP message fails because CBOR or compressed data were erroneous"""
+
+class ReplayError(ProtectionInvalid):
+    """Raised when verification of an OSCOAP message fails because the sequence numbers was already used"""
 
 def _xor_bytes(a, b):
     assert len(a) == len(b)
@@ -44,6 +54,11 @@ def _xor_bytes(a, b):
 def _flip_first_bit(a):
     """Flip the first bit in a hex string"""
     return _xor_bytes(a, b"\x80" + b"\x00" * (len(a) - 1))
+
+def _pad_iv(algorithm, short_partial):
+    """Return the short_partial abbreviated version of a Partial IV and return
+    the full Partial IV"""
+    return b"\0" * (algorithm.iv_bytes - len(short_partial)) + short_partial
 
 class Algorithm(metaclass=abc.ABCMeta):
     @abc.abstractmethod
@@ -95,10 +110,19 @@ class SecurityContext:
     # message processing
 
     def _extract_external_aad(self, message, request_kid, request_seq):
+        # If any option were actually Class I, it would be something like
+        #
+        # class_i_options = Message(observe=message.opt.observe).opt.encode()
+        #
+        # (but Observe is in proper Class I neither in requests nor in
+        # responses)
+
+        class_i_options = b""
+
         external_aad = [
                 1, # ver
                 message.code,
-                b"", # FIXME that's actually options
+                class_i_options,
                 self.algorithm.value,
                 request_kid,
                 request_seq
@@ -108,47 +132,72 @@ class SecurityContext:
 
         return external_aad
 
-    def protect(self, message, request_partiv=None):
+    def _split_message(self, message):
+        """Given a protected message, return the outer message that contains
+        all Class I and Class U options (but without payload or Object-Security
+        option), and a proto-inner message that contains all Class E options."""
+
+
         # not trying to preserve token or mid, they're up to the transport
         outer_message = Message(code=message.code)
-        if message.code.is_request():
-            protected_uri = message.get_request_uri()
+        inner_message = message.copy()
+
+        if inner_message.code.is_request():
+            protected_uri = inner_message.get_request_uri()
+
             if protected_uri.count('/') >= 3:
                 protected_uri = protected_uri[:protected_uri.index('/', protected_uri.index('/', protected_uri.index('/') + 1) + 1)]
             outer_message.set_request_uri(protected_uri)
 
-        # FIXME any options to move out?
-        inner_message = message
+            if inner_message.opt.proxy_uri:
+                # pack them into the separatable fields ... hopefully (FIXME
+                # use a set_request_uri that *never* uses Proxy-Uri)
+                inner_message.set_request_uri(protected_uri)
 
-        if request_partiv is None:
-            assert inner_message.code.is_request(), "Trying to protect a response without request IV (possibly this is an observation; that's not supported in this OSCOAP implementation yet)"
+            inner_message.opt.uri_host = None
+            inner_message.opt.uri_port = None
+            inner_message.opt.proxy_uri = None
+            inner_message.opt.proxy_scheme = None
 
+        outer_message.opt.observe = inner_message.opt.observe
+        if inner_message.code.is_response():
+            inner_message.opt.observe = None
+
+        return outer_message, inner_message
+
+    def protect(self, message, request_data=None, *, can_use_bitflip=True):
+        assert (request_data is None) == message.code.is_request()
+        if request_data is not None:
+            request_kid, request_partiv = request_data
+
+        outer_message, inner_message = self._split_message(message)
+
+        if request_data is None or not can_use_bitflip:
             seqno = self.new_sequence_number()
-            partial_iv = binascii.unhexlify(("%%0%dx" % (2 * self.algorithm.iv_bytes)) % seqno)
+
+            partial_iv = seqno.to_bytes(self.algorithm.iv_bytes, 'big')
             partial_iv_short = partial_iv.lstrip(b'\0')
             iv = _xor_bytes(self.sender_iv, partial_iv)
 
             unprotected = {
                     6: partial_iv_short,
-                    4: self.sender_id,
                     }
-            request_kid = self.sender_id
-        else:
-            assert inner_message.code.is_response()
+            if request_data is None:
+                # this is usually the case; the exception is observe
+                unprotected[4] = self.sender_id
 
-            partial_iv = request_partiv
-            partial_iv_short = partial_iv.lstrip(b"\x00")
+                request_kid = self.sender_id
+                request_partiv = partial_iv_short
+        else:
+            partial_iv = _pad_iv(self.algorithm, request_partiv)
             iv = _flip_first_bit(_xor_bytes(partial_iv, self.sender_iv))
             unprotected = {}
-
-            # FIXME: better should mirror what was used in request
-            request_kid = self.recipient_id
 
         protected = {}
 
         assert protected == {}
         protected_serialized = b'' # were it into an empty dict, it'd be the cbor dump
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, request_kid, partial_iv_short)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, request_kid, request_partiv)]
         aad = cbor.dumps(enc_structure)
         key = self.sender_key
 
@@ -163,22 +212,26 @@ class SecurityContext:
         if USE_COMPRESSION:
             if protected:
                 raise RuntimeError("Protection produced a message that has uncompressable fields.")
-            if sorted(unprotected.keys()) == [4, 6]:
-                shortarray = [unprotected[6], unprotected[4]]
-                shortarray = cbor.dumps(shortarray)
-                # we're using a shortarray shortened by one because that makes
-                # it easier to then "exclude [...] the type and length for the
-                # ciphertext"; the +1 on shortarray[0] makes it appear like a
-                # 3-long array again.
-                if (shortarray[0] + 1) & 0b11111000 != 0b10000000 or \
-                        shortarray[1] & 0b11000000 != 0b01000000:
-                    raise RuntimeError("Protection produced a message that has uncmpressable lengths")
-                shortarray = bytes(((((shortarray[0] + 1) & 0b111) << 3) | (shortarray[1] & 0b111),)) + shortarray[2:]
-                oscoap_data = shortarray + ciphertext + tag
-            elif unprotected == {}:
-                oscoap_data = ciphertext + tag
-            else:
+
+            if set(unprotected.keys()) - {4, 6}:
                 raise RuntimeError("Protection produced a message that has uncompressable fields.")
+            else:
+                if 6 in unprotected:
+                    # or b"\0": FIXME is this explicit in the spec? this works
+                    # around the piv being treated as absent when decoded.
+                    piv = unprotected[6] or b"\0"
+                    if len(piv) > 0b111:
+                        raise ValueError("Can't encode overly long partial IV")
+                else:
+                    piv = b""
+                firstbyte = len(piv)
+                if 4 in unprotected:
+                    firstbyte |= 0b1000
+                    kid_data = bytes([len(unprotected[4])]) + unprotected[4]
+                else:
+                    kid_data = b""
+
+                oscoap_data = bytes([firstbyte]) + piv + kid_data + ciphertext + tag
         else:
             cose_encrypt0 = [protected_serialized, unprotected, ciphertext + tag]
             oscoap_data = cbor.dumps(cose_encrypt0)
@@ -190,46 +243,46 @@ class SecurityContext:
             outer_message.opt.object_security = oscoap_data
 
         # FIXME go through options section
-        return outer_message, partial_iv
+        return outer_message, (request_kid, request_partiv)
 
-    def unprotect(self, protected_message, request_partiv=None):
-        protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message, is_request=request_partiv == None)
+    def unprotect(self, protected_message, request_data=None):
+        assert (request_data is not None) == protected_message.code.is_response()
+        if request_data is not None:
+            request_kid, request_partiv = request_data
+
+        protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message, is_request=request_data is None)
 
         if protected:
             raise ProtectionInvalid("The protected field is not empty")
 
         # FIXME check for duplicate keys in protected
 
-        if request_partiv is not None:
-            partial_iv_short = request_partiv.lstrip(b"\x00")
-            assert 6 not in unprotected, "Explicit partial IV in response (not implemented)"
-            iv = _flip_first_bit(_xor_bytes(request_partiv, self.recipient_iv))
-            if unprotected.pop(4, self.recipient_id) != self.recipient_id:
-                # with compression, this can probably not happen any more anyway
-                raise ProtectionInvalid("Explicit sender ID does not match")
+        if unprotected.pop(4, self.recipient_id) != self.recipient_id:
+            # for most cases, this is caught by the session ID dispatch, but in
+            # responses (where explicit sender IDs are atypical), this is a
+            # valid check
+            raise ProtectionInvalid("Sender ID does not match")
+
+        if 6 not in unprotected:
+            if request_data is None:
+                raise ProtectonInvalid("No sequence number provided in request")
+            partial_iv = _pad_iv(self.algorithm, request_partiv)
+            iv = _flip_first_bit(_xor_bytes(partial_iv, self.recipient_iv))
             seqno = None # sentinel for not striking out anyting
-            partial_iv = None # only for being returned
-
-            # FIXME better mirror what was sent before
-            request_kid = self.sender_id
         else:
-            try:
-                partial_iv_short = unprotected[6]
-                hexlified = binascii.hexlify(partial_iv_short)
-                seqno = int(hexlified, 16) if hexlified else 0
-            except (TypeError, KeyError):
-                raise ProtectionInvalid("No serial number provided")
+            partial_iv_short = unprotected[6]
 
-            if unprotected.pop(4, self.recipient_id) != self.recipient_id:
-                raise ProtectionInvalid("Protected recipient ID does not match")
+            if request_data is None:
+                request_partiv = partial_iv_short
+                request_kid = self.recipient_id
+
+            seqno = int.from_bytes(partial_iv_short, 'big')
 
             if not self.recipient_replay_window.is_valid(seqno):
-                raise ProtectionInvalid("Sequence number was re-used")
+                raise ReplayError("Sequence number was re-used")
 
-            partial_iv = binascii.unhexlify("%014x"%seqno)
+            partial_iv = _pad_iv(self.algorithm, partial_iv_short)
             iv = _xor_bytes(self.recipient_iv, partial_iv)
-
-            request_kid = self.recipient_id
 
         # FIXME is it an error for additional data to be present in unprotected?
 
@@ -239,7 +292,7 @@ class SecurityContext:
         tag = ciphertext[-self.algorithm.tag_bytes:]
         ciphertext = ciphertext[:-self.algorithm.tag_bytes]
 
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_kid, partial_iv_short)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_kid, request_partiv)]
         aad = cbor.dumps(enc_structure)
 
         plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.recipient_key, iv)
@@ -252,59 +305,57 @@ class SecurityContext:
         unprotected_message = aiocoap.message.Message(code=protected_message.code)
         unprotected_message.payload = unprotected_message.opt.decode(plaintext)
 
-        return unprotected_message, partial_iv
+        if unprotected_message.code.is_request:
+            unprotected_message.opt.observe = protected_message.opt.observe
+        else:
+            if protected_message.opt.observe is not None:
+                # is it really be as easy as that?
+                unprotected_message.opt.observe = seqno
+
+        return unprotected_message, (request_kid, request_partiv)
 
     @classmethod
     def _extract_encrypted0(cls, message, is_request):
         if message.opt.object_security is None:
-            raise NotAProtectedMessage("No Object-Security option present")
+            raise NotAProtectedMessage("No Object-Security option present", message)
 
         # FIXME it's an error to have this in the wrong place
         serialized = message.opt.object_security or message.payload
 
         if USE_COMPRESSION:
-            if is_request:
-                # FIXME this will need a little reshaping when dealing with
-                # observe responses, which use the same compression but a
-                # 2-long array
-                if serialized[0] & 0b11000000 != 0:
-                    raise ProtectionInvalid("Message does not look like a compressed request")
-                # the -1 on the first fragment keeps the cbor serializer from
-                # trying to decode ciphertext field with "excluded [...] type
-                # and length"
-                serialized = bytes((
-                    0b10000000 | ((serialized[0] & 0b00111000) >> 3) - 1,
-                    0b01000000 | (serialized[0] & 0b00000111),
-                    )) + serialized[1:]
-                # this seems to be the easiest way to get the tail of the CBOR object
-                serialized = BytesIO(serialized)
-                try:
-                    shortarray = cbor.load(serialized)
-                except ValueError:
-                    raise ProtectionInvalid("Error parsing the compressed CBOR payload")
-                if not isinstance(shortarray, list) or len(shortarray) != 2 or \
-                        not all(isinstance(x, bytes) for x in shortarray):
-                    raise ProtectionInvalid("Compressed CBOR payload has wrong shape")
-                unprotected = {4: shortarray[1], 6: shortarray[0]}
+            if not serialized:
+                raise DecodeError("Protected data too short for uncompression")
 
-                ciphertext_and_tag = serialized.read()
+            if serialized[0] & 0b11110000:
+                raise DecodeError("Protected data uses reserved fields")
 
-                return b'', {}, unprotected, ciphertext_and_tag
-            else:
-                return b'', {}, {}, serialized
+            unprotected = {}
+
+            k = (serialized[0] >> 3) & 1
+            pivsz = serialized[0] & 0b111
+            if pivsz:
+                unprotected[6] = serialized[1:1 + pivsz]
+            tail = serialized[1 + pivsz:]
+            if k:
+                if not tail:
+                    raise DecodeError("Protected data too short for kid uncompression")
+                unprotected[4] = tail[1:1 + tail[0]]
+                tail = tail[1 + tail[0]:]
+
+            return b"", {}, unprotected, tail
         else:
             try:
                 encrypted0 = cbor.loads(serialized)
             except ValueError:
-                raise ProtectionInvalid("Error parsing the CBOR payload")
+                raise DecodeError("Error parsing the CBOR payload")
 
             if not isinstance(encrypted0, list) or len(encrypted0) != 3:
-                raise ProtectionInvalid("CBOR payload is not structured like Encrypt0")
+                raise DecodeError("CBOR payload is not structured like Encrypt0")
 
             try:
                 protected = cbor.loads(encrypted0[0])
             except ValueError:
-                raise ProtectionInvalid("Error parsing the CBOR protected data")
+                raise DecodeError("Error parsing the CBOR protected data")
 
             return encrypted0[0], protected, encrypted0[1], encrypted0[2]
 
@@ -552,5 +603,5 @@ def verify_start(message):
         # FIXME raise on duplicate key
         return unprotected[4]
     except KeyError:
-        raise NotAProtectedMessage("No CID present")
+        raise NotAProtectedMessage("No CID present", message)
 
