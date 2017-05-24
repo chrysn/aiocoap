@@ -1,0 +1,1 @@
+git+https://github.com/chrysn-pull-requests/recommonmark.git#egg=recommonmark > 0.4.0
