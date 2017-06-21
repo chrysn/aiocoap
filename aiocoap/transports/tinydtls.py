@@ -12,15 +12,13 @@ wrapped tinydtls library.
 In order for this to run, the tinydtls cython wrapper from
 https://git.fslab.de/jkonra2m/tinydtls must be available:
 
-    $ git clone https://git.fslab.de/jkonra2m/tinydtls
-    $ cd tinydtls
-    $ autoreconf
-    $ ./configure --with-ecc
-    $ make
-    $ cd cython
-    $ python3 setup.py build_ext --inplace
+    $ git clone https://git.fslab.de/jkonra2m/tinydtls-cython
+    $ cd tinydtls-cython
+    # git submodule update --init
+    $ python3 ./setup.py build
 
-That cython directory must be in PYTHONPATH / sys.path.
+That `tinydtls-cython/` and `tinydtls-cython/build/lib....` directories must be
+in PYTHONPATH / sys.path in that sequence.
 """
 
 import urllib.parse
