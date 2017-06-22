@@ -22,6 +22,40 @@ def cancel_thoroughly(handle):
     handle._args = handle._callback = None
 
 import asyncio
+
+class PeekQueue:
+    """Queue with a an asynchronous .peek() function.
+
+    This is not implemented in terms of inheritance because it would depend on
+    the implementation details of PriorityQueue.put(self, (1, item)) being
+    itself implemented in terms of calling self.put_nowait."""
+
+    def __init__(self, *args, **kwargs):
+        self._inner = asyncio.PriorityQueue(*args, **kwargs)
+
+    @asyncio.coroutine
+    def put(self, item):
+        yield from self._inner.put((1, item))
+
+    def put_nowait(self, item):
+        self._inner.put_nowait((1, item))
+
+    @asyncio.coroutine
+    def peek(self):
+        oldprio, first = yield from self._inner.get()
+        self._inner.put_nowait((0, first))
+        return first
+
+    @asyncio.coroutine
+    def get(self):
+        priority, first = yield from self._inner.get()
+        return first
+
+    def get_nowait(self):
+        priority, first = self._inner.get_nowait()
+        return first
+
+import asyncio
 try:
     from asyncio import StopAsyncIteration
 except ImportError:

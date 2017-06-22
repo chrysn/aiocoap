@@ -25,7 +25,9 @@ import urllib.parse
 import asyncio
 import weakref
 import socket
+import functools
 
+from ..util.asyncio import PeekQueue
 from ..message import Message
 from .. import interfaces, error
 from ..numbers import COAPS_PORT
@@ -64,6 +66,14 @@ class DTLSClientConnection:
     #    previously sent something else" (and my own address might have changed)
     # * possibly something else too
     #
+    # maybe this can become something like "connection identified by initial
+    # parameters that will try to keep a persistent security context, but will
+    # fail over to doing something else (eg. establishing a new security
+    # context or using another source ip) based on the original parameters if
+    # that's possible (a client connection will always be able to do that, with
+    # a server's side that'll probably fail permanently), and anyway indicate
+    # what happens"?
+    #
     # for now i'm ignoring that (FIXME this means that some MUST of the spec
     # are not met!)
 
@@ -72,38 +82,76 @@ class DTLSClientConnection:
 
     is_multicast = False
 
+    def __init__(self, host, port, pskId, psk, coaptransport):
+        self._ready = False
+        self._queue = PeekQueue() # stores sent packages while connection
+            # is being built. for the above reasons of "this must be able to
+            # reconnect", we must always be able to enqueue the package, even
+            # though most times it will just be sent right away. the
+            # transmission throttling of Protocol will make sure that this
+            # doesn't really fill up.
+
+        self._host = host
+        self._port = port
+        self._pskId = pskId
+        self._psk = psk
+        self.coaptransport = coaptransport
+
+        self._task = asyncio.ensure_future(self._run(connect_immediately=True))
+
     def send(self, message):
-        self._dtls_socket.write(self._connection, message)
+        self._queue.put_nowait(message)
 
-    log = property(lambda self: self.main.log)
+    log = property(lambda self: self.coaptransport.log)
 
-    @classmethod
     @asyncio.coroutine
-    def start(cls, host, port, pskId, psk, main):
-        transport, self = yield from main.loop.create_datagram_endpoint(cls,
-                remote_addr=(host, port),
-                )
+    def _run(self, connect_immediately):
+        self._dtls_socket = None
 
-        self.main = main
+        if not connect_immediately:
+            yield from self._queue.peek()
 
-        self._transport = transport
+        self._connection = None
 
-        self._dtls_socket = dtls.DTLS(
-                read=self._read,
-                write=self._write,
-                event=self._event,
-                pskId=pskId,
-                pskStore={pskId: psk},
-                )
-        self._connection = self._dtls_socket.connect(_SENTINEL_ADDRESS, _SENTINEL_PORT)
+        try:
+            self._transport, singleconnection = yield from self.coaptransport.loop.create_datagram_endpoint(
+                    self.SingleConnection.factory(self),
+                    remote_addr=(self._host, self._port),
+                    )
 
-        self._connecting = asyncio.Future()
-        yield from self._connecting
+            self._dtls_socket = dtls.DTLS(
+                    read=self._read,
+                    write=self._write,
+                    event=self._event,
+                    pskId=self._pskId,
+                    pskStore={self._pskId: self._psk},
+                    )
+            self._connection = self._dtls_socket.connect(_SENTINEL_ADDRESS, _SENTINEL_PORT)
 
-        return self
+            self._connecting = asyncio.Future()
+            yield from self._connecting
+
+            while True:
+                message = yield from self._queue.get()
+                self._dtls_socket.write(self._connection, message)
+        finally:
+            self.coaptransport.new_error_callback(0, self)
+            if self._connection is not None:
+                try:
+                    self._dtls_socket.close(self._connection)
+                except:
+                    pass # _dtls_socket actually does raise an empty Exception() here
+            # doing this here allows the dtls socket to send a final word, but
+            # by closing this, we protect the nascent next connection from any
+            # delayed ICMP errors that might still wind up in the old socket
+            self._transport.close()
 
     def shutdown(self):
-        self._dtls_socket.close(self._connection)
+        self._task.cancel()
+
+    def _cancelled(self):
+        self._task.cancel()
+        self._task = asyncio.ensure_future(self._run(connect_immediately=False))
 
     # dtls callbacks
 
@@ -114,9 +162,9 @@ class DTLSClientConnection:
             message = Message.decode(data, self)
         except error.UnparsableMessage:
             self.log.warning("Ignoring unparsable message from %s"%(address,))
-            return
+            return len(data)
 
-        self.main.new_message_callback(message)
+        self.coaptransport.new_message_callback(message)
 
         return len(data)
 
@@ -140,33 +188,35 @@ class DTLSClientConnection:
         elif (level, code) == (LEVEL_NOALERT, DTLS_EVENT_CONNECTED):
             self._connecting.set_result(True)
         elif (level, code) == (LEVEL_FATAL, CODE_CLOSE_NOTIFY):
-            # FIXME how to shut down?
-            pass
+            self._cancelled()
         elif level == LEVEL_FATAL:
-            # FIXME how to shut down?
             self.log.error("Fatal DTLS error: code %d", code)
+            self._cancelled()
         else:
             self.log.warning("Unhandled alert level %d code %d", level, code)
 
     # transport protocol
 
-    def connection_made(self, transport):
-        pass # already handled in .start()
+    class SingleConnection:
+        @classmethod
+        def factory(cls, parent):
+            return functools.partial(cls, parent)
 
-    def connection_lost(self, exc):
-        print("Oups, the connection was lost:", exc)
+        def __init__(self, parent):
+            self.parent = parent #: DTLSClientConnection
 
-    def error_received(self, exc):
-        if self._connecting.done():
-            self.log.warning("Error received in running connection: %s", exc)
-            self._dtls_socket.resetPeer(self._connection)
-            # FIXME when the package was sent, shut down the socket and deregister
-        else:
-            self.log.warning("Error received before connection established: %s", exc)
-            # FIXME shut down immediately
+        def connection_made(self, transport):
+            pass # already handled in .start()
 
-    def datagram_received(self, data, addr):
-        self._dtls_socket.handleMessage(self._connection, data)
+        def connection_lost(self, exc):
+            pass
+
+        def error_received(self, exc):
+            self.parent.log.warning("Error received in UDP connection under DTLS: %s", exc)
+            self.parent._task.cancel()
+
+        def datagram_received(self, data, addr):
+            self.parent._dtls_socket.handleMessage(self.parent._connection, data)
 
 class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
     def __init__(self, new_message_callback, new_error_callback, log, loop):
@@ -189,8 +239,7 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
         try:
             return self._pool[(host, port, pskId)]
         except KeyError:
-            # FIXME this would need locking so it's bad design
-            connection = yield from DTLSClientConnection.start(host, port, pskId, psk, self)
+            connection = DTLSClientConnection(host, port, pskId, psk, self)
             self._pool[(host, port, pskId)] = connection
             return connection
 
