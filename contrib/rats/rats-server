@@ -7,6 +7,7 @@ from collections import namedtuple
 import inspect
 from pathlib import Path
 from typing import Dict
+import json
 
 import aiocoap.interfaces, aiocoap.message
 import aiohttp
@@ -18,8 +19,7 @@ import aiocoap, aiocoap.resource, aiocoap.util.cli
 class _Typemap(namedtuple('__Typemap', [
     'contentformat_to_type',
     'type_to_contentformat',
-    'contenttype_to_type',
-    'type_to_contenttype',
+    'default_contentformat',
     ])):
     """A translator between content-typed resources and native Python types."""
 
@@ -33,16 +33,44 @@ def _raise_as_valueerror(f, accepted_types=(KeyError, )):
             raise ValueError
     return wrapped
 
+_plainencode = lambda x: str(x).encode('utf8')
+# this might be too strict because it won't accept 40 (only 40.0) for a float
+# which is not covered by json numeric types
+def _decode_json(type):
+    def _decoder(x):
+        decoded = json.loads(x.decode('utf8'))
+        if not isinstance(decoded, type):
+            raise ValueError("JSON type does not fit")
+        return decoded
+    return _decoder
+_encode_json = lambda x: json.dumps(x).encode('utf8')
 default_typemap = _Typemap(
-        {
+        contentformat_to_type={
             (0, int): int,
             (0, float): float,
             (0, str): lambda x: x.decode('utf8'),
             (0, bool): _raise_as_valueerror(lambda x: {0: False, 1: True}[int(x)]),
+            (50, int): _decode_json(int),
+            (50, float): _decode_json(float),
+            (50, str): _decode_json(str),
+            (50, bool): _decode_json(bool),
         },
-        {},
-        {},
-        {},
+        type_to_contentformat={
+            (0, int): _plainencode,
+            (0, float): _plainencode,
+            (0, str): _plainencode,
+            (0, bool): lambda x: str(int(x)).encode('utf8'),
+            (50, int): _encode_json,
+            (50, float): _encode_json,
+            (50, str): _encode_json,
+            (50, bool): _encode_json,
+        },
+        default_contentformat={
+            int: 0,
+            float: 0,
+            str: 0,
+            bool: 0,
+        }
         )
 
 class NativeResource:
@@ -97,18 +125,37 @@ class CoAPFromNative(NativeResource):
 
     async def render(self, request):
         if request.code == aiocoap.GET:
-            # FIXME ensure there is a .typemap and use that
-            return aiocoap.Message(payload=str(await self.get_native()).encode('utf8'))
+            try:
+                cf = request.opt.accept
+                if cf is None:
+                    cf = self.typemap.default_contentformat[self.typehint]
+                mapper = self.typemap.type_to_contentformat[(cf, self.typehint)]
+            except KeyError:
+                raise aiocoap.error.NoitAcceptable
+
+            value = await self.get_native()
+            return aiocoap.Message(payload=mapper(value))
         elif request.code == aiocoap.PUT:
-            # FIXME as above
-            await self.put_native(int(request.payload.decode('utf8')))
+            try:
+                cf = request.opt.content_format
+                if cf is None:
+                    cf = self.typemap.default_contentformat[self.typehint]
+                mapper = self.typemap.contentformat_to_type[(cf, self.typehint)]
+            except KeyError:
+                raise aiocoap.error.UnsupportedContentFormat
+
+            try:
+                value = mapper(request.payload)
+            except ValueError:
+                raise aiocoap.error.BadRequest
+
+            await self.put_native(value)
+
             return aiocoap.Message(code=aiocoap.CHANGED)
         else:
             raise aiocoap.error.MethodNotAllowed()
 
 class RemoteCoAPResource(aiocoap.resource.Resource):
-    typemap = default_typemap
-
     def __init__(self, uri, context):
         self.uri = uri
         self.context = context
@@ -122,11 +169,9 @@ class RemoteCoAPResource(aiocoap.resource.Resource):
         raise NotImplementedError("TBD: inherti existing CoAP-proxy functionality")
 
 class FullRemoteCoAPResource(HTTPFromCoAP, RemoteCoAPResource, FullResource):
-    pass
-
-class RemoteHTTPResource(HTTPResource):
     typemap = default_typemap
 
+class RemoteHTTPResource(HTTPResource):
     def __init__(self, uri, clientsession):
         self.uri = uri
         self.clientsession = clientsession
@@ -159,7 +204,7 @@ class RemoteHTTPResource(HTTPResource):
             return aiohttp.web.Response(body=raw, status=resp.status, headers=headers)
 
 class FullRemoteHTTPResource(RemoteHTTPResource, CoAPFromHTTP, FullResource):
-    pass
+    typemap = default_typemap
 
 class NativeMemoryResource(NativeResource):
     typemap = default_typemap
@@ -214,6 +259,8 @@ def load_python(file: Path) -> Dict[str, FullResource]:
     result = {}
 
     class DynamicNativeResource(HTTPFromCoAP, CoAPFromNative, FullResource):
+        typemap = default_typemap
+
         def __init__(self, get_value, typehint):
             self._get_value = get_value
             self.typehint = typehint
