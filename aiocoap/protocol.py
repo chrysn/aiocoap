@@ -582,7 +582,10 @@ class BaseUnicastRequest(BaseRequest):
     """A utility class that offers the :attr:`response_raising` and
     :attr:`response_nonraising` alternatives to waiting for the
     :attr:`response` future whose error states can be presented either as an
-    unsuccessful response (eg. 4.04) or an exception."""
+    unsuccessful response (eg. 4.04) or an exception.
+
+    It also provides some internal tools for handling anything that has a
+    :attr:`response` future and an :attr:`observation`"""
 
     @property
     @asyncio.coroutine
@@ -614,9 +617,6 @@ class BaseUnicastRequest(BaseRequest):
         except Exception as e:
             return Message(code=INTERNAL_SERVER_ERROR)
 
-class BlockwiseRequestMixin:
-    pass
-
 class Request(BaseUnicastRequest, interfaces.Request):
     """Class used to handle single outgoing request.
 
@@ -627,12 +627,8 @@ class Request(BaseUnicastRequest, interfaces.Request):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("requester")
         self.app_request = app_request
-        self._assembled_response = None
-        self.handle_blockwise = False
 
         self._exchange_monitor_factory = exchange_monitor_factory
-
-        self._request_transmitted_completely = False
 
         self._requesttimeout = None
 
@@ -659,18 +655,7 @@ class Request(BaseUnicastRequest, interfaces.Request):
         try:
             yield from self.protocol.fill_remote(self.app_request)
 
-            size_exp = DEFAULT_BLOCK_SIZE_EXP
-            if self.app_request.opt.block1 is not None and self.handle_blockwise:
-                assert self.app_request.opt.block1.block_number == 0, "Unexpected block number in app_request"
-                size_exp = self.app_request.opt.block1.size_exponent
-            if len(self.app_request.payload) > (2 ** (size_exp + 4)) and self.handle_blockwise:
-                request = self.app_request._extract_block(0, size_exp)
-                self.app_request.opt.block1 = request.opt.block1
-            else:
-                request = self.app_request
-                self._request_transmitted_completely = True
-
-            self.send_request(request)
+            self.send_request(self.app_request)
         except Exception as e:
             self._set_response_and_observation_error(e)
 
@@ -726,48 +711,6 @@ class Request(BaseUnicastRequest, interfaces.Request):
             self.log.debug("Sending request - Token: %s, Remote: %s" % (binascii.b2a_hex(request.token).decode('ascii'), request.remote))
 
     def handle_response(self, response):
-        if not self._request_transmitted_completely:
-            self.process_block1_in_response(response)
-        else:
-            self.process_block2_in_response(response)
-
-    def process_block1_in_response(self, response):
-        """Process incoming response with regard to Block1 option."""
-
-        if response.opt.block1 is None:
-            # it's not up to us here to 
-            if response.code.is_successful(): # an error like "unsupported option" would be ok to return, but success?
-                self.log.warning("Block1 option completely ignored by server, assuming it knows what it is doing.")
-            self.process_block2_in_response(response)
-            return
-
-        block1 = response.opt.block1
-        self.log.debug("Response with Block1 option received, number = %d, more = %d, size_exp = %d." % (block1.block_number, block1.more, block1.size_exponent))
-
-        if block1.block_number != self.app_request.opt.block1.block_number:
-            self._set_response_and_observation_error(UnexpectedBlock1Option())
-
-        if block1.size_exponent < self.app_request.opt.block1.size_exponent:
-            next_number = (self.app_request.opt.block1.block_number + 1) * 2 ** (self.app_request.opt.block1.size_exponent - block1.size_exponent)
-            next_block = self.app_request._extract_block(next_number, block1.size_exponent)
-        else:
-            next_block = self.app_request._extract_block(self.app_request.opt.block1.block_number + 1, block1.size_exponent)
-
-        if next_block is not None:
-            self.app_request.opt.block1 = next_block.opt.block1
-
-            # TODO: ignoring block1.more so far -- if it is False, we might use
-            # the information about what has been done so far.
-
-            self.send_request(next_block)
-        else:
-            if block1.more is False:
-                self._request_transmitted_completely = True
-                self.process_block2_in_response(response)
-            else:
-                self._set_response_and_observation_error(UnexpectedBlock1Option())
-
-    def process_block2_in_response(self, response):
         """Process incoming response with regard to Block2 option."""
 
         if self.response.done():
@@ -778,32 +721,7 @@ class Request(BaseUnicastRequest, interfaces.Request):
             # assembled response indicates it's the first response package
             self.register_observation(response)
 
-        if response.opt.block2 is not None and self.handle_blockwise:
-            block2 = response.opt.block2
-            self.log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d." % (block2.block_number, block2.more, block2.size_exponent))
-            if self._assembled_response is not None:
-                try:
-                    self._assembled_response._append_response_block(response)
-                except error.Error as e:
-                    self.log.error("Error assembling blockwise response, passing on error %r"%e)
-                    self.response.set_exception(e)
-                    return
-            else:
-                if block2.block_number == 0:
-                    self.log.debug("Receiving blockwise response")
-                    self._assembled_response = response
-                else:
-                    self.log.error("Error assembling blockwise response (expected first block)")
-                    self.response.set_exception(UnexpectedBlock2())
-                    return
-            if block2.more is True:
-                self.send_request(self.app_request._generate_next_block2_request(response))
-            else:
-                self.handle_final_response(self._assembled_response)
-        else:
-            if self._assembled_response is not None:
-                self.log.warning("Server sent non-blockwise response after having started a blockwise transfer. Blockwise transfer cancelled, accepting single response.")
-            self.handle_final_response(response)
+        self.handle_final_response(response)
 
     def handle_final_response(self, response):
         if self.app_request.opt.uri_host:
@@ -825,8 +743,174 @@ class Request(BaseUnicastRequest, interfaces.Request):
         else:
             self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
 
-class BlockwiseRequest(BlockwiseRequestMixin, Request):
-    pass
+class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
+    def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None)):
+        self.protocol = protocol
+        self.log = self.protocol.log.getChild("blockwise-requester")
+        self.exchange_monitor_factory = exchange_monitor_factory
+
+        self.response = asyncio.Future()
+
+        if app_request.opt.observe is not None:
+            # still using a ClientObservation here even though it never
+            # gets _register()ed; if ClientObservations were more structured
+            # (eg. base class and one for registration with a token-based
+            # context), a lighter one could be used
+            self.observation = ClientObservation(app_request)
+
+        self._runner = asyncio.Task(self._run_outer(app_request))
+        self.response.add_done_callback(self._response_cancellation_handler)
+
+    def _response_cancellation_handler(self, response_future):
+        if self.response.cancelled() and not self._runner.cancelled():
+            self._runner.cancel()
+
+    @asyncio.coroutine
+    def _run_outer(self, app_request):
+        try:
+            yield from self._run(app_request)
+        except Exception as e:
+            logged = False
+            if not self.response.done():
+                logged = True
+                self.response.set_exception(e)
+            if app_request.opt.observe is not None:
+                logged = True
+                self.observation.error(e)
+            if not logged:
+                # should be unreachable
+                self.log.exception("Exception in BlockwiseRequest runner neither went to response nor to observation:", e)
+
+    @asyncio.coroutine
+    def _run(self, app_request):
+        size_exp = DEFAULT_BLOCK_SIZE_EXP
+
+        if app_request.opt.block1 is not None:
+            assert app_request.opt.block1.block_number == 0, "Unexpected block number in app_request"
+            assert app_request.opt.block1.more == False, "Unexpected more-flag in app_request"
+            size_exp = app_request.opt.block1.size_exponent
+
+        # Offset in the message in blocks of size_exp. Whoever changes size_exp
+        # is responsible for updating this number.
+        block_cursor = 0
+
+        block1_response = None
+
+        while True:
+            # ... send a chunk
+
+            if len(app_request.payload) > (2 ** (size_exp + 4)):
+                current_block1 = app_request._extract_block(block_cursor, size_exp)
+            else:
+                current_block1 = app_request
+
+            blockrequest = self.protocol.request(current_block1, exchange_monitor_factory=self.exchange_monitor_factory, handle_blockwise=False)
+            response = yield from blockrequest.response
+
+            if response.opt.block1 is None:
+                if response.code.is_successful() and current_block1.opt.block1:
+                    self.log.warning("Block1 option completely ignored by server, assuming it knows what it is doing.")
+                # FIXME: handle 4.13 and retry with the indicated size option
+                block1_response = response
+                break
+
+            block1 = response.opt.block1
+            self.log.debug("Response with Block1 option received, number = %d, more = %d, size_exp = %d.", block1.block_number, block1.more, block1.size_exponent)
+
+            if block1.block_number != current_block1.opt.block1.block_number:
+                raise error.UnexpectedBlock1Option("Block number mismatch")
+
+            block_cursor += 1
+            while block1.size_exponent < size_exp:
+                block_cursor *= 2
+                size_exp -= 1
+
+            if not current_block1.opt.block1.more:
+                if block1.more or response.code == CONTINUE:
+                    # treating this as a protocol error -- letting it slip
+                    # through would misrepresent the whole operation as an
+                    # over-all 2.xx (successful) one.
+                    raise error.UnexpectedBlock1Option("Server asked for more data at end of body")
+                block1_response = response
+                break
+
+            if response.opt.observe:
+                # we're not *really* interested in that block, we just sent an
+                # observe option to indicate that we'll want to observe the
+                # resulting representation as a whole
+                self.log.warning("Server answered Observe in early Block1 phase, cancelling the erroneous observation.")
+                blockrequest.observe.cancel()
+
+            if block1.more:
+                # FIXME i think my own server is dowing this wrong
+                #if response.code != CONTINUE:
+                #    raise error.UnexpectedBlock1Option("more-flag set but no Continue")
+                pass
+            else:
+                if not response.code.is_successful():
+                    block1_response = response
+                    break
+                else:
+                    # ignoring (discarding) the successul intermediate result, waiting for a final one
+                    continue
+
+        if app_request.opt.observe and response.opt.observe:
+            self.observation = object()
+            # FIXME self.observation. ... all events from observation trigger a fetch_rest
+        else:
+            observation = None
+
+        assert block1_response is not None, "Block1 loop broke without setting a response"
+        block1_response.opt.block1 = None
+
+        # FIXME check with RFC7959: it just says "send requests similar to the
+        # requests in the Block1 phase", what does that mean? using the last
+        # block1 as a reference for now, especially because in the
+        # only-one-request-block case, that's the original request we must send
+        # again and again anyway
+        assembled_response = yield from self._complete_by_requesting_block2(current_block1, block1_response)
+
+        self.response.set_result(assembled_response)
+        # finally set the result
+
+        if observation is not None:
+            # FIXME whenever something new comes in,
+            # _complete_by_requesting_block2 but cancel the latter if the
+            # former has news, and don't react to every event but just always the last
+            pass
+
+    @asyncio.coroutine
+    def _complete_by_requesting_block2(self, request_to_repeat, initial_response):
+        if initial_response.opt.block2 is None or initial_response.opt.block2.more is False:
+            initial_response.opt.block2 = None
+            return initial_response
+
+        if initial_response.opt.block2.block_number != 0:
+            self.log.error("Error assembling blockwise response (expected first block)")
+            raise UnexpectedBlock2()
+
+        assembled_response = initial_response
+        last_response = initial_response
+        while True:
+            current_block2 = request_to_repeat._generate_next_block2_request(last_response)
+
+            blockrequest = self.protocol.request(current_block2, exchange_monitor_factory=self.exchange_monitor_factory, handle_blockwise=False)
+            last_response = yield from blockrequest.response
+
+            if last_response.opt.block2 is None:
+                self.log.warning("Server sent non-blockwise response after having started a blockwise transfer. Blockwise transfer cancelled, accepting single response.")
+                return last_response
+
+            block2 = last_response.opt.block2
+            self.log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d.", block2.block_number, block2.more, block2.size_exponent)
+            try:
+                assembled_response._append_response_block(last_response)
+            except error.Error as e:
+                self.log.error("Error assembling blockwise response, passing on error %r"%e)
+                raise
+
+            if block2.more is False:
+                return assembled_response
 
 class MulticastRequest(BaseRequest):
     def __init__(self, protocol, request):
