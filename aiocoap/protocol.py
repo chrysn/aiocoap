@@ -484,7 +484,11 @@ class Context(interfaces.RequestProvider):
 
     def request(self, request, **kwargs):
         """TODO: create a proper interface to implement and deprecate direct instanciation again"""
-        return Request(self, request, **kwargs)
+        handle_blockwise = kwargs.pop('handle_blockwise', True)
+        if handle_blockwise:
+            return BlockwiseRequest(self, request, **kwargs)
+        else:
+            return Request(self, request, **kwargs)
 
     def multicast_request(self, request):
         return MulticastRequest(self, request).responses
@@ -574,18 +578,57 @@ class Context(interfaces.RequestProvider):
 class BaseRequest(object):
     """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
 
-class Request(BaseRequest, interfaces.Request):
+class BaseUnicastRequest(BaseRequest):
+    """A utility class that offers the :attr:`response_raising` and
+    :attr:`response_nonraising` alternatives to waiting for the
+    :attr:`response` future whose error states can be presented either as an
+    unsuccessful response (eg. 4.04) or an exception."""
+
+    @property
+    @asyncio.coroutine
+    def response_raising(self):
+        """An awaitable that returns if a response comes in and is successful,
+        otherwise raises generic network exception or a
+        :class:`.error.ResponseWrappingError` for unsuccessful responses.
+
+        Experimental Interface."""
+
+        response = yield from self.response
+        if not response.code.is_successful():
+            raise error.ResponseWrappingError(response)
+
+        return response
+
+    @property
+    @asyncio.coroutine
+    def response_nonraising(self):
+        """An awaitable that rather returns a 500ish fabricated message (as a
+        proxy would return) instead of raising an exception.
+
+        Experimental Interface."""
+
+        try:
+            return (yield from self.response)
+        except error.RenderableError:
+            return e.to_message()
+        except Exception as e:
+            return Message(code=INTERNAL_SERVER_ERROR)
+
+class BlockwiseRequestMixin:
+    pass
+
+class Request(BaseUnicastRequest, interfaces.Request):
     """Class used to handle single outgoing request.
 
     Class includes methods that handle sending outgoing blockwise requests and
     receiving incoming blockwise responses."""
 
-    def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None), handle_blockwise=True):
+    def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None)):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("requester")
         self.app_request = app_request
         self._assembled_response = None
-        self.handle_blockwise = handle_blockwise
+        self.handle_blockwise = False
 
         self._exchange_monitor_factory = exchange_monitor_factory
 
@@ -782,37 +825,8 @@ class Request(BaseRequest, interfaces.Request):
         else:
             self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
 
-    ### Alternatives to waiting for .response
-
-    @property
-    @asyncio.coroutine
-    def response_raising(self):
-        """An awaitable that returns if a response comes in and is successful,
-        otherwise raises generic network exception or a
-        :class:`.error.ResponseWrappingError` for unsuccessful responses.
-
-        Experimental Interface."""
-
-        response = yield from self.response
-        if not response.code.is_successful():
-            raise error.ResponseWrappingError(response)
-
-        return response
-
-    @property
-    @asyncio.coroutine
-    def response_nonraising(self):
-        """An awaitable that rather returns a 500ish fabricated message (as a
-        proxy would return) instead of raising an exception.
-
-        Experimental Interface."""
-
-        try:
-            return (yield from self.response)
-        except error.RenderableError:
-            return e.to_message()
-        except Exception as e:
-            return Message(code=INTERNAL_SERVER_ERROR)
+class BlockwiseRequest(BlockwiseRequestMixin, Request):
+    pass
 
 class MulticastRequest(BaseRequest):
     def __init__(self, protocol, request):
