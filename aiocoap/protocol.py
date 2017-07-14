@@ -717,8 +717,7 @@ class Request(BaseUnicastRequest, interfaces.Request):
             self.log.info("Disregarding incoming message as response Future is done (probably cancelled)")
             return
 
-        if self.app_request.opt.observe is not None and self._assembled_response == None:
-            # assembled response indicates it's the first response package
+        if self.app_request.opt.observe is not None:
             self.register_observation(response)
 
         self.handle_final_response(response)
@@ -779,7 +778,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 self.observation.error(e)
             if not logged:
                 # should be unreachable
-                self.log.exception("Exception in BlockwiseRequest runner neither went to response nor to observation:", e)
+                self.log.exception("Exception in BlockwiseRequest runner neither went to response nor to observation: %s", e)
 
     @asyncio.coroutine
     def _run(self, app_request):
@@ -834,6 +833,8 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 block1_response = response
                 break
 
+            # checks before preparing the next round:
+
             if response.opt.observe:
                 # we're not *really* interested in that block, we just sent an
                 # observe option to indicate that we'll want to observe the
@@ -854,11 +855,12 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                     # ignoring (discarding) the successul intermediate result, waiting for a final one
                     continue
 
-        if app_request.opt.observe and response.opt.observe:
-            self.observation = object()
-            # FIXME self.observation. ... all events from observation trigger a fetch_rest
-        else:
-            observation = None
+        observation = None
+        if app_request.opt.observe is not None:
+            if response.opt.observe is not None:
+                observation = blockrequest.observation
+            else:
+                self.observation.error(error.NotObservable())
 
         assert block1_response is not None, "Block1 loop broke without setting a response"
         block1_response.opt.block1 = None
@@ -874,10 +876,19 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         # finally set the result
 
         if observation is not None:
-            # FIXME whenever something new comes in,
-            # _complete_by_requesting_block2 but cancel the latter if the
-            # former has news, and don't react to every event but just always the last
-            pass
+            try:
+                aiter = observation.__aiter__()
+                while True:
+                    block1_notification = yield from aiter.__anext__()
+                    full_notification = yield from self._complete_by_requesting_block2(self.observation.original_request, block1_notification)
+                    self.observation.callback(full_notification)
+            except Exception as e:
+                self.observation.error(e)
+            else:
+                # FIXME verify that this loop actually ends iff the observation
+                # was cancelled -- otherwise find out the cause(s) or make it not
+                # cancel under indistinguishable circumstances
+                self.observation.error(ObservationCancelled())
 
     @asyncio.coroutine
     def _complete_by_requesting_block2(self, request_to_repeat, initial_response):
