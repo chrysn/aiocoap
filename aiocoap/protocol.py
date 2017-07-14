@@ -751,37 +751,48 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         self.response = asyncio.Future()
 
         if app_request.opt.observe is not None:
-            # still using a ClientObservation here even though it never
-            # gets _register()ed; if ClientObservations were more structured
-            # (eg. base class and one for registration with a token-based
-            # context), a lighter one could be used
-            self.observation = ClientObservation(app_request)
+            self.observation = BlockwiseClientObservation(app_request)
+        else:
+            self.observation = None
 
-        self._runner = asyncio.Task(self._run_outer(app_request))
+        self._runner = asyncio.Task(self._run_outer(
+            app_request, self.response,
+            self.observation,
+            self.protocol,
+            self.log,
+            self.exchange_monitor_factory,
+            ))
         self.response.add_done_callback(self._response_cancellation_handler)
 
     def _response_cancellation_handler(self, response_future):
         if self.response.cancelled() and not self._runner.cancelled():
             self._runner.cancel()
 
+    @classmethod
     @asyncio.coroutine
-    def _run_outer(self, app_request):
+    def _run_outer(cls, app_request, response, observation, protocol, log, exchange_monitor_factory):
         try:
-            yield from self._run(app_request)
+            yield from cls._run(app_request, response, observation, protocol, log, exchange_monitor_factory)
         except Exception as e:
             logged = False
-            if not self.response.done():
+            if not response.done():
                 logged = True
-                self.response.set_exception(e)
+                response.set_exception(e)
             if app_request.opt.observe is not None:
                 logged = True
-                self.observation.error(e)
+                observation.error(e)
             if not logged:
                 # should be unreachable
-                self.log.exception("Exception in BlockwiseRequest runner neither went to response nor to observation: %s", e)
+                log.exception("Exception in BlockwiseRequest runner neither went to response nor to observation: %s", e)
 
+    # This is a class method because that allows self and self.observation to
+    # be freed even when this task is running, and the task to stop itself --
+    # otherwise we couldn't know when users just "forget" about a request
+    # object after using its response (esp. in observe cases) and leave this
+    # task running.
+    @classmethod
     @asyncio.coroutine
-    def _run(self, app_request):
+    def _run(cls, app_request, response, observation, protocol, log, exchange_monitor_factory):
         size_exp = DEFAULT_BLOCK_SIZE_EXP
 
         if app_request.opt.block1 is not None:
@@ -793,8 +804,6 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         # is responsible for updating this number.
         block_cursor = 0
 
-        block1_response = None
-
         while True:
             # ... send a chunk
 
@@ -803,18 +812,17 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             else:
                 current_block1 = app_request
 
-            blockrequest = self.protocol.request(current_block1, exchange_monitor_factory=self.exchange_monitor_factory, handle_blockwise=False)
-            response = yield from blockrequest.response
+            blockrequest = protocol.request(current_block1, exchange_monitor_factory=exchange_monitor_factory, handle_blockwise=False)
+            blockresponse = yield from blockrequest.response
 
-            if response.opt.block1 is None:
-                if response.code.is_successful() and current_block1.opt.block1:
-                    self.log.warning("Block1 option completely ignored by server, assuming it knows what it is doing.")
+            if blockresponse.opt.block1 is None:
+                if blockresponse.code.is_successful() and current_block1.opt.block1:
+                    log.warning("Block1 option completely ignored by server, assuming it knows what it is doing.")
                 # FIXME: handle 4.13 and retry with the indicated size option
-                block1_response = response
                 break
 
-            block1 = response.opt.block1
-            self.log.debug("Response with Block1 option received, number = %d, more = %d, size_exp = %d.", block1.block_number, block1.more, block1.size_exponent)
+            block1 = blockresponse.opt.block1
+            log.debug("Response with Block1 option received, number = %d, more = %d, size_exp = %d.", block1.block_number, block1.more, block1.size_exponent)
 
             if block1.block_number != current_block1.opt.block1.block_number:
                 raise error.UnexpectedBlock1Option("Block number mismatch")
@@ -825,21 +833,20 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 size_exp -= 1
 
             if not current_block1.opt.block1.more:
-                if block1.more or response.code == CONTINUE:
+                if block1.more or blockresponse.code == CONTINUE:
                     # treating this as a protocol error -- letting it slip
                     # through would misrepresent the whole operation as an
                     # over-all 2.xx (successful) one.
                     raise error.UnexpectedBlock1Option("Server asked for more data at end of body")
-                block1_response = response
                 break
 
             # checks before preparing the next round:
 
-            if response.opt.observe:
+            if blockresponse.opt.observe:
                 # we're not *really* interested in that block, we just sent an
                 # observe option to indicate that we'll want to observe the
                 # resulting representation as a whole
-                self.log.warning("Server answered Observe in early Block1 phase, cancelling the erroneous observation.")
+                log.warning("Server answered Observe in early Block1 phase, cancelling the erroneous observation.")
                 blockrequest.observe.cancel()
 
             if block1.more:
@@ -848,56 +855,56 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 #    raise error.UnexpectedBlock1Option("more-flag set but no Continue")
                 pass
             else:
-                if not response.code.is_successful():
-                    block1_response = response
+                if not blockresponse.code.is_successful():
                     break
                 else:
                     # ignoring (discarding) the successul intermediate result, waiting for a final one
                     continue
 
-        observation = None
+        lower_observation = None
         if app_request.opt.observe is not None:
-            if response.opt.observe is not None:
-                observation = blockrequest.observation
+            if blockresponse.opt.observe is not None:
+                lower_observation = blockrequest.observation
             else:
-                self.observation.error(error.NotObservable())
+                observation.error(error.NotObservable())
 
-        assert block1_response is not None, "Block1 loop broke without setting a response"
-        block1_response.opt.block1 = None
+        assert blockresponse is not None, "Block1 loop broke without setting a response"
+        blockresponse.opt.block1 = None
 
         # FIXME check with RFC7959: it just says "send requests similar to the
         # requests in the Block1 phase", what does that mean? using the last
         # block1 as a reference for now, especially because in the
         # only-one-request-block case, that's the original request we must send
         # again and again anyway
-        assembled_response = yield from self._complete_by_requesting_block2(current_block1, block1_response)
+        assembled_response = yield from cls._complete_by_requesting_block2(current_block1, blockresponse)
 
-        self.response.set_result(assembled_response)
+        response.set_result(assembled_response)
         # finally set the result
 
-        if observation is not None:
+        if lower_observation is not None:
             try:
-                aiter = observation.__aiter__()
+                aiter = lower_observation.__aiter__()
                 while True:
                     block1_notification = yield from aiter.__anext__()
-                    full_notification = yield from self._complete_by_requesting_block2(self.observation.original_request, block1_notification)
-                    self.observation.callback(full_notification)
+                    full_notification = yield from cls._complete_by_requesting_block2(observation.original_request, block1_notification)
+                    observation.callback(full_notification)
             except Exception as e:
-                self.observation.error(e)
+                observation.error(e)
             else:
                 # FIXME verify that this loop actually ends iff the observation
                 # was cancelled -- otherwise find out the cause(s) or make it not
                 # cancel under indistinguishable circumstances
-                self.observation.error(ObservationCancelled())
+                observation.error(ObservationCancelled())
 
+    @classmethod
     @asyncio.coroutine
-    def _complete_by_requesting_block2(self, request_to_repeat, initial_response):
+    def _complete_by_requesting_block2(cls, request_to_repeat, initial_response):
         if initial_response.opt.block2 is None or initial_response.opt.block2.more is False:
             initial_response.opt.block2 = None
             return initial_response
 
         if initial_response.opt.block2.block_number != 0:
-            self.log.error("Error assembling blockwise response (expected first block)")
+            log.error("Error assembling blockwise response (expected first block)")
             raise UnexpectedBlock2()
 
         assembled_response = initial_response
@@ -905,19 +912,19 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         while True:
             current_block2 = request_to_repeat._generate_next_block2_request(last_response)
 
-            blockrequest = self.protocol.request(current_block2, exchange_monitor_factory=self.exchange_monitor_factory, handle_blockwise=False)
+            blockrequest = protocol.request(current_block2, exchange_monitor_factory=exchange_monitor_factory, handle_blockwise=False)
             last_response = yield from blockrequest.response
 
             if last_response.opt.block2 is None:
-                self.log.warning("Server sent non-blockwise response after having started a blockwise transfer. Blockwise transfer cancelled, accepting single response.")
+                log.warning("Server sent non-blockwise response after having started a blockwise transfer. Blockwise transfer cancelled, accepting single response.")
                 return last_response
 
             block2 = last_response.opt.block2
-            self.log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d.", block2.block_number, block2.more, block2.size_exponent)
+            log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d.", block2.block_number, block2.more, block2.size_exponent)
             try:
                 assembled_response._append_response_block(last_response)
             except error.Error as e:
-                self.log.error("Error assembling blockwise response, passing on error %r"%e)
+                log.error("Error assembling blockwise response, passing on error %r"%e)
                 raise
 
             if block2.more is False:
@@ -1469,7 +1476,7 @@ class ServerObservation(object):
             if not self.observation.cancelled:
                 self.observation._cancel()
 
-class ClientObservation(object):
+class _BaseClientObservation(object):
     def __init__(self, original_request):
         self.original_request = original_request
         self.callbacks = []
@@ -1481,6 +1488,10 @@ class ClientObservation(object):
         # those early errors, we need an explicit cancellation indication.
         self.cancelled = False
 
+        # precise content depends on implementation, but it being None indicats
+        # that there is no event source, and any present content is used in
+        # case of a cancellation to let the event source know that there is no
+        # further interest in events.
         self._registry_data = None
 
     def __aiter__(self):
@@ -1572,6 +1583,22 @@ class ClientObservation(object):
 
         self._cancellation_reason = None
 
+    def __del__(self):
+        if self._registry_data is not None:
+            # if we want to go fully gc-driven later, the warning can be
+            # dropped -- but for observations it's probably better to
+            # explicitly state disinterest.
+            logging.warning("Observation deleted without explicit cancellation")
+            self._unregister()
+
+class BlockwiseClientObservation(_BaseClientObservation):
+    def _unregister(self):
+        raise Exception()
+
+    def _set_nonweak(self):
+        pass
+
+class ClientObservation(_BaseClientObservation):
     def _register(self, observation_dict, key):
         """Insert the observation into a dict (observation_dict) at the given
         key, and store those details for use during cancellation."""
@@ -1602,11 +1629,3 @@ class ClientObservation(object):
 
     def __repr__(self):
         return '<%s %s at %#x>'%(type(self).__name__, "(cancelled)" if self.cancelled else "(%s call-, %s errback(s))"%(len(self.callbacks), len(self.errbacks)), id(self))
-
-    def __del__(self):
-        if self._registry_data is not None:
-            # if we want to go fully gc-driven later, the warning can be
-            # dropped -- but for observations it's probably better to
-            # explicitly state disinterest.
-            logging.warning("Observation deleted without explicit cancellation")
-            self._unregister()
