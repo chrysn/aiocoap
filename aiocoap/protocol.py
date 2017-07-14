@@ -756,8 +756,9 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             self.observation = None
 
         self._runner = asyncio.Task(self._run_outer(
-            app_request, self.response,
-            self.observation,
+            app_request,
+            self.response,
+            weakref.ref(self.observation) if self.observation is not None else lambda: None,
             self.protocol,
             self.log,
             self.exchange_monitor_factory,
@@ -770,17 +771,18 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
 
     @classmethod
     @asyncio.coroutine
-    def _run_outer(cls, app_request, response, observation, protocol, log, exchange_monitor_factory):
+    def _run_outer(cls, app_request, response, weak_observation, protocol, log, exchange_monitor_factory):
         try:
-            yield from cls._run(app_request, response, observation, protocol, log, exchange_monitor_factory)
+            yield from cls._run(app_request, response, weak_observation, protocol, log, exchange_monitor_factory)
         except Exception as e:
             logged = False
             if not response.done():
                 logged = True
                 response.set_exception(e)
-            if app_request.opt.observe is not None:
+            obs = weak_observation()
+            if app_request.opt.observe is not None and obs is not None:
                 logged = True
-                observation.error(e)
+                obs.error(e)
             if not logged:
                 # should be unreachable
                 log.exception("Exception in BlockwiseRequest runner neither went to response nor to observation: %s", e)
@@ -792,7 +794,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
     # task running.
     @classmethod
     @asyncio.coroutine
-    def _run(cls, app_request, response, observation, protocol, log, exchange_monitor_factory):
+    def _run(cls, app_request, response, weak_observation, protocol, log, exchange_monitor_factory):
         size_exp = DEFAULT_BLOCK_SIZE_EXP
 
         if app_request.opt.block1 is not None:
@@ -866,7 +868,10 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             if blockresponse.opt.observe is not None:
                 lower_observation = blockrequest.observation
             else:
-                observation.error(error.NotObservable())
+                obs = weak_observation()
+                if obs:
+                    obs.error(error.NotObservable())
+                del obs
 
         assert blockresponse is not None, "Block1 loop broke without setting a response"
         blockresponse.opt.block1 = None
@@ -882,32 +887,42 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         # finally set the result
 
         if lower_observation is not None:
-            subtask = asyncio.Task(cls._run_observation(lower_observation, observation, protocol, log, exchange_monitor_factory))
-            observation._register(subtask.cancel)
+            obs = weak_observation()
+            del weak_observation
+            if obs is None:
+                return
+            future_weak_observation = asyncio.Future() # packing this up because its destroy callback needs to reference the subtask
+            subtask = asyncio.Task(cls._run_observation(lower_observation, future_weak_observation, protocol, log, exchange_monitor_factory))
+            future_weak_observation.set_result(weakref.ref(obs, lambda obs: subtask.cancel()))
+            obs._register(subtask.cancel)
+            del obs
             yield from subtask
 
     @classmethod
     @asyncio.coroutine
-    def _run_observation(cls, lower_observation, observation, protocol, log, exchange_monitor_factory):
+    def _run_observation(cls, lower_observation, future_weak_observation, protocol, log, exchange_monitor_factory):
+        weak_observation = yield from future_weak_observation
+        # we can use weak_observation() here at any time, because whenever that
+        # becomes None, this task gets cancelled
         try:
             aiter = lower_observation.__aiter__()
             while True:
                 block1_notification = yield from aiter.__anext__()
                 log.debug("Notification received")
-                full_notification = yield from cls._complete_by_requesting_block2(protocol, observation.original_request, block1_notification, log, exchange_monitor_factory)
+                full_notification = yield from cls._complete_by_requesting_block2(protocol, weak_observation().original_request, block1_notification, log, exchange_monitor_factory)
                 log.debug("Reporting completed notification")
-                observation.callback(full_notification)
+                weak_observation().callback(full_notification)
         except asyncio.CancelledError:
             return
         except StopAsyncIteration:
-            observation.cancel()
+            weak_observation().cancel()
         except Exception as e:
-            observation.error(e)
+            weak_observation().error(e)
         else:
             # FIXME verify that this loop actually ends iff the observation
             # was cancelled -- otherwise find out the cause(s) or make it not
             # cancel under indistinguishable circumstances
-            observation.error(ObservationCancelled())
+            weak_observation().error(ObservationCancelled())
 
     @classmethod
     @asyncio.coroutine
@@ -1611,6 +1626,7 @@ class BlockwiseClientObservation(_BaseClientObservation):
     def _unregister(self):
         if self._registry_data is not None:
             self._registry_data()
+        self._registry_data = None
 
     def _set_nonweak(self):
         pass
