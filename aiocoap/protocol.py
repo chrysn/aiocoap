@@ -876,29 +876,42 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         # block1 as a reference for now, especially because in the
         # only-one-request-block case, that's the original request we must send
         # again and again anyway
-        assembled_response = yield from cls._complete_by_requesting_block2(current_block1, blockresponse)
+        assembled_response = yield from cls._complete_by_requesting_block2(protocol, current_block1, blockresponse, log, exchange_monitor_factory)
 
         response.set_result(assembled_response)
         # finally set the result
 
         if lower_observation is not None:
-            try:
-                aiter = lower_observation.__aiter__()
-                while True:
-                    block1_notification = yield from aiter.__anext__()
-                    full_notification = yield from cls._complete_by_requesting_block2(observation.original_request, block1_notification)
-                    observation.callback(full_notification)
-            except Exception as e:
-                observation.error(e)
-            else:
-                # FIXME verify that this loop actually ends iff the observation
-                # was cancelled -- otherwise find out the cause(s) or make it not
-                # cancel under indistinguishable circumstances
-                observation.error(ObservationCancelled())
+            subtask = asyncio.Task(cls._run_observation(lower_observation, observation, protocol, log, exchange_monitor_factory))
+            observation._register(subtask.cancel)
+            yield from subtask
 
     @classmethod
     @asyncio.coroutine
-    def _complete_by_requesting_block2(cls, request_to_repeat, initial_response):
+    def _run_observation(cls, lower_observation, observation, protocol, log, exchange_monitor_factory):
+        try:
+            aiter = lower_observation.__aiter__()
+            while True:
+                block1_notification = yield from aiter.__anext__()
+                log.debug("Notification received")
+                full_notification = yield from cls._complete_by_requesting_block2(protocol, observation.original_request, block1_notification, log, exchange_monitor_factory)
+                log.debug("Reporting completed notification")
+                observation.callback(full_notification)
+        except asyncio.CancelledError:
+            return
+        except StopAsyncIteration:
+            observation.cancel()
+        except Exception as e:
+            observation.error(e)
+        else:
+            # FIXME verify that this loop actually ends iff the observation
+            # was cancelled -- otherwise find out the cause(s) or make it not
+            # cancel under indistinguishable circumstances
+            observation.error(ObservationCancelled())
+
+    @classmethod
+    @asyncio.coroutine
+    def _complete_by_requesting_block2(cls, protocol, request_to_repeat, initial_response, log, exchange_monitor_factory):
         if initial_response.opt.block2 is None or initial_response.opt.block2.more is False:
             initial_response.opt.block2 = None
             return initial_response
@@ -1528,7 +1541,7 @@ class _BaseClientObservation(object):
                 if f is self._future:
                     self._future = asyncio.Future()
                 return result
-            except Exception:
+            except error.ObservationCancelled:
                 raise StopAsyncIteration
 
     def register_callback(self, callback):
@@ -1592,8 +1605,12 @@ class _BaseClientObservation(object):
             self._unregister()
 
 class BlockwiseClientObservation(_BaseClientObservation):
+    def _register(self, cancellation_callback):
+        self._registry_data = cancellation_callback
+
     def _unregister(self):
-        raise Exception()
+        if self._registry_data is not None:
+            self._registry_data()
 
     def _set_nonweak(self):
         pass
