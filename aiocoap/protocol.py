@@ -774,6 +774,8 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
     def _run_outer(cls, app_request, response, weak_observation, protocol, log, exchange_monitor_factory):
         try:
             yield from cls._run(app_request, response, weak_observation, protocol, log, exchange_monitor_factory)
+        except asyncio.CancelledError:
+            pass # results already set
         except Exception as e:
             logged = False
             if not response.done():
@@ -915,14 +917,12 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         except asyncio.CancelledError:
             return
         except StopAsyncIteration:
-            weak_observation().cancel()
-        except Exception as e:
-            weak_observation().error(e)
-        else:
             # FIXME verify that this loop actually ends iff the observation
             # was cancelled -- otherwise find out the cause(s) or make it not
             # cancel under indistinguishable circumstances
-            weak_observation().error(ObservationCancelled())
+            weak_observation().error(error.ObservationCancelled())
+        except Exception as e:
+            weak_observation().error(e)
 
     @classmethod
     @asyncio.coroutine
@@ -1556,7 +1556,11 @@ class _BaseClientObservation(object):
                 if f is self._future:
                     self._future = asyncio.Future()
                 return result
-            except error.ObservationCancelled:
+            except (error.NotObservable, error.ObservationCancelled):
+                # only exit cleanly when the server -- right away or later --
+                # states that the resource is not observable any more
+                # FIXME: check whether an unsuccessful message is still passed
+                # as an observation result (or whether it should be)
                 raise StopAsyncIteration
 
     def register_callback(self, callback):
