@@ -42,7 +42,7 @@ class ObservableReplacingResource(ReplacingResource, ObservableResource):
 
         return result
 
-class ObserveLateUnbloomer(Resource):
+class ObserveLateUnbloomer(ObservableResource):
     """A resource that accepts the server observation at first but at rendering
     time decides it can't do it"""
     def __init__(self):
