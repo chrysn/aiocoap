@@ -18,7 +18,7 @@ import unittest
 import gc
 
 from aiocoap.resource import Resource, ObservableResource
-from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource
+from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource, run_fixture_as_standalone_server
 
 class ObservableCounter(ObservableResource):
     def __init__(self):
@@ -254,3 +254,7 @@ class TestObserve(WithObserveTestServer, WithClient):
         errors = []
         request.observation.register_errback(errors.append)
         self.assertEqual(len(errors), 1, "Errback was not called on a failed observation")
+
+if __name__ == "__main__":
+    # due to the imports, you'll need to run this as `python3 -m tests.test_observe`
+    run_fixture_as_standalone_server(WithObserveTestServer)

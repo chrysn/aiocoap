@@ -392,8 +392,7 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Root resource was not found")
 
-# for testing the server standalone
-if __name__ == "__main__":
+def run_fixture_as_standalone_server(fixture):
     import sys
     if '-v' in sys.argv:
         logging.basicConfig()
@@ -401,10 +400,14 @@ if __name__ == "__main__":
         logging.getLogger("coap-server").setLevel(logging.DEBUG)
 
     print("Running test server")
-    s = WithTestServer()
+    s = fixture()
     s.setUp()
     try:
         s.loop.run_forever()
     except KeyboardInterrupt:
         print("Shutting down test server")
         s.tearDown()
+
+if __name__ == "__main__":
+    # due to the imports, you'll need to run this as `python3 -m tests.test_server`
+    run_fixture_as_standalone_server(WithTestServer)
