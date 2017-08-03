@@ -87,6 +87,9 @@ class TestingSite(aiocoap.resource.Site):
     def __init__(self):
         super(TestingSite, self).__init__()
 
+        # Not part of the test suite, but handy when running standalone
+        self.add_resource(('.well-known', 'core'), aiocoap.resource.WKCResource(self.get_resources_as_linkheader))
+
         self.add_resource(('empty',), MultiRepresentationResource())
         self.add_resource(('slow',), SlowResource())
         self.add_resource(('big',), BigResource())

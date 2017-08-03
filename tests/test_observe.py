@@ -17,7 +17,7 @@ import aiocoap
 import unittest
 import gc
 
-from aiocoap.resource import Resource, ObservableResource
+from aiocoap.resource import Resource, ObservableResource, WKCResource
 from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource, run_fixture_as_standalone_server
 
 class ObservableCounter(ObservableResource):
@@ -82,6 +82,9 @@ class ObserveTestingSite(aiocoap.resource.Site):
 class NestedSite(aiocoap.resource.Site):
     def __init__(self):
         super().__init__()
+
+        # Not part of the test suite, but handy when running standalone
+        self.add_resource(('.well-known', 'core'), WKCResource(self.get_resources_as_linkheader))
 
         self.subsite = ObserveTestingSite()
 
