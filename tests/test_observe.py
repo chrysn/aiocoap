@@ -17,8 +17,8 @@ import aiocoap
 import unittest
 import gc
 
-from aiocoap.resource import Resource, ObservableResource
-from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource
+from aiocoap.resource import Resource, ObservableResource, WKCResource
+from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource, run_fixture_as_standalone_server
 
 class ObservableCounter(ObservableResource):
     def __init__(self):
@@ -42,7 +42,7 @@ class ObservableReplacingResource(ReplacingResource, ObservableResource):
 
         return result
 
-class ObserveLateUnbloomer(Resource):
+class ObserveLateUnbloomer(ObservableResource):
     """A resource that accepts the server observation at first but at rendering
     time decides it can't do it"""
     def __init__(self):
@@ -82,6 +82,9 @@ class ObserveTestingSite(aiocoap.resource.Site):
 class NestedSite(aiocoap.resource.Site):
     def __init__(self):
         super().__init__()
+
+        # Not part of the test suite, but handy when running standalone
+        self.add_resource(('.well-known', 'core'), WKCResource(self.get_resources_as_linkheader))
 
         self.subsite = ObserveTestingSite()
 
@@ -254,3 +257,7 @@ class TestObserve(WithObserveTestServer, WithClient):
         errors = []
         request.observation.register_errback(errors.append)
         self.assertEqual(len(errors), 1, "Errback was not called on a failed observation")
+
+if __name__ == "__main__":
+    # due to the imports, you'll need to run this as `python3 -m tests.test_observe`
+    run_fixture_as_standalone_server(WithObserveTestServer)

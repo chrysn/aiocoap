@@ -87,6 +87,9 @@ class TestingSite(aiocoap.resource.Site):
     def __init__(self):
         super(TestingSite, self).__init__()
 
+        # Not part of the test suite, but handy when running standalone
+        self.add_resource(('.well-known', 'core'), aiocoap.resource.WKCResource(self.get_resources_as_linkheader))
+
         self.add_resource(('empty',), MultiRepresentationResource())
         self.add_resource(('slow',), SlowResource())
         self.add_resource(('big',), BigResource())
@@ -392,8 +395,7 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Root resource was not found")
 
-# for testing the server standalone
-if __name__ == "__main__":
+def run_fixture_as_standalone_server(fixture):
     import sys
     if '-v' in sys.argv:
         logging.basicConfig()
@@ -401,10 +403,14 @@ if __name__ == "__main__":
         logging.getLogger("coap-server").setLevel(logging.DEBUG)
 
     print("Running test server")
-    s = WithTestServer()
+    s = fixture()
     s.setUp()
     try:
         s.loop.run_forever()
     except KeyboardInterrupt:
         print("Shutting down test server")
         s.tearDown()
+
+if __name__ == "__main__":
+    # due to the imports, you'll need to run this as `python3 -m tests.test_server`
+    run_fixture_as_standalone_server(WithTestServer)
