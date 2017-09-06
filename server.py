@@ -89,25 +89,6 @@ class TimeResource(resource.ObservableResource):
         payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii')
         return aiocoap.Message(payload=payload)
 
-#class CoreResource(resource.Resource):
-#    """
-#    Example Resource that provides list of links hosted by a server.
-#    Normally it should be hosted at /.well-known/core
-#
-#    Notice that self.visible is not set - that means that resource won't
-#    be listed in the link format it hosts.
-#    """
-#
-#    def __init__(self, root):
-#        resource.Resource.__init__(self)
-#        self.root = root
-#
-#    async def render_get(self, request):
-#        data = []
-#        self.root.generate_resource_list(data, "")
-#        payload = ",".join(data).encode('utf-8')
-#        return aiocoap.Message(payload=payload, content_format=40)
-
 # logging setup
 
 logging.basicConfig(level=logging.INFO)
