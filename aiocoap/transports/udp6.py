@@ -146,13 +146,19 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
             s = struct.pack('4s4si',
                     socket.inet_aton(constants.MCAST_IPV4_ALLCOAPNODES),
                     socket.inet_aton("0.0.0.0"), 0)
-            sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s)
+            try:
+                sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s)
+            except OSError:
+                log.warning("Could not join IPv4 multicast group; possibly, there is no network connection available.")
             for a in constants.MCAST_IPV6_ALL:
                 s = struct.pack('16si',
                         socket.inet_pton(socket.AF_INET6, a),
                         0)
-                sock.setsockopt(socket.IPPROTO_IPV6,
-                        socket.IPV6_JOIN_GROUP, s)
+                try:
+                    sock.setsockopt(socket.IPPROTO_IPV6,
+                            socket.IPV6_JOIN_GROUP, s)
+                except OSError:
+                    log.warning("Could not join IPv6 multicast group; possibly, there is no network connection available.")
 
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
