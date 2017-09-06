@@ -29,9 +29,14 @@ class BlockResource(resource.Resource):
 
     def __init__(self):
         super(BlockResource, self).__init__()
-        self.content = ("This is the resource's default content. It is padded "\
-                "with numbers to be large enough to trigger blockwise "\
-                "transfer.\n" + "0123456789\n" * 100).encode("ascii")
+        self.set_content(b"This is the resource's default content. It is padded "\
+                b"with numbers to be large enough to trigger blockwise "\
+                b"transfer.\n")
+
+    def set_content(self, content):
+        self.content = content
+        while len(self.content) <= 1024:
+            self.content = self.content + b"0123456789\n"
 
     async def render_get(self, request):
         return aiocoap.Message(payload=self.content)
@@ -39,9 +44,7 @@ class BlockResource(resource.Resource):
     async def render_put(self, request):
         print('PUT payload: %s' % request.payload)
         self.content = request.payload
-        payload = ("I've accepted the new payload. You may inspect it here in "\
-                "Python's repr format:\n\n%r"%self.content).encode('utf8')
-        return aiocoap.Message(payload=payload)
+        return aiocoap.Message(code=aiocoap.CHANGED, payload=self.content)
 
 
 class SeparateLargeResource(resource.Resource):
