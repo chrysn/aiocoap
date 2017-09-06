@@ -302,7 +302,7 @@ class SecurityContext:
 
         # FIXME add options from unprotected
 
-        unprotected_message = aiocoap.message.Message(code=protected_message.code)
+        unprotected_message = Message(code=protected_message.code)
         unprotected_message.payload = unprotected_message.opt.decode(plaintext)
 
         if unprotected_message.code.is_request:
