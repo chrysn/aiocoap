@@ -27,7 +27,6 @@
    module/aiocoap.util.asyncio
    module/aiocoap.util.cli
    module/aiocoap.util.socknumbers
-   module/aiocoap.util.crypto
    module/aiocoap.util.secrets
    module/aiocoap.cli
 

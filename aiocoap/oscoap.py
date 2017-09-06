@@ -22,7 +22,9 @@ from io import BytesIO
 from aiocoap.message import Message
 from aiocoap import numbers
 from aiocoap.util import secrets
-import aiocoap.util.crypto
+
+from cryptography.hazmat.primitives.ciphers.aead import AESCCM
+import cryptography.exceptions
 
 import hkdf
 import cbor
@@ -71,20 +73,18 @@ class Algorithm(metaclass=abc.ABCMeta):
         stemming from untrusted data."""
 
 class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
+    """AES-CCM implemented using the Python cryptography library"""
+
     @classmethod
     def encrypt(cls, plaintext, aad, key, iv):
-        return aiocoap.util.crypto.encrypt_ccm(plaintext, aad, key, iv, cls.tag_bytes)
+        joint = AESCCM(key, cls.tag_bytes).encrypt(iv, plaintext, aad)
+        return joint[:len(plaintext)], joint[len(plaintext):]
 
     @classmethod
     def decrypt(cls, ciphertext, tag, aad, key, iv):
-        if len(tag) != cls.tag_bytes:
-            # this would be caught by the backend too, but i prefer not to pass
-            # untrusted information to the crypto library where it might not
-            # expect it to be untrusted
-            raise ProtectionInvalid("Unsuitable tag length for algorithm")
         try:
-            return aiocoap.util.crypto.decrypt_ccm(ciphertext, aad, tag, key, iv)
-        except aiocoap.util.crypto.InvalidAEAD:
+            return AESCCM(key, cls.tag_bytes).decrypt(iv, ciphertext + tag, aad)
+        except cryptography.exceptions.InvalidTag:
             raise ProtectionInvalid("Tag invalid")
 
     max_seqno = property(lambda self: 2**(min(8 * self.iv_bytes, 56) - 1) - 1)
