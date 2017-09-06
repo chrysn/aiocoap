@@ -22,13 +22,11 @@ import aiocoap
 
 
 class BlockResource(resource.Resource):
-    """
-    Example resource which supports GET and PUT methods. It sends large
-    responses, which trigger blockwise transfer.
-    """
+    """Example resource which supports the GET and PUT methods. It sends large
+    responses, which trigger blockwise transfer."""
 
     def __init__(self):
-        super(BlockResource, self).__init__()
+        super().__init__()
         self.set_content(b"This is the resource's default content. It is padded "\
                 b"with numbers to be large enough to trigger blockwise "\
                 b"transfer.\n")
@@ -48,11 +46,9 @@ class BlockResource(resource.Resource):
 
 
 class SeparateLargeResource(resource.Resource):
-    """
-    Example resource which supports GET method. It uses asyncio.sleep to
+    """Example resource which supports the GET method. It uses asyncio.sleep to
     simulate a long-running operation, and thus forces the protocol to send
-    empty ACK first.
-    """
+    empty ACK first. """
 
     def __init__(self):
         super(SeparateLargeResource, self).__init__()
@@ -68,12 +64,12 @@ class SeparateLargeResource(resource.Resource):
         return aiocoap.Message(payload=payload)
 
 class TimeResource(resource.ObservableResource):
-    """
-    Example resource that can be observed. The `notify` method keeps scheduling
-    itself, and calles `update_state` to trigger sending notifications.
-    """
+    """Example resource that can be observed. The `notify` method keeps
+    scheduling itself, and calles `update_state` to trigger sending
+    notifications."""
+
     def __init__(self):
-        super(TimeResource, self).__init__()
+        super().__init__()
 
         self.handle = None
 
@@ -106,11 +102,8 @@ def main():
     root = resource.Site()
 
     root.add_resource(('.well-known', 'core'), resource.WKCResource(root.get_resources_as_linkheader))
-
     root.add_resource(('time',), TimeResource())
-
     root.add_resource(('other', 'block'), BlockResource())
-
     root.add_resource(('other', 'separate'), SeparateLargeResource())
 
     asyncio.Task(aiocoap.Context.create_server_context(root))
