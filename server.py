@@ -58,9 +58,9 @@ class SeparateLargeResource(resource.Resource):
     async def render_get(self, request):
         await asyncio.sleep(3)
 
-        payload = "Three rings for the elven kings under the sky, seven rings"\
-                "for dwarven lords in their halls of stone, nine rings for"\
-                "mortal men doomed to die, one ring for the dark lord on his"\
+        payload = "Three rings for the elven kings under the sky, seven rings "\
+                "for dwarven lords in their halls of stone, nine rings for "\
+                "mortal men doomed to die, one ring for the dark lord on his "\
                 "dark throne.".encode('ascii')
         return aiocoap.Message(payload=payload)
 
