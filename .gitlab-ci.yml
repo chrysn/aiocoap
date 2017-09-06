@@ -1,14 +1,16 @@
 image: "python:3"
 
 test:3.6:
-  image: "python:3.6"
+  image: "python:3.6-stretch"
   script:
     - rm -f .coverage* && pip3 install coverage && python3 -m coverage run --parallel ./setup.py test && python3 -m coverage combine && python3 -m coverage report --include=aiocoap/\*
 
-test:3.5:
-  image: "python:3.5"
-  script:
-    - ./setup.py test
+# Currently, none of the images provide a recent OpenSSL; waiting for python:3.5-stretch or for python:3.5 to become stretch
+
+# test:3.5:
+#   image: "python:3.5"
+#   script:
+#     - ./setup.py test
 
 test:3.4:
   image: "python:3.4"
