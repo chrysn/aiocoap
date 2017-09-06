@@ -89,7 +89,8 @@ class TimeResource(resource.ObservableResource):
             self.handle.cancel()
 
     async def render_get(self, request):
-        payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii')
+        payload = datetime.datetime.now().\
+                strftime("%Y-%m-%d %H:%M").encode('ascii')
         return aiocoap.Message(payload=payload)
 
 # logging setup
@@ -101,7 +102,8 @@ def main():
     # Resource tree creation
     root = resource.Site()
 
-    root.add_resource(('.well-known', 'core'), resource.WKCResource(root.get_resources_as_linkheader))
+    root.add_resource(('.well-known', 'core'),
+            resource.WKCResource(root.get_resources_as_linkheader))
     root.add_resource(('time',), TimeResource())
     root.add_resource(('other', 'block'), BlockResource())
     root.add_resource(('other', 'separate'), SeparateLargeResource())
