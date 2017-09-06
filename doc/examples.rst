@@ -15,6 +15,11 @@ later) ``async`` idiom instead of the original asyncio ``yield from``. This is
 to align them better with what novice users are expected to learn when
 introduced to asynchronous programming in Python.
 
+.. note:: These example programs are not shipped in library version of aiocoap.
+    They are present if you followed the :ref:`installation-development`
+    section of the installation instructions; otherwise, you can download them
+    from the project website.
+
 Client
 ------
 
