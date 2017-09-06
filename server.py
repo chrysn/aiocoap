@@ -50,9 +50,9 @@ class SeparateLargeResource(resource.Resource):
     simulate a long-running operation, and thus forces the protocol to send
     empty ACK first. """
 
-    def __init__(self):
-        super(SeparateLargeResource, self).__init__()
-#        self.add_param(resource.LinkParam("title", "Large resource."))
+    def get_link_description(self):
+        # Publish additional data in .well-known/core
+        return dict(**super().get_link_description(), title="A large resource")
 
     async def render_get(self, request):
         await asyncio.sleep(3)
