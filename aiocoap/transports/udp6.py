@@ -132,16 +132,12 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
 
     @classmethod
     @asyncio.coroutine
-    def _create_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to, bind, multicast=False):
-        protofact = lambda: cls(new_message_callback=new_message_callback, new_error_callback=new_error_callback, log=log, loop=loop)
-        if dump_to is not None:
-            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
-
-        transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
-
-        sock = transport.get_extra_info('socket')
-        if sock is None:
-            raise RuntimeError("aiocoap's socket setup requires the main loop to expose the transport's socket.")
+    def _create_transport_endpoint(cls, sock, new_message_callback, new_error_callback, log, loop, dump_to, multicast=False):
+        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
+        sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1)
+        # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
+        # it clear that i don't care about the ip version as long as everything looks the same?
+        sock.setsockopt(socket.IPPROTO_IP, socknumbers.IP_RECVERR, 1)
 
         if multicast:
             # FIXME this all registers only for one interface, doesn't it?
@@ -162,17 +158,11 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
                 except OSError:
                     log.warning("Could not join IPv6 multicast group; possibly, there is no network connection available.")
 
-        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
-        sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1)
-        # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
-        # it clear that i don't care about the ip version as long as everything looks the same?
-        sock.setsockopt(socket.IPPROTO_IP, socknumbers.IP_RECVERR, 1)
+        protofact = lambda: cls(new_message_callback=new_message_callback, new_error_callback=new_error_callback, log=log, loop=loop)
+        if dump_to is not None:
+            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
 
-        if bind is not None:
-            # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind(bind)
+        transport, protocol = yield from loop.create_datagram_endpoint(protofact, sock=sock)
 
         if dump_to is not None:
             protocol = protocol.protocol
@@ -184,12 +174,21 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
     @classmethod
     @asyncio.coroutine
     def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to):
-        return (yield from cls._create_transport_endpoint(new_message_callback, new_error_callback, log, loop, dump_to, None, multicast=False))
+        sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
+        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+
+        return (yield from cls._create_transport_endpoint(sock, new_message_callback, new_error_callback, log, loop, dump_to, multicast=False))
 
     @classmethod
     @asyncio.coroutine
     def create_server_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to, bind):
-        return (yield from cls._create_transport_endpoint(new_message_callback, new_error_callback, log, loop, dump_to, bind, multicast=True))
+        sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
+        # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        sock.bind(bind)
+
+        return (yield from cls._create_transport_endpoint(sock, new_message_callback, new_error_callback, log, loop, dump_to, multicast=True))
 
     @asyncio.coroutine
     def shutdown(self):
