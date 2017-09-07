@@ -19,6 +19,26 @@ https://git.fslab.de/jkonra2m/tinydtls must be available:
 
 That `tinydtls-cython/` and `tinydtls-cython/build/lib....` directories must be
 in PYTHONPATH / sys.path in that sequence.
+
+This currently only implements the client side. To have a test server, run:
+
+    $ git clone https://github.com/obgm/libcoap.git
+    $ git submodule update --init
+    $ ./autogen.sh
+    $ ./configure --with-tinydtls --disable-shared
+    $ make
+    $ ./examples/coap-server
+
+(Using TinyDTLS in libcoap is important; with the default OpenSSL build, I've
+seen DTLS1.0 responses to DTLS1.3 requests, which are hard to debug.)
+
+The test server can then be accessed with the currently built-in credentials using
+
+    $ ./aiocoap-client coaps://localhost/
+
+Bear in mind that the aiocoap CoAPS support is highly experimental; for
+example, while requests to this server do complete, error messages are still
+shown during client shutdown.
 """
 
 import urllib.parse
@@ -50,6 +70,10 @@ LEVEL_NOALERT = 0 # seems only to be issued by tinydtls-internal events
 LEVEL_WARNING = 1
 LEVEL_FATAL = 2
 CODE_CLOSE_NOTIFY = 0
+
+# tinydtls can not be debugged in the Python way; if you need to get more
+# information out of it, use the following line:
+#dtls.setLogLevel(0xff)
 
 class DTLSSecurityStore:
     def _get_psk(self, host, port):
