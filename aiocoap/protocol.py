@@ -629,10 +629,7 @@ class BaseUnicastRequest(BaseRequest):
             return Message(code=INTERNAL_SERVER_ERROR)
 
 class Request(BaseUnicastRequest, interfaces.Request):
-    """Class used to handle single outgoing request.
-
-    Class includes methods that handle sending outgoing blockwise requests and
-    receiving incoming blockwise responses."""
+    """Class used to handle single outgoing request (without any blockwise handling)"""
 
     def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None)):
         self.protocol = protocol
