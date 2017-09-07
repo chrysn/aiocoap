@@ -68,9 +68,13 @@ class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
     def __init__(self, *args, **kwargs):
         super(RecvmsgSelectorDatagramTransport, self).__init__(*args, **kwargs)
 
+        self.__sock = self.get_extra_info('socket')
+        if self.__sock is None:
+            raise RuntimeError("RecvmsgSelectorDatagramTransport requires access to its underlying socket.")
+
     def _read_ready(self):
         try:
-            data, ancdata, flags, addr = self._sock.recvmsg(self.max_size, 1024, socket.MSG_ERRQUEUE)
+            data, ancdata, flags, addr = self.__sock.recvmsg(self.max_size, 1024, socket.MSG_ERRQUEUE)
         except (BlockingIOError, InterruptedError):
             pass
         except OSError as exc:
@@ -82,7 +86,7 @@ class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
 
         # copied and modified from _SelectorDatagramTransport
         try:
-            data, ancdata, flags, addr = self._sock.recvmsg(self.max_size, 1024) # TODO: find a way for the application to tell the trensport how much data is expected
+            data, ancdata, flags, addr = self.__sock.recvmsg(self.max_size, 1024) # TODO: find a way for the application to tell the trensport how much data is expected
         except (BlockingIOError, InterruptedError):
             pass
         except OSError as exc:
@@ -113,10 +117,10 @@ class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
         if not self._buffer:
             # Attempt to send it right away first.
             try:
-                self._sock.sendmsg((data,), ancdata, flags, address)
+                self.__sock.sendmsg((data,), ancdata, flags, address)
                 return
             except (BlockingIOError, InterruptedError):
-                self._loop.add_writer(self._sock_fd, self._sendto_ready)
+                self._loop.add_writer(self.__sock.fileno(), self._sendto_ready)
             except OSError as exc:
                 self._protocol.error_received(exc)
                 return

@@ -139,7 +139,9 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
 
         transport, protocol = yield from loop.create_datagram_endpoint(protofact, family=socket.AF_INET6)
 
-        sock = transport._sock
+        sock = transport.get_extra_info('socket')
+        if sock is None:
+            raise RuntimeError("aiocoap's socket setup requires the main loop to expose the transport's socket.")
 
         if multicast:
             # FIXME this all registers only for one interface, doesn't it?
