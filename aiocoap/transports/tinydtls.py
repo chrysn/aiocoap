@@ -46,6 +46,7 @@ import asyncio
 import weakref
 import socket
 import functools
+import time
 
 from ..util.asyncio import PeekQueue
 from ..message import Message
@@ -74,6 +75,10 @@ CODE_CLOSE_NOTIFY = 0
 # tinydtls can not be debugged in the Python way; if you need to get more
 # information out of it, use the following line:
 #dtls.setLogLevel(0xff)
+
+# FIXME this should be exposed by the dtls wrapper
+DTLS_TICKS_PER_SECOND = 1000
+DTLS_CLOCK_OFFSET = time.time()
 
 class DTLSSecurityStore:
     def _get_psk(self, host, port):
@@ -152,12 +157,17 @@ class DTLSClientConnection:
                     )
             self._connection = self._dtls_socket.connect(_SENTINEL_ADDRESS, _SENTINEL_PORT)
 
+            self._retransmission_task = asyncio.Task(self._run_retransmissions())
+
             self._connecting = asyncio.Future()
+
             yield from self._connecting
 
             while True:
                 message = yield from self._queue.get()
+                self._retransmission_task.cancel()
                 self._dtls_socket.write(self._connection, message)
+                self._retransmission_task = asyncio.Task(self._run_retransmissions())
         finally:
             self.coaptransport.new_error_callback(0, self)
             if self._connection is not None:
@@ -165,10 +175,21 @@ class DTLSClientConnection:
                     self._dtls_socket.close(self._connection)
                 except:
                     pass # _dtls_socket actually does raise an empty Exception() here
+                self._retransmission_task.cancel()
             # doing this here allows the dtls socket to send a final word, but
             # by closing this, we protect the nascent next connection from any
             # delayed ICMP errors that might still wind up in the old socket
             self._transport.close()
+
+    @asyncio.coroutine
+    def _run_retransmissions(self):
+        while True:
+            when = self._dtls_socket.checkRetransmit() / DTLS_TICKS_PER_SECOND
+            if when == 0:
+                return
+            now = time.time() - DTLS_CLOCK_OFFSET
+            yield from asyncio.sleep(when - now)
+
 
     def shutdown(self):
         self._task.cancel()
