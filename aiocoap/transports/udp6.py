@@ -232,9 +232,9 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
                 addrinfo = yield from self.loop.getaddrinfo(
                     host,
                     port,
-                    family=self.transport._sock.family,
+                    family=self.transport.get_extra_info('socket').family,
                     type=0,
-                    proto=self.transport._sock.proto,
+                    proto=self.transport.get_extra_info('socket').proto,
                     flags=socket.AI_V4MAPPED,
                     )
                 request.remote = UDP6EndpointAddress(addrinfo[0][-1])
