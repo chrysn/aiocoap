@@ -26,9 +26,12 @@ class TransportEndpoint(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     @coroutine
-    def fill_remote(self, message):
-        """Populate a message's remote property based on its .opt.uri_host or
-        .unresolved_remote. This interface is likely to change."""
+    def determine_remote(self, message):
+        """Return a value suitable for the message's remote property based on
+        its .opt.uri_host or .unresolved_remote.
+
+        May return None, which indicates that the TransportEndpoint can not
+        transport the message (typically because it is of the wrong scheme)."""
 
 class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod

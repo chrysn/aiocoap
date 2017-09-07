@@ -417,8 +417,14 @@ class Context(interfaces.RequestProvider):
 
     @asyncio.coroutine
     def fill_remote(self, message):
-      te, = self.transport_endpoints
-      yield from te.fill_remote(message)
+        if message.remote is not None:
+            return
+        for te in self.transport_endpoints:
+            remote = yield from te.determine_remote(message)
+            if remote is not None:
+                message.remote = remote
+                return
+        raise RuntimeError("No transport could route message")
 
     def send_message(self, message, exchange_monitor=None):
         """Encode and send message. This takes care of retransmissions (if
@@ -462,8 +468,13 @@ class Context(interfaces.RequestProvider):
     def _send_via_transport(self, message):
         """Put the message on the wire"""
 
-        te, = self.transport_endpoints
-        te.send(message)
+        for te in self.transport_endpoints:
+            # FIXME how is this data best propagated? bind all address objects to their transports?
+            if type(message.remote).__module__ == type(te).__module__:
+                te.send(message)
+                break
+        else:
+            raise NotImplementedError("No transport could route message")
 
     def _next_message_id(self):
         """Reserve and return a new message ID."""
@@ -729,6 +740,7 @@ class Request(BaseUnicastRequest, interfaces.Request):
             response.requested_hostinfo = self.app_request.unresolved_remote
         response.requested_path = self.app_request.opt.uri_path
         response.requested_query = self.app_request.opt.uri_query
+        response.requested_scheme = self.app_request.requested_scheme
 
         self.response.set_result(response)
 
