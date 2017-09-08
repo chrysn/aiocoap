@@ -271,7 +271,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         self.new_message_callback(message)
 
     def datagram_errqueue_received(self, data, ancdata, flags, address):
-        assert flags == socket.MSG_ERRQUEUE
+        assert flags == socknumbers.MSG_ERRQUEUE
         pktinfo = None
         errno = None
         for cmsg_level, cmsg_type, cmsg_data in ancdata:
