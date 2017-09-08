@@ -522,9 +522,16 @@ class Context(interfaces.RequestProvider):
 
         self = cls(loop=loop, serversite=None, loggername=loggername)
 
-        from .transports.udp6 import TransportEndpointUDP6
-
-        self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
+        for transportname in os.environ.get('AIOCOAP_CLIENT_TRANSPORT', 'udp6').split(':'):
+            if transportname == 'udp6':
+                from .transports.udp6 import TransportEndpointUDP6
+                self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
+            elif transportname == 'simple6':
+                from .transports.simple6 import TransportEndpointSimple6
+                self.transport_endpoints.append(TransportEndpointSimple6(self._dispatch_message, self._dispatch_error, log=self.log, loop=loop))
+                # FIXME warn if dump_to is not None
+            else:
+                raise RuntimeError("Transport %r not know for client context creation"%transportname)
 
         return self
 
