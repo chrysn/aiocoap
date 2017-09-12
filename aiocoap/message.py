@@ -142,17 +142,23 @@ class Message(object):
         arguments in the constructor, and update the copy."""
         # This is part of moving messages in an "immutable" direction; not
         # necessarily hard immutable. Let's see where this goes.
-        new = copy.deepcopy(self)
-        if 'mtype' in kwargs:
-            new.mtype = Type(kwargs.pop('mtype'))
-        if 'mid' in kwargs:
-            new.mid = kwargs.pop('mid')
-        if 'code' in kwargs:
-            new.code = Code(kwargs.pop('code'))
-        if 'payload' in kwargs:
-            new.payload = kwargs.pop('payload')
-        if 'token' in kwargs:
-            new.token = kwargs.pop('token')
+
+        new = type(self)(
+                mtype=kwargs.pop('mtype', self.mtype),
+                mid=kwargs.pop('mid', self.mid),
+                code=kwargs.pop('code', self.code),
+                payload=kwargs.pop('payload', self.payload),
+                token=kwargs.pop('token', self.token),
+                )
+        new.remote = kwargs.pop('remote', self.remote)
+        new.unresolved_remote = self.unresolved_remote
+        new.requested_proxy_uri = self.requested_proxy_uri
+        new.requested_scheme = self.requested_scheme
+        new.requested_hostinfo = self.requested_hostinfo
+        new.requested_path = self.requested_path
+        new.requested_query = self.requested_query
+        new.opt = copy.deepcopy(self.opt)
+
         if 'uri' in kwargs:
             new.set_request_uri(kwargs.pop('uri'))
 
@@ -234,15 +240,23 @@ class Message(object):
         start = number * size
         if start < len(self.payload):
             end = start + size if start + size < len(self.payload) else len(self.payload)
-            block = copy.deepcopy(self)
-            block.payload = block.payload[start:end]
-            block.mid = None
             more = True if end < len(self.payload) else False
-            if block.code.is_request():
-                block.opt.block1 = (number, more, size_exp)
+
+            payload = self.payload[start:end]
+            blockopt = (number, more, size_exp)
+
+            if self.code.is_request():
+                return self.copy(
+                        payload=payload,
+                        mid=None,
+                        block1=blockopt
+                        )
             else:
-                block.opt.block2 = (number, more, size_exp)
-            return block
+                return self.copy(
+                        payload=payload,
+                        mid=None,
+                        block2=blockopt
+                        )
 
     def _append_request_block(self, next_block):
         """Modify message by appending another block"""
@@ -285,18 +299,20 @@ class Message(object):
 
         This method is used by client after receiving blockwise response from
         server with "more" flag set."""
-        request = copy.deepcopy(self)
-        request.payload = b""
-        request.mid = None
         if response.opt.block2.block_number == 0 and response.opt.block2.size_exponent > DEFAULT_BLOCK_SIZE_EXP:
             new_size_exponent = DEFAULT_BLOCK_SIZE_EXP
             new_block_number = 2 ** (response.opt.block2.size_exponent - new_size_exponent)
-            request.opt.block2 = (new_block_number, False, new_size_exponent)
+            blockopt = (new_block_number, False, new_size_exponent)
         else:
-            request.opt.block2 = (response.opt.block2.block_number + 1, False, response.opt.block2.size_exponent)
-        del request.opt.block1
-        del request.opt.observe
-        return request
+            blockopt = (response.opt.block2.block_number + 1, False, response.opt.block2.size_exponent)
+
+        return self.copy(
+                payload=b"",
+                mid=None,
+                block2=blockopt,
+                block1=None,
+                observe=None
+                )
 
     def _generate_next_block1_response(self):
         """Generate a response to acknowledge incoming request block.

@@ -41,7 +41,7 @@ class BlockResource(resource.Resource):
 
     async def render_put(self, request):
         print('PUT payload: %s' % request.payload)
-        self.content = request.payload
+        self.set_content(request.payload)
         return aiocoap.Message(code=aiocoap.CHANGED, payload=self.content)
 
 
@@ -87,6 +87,7 @@ class TimeResource(resource.ObservableResource):
         if count == 0 and self.handle:
             print("Stopping the clock")
             self.handle.cancel()
+            self.handle = None
 
     async def render_get(self, request):
         payload = datetime.datetime.now().\

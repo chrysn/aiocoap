@@ -522,11 +522,20 @@ class Context(interfaces.RequestProvider):
 
         self = cls(loop=loop, serversite=None, loggername=loggername)
 
-        from .transports.udp6 import TransportEndpointUDP6
-        from .transports.tinydtls import TransportEndpointTinyDTLS
+        for transportname in os.environ.get('AIOCOAP_CLIENT_TRANSPORT', 'tinydtls:udp6').split(':'):
+            if transportname == 'udp6':
+                from .transports.udp6 import TransportEndpointUDP6
+                self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
+            elif transportname == 'simple6':
+                from .transports.simple6 import TransportEndpointSimple6
+                self.transport_endpoints.append(TransportEndpointSimple6(self._dispatch_message, self._dispatch_error, log=self.log, loop=loop))
+                # FIXME warn if dump_to is not None
+            elif transportname == 'tinydtls':
+                from .transports.tinydtls import TransportEndpointTinyDTLS
 
-        self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
-        self.transport_endpoints.append((yield from TransportEndpointTinyDTLS.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
+                self.transport_endpoints.append((yield from TransportEndpointTinyDTLS.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
+            else:
+                raise RuntimeError("Transport %r not know for client context creation"%transportname)
 
         return self
 
@@ -631,10 +640,7 @@ class BaseUnicastRequest(BaseRequest):
             return Message(code=INTERNAL_SERVER_ERROR)
 
 class Request(BaseUnicastRequest, interfaces.Request):
-    """Class used to handle single outgoing request.
-
-    Class includes methods that handle sending outgoing blockwise requests and
-    receiving incoming blockwise responses."""
+    """Class used to handle single outgoing request (without any blockwise handling)"""
 
     def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None)):
         self.protocol = protocol
@@ -822,6 +828,8 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         # is responsible for updating this number.
         block_cursor = 0
 
+        remote = None
+
         while True:
             # ... send a chunk
 
@@ -830,8 +838,14 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             else:
                 current_block1 = app_request
 
+            if remote is not None:
+                current_block1 = current_block1.copy(remote=remote)
+
             blockrequest = protocol.request(current_block1, exchange_monitor_factory=exchange_monitor_factory, handle_blockwise=False)
             blockresponse = yield from blockrequest.response
+
+            # store for future blocks: don't resolve the address again
+            remote = blockresponse.remote
 
             if blockresponse.opt.block1 is None:
                 if blockresponse.code.is_successful() and current_block1.opt.block1:
@@ -953,6 +967,8 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         last_response = initial_response
         while True:
             current_block2 = request_to_repeat._generate_next_block2_request(last_response)
+
+            current_block2 = current_block2.copy(remote=initial_response.remote)
 
             blockrequest = protocol.request(current_block2, exchange_monitor_factory=exchange_monitor_factory, handle_blockwise=False)
             last_response = yield from blockrequest.response
