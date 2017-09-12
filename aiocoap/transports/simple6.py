@@ -27,7 +27,7 @@ import urllib
 import asyncio
 import socket
 
-from aiocoap import interfaces
+from aiocoap import interfaces, error
 from aiocoap import Message, COAP_PORT
 from ..util import hostportjoin
 
