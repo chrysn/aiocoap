@@ -29,7 +29,7 @@ import socket
 import asyncio
 import weakref
 
-from .util.asyncio import AsyncGenerator, cancel_thoroughly
+from .util.asyncio import AsyncGenerator
 from .util import hostportjoin
 from . import error
 from .optiontypes import BlockOption
@@ -206,7 +206,7 @@ class Context(interfaces.RequestProvider):
             if remote == exchange_remote:
                 if monitor is not None:
                     monitor.rst() # FIXME: add API for better errors
-                cancel_thoroughly(cancellable_timeout)
+                cancellable_timeout.cancel()
                 keys_for_removal.append(key)
         for k in keys_for_removal:
             self._active_exchanges.pop(k)
@@ -281,7 +281,7 @@ class Context(interfaces.RequestProvider):
             return
 
         exchange_monitor, next_retransmission = self._active_exchanges.pop(key)
-        cancel_thoroughly(next_retransmission)
+        next_retransmission.cancel()
         if exchange_monitor is not None:
             if message.mtype is RST:
                 exchange_monitor.rst()
@@ -337,7 +337,7 @@ class Context(interfaces.RequestProvider):
 
         exchange_monitor, next_retransmission = self._active_exchanges.pop(key)
         # this should be a no-op, but let's be sure
-        cancel_thoroughly(next_retransmission)
+        next_retransmission.cancel()
 
         if retransmission_counter < MAX_RETRANSMIT:
             self.log.info("Retransmission, Message ID: %d." % message.mid)
@@ -683,12 +683,12 @@ class Request(BaseUnicastRequest, interfaces.Request):
     def cancel(self):
         # TODO cancel ongoing exchanges
         if self._requesttimeout:
-            cancel_thoroughly(self._requesttimeout)
+            self._requesttimeout.cancel()
         self.response.cancel()
 
     def _response_cancellation_handler(self, response_future):
         if self._requesttimeout:
-            cancel_thoroughly(self._requesttimeout)
+            self._requesttimeout.cancel()
         if self.response.cancelled():
             self.cancel()
 
@@ -718,7 +718,7 @@ class Request(BaseUnicastRequest, interfaces.Request):
             self._set_response_and_observation_error(e)
         else:
             if self._requesttimeout:
-                cancel_thoroughly(self._requesttimeout)
+                self._requesttimeout.cancel()
             self.log.debug("Timeout is %r"%REQUEST_TIMEOUT)
             self._requesttimeout = self.protocol.loop.call_later(REQUEST_TIMEOUT, timeout_request)
             self.protocol.outgoing_requests[(request.token, request.remote)] = self
@@ -1078,7 +1078,7 @@ class Responder(object):
 
     def handle_next_request(self, request):
         if self._next_block_timeout is not None: # that'd be the case only for the first time
-            cancel_thoroughly(self._next_block_timeout)
+            self._next_block_timeout.cancel()
 
         if self.app_request.done() == False:
             self.process_block1_in_request(request)
@@ -1182,7 +1182,7 @@ class Responder(object):
             else:
                 self.send_final_response(response, request)
         finally:
-            cancel_thoroughly(delayed_ack)
+            delayed_ack.cancel()
 
     def respond_with_error(self, request, code, payload):
         """Helper method to send error response to client."""

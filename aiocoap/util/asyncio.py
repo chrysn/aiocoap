@@ -8,19 +8,7 @@
 
 """Extensions to asyncio and workarounds around its shortcomings"""
 
-import asyncio.events
 from . import socknumbers
-
-def cancel_thoroughly(handle):
-    """Use this on a (Timer)Handle when you would .cancel() it, just also drop
-    the callback and arguments for them to be freed soon."""
-    # obsolete as of f68bd88a (around 3.4.3) -- so can be dropped when 3.4
-    # support is dropped
-
-    assert isinstance(handle, asyncio.events.Handle)
-
-    handle.cancel()
-    handle._args = handle._callback = None
 
 import asyncio
 try:
