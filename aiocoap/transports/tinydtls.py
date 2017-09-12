@@ -292,7 +292,7 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
     @asyncio.coroutine
     def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to):
         if dump_to is not None:
-            self.error("Ignoring dump_to in tinyDTLS transport endpoint")
+            log.error("Ignoring dump_to in tinyDTLS transport endpoint")
         return cls(new_message_callback, new_error_callback, log, loop)
 
     @asyncio.coroutine
