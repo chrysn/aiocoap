@@ -60,7 +60,11 @@ the list or in the excluded items, file a wishlist item at the same location).
 Dependencies
 ------------
 
-Basic aiocoap works out of the box on Python_ 3.4.4 or greater.
+Basic aiocoap works out of the box on Python_ 3.4.4 or greater. Full
+functionality is currently available only on Linux and possibly some BSDs (see
+`platform issues`_). For Windows and macOS, at least client mode should be
+available with the `simple6 transport`_ (currently, set
+``AIOCOAP_CLIENT_TRANSPORT=simple6`` in the environment).
 
 The examples_ require Python 3.5 as they use newer syntax.
 
@@ -72,8 +76,8 @@ modules that require all features should declare a dependency on
 ``aiocoap[all]``.
 
 .. _Python: https://www.python.org/
-.. _asyncio: https://pypi.python.org/pypi/asyncio
-.. _`RFC 6690`: http://tools.ietf.org/html/rfc6690
+.. _`platform issues`: https://github.com/chrysn/aiocoap/issues?q=is%3Aissue+is%3Aopen+label%3A%22platform+support%22
+.. _`simple6 transport`: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.simple6.html
 .. _`link_header`: https://pypi.python.org/pypi/LinkHeader
 
 Development
