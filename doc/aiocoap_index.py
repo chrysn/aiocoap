@@ -43,10 +43,7 @@ def modified_insert_input(include_lines, path, original=None):
         filelink_match = filelink_re.match(line)
         if rtd_match:
             pattern, linkbody = rtd_match.groups()
-            if 'module' in pattern: # dirty hint
-                prefix = 'mod'
-            else:
-                prefix = 'doc'
+            prefix = 'doc'
             addrepl(replacements, pattern, prefix, linkbody)
         elif filelink_match:
             # for things like LICENSE
