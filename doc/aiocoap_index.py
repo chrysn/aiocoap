@@ -83,10 +83,10 @@ def build_moduledocs(app):
     for x in docs:
         commonstart = textwrap.dedent("""\
             {x} module
-            ========================================
+            ====================================================================================
             """).format(x=x)
 
-        if x == 'aiocoap.numbers':
+        if x in ('aiocoap.numbers', 'aiocoap.transports'):
             # this does miss out on media_types{,rev}, but they're a mess
             # anyway so far
             text = commonstart + textwrap.dedent("""
@@ -94,7 +94,7 @@ def build_moduledocs(app):
                 .. toctree::
                     :glob:
 
-                    aiocoap.numbers.*
+                    {x}.*
                 """).format(x=x)
         elif x.startswith('aiocoap.cli.'):
             executablename = "aiocoap-" + x[len('aiocoap.cli.'):]

@@ -6,13 +6,32 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module implements a TransportEndpoint for UDP based on the asyncio
-DatagramProtocol.
+"""This module implements a TransportEndpoint for UDP based on a variation of
+the asyncio DatagramProtocol.
 
-As this makes use of RFC 3542 options (IPV6_PKTINFO), this is likely to only
-work with IPv6 interfaces. Hybrid stacks are supported, though, so V4MAPPED
-addresses (a la `::ffff:127.0.0.1`) will be used when name resolution shows
-that a name is only available on V4."""
+This implementation strives to be correct and complete behavior while still
+only using a single socket; that is, to be usable for all kinds of multicast
+traffic, to support server and client behavior at the same time, and to work
+correctly even when multiple IPv6 and IPv4 (using V4MAPPED addresses)
+interfaces are present, and any of the interfaces has multiple addresses.
+
+This requires using a plethorea of standardized but not necessarily widely
+ported features: ``AI_V4MAPPED`` to support IPv4 without resorting to less
+standardized mechanisms for later options, ``IPV6_RECVPKTINFO`` to determine
+incoming packages' destination addresses (was it multicast) and to return
+packages from the same address, ``IPV6_RECVERR`` to receive ICMP errors even on
+sockets that are not connected, ``IPV6_JOIN_GROUP`` for multicast membership
+management, and ``recvmsg`` and ``MSG_ERRQUEUE`` to obtain the data configured
+with the above options.
+
+There are, if at all, only little attempts made to fall back to a
+kind-of-correct or limited-functionality behavior if these options are
+unavailable, for the resulting code would be hard to maintain ("``ifdef``
+hell") or would cause odd bugs at users (eg. servers that stop working when an
+additional IPv6 address gets assigned). If the module does not work for you,
+and the options can not be added easily to your platform, consider using the
+:mod:`.simple6` module instead.
+"""
 
 import asyncio
 import urllib.parse

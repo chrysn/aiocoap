@@ -53,7 +53,7 @@ from .message import Message, NoResponse
 class Context(interfaces.RequestProvider):
     """Applications' entry point to the network
 
-    A :class:`.Context` coordinates one or more network transport
+    A :class:`.Context` coordinates one or more network :mod:`.transports`
     implementations and dispatches data between them and the application.
 
     The application can start requests using the message dispatch methods, and

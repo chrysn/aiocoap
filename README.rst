@@ -133,5 +133,5 @@ Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
 .. _examples: http://aiocoap.readthedocs.io/en/latest/examples.html
 .. _tools: http://aiocoap.readthedocs.io/en/latest/tools.html
 .. _installation: http://aiocoap.readthedocs.io/en/latest/installation.html
-.. _`aiocoap module`: http://aiocoap.readthedocs.io/en/latest/aiocoap.html
+.. _`aiocoap module`: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.html
 .. _LICENSE: LICENSE

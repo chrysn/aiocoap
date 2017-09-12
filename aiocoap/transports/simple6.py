@@ -12,10 +12,10 @@ DatagramProtocol.
 This is a simple version that works only for clients (by creating a dedicated
 unbound but connected socket for each communication partner) and probably not
 with multicast (it is assumed to be unsafe for multicast), which can be
-expected to work even on platforms with incomplete support for recvmsg,
-IPV6_PKTINFO or IPV6_RECVERR (Android, OSX, Windows), or asyncio loops where
-the SelectorDatagramTransport can not easily be overridden with a
-recvmsg-enabled variant (uvloop).
+expected to work even on platforms where the :mod:`.udp6` module can not be
+made to work (Android, OSX, Windows for missing ``recvmsg`` and socket options,
+uvloop because :class:`.util.asyncio.RecvmsgSelectorDatagramTransport` is not
+implemented there).
 
 This transport is experimental, likely to change, and not fully tested yet
 (because the test suite is not yet ready to matrix-test the same tests with

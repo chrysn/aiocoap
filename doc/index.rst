@@ -14,7 +14,6 @@
 
    module/aiocoap.interfaces
    module/aiocoap.transports
-   module/aiocoap.transports.udp6
    module/aiocoap.proxy
    module/aiocoap.proxy.client
    module/aiocoap.proxy.server
