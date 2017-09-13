@@ -29,7 +29,7 @@ extras_require = {
         'all': [], # populated below, contains everything but documentation dependencies for easier installation
         }
 dependency_links = [
-        "git+https://git.fslab.de/jkonra2m/tinydtls-cython.git#egg=DTLSSocket-0.1.0",
+        "git+https://gitlab.com/energyharvesting/tinydtls-cython.git#egg=DTLSSocket-0.1.0",
         ]
 tests_require = [] # populated below
 
