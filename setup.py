@@ -3,7 +3,7 @@
 # This file is part of the Python aiocoap library project.
 #
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
-#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+#               2013-2014 Christian Amsuess <c.amsuess@energyharvesting.at>
 #
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
@@ -54,10 +54,10 @@ class Cite(Command):
         else:
             print(self.plain_text)
 
-    plain_text = """Amsüss, Christian and Wasilak, Maciej. aiocoap: Python CoAP Library. Energy Harvesting Solutions, 2013–. http://github.com/chrysn/aiocoap/"""
+    plain_text = """Amsuess, Christian and Wasilak, Maciej. aiocoap: Python CoAP Library. Energy Harvesting Solutions, 2013-. http://github.com/chrysn/aiocoap/"""
 
     bibtex_text = """@Misc{,
-        author = {Christian Amsüss and Maciej Wasilak},
+        author = {Christian Amsuess and Maciej Wasilak},
         organization = {Energy Harvesting Solutions},
         title = {{aiocoap}: Python CoAP Library},
         year = {2013--},
@@ -70,7 +70,7 @@ setup(
     description=description,
     packages=find_packages(),
 
-    author="Maciej Wasilak, Christian Amsüss",
+    author="Maciej Wasilak, Christian Amsuess",
     author_email="c.amsuess@energyharvesting.at",
     url="https://github.com/chrysn/aiocoap",
 
