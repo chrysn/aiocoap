@@ -168,8 +168,13 @@ class DTLSClientConnection:
                 self._retransmission_task.cancel()
                 self._dtls_socket.write(self._connection, message)
                 self._retransmission_task = asyncio.Task(self._run_retransmissions())
+        except OSError as e:
+            self.log.debug("Expressing exception %r as errno %d.", e, e.errno)
+            self.coaptransport.new_error_callback(e.errno, self)
+        except Exception as e:
+            self.log.error("Exception %r can not be represented as errno, setting -1.", e)
+            self.coaptransport.new_error_callback(-1, self)
         finally:
-            self.coaptransport.new_error_callback(0, self)
             if self._connection is not None:
                 try:
                     self._dtls_socket.close(self._connection)
