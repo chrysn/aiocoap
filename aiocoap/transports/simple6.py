@@ -89,7 +89,7 @@ class _Connection(asyncio.DatagramProtocol):
         else:
             self._new_error_callback(self, exception)
 
-    # whatever it is _DatagramSocketpoolSimple6 expects
+    # whatever it is _DatagramClientSocketpoolSimple6 expects
 
     def send(self, data):
         self._transport.sendto(data, None)
@@ -102,7 +102,7 @@ class _Connection(asyncio.DatagramProtocol):
         del self._new_error_callback
         self._stage = "destroyed"
 
-class _DatagramSocketpoolSimple6:
+class _DatagramClientSocketpoolSimple6:
     """This class is used to explore what an Python/asyncio abstraction around
     a hypothetical "UDP connections" mechanism could look like.
 
@@ -161,7 +161,7 @@ class _DatagramSocketpoolSimple6:
 
 class TransportEndpointSimple6(interfaces.TransportEndpoint):
     # Ideally, this should be a generic "TransportEndpoint implemented atop
-    # something like _DatagramSocketpoolSimple6"; adding "FIXME specific" where
+    # something like _DatagramClientSocketpoolSimple6"; adding "FIXME specific" where
     # this is not the case.
     def __init__(self, new_message_callback, new_error_callback, log, loop):
         self._new_message_callback = new_message_callback
@@ -170,7 +170,7 @@ class TransportEndpointSimple6(interfaces.TransportEndpoint):
         self._loop = loop
 
         # FIXME specific, but only for class
-        self._pool = _DatagramSocketpoolSimple6()
+        self._pool = _DatagramClientSocketpoolSimple6()
 
     @asyncio.coroutine
     def determine_remote(self, request):
