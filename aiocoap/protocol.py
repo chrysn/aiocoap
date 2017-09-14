@@ -524,7 +524,7 @@ class Context(interfaces.RequestProvider):
         self = cls(loop=loop, serversite=None, loggername=loggername)
 
         # FIXME make defaults overridable (postponed until they become configurable too)
-        for transportname in defaults.get_default_clienttransports(loop):
+        for transportname in defaults.get_default_clienttransports(loop=loop):
             if transportname == 'udp6':
                 from .transports.udp6 import TransportEndpointUDP6
                 self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
