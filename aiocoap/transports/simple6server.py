@@ -58,6 +58,10 @@ class _DatagramServerSocketSimple6(asyncio.DatagramProtocol):
         self._new_error_callback = new_error_callback
         self.log = log
 
+    @asyncio.coroutine
+    def shutdown(self):
+        self._transport.abort()
+
     # interface like _DatagramClientSocketpoolSimple6
 
     @asyncio.coroutine
@@ -80,6 +84,12 @@ class _DatagramServerSocketSimple6(asyncio.DatagramProtocol):
     def error_received(self, exception):
         # This is why this whole implementation is a bad idea (but still the best we got on some platforms)
         self.log.warning("Ignoring error because it can not be mapped to any connection: %s", exception)
+
+    def connection_lost(self, exception):
+        if exception is None:
+            pass
+        else:
+            self.log.error("Received unexpected connection loss: %s", exception)
 
 class TransportEndpointSimple6Server(_TransportEndpointSimple6):
     # FIXME the creation interface towards Context is horrible ("await
