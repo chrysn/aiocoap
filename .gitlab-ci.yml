@@ -1,10 +1,14 @@
 image: "python:3"
 
 # installation of cython is a workaround for tinydtls-cython that should be avoided there
+#
+# running tests twice, so if something breaks when optional dependencies are
+# missing, it still shows up. (full coverage would mean running each
+# combination, but let's not blow the test matrix out of proportion).
 test:3.6:
   image: "python:3.6-stretch"
   script:
-    - rm -f .coverage* && pip3 install coverage && pip install cython && python3 -m coverage run --parallel ./setup.py test && python3 -m coverage combine && python3 -m coverage report --include=aiocoap/\*
+    - rm -f .coverage* && pip3 install coverage && pip install cython && AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test && python3 -m coverage run --parallel ./setup.py test && python3 -m coverage combine && python3 -m coverage report --include=aiocoap/\*
 
 # Currently, none of the images provide a recent OpenSSL; waiting for python:3.5-stretch or for python:3.5 to become stretch
 

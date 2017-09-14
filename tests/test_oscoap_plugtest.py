@@ -14,6 +14,7 @@ import subprocess
 import unittest
 
 import aiocoap
+import aiocoap.defaults
 
 from .test_server import WithAsyncLoop, WithClient
 
@@ -36,6 +37,7 @@ class WithAssertNofaillines(unittest.TestCase):
         self.assertEqual([], list(errorlines), message)
 
 @unittest.skipIf(sys.version_info < (3, 5), "OSCOAP plug test server uses Python 3.5 'async def' idioms")
+@unittest.skipIf(aiocoap.defaults.oscoap_missing_modules(), "Mdules missing for running OSCOAP tests: %s"%(aiocoap.defaults.oscoap_missing_modules(),))
 class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
     def setUp(self):
         super(WithPlugtestServer, self).setUp()
@@ -54,7 +56,14 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         while True:
             l = yield from self.process.stdout.readline()
             if l == b"":
-                raise RuntimeError("OSCOAP server process terminated during startup.")
+                try:
+                    _, err = yield from self.process.communicate()
+                    message = err.decode('utf8')
+                except BaseException as e:
+                    message = str(e)
+                finally:
+                    readiness.set_exception(RuntimeError("OSCOAP server process terminated during startup: %s."%message))
+                return
             if l == b'Plugtest server ready.\n':
                 break
         readiness.set_result(True)
