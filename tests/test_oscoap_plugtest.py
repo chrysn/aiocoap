@@ -21,6 +21,12 @@ from .common import PYTHON_PREFIX
 SERVER = PYTHON_PREFIX + ['./contrib/oscoap-plugtest/plugtest-server']
 CLIENT = PYTHON_PREFIX + ['./contrib/oscoap-plugtest/plugtest-client']
 
+try:
+    import cbor, hkdf, cryptography
+    oscoap_module_missing = None
+except ImportError as e:
+    oscoap_module_missing = str(e)
+
 class WithAssertNofaillines(unittest.TestCase):
     def assertNoFaillines(self, text_to_check, message):
         """Assert that there are no lines that contain the phrase 'fail' in the
@@ -36,6 +42,7 @@ class WithAssertNofaillines(unittest.TestCase):
         self.assertEqual([], list(errorlines), message)
 
 @unittest.skipIf(sys.version_info < (3, 5), "OSCOAP plug test server uses Python 3.5 'async def' idioms")
+@unittest.skipIf(oscoap_module_missing, "Mdules missing for running OSCOAP tests: %s"%oscoap_module_missing)
 class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
     def setUp(self):
         super(WithPlugtestServer, self).setUp()
