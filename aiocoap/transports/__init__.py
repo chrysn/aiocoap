@@ -18,11 +18,10 @@ are purely informational.
 Multiple transports can be used in parallel in a single :class:`.Context`, and
 are loaded in a particular sequence. Some transports will grab all addresses of
 a given protocol, so they might not be practical to combine. Which transports
-are started in a given Context depends on the ``AIOCOAP_CLIENT_TRANSPORT``
-variable. Currently, it defaults to ``udp6``, and can be set to ``simple6`` to
-select the implementation of the same name.
+are started in a given Context follows the
+:func:`.defaults.get_default_clienttransports` function.
 
-The currently available transports are:
+The available transports are:
 
 .. the files in this directory.
 """

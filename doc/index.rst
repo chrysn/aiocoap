@@ -13,6 +13,7 @@
    module/aiocoap.options
 
    module/aiocoap.interfaces
+   module/aiocoap.defaults
    module/aiocoap.transports
    module/aiocoap.proxy
    module/aiocoap.proxy.client
