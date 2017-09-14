@@ -16,7 +16,7 @@ class WithReverseProxy(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithReverseProxy, self).setUp()
 
-        self.reverseproxy = aiocoap.cli.proxy.Main(["--reverse", "--server-port", str(self.proxyport), "--namebased", "%s:%s"%(self.name_for_real_server, self.servernetloc), "--pathbased", "%s:%s"%("/".join(self.path_for_real_server), self.servernetloc)])
+        self.reverseproxy = aiocoap.cli.proxy.Main(["--reverse", "--server-port", str(self.proxyport), "--server-address", self.proxyhost, "--namebased", "%s:%s"%(self.name_for_real_server, self.servernetloc), "--pathbased", "%s:%s"%("/".join(self.path_for_real_server), self.servernetloc)])
         self.loop.run_until_complete(self.reverseproxy.initializing)
 
     def tearDown(self):
@@ -34,7 +34,8 @@ class WithReverseProxy(WithAsyncLoop, Destructing):
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
 
     proxyport = 56839
-    proxyaddress = 'localhost:%d'%proxyport
+    proxyhost = 'localhost'
+    proxyaddress = '%s:%d'%(proxyhost, proxyport)
 
     name_for_real_server = 'aliasedname'
     path_for_real_server = ('aliased', 'name')
