@@ -33,12 +33,17 @@ dependency_links = [
         ]
 tests_require = [] # populated below
 
+test_extras = extras_require.keys()
+if 'AIOCOAP_TEST_EXTRAS' in os.environ:
+    test_extras = os.environ['AIOCOAP_TEST_EXTRAS'].split(':')
+
 for k, v in extras_require.items():
     if k.startswith(':') or k == 'all' or k == 'docs':
         continue
     extras_require['docs'].extend(v)
     extras_require['all'].extend(v)
-    tests_require.extend(v)
+    if k in test_extras:
+        tests_require.extend(v)
 
 class Cite(Command):
     description = """Print how to cite aiocoap in a publication"""
