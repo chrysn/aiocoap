@@ -32,6 +32,7 @@ import weakref
 from .util.asyncio import AsyncGenerator
 from .util import hostportjoin
 from . import error
+from . import defaults
 from .optiontypes import BlockOption
 
 import logging
@@ -522,7 +523,8 @@ class Context(interfaces.RequestProvider):
 
         self = cls(loop=loop, serversite=None, loggername=loggername)
 
-        for transportname in os.environ.get('AIOCOAP_CLIENT_TRANSPORT', 'tinydtls:udp6').split(':'):
+        # FIXME make defaults overridable (postponed until they become configurable too)
+        for transportname in defaults.get_default_clienttransports(loop):
             if transportname == 'udp6':
                 from .transports.udp6 import TransportEndpointUDP6
                 self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))

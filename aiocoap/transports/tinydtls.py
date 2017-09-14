@@ -53,8 +53,6 @@ from ..message import Message
 from .. import interfaces, error
 from ..numbers import COAPS_PORT
 
-from DTLSSocket import dtls
-
 # tinyDTLS passes address information around in its session data, but the way
 # it's used here that will be ignored; this is the data that is sent to / read
 # from the tinyDTLS functions
@@ -135,6 +133,8 @@ class DTLSClientConnection:
 
     @asyncio.coroutine
     def _run(self, connect_immediately):
+        from DTLSSocket import dtls
+
         self._dtls_socket = None
 
         if not connect_immediately:
