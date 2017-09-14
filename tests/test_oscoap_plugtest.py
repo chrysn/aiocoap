@@ -14,18 +14,13 @@ import subprocess
 import unittest
 
 import aiocoap
+import aiocoap.defaults
 
 from .test_server import WithAsyncLoop, WithClient
 
 from .common import PYTHON_PREFIX
 SERVER = PYTHON_PREFIX + ['./contrib/oscoap-plugtest/plugtest-server']
 CLIENT = PYTHON_PREFIX + ['./contrib/oscoap-plugtest/plugtest-client']
-
-try:
-    import cbor, hkdf, cryptography
-    oscoap_module_missing = None
-except ImportError as e:
-    oscoap_module_missing = str(e)
 
 class WithAssertNofaillines(unittest.TestCase):
     def assertNoFaillines(self, text_to_check, message):
@@ -42,7 +37,7 @@ class WithAssertNofaillines(unittest.TestCase):
         self.assertEqual([], list(errorlines), message)
 
 @unittest.skipIf(sys.version_info < (3, 5), "OSCOAP plug test server uses Python 3.5 'async def' idioms")
-@unittest.skipIf(oscoap_module_missing, "Mdules missing for running OSCOAP tests: %s"%oscoap_module_missing)
+@unittest.skipIf(aiocoap.defaults.oscoap_missing_modules(), "Mdules missing for running OSCOAP tests: %s"%(aiocoap.defaults.oscoap_missing_modules(),))
 class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
     def setUp(self):
         super(WithPlugtestServer, self).setUp()

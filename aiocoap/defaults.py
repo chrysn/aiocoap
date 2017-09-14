@@ -13,6 +13,13 @@ All of this should eventually overridable by other libraries wrapping/using
 aiocoap and by applications using aiocoap; however, these overrides do not
 happen in the defaults module but where these values are actually accessed, so
 this module is considered internal to aiocoap and not part of the API.
+
+The ``_missing_modules`` functions are helpers for inspecting what is
+reasonable to expect to work. They can influence default values, but should not
+be used in the rest of the code for feature checking (just raise the
+ImportErrors) unless it's directly user-visible ("You configured OSCOAP key
+material, but OSCOAP needs the following unavailable modules") or in the test
+suite to decide which tests to skip.
 """
 
 import os
@@ -59,3 +66,34 @@ def get_default_clienttransports(*, loop=None):
     # that should be managable in udp6 too.
     yield 'udp6'
     return
+
+# FIXME: If there were a way to check for the extras defined in setup.py, or to link these lists to what is descibed there, that'd be great.
+
+def oscoap_missing_modules():
+    """Return a list of modules that are missing in order to use OSCOAP, or a
+    false value if everything is present"""
+    missing = []
+    try:
+        import cbor
+    except ImportError:
+        missing.append('cbor')
+    try:
+        import hkdf
+    except ImportError:
+        missing.append('hkdf')
+    try:
+        import cryptography
+    except ImportError:
+        missing.append('cryptography')
+    return missing
+
+def linkheader_missing_modules():
+    """Return a list of moudles that are missing in order to use link_header
+    functionaity (eg. running a resource directory), of a false value if
+    everything is present."""
+    missing = []
+    try:
+        import link_header
+    except ImportError:
+        missing.append('link_header')
+    return missing

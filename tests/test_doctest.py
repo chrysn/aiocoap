@@ -8,7 +8,7 @@
 
 import unittest
 import doctest
-import aiocoap
+import aiocoap.defaults
 import os
 
 def load_tests(loader, tests, ignore):
@@ -17,5 +17,9 @@ def load_tests(loader, tests, ignore):
             if not f.endswith('.py'):
                 continue
             p = os.path.join(root, f)
+            if 'oscoap' in p and aiocoap.defaults.oscoap_missing_modules():
+                continue
+            if 'resourcedirectory' in p or p == 'aiocoap/cli/rd.py' and aiocoap.defaults.linkheader_missing_modules():
+                continue
             tests.addTests(doctest.DocTestSuite(p[:-3].replace('/', '.')))
     return tests
