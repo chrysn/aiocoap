@@ -39,7 +39,8 @@ def get_default_clienttransports(*, loop=None):
     """
 
     if 'AIOCOAP_CLIENT_TRANSPORT' in os.environ:
-        return os.environ['AIOCOAP_CLIENT_TRANSPORT'].split(':')
+        yield from os.environ['AIOCOAP_CLIENT_TRANSPORT'].split(':')
+        return
 
     try:
         from DTLSSocket import dtls
