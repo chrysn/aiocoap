@@ -37,7 +37,11 @@ if 'AIOCOAP_TEST_EXTRAS' in os.environ:
 for k, v in extras_require.items():
     if k.startswith(':') or k == 'all' or k == 'docs':
         continue
-    extras_require['docs'].extend(v)
+    if k != 'tinydtls':
+        # tinydtls' dependencies are nowhere imported at module level, so docs
+        # can work without. (and they must, for currently dtlssocket segfaults
+        # there and i can't track it down easily)
+        extras_require['docs'].extend(v)
     extras_require['all'].extend(v)
     if k in test_extras:
         tests_require.extend(v)
