@@ -34,10 +34,17 @@ from ..util import hostportjoin
 class _Connection(asyncio.DatagramProtocol):
     # FIXME this should have the same inteface as udp6.UDP6EndpointAddress
 
-    def __init__(self, ready_callback, new_message_callback, new_error_callback):
+    def __init__(self, ready_callback, new_message_callback, new_error_callback, stored_sockaddr):
         self._ready_callback = ready_callback
         self._new_message_callback = new_message_callback
         self._new_error_callback = new_error_callback
+        # This gets stored in the _Connection because not all implementations
+        # of datagram transports will expose the get_extra_info('socket')
+        # (right now, all I knew do), or their backend might not be a connected
+        # socket (like in uvloop), so the information can't be just obtained
+        # from the transport, but is needed to implement .hostinfo
+        self.port = stored_sockaddr[1]
+        self.hostinfo = hostportjoin(stored_sockaddr[0], None if stored_sockaddr[1] == COAP_PORT else stored_sockaddr[1])
 
         self._stage = "initializing" #: Status property purely for debugging
 
@@ -54,20 +61,26 @@ class _Connection(asyncio.DatagramProtocol):
     def is_multicast(self):
         return False
 
-    # FIXME is this / should this really be part of the interface, or does it
-    # just happen to be tested by the unit tests?
-    @property
-    def port(self):
-        return self._transport.get_extra_info('socket').getpeername()[1]
+# fully disabled because some implementations of asyncio don't make the
+# information available; going the easy route and storing it for all (see
+# attribute population in __init__)
 
-    @property
-    def hostinfo(self):
-        host = self._transport.get_extra_info('socket').getpeername()[0]
-        port = self.port
-        if port == COAP_PORT:
-            port = None
-        # FIXME this should use some of the _plainaddress mechanisms of the udp6 addresses
-        return hostportjoin(host, port)
+#     # FIXME is this / should this really be part of the interface, or does it
+#     # just happen to be tested by the unit tests?
+#     @property
+#     def port(self):
+#         return self._transport.get_extra_info('socket').getpeername()[1]
+#
+#     # FIXME continued: probably this is, and the above is not (or should not be)
+#     @property
+#     def hostinfo(self):
+#         print("ACCESSING HOSTINFO")
+#         host = self._transport.get_extra_info('socket').getpeername()[0]
+#         port = self.port
+#         if port == COAP_PORT:
+#             port = None
+#         # FIXME this should use some of the _plainaddress mechanisms of the udp6 addresses
+#         return hostportjoin(host, port)
 
     # datagram protocol interface
 
@@ -146,7 +159,7 @@ class _DatagramClientSocketpoolSimple6:
 
         ready = asyncio.Future()
         transport, protocol = yield from self._loop.create_datagram_endpoint(
-                lambda: _Connection(lambda: ready.set_result(None), self._new_message_callback, self._new_error_callback),
+                lambda: _Connection(lambda: ready.set_result(None), self._new_message_callback, self._new_error_callback, sockaddr),
                 family=socket.AF_INET6,
                 remote_addr=sockaddr)
         yield from ready
