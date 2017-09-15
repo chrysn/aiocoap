@@ -47,11 +47,13 @@ class TestClientWithSetHost(WithTestServer, WithClient):
         resp = self.client.request(request).response
         try:
             # give the request some time to finish getaddrinfo
-            yieldfrom(asyncio.as_completed([resp], timeout=0.01).__next__())
+            result = yieldfrom(asyncio.as_completed([resp], timeout=0.01).__next__())
         except OSError as e:
             self.assertEqual(e.errno, errno.ECONNREFUSED, "")
+        except asyncio.TimeoutError:
+            self.fail("Request to non-opened port did not come back with 'Connection Refused' immediately")
         else:
-            self.fail("Request to non-opened port did not come back with 'Connection Refused'")
+            self.fail("Request to non-opened port did not come back with 'Connection Refused', but another result: %s"%(result,))
         self.assertEqual(request.remote.port, 9999, "Remote port was not parsed")
         resp.cancel()
 
