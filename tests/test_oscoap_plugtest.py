@@ -19,7 +19,7 @@ import aiocoap.defaults
 from .test_server import WithAsyncLoop, WithClient
 
 from .common import PYTHON_PREFIX
-SERVER_ADDRESS = '::1'
+SERVER_ADDRESS = '127.0.0.1'
 SERVER = PYTHON_PREFIX + ['./contrib/oscoap-plugtest/plugtest-server', '--server-address', SERVER_ADDRESS]
 CLIENT = PYTHON_PREFIX + ['./contrib/oscoap-plugtest/plugtest-client']
 
@@ -85,10 +85,10 @@ class TestOSCOAPPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
     @asyncio.coroutine
     def _test_plugtestclient(self, x):
-        set_seqno = aiocoap.Message(code=aiocoap.PUT, uri='coap://localhost/sequence-numbers', payload=str(x).encode('ascii'))
+        set_seqno = aiocoap.Message(code=aiocoap.PUT, uri='coap://127.0.0.1/sequence-numbers', payload=str(x).encode('ascii'))
         yield from self.client.request(set_seqno).response_raising
 
-        proc = yield from asyncio.create_subprocess_exec(*(CLIENT + ['[' + SERVER_ADDRESS + ']', str(x)]), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        proc = yield from asyncio.create_subprocess_exec(*(CLIENT + [SERVER_ADDRESS, str(x)]), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         out, err = yield from proc.communicate()
 
         self.assertNoFaillines(out, '"failed" showed up in plugtest client stdout')

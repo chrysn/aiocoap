@@ -240,9 +240,12 @@ class WithTestServer(WithAsyncLoop, Destructing):
 
         super(WithTestServer, self).tearDown()
 
-    serveraddress = "::1"
-    servernetloc = "[%s]"%serveraddress
-    servernamealias = "ip6-loopback"
+#     serveraddress = "::1"
+#     servernetloc = "[%s]"%serveraddress
+#     servernamealias = "ip6-loopback"
+    serveraddress = "127.0.0.1"
+    servernetloc = serveraddress
+    servernamealias = "127.0.0.1"
 
 class WithClient(WithAsyncLoop, Destructing):
     def setUp(self):

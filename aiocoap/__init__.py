@@ -35,6 +35,17 @@ On the server side, a resource tree gets built from
 time.
 """
 
+import os
+if 'ASYNCIO_USE_UVLOOP' in os.environ:
+    import asyncio
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
 from .numbers import *
 from .message import Message, NoResponse
 from .protocol import Context
+
+if 'ASYNCIO_USE_UVLOOP' in os.environ:
+    del asyncio
+    del uvloop
+del os

@@ -20,7 +20,7 @@ class TestNoncoapClient(WithTestServer):
     def setUp(self):
         super(TestNoncoapClient, self).setUp()
 
-        self.mocksock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+        self.mocksock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.mocksock.connect((self.serveraddress, aiocoap.COAP_PORT))
 
     def tearDown(self):
