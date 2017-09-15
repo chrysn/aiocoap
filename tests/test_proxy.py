@@ -17,7 +17,7 @@ class WithProxyServer(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithProxyServer, self).setUp()
 
-        self.forwardproxy = aiocoap.cli.proxy.Main(["--forward", "--server-port", str(self.proxyport)])
+        self.forwardproxy = aiocoap.cli.proxy.Main(["--forward", "--server-port", str(self.proxyport), "--server-address", self.proxyhost])
         self.loop.run_until_complete(self.forwardproxy.initializing)
 
     def tearDown(self):
@@ -35,7 +35,8 @@ class WithProxyServer(WithAsyncLoop, Destructing):
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
 
     proxyport = 56839
-    proxyaddress = 'localhost:%d'%proxyport
+    proxyhost = 'localhost'
+    proxyaddress = '%s:%d'%(proxyhost, proxyport)
 
 class WithProxyClient(WithClient, WithProxyServer):
     def setUp(self):

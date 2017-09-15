@@ -11,7 +11,6 @@
 This is work in progress and not yet part of the API."""
 
 import asyncio
-import copy
 import urllib.parse
 import functools
 import logging
@@ -81,11 +80,7 @@ class Proxy(interfaces.Resource):
         # FIXME i'd rather let the application do with the message whatever it
         # wants. everything the responder needs of the request should be
         # extracted beforehand.
-        request = copy.deepcopy(request)
-
-        request.mid = None
-        request.remote = None
-        request.token = None
+        request = request.copy(mid=None, remote=None, token=None)
 
         try:
             request = self.apply_redirection(request)
@@ -132,10 +127,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         observed resources, and to tear the observations down again."""
 
         # see ProxiedResource.render
-        request = copy.deepcopy(request)
-        request.mid = None
-        request.remote = None
-        request.token = None
+        request = request.copy(mid=None, remote=None, token=None)
         request = self.apply_redirection(request)
 
         cachekey = self._cache_key(request)
@@ -156,7 +148,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
                 self.log.info("Received incoming message %r, relaying it to %d clients"%(incoming_message, len(obs.__users)))
                 obs.__latest_response = incoming_message
                 for observationserver in set(obs.__users):
-                    observationserver.trigger(copy.deepcopy(incoming_message))
+                    observationserver.trigger(incoming_message.copy())
             obs.observation.register_callback(cb)
             def eb(exception, obs=obs):
                 if obs.__users:
@@ -213,7 +205,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         # maybe this needs to hook in differently than by subclassing and
         # calling super.
         self.log.info("render called")
-        redirected_request = copy.deepcopy(request)
+        redirected_request = request.copy()
 
         try:
             redirected_request = self.apply_redirection(redirected_request)

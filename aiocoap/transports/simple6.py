@@ -89,7 +89,7 @@ class _Connection(asyncio.DatagramProtocol):
         else:
             self._new_error_callback(self, exception)
 
-    # whatever it is _DatagramSocketpoolSimple6 expects
+    # whatever it is _DatagramClientSocketpoolSimple6 expects
 
     def send(self, data):
         self._transport.sendto(data, None)
@@ -102,7 +102,7 @@ class _Connection(asyncio.DatagramProtocol):
         del self._new_error_callback
         self._stage = "destroyed"
 
-class _DatagramSocketpoolSimple6:
+class _DatagramClientSocketpoolSimple6:
     """This class is used to explore what an Python/asyncio abstraction around
     a hypothetical "UDP connections" mechanism could look like.
 
@@ -117,18 +117,22 @@ class _DatagramSocketpoolSimple6:
     PKTINFO) provides the interface, but only implements the outgoing part, and
     will not allow setting the outgoing port or interface."""
 
-    def __init__(self):
-        # currently tracked only for shutdown
-        self._sockets = []
-
     # FIXME (new_message_callback, new_error_callback) should probably rather
     # be one object with a defined interface; either that's the
     # TransportEndpointSimple6 and stored accessibly (so the Protocol can know
     # which TransportEndpoint to talk to for sending), or we move the
     # TransportEndpoint out completely and have that object be the Protocol,
     # and the Protocol can even send new packages via the address
+    def __init__(self, loop, new_message_callback, new_error_callback):
+        # currently tracked only for shutdown
+        self._sockets = []
+
+        self._loop = loop
+        self._new_message_callback = new_message_callback
+        self._new_error_callback = new_error_callback
+
     @asyncio.coroutine
-    def connect(self, sockaddr, loop, new_message_callback, new_error_callback):
+    def connect(self, sockaddr):
         """Create a new socket with a given remote socket address
 
         Note that the sockaddr does not need to be fully resolved or complete,
@@ -141,8 +145,8 @@ class _DatagramSocketpoolSimple6:
         fixed at all when this must return identical objects."""
 
         ready = asyncio.Future()
-        transport, protocol = yield from loop.create_datagram_endpoint(
-                lambda: _Connection(lambda: ready.set_result(None), new_message_callback, new_error_callback),
+        transport, protocol = yield from self._loop.create_datagram_endpoint(
+                lambda: _Connection(lambda: ready.set_result(None), self._new_message_callback, self._new_error_callback),
                 family=socket.AF_INET6,
                 remote_addr=sockaddr)
         yield from ready
@@ -161,7 +165,7 @@ class _DatagramSocketpoolSimple6:
 
 class TransportEndpointSimple6(interfaces.TransportEndpoint):
     # Ideally, this should be a generic "TransportEndpoint implemented atop
-    # something like _DatagramSocketpoolSimple6"; adding "FIXME specific" where
+    # something like _DatagramClientSocketpoolSimple6"; adding "FIXME specific" where
     # this is not the case.
     def __init__(self, new_message_callback, new_error_callback, log, loop):
         self._new_message_callback = new_message_callback
@@ -170,7 +174,7 @@ class TransportEndpointSimple6(interfaces.TransportEndpoint):
         self._loop = loop
 
         # FIXME specific, but only for class
-        self._pool = _DatagramSocketpoolSimple6()
+        self._pool = _DatagramClientSocketpoolSimple6(self._loop, self._received_datagram, self._received_exception)
 
     @asyncio.coroutine
     def determine_remote(self, request):
@@ -187,7 +191,7 @@ class TransportEndpointSimple6(interfaces.TransportEndpoint):
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-        return (yield from self._pool.connect((host, port), self._loop, self._received_datagram, self._received_exception))
+        return (yield from self._pool.connect((host, port)))
 
     def _received_datagram(self, address, datagram):
         try:

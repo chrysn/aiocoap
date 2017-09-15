@@ -39,7 +39,8 @@ def get_default_clienttransports(*, loop=None):
     """
 
     if 'AIOCOAP_CLIENT_TRANSPORT' in os.environ:
-        return os.environ['AIOCOAP_CLIENT_TRANSPORT'].split(':')
+        yield from os.environ['AIOCOAP_CLIENT_TRANSPORT'].split(':')
+        return
 
     try:
         from DTLSSocket import dtls
@@ -60,6 +61,54 @@ def get_default_clienttransports(*, loop=None):
     # uvloop doesn't.
     if not isinstance(loop, asyncio.base_events.BaseEventLoop):
         yield 'simple6'
+        return
+
+    # on android it seems that it's only the AI_V4MAPPED that causes trouble,
+    # that should be managable in udp6 too.
+    yield 'udp6'
+    return
+
+def get_default_servertransports(*, loop=None):
+    """Return a list of transports that should be connected when a server
+    context is created.
+
+    If an explicit ``AIOCOAP_SERVER_TRANSPORT`` environment variable is set, it
+    is read as a colon separated list of transport names.
+
+    By default, a DTLS mechanism will be picked if the required modules are
+    available, and a UDP transport will be selected depending on whether the
+    full udp6 transport is known to work. Both a simple6 and a simplesocketserver
+    will be selected when udp6 is not available, and the simple6 will be used
+    for any outgoing requests, which the simplesocketserver could serve but is worse
+    at.
+    """
+
+    if 'AIOCOAP_SERVER_TRANSPORT' in os.environ:
+        yield from os.environ['AIOCOAP_SERVER_TRANSPORT'].split(':')
+        return
+
+    # no server support yet, but doesn't hurt either
+    try:
+        from DTLSSocket import dtls
+    except ImportError:
+        pass
+    else:
+        yield 'tinydtls'
+
+    if sys.platform != 'linux':
+        # udp6 was never reported to work on anything but linux; would happily
+        # add more platforms.
+        yield 'simple6'
+        yield 'simplesocketserver'
+        return
+
+    if loop is None:
+        loop = asyncio.get_event_loop()
+    # default asyncio works, as does gbulb whose loop is based on asyncio's.
+    # uvloop doesn't.
+    if not isinstance(loop, asyncio.base_events.BaseEventLoop):
+        yield 'simple6'
+        yield 'simplesocketserver'
         return
 
     # on android it seems that it's only the AI_V4MAPPED that causes trouble,
