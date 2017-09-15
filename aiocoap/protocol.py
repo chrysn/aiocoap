@@ -570,10 +570,10 @@ class Context(interfaces.RequestProvider):
 
                 self.transport_endpoints.append((yield from TransportEndpointTinyDTLS.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
             # FIXME end duplication
-            elif transportname == 'simple6server':
+            elif transportname == 'simplesocketserver':
                 # FIXME dump_to not implemented
-                from .transports.simple6server import TransportEndpointSimple6Server
-                self.transport_endpoints.append((yield from TransportEndpointSimple6Server.create_server(bind, new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop)))
+                from .transports.simplesocketserver import TransportEndpointSimpleServer
+                self.transport_endpoints.append((yield from TransportEndpointSimpleServer.create_server(bind, new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop)))
             else:
                 raise RuntimeError("Transport %r not know for client context creation"%transportname)
 

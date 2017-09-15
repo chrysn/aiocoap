@@ -40,7 +40,7 @@ class _Address(namedtuple('_Address', ['serversocket', 'address'])):
     def is_multicast(self):
         return False
 
-class _DatagramServerSocketSimple6(asyncio.DatagramProtocol):
+class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     @classmethod
     @asyncio.coroutine
     def create(cls, server_address, log, loop, new_message_callback, new_error_callback):
@@ -91,7 +91,7 @@ class _DatagramServerSocketSimple6(asyncio.DatagramProtocol):
         else:
             self.log.error("Received unexpected connection loss: %s", exception)
 
-class TransportEndpointSimple6Server(_TransportEndpointSimple6):
+class TransportEndpointSimpleServer(_TransportEndpointSimple6):
     # FIXME the creation interface towards Context is horrible ("await
     # create_server(address) and don't call __init__ yourself like in
     # simple6"), but the gist of the simple6 and this version will need to be
@@ -111,6 +111,6 @@ class TransportEndpointSimple6Server(_TransportEndpointSimple6):
 
         self = cls(new_message_callback, new_error_callback, log, loop)
 
-        self._pool = yield from _DatagramServerSocketSimple6.create(server_address, log, self._loop, self._received_datagram, self._received_exception)
+        self._pool = yield from _DatagramServerSocketSimple.create(server_address, log, self._loop, self._received_datagram, self._received_exception)
 
         return self

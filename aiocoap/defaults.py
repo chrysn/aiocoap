@@ -77,9 +77,9 @@ def get_default_servertransports(*, loop=None):
 
     By default, a DTLS mechanism will be picked if the required modules are
     available, and a UDP transport will be selected depending on whether the
-    full udp6 transport is known to work. Both a simple6 and a simple6server
+    full udp6 transport is known to work. Both a simple6 and a simplesocketserver
     will be selected when udp6 is not available, and the simple6 will be used
-    for any outgoing requests, which the simple6server could serve but is worse
+    for any outgoing requests, which the simplesocketserver could serve but is worse
     at.
     """
 
@@ -99,7 +99,7 @@ def get_default_servertransports(*, loop=None):
         # udp6 was never reported to work on anything but linux; would happily
         # add more platforms.
         yield 'simple6'
-        yield 'simple6server'
+        yield 'simplesocketserver'
         return
 
     if loop is None:
@@ -108,7 +108,7 @@ def get_default_servertransports(*, loop=None):
     # uvloop doesn't.
     if not isinstance(loop, asyncio.base_events.BaseEventLoop):
         yield 'simple6'
-        yield 'simple6server'
+        yield 'simplesocketserver'
         return
 
     # on android it seems that it's only the AI_V4MAPPED that causes trouble,
