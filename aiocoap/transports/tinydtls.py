@@ -9,17 +9,6 @@
 """This module implements a TransportEndpoint that handles coaps:// using a
 wrapped tinydtls library.
 
-In order for this to run, the tinydtls cython wrapper from
-https://git.fslab.de/jkonra2m/tinydtls must be available:
-
-    $ git clone https://git.fslab.de/jkonra2m/tinydtls-cython
-    $ cd tinydtls-cython
-    # git submodule update --init
-    $ python3 ./setup.py build
-
-That `tinydtls-cython/` and `tinydtls-cython/build/lib....` directories must be
-in PYTHONPATH / sys.path in that sequence.
-
 This currently only implements the client side. To have a test server, run:
 
     $ git clone https://github.com/obgm/libcoap.git
