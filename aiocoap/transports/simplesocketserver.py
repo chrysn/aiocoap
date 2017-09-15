@@ -14,11 +14,16 @@ address. It provides a server backend in situations when :mod:`.udp6` is
 unavailable and :mod:`.simple6` needs to be used for clients.
 
 While it is in theory capable of sending requests too, it should not be used
-like that, because it won't receive ICMP errors. (That's bad for the server as
-well because it creates amplification surface, but in a client it creates bad
-user experience because requests to unavailable servers wait for timeout).
+like that, because it won't receive ICMP errors (see below).
 
-This transport is experimental and likely to change.
+Shortcomings
+------------
+
+* This implementation does not receive ICMP errors. This violates the CoAP
+    standard and can lead to unnecessary network traffic, bad user experience
+    (when used for client requests) or even network attack amplification.
+
+* This transport is experimental and likely to change.
 """
 
 import asyncio
