@@ -28,9 +28,6 @@ extras_require = {
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         'all': [], # populated below, contains everything but documentation dependencies for easier installation
         }
-dependency_links = [
-        "git+https://gitlab.com/energyharvesting/tinydtls-cython.git#egg=DTLSSocket-0.1.0",
-        ]
 tests_require = [] # populated below
 
 test_extras = extras_require.keys()
@@ -97,8 +94,6 @@ setup(
     python_requires='>=3.4',
     extras_require=extras_require,
     tests_require=tests_require,
-
-    dependency_links=dependency_links,
 
     # see doc/README.doc seciton "dependency hack"
     install_requires=extras_require['docs'] if 'READTHEDOCS' in os.environ else [],
