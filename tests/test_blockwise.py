@@ -16,7 +16,6 @@ import aiocoap
 import aiocoap.defaults
 
 from .test_server import WithTestServer, WithClient, no_warnings
-from . import test_server
 
 if 'simple6' in aiocoap.defaults.get_default_clienttransports():
     # simple6 has the (comparatively) odd property that whenever it resolves an

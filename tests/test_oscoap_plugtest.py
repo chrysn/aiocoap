@@ -10,7 +10,6 @@
 
 import sys
 import asyncio
-import subprocess
 import unittest
 
 import aiocoap

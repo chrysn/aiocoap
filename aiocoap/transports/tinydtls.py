@@ -33,7 +33,6 @@ shown during client shutdown.
 import urllib.parse
 import asyncio
 import weakref
-import socket
 import functools
 import time
 

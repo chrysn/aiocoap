@@ -1,7 +1,6 @@
 import os, os.path
 import tempfile
 import json
-from binascii import hexlify, unhexlify
 
 import cbor
 

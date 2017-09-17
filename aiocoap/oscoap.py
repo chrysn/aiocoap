@@ -17,10 +17,8 @@ import os, os.path
 import warnings
 import tempfile
 import abc
-from io import BytesIO
 
 from aiocoap.message import Message
-from aiocoap import numbers
 from aiocoap.util import secrets
 
 from cryptography.hazmat.primitives.ciphers.aead import AESCCM

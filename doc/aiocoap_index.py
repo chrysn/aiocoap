@@ -1,7 +1,6 @@
 import functools
 import re
 import os
-import tempfile
 import textwrap
 import glob
 import os.path

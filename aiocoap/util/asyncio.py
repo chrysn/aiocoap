@@ -81,7 +81,6 @@ class AsyncGenerator:
 
 from asyncio import DatagramProtocol
 from asyncio.selector_events import _SelectorDatagramTransport, BaseSelectorEventLoop
-import socket
 
 class RecvmsgDatagramProtocol(DatagramProtocol):
     """Inheriting from this indicates that the instance expects to be called

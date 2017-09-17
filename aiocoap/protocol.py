@@ -22,10 +22,8 @@ messages:
 
 import os
 import random
-import struct
 import binascii
 import functools
-import socket
 import asyncio
 import weakref
 

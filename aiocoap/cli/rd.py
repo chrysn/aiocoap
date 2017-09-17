@@ -13,7 +13,6 @@ import sys
 import logging
 import asyncio
 import argparse
-import abc
 import functools
 
 import aiocoap

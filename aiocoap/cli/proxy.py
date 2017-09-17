@@ -11,7 +11,6 @@
 import sys
 import asyncio
 import argparse
-import functools
 
 import aiocoap
 from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ReverseProxyWithPooledObservations, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector

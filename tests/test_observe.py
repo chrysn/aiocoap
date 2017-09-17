@@ -14,10 +14,9 @@ needs to be updated."""
 
 import asyncio
 import aiocoap
-import unittest
 import gc
 
-from aiocoap.resource import Resource, ObservableResource, WKCResource
+from aiocoap.resource import ObservableResource, WKCResource
 from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource, run_fixture_as_standalone_server
 
 class ObservableCounter(ObservableResource):
