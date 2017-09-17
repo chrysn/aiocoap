@@ -63,23 +63,21 @@ Dependencies
 
 Basic aiocoap works out of the box on Python_ 3.4.4 or greater. Full
 functionality is currently available only on Linux and possibly some BSDs (see
-`platform issues`_). For Windows and macOS, at least client mode should be
-available with the `simple6 transport`_ (currently, set
-``AIOCOAP_CLIENT_TRANSPORT=simple6`` in the environment).
+`platform issues`_). For Windows, macOS and uvloop, limited transports for
+server_ and client_ operation are available and automatically enabled, but see
+their respective caveats.
 
 The examples_ require Python 3.5 as they use newer syntax.
 
 Some components (eg. servers that should auto-generate ``.well-known/core``
-resources, OSCOAP) require additional packages to be present (eg. the
-`link_header`_ module or Python 3.6's backported secrets module); those are
-reflected in "extras" dependencies, see ``setup.py`` for details. Python
-modules that require all features should declare a dependency on
-``aiocoap[all]``.
+resources, OSCOAP, DTLS) require additional packages to be present; they are
+automatically installed when following the installation_ instructions. For
+slimmer systems, see ``setup.py`` for the definition of the "extras".
 
 .. _Python: https://www.python.org/
 .. _`platform issues`: https://github.com/chrysn/aiocoap/issues?q=is%3Aissue+is%3Aopen+label%3A%22platform+support%22
-.. _`simple6 transport`: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.simple6.html
-.. _`link_header`: https://pypi.python.org/pypi/LinkHeader
+.. _server: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.simpleserversocket.html
+.. _client: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.simple6.html
 
 Development
 -----------
