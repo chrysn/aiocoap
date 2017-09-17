@@ -18,6 +18,8 @@ import pprint
 import weakref
 import gc
 
+from . import common
+
 # time granted to asyncio to receive datagrams sent via loopback, and to close
 # connections. if tearDown checks fail erratically, tune this up -- but it
 # causes per-fixture delays.
@@ -242,7 +244,7 @@ class WithTestServer(WithAsyncLoop, Destructing):
 
     serveraddress = "::1"
     servernetloc = "[%s]"%serveraddress
-    servernamealias = "ip6-loopback"
+    servernamealias = common.loopbackname_v6 or common.loopbackname_v46
 
 class WithClient(WithAsyncLoop, Destructing):
     def setUp(self):

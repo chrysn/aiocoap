@@ -8,6 +8,7 @@
 
 import asyncio
 
+from . import common
 from .test_server import WithAsyncLoop, Destructing, WithClient, TestServer, CLEANUPTIME
 from .test_client import TestClientWithSetHost
 import aiocoap.proxy.client
@@ -35,7 +36,7 @@ class WithProxyServer(WithAsyncLoop, Destructing):
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
 
     proxyport = 56839
-    proxyhost = 'localhost'
+    proxyhost = common.loopbackname_v6 or common.loopbackname_v46
     proxyaddress = '%s:%d'%(proxyhost, proxyport)
 
 class WithProxyClient(WithClient, WithProxyServer):

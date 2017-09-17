@@ -17,6 +17,7 @@ import aiocoap
 import aiocoap.defaults
 
 from .test_server import WithAsyncLoop, WithClient
+from . import common
 
 from .common import PYTHON_PREFIX
 SERVER_ADDRESS = '::1'
@@ -85,7 +86,7 @@ class TestOSCOAPPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
     @asyncio.coroutine
     def _test_plugtestclient(self, x):
-        set_seqno = aiocoap.Message(code=aiocoap.PUT, uri='coap://localhost/sequence-numbers', payload=str(x).encode('ascii'))
+        set_seqno = aiocoap.Message(code=aiocoap.PUT, uri='coap://%s/sequence-numbers'%(common.loopbackname_v6 or common.loopbackname_v46), payload=str(x).encode('ascii'))
         yield from self.client.request(set_seqno).response_raising
 
         proc = yield from asyncio.create_subprocess_exec(*(CLIENT + ['[' + SERVER_ADDRESS + ']', str(x)]), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
