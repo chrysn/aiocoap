@@ -55,7 +55,7 @@ class TestClientWithSetHost(WithTestServer, WithClient):
             self.fail("Request to non-opened port did not come back with 'Connection Refused' immediately")
         else:
             self.fail("Request to non-opened port did not come back with 'Connection Refused', but another result: %s"%(result,))
-        self.assertEqual(request.remote.port, 9999, "Remote port was not parsed")
+        self.assertTrue(request.remote.hostinfo.endswith(':9999'), "Remote port was not parsed")
         resp.cancel()
 
     @no_warnings

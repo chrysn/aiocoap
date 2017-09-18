@@ -53,9 +53,8 @@ class Message(object):
     * :attr:`remote`: The socket address of the other side, managed by the
       :class:`.protocol.Request` by resolving the ``.opt.uri_host`` or
       ``unresolved_remote``, or the :class:`.Responder` by echoing the incoming
-      request's. (If you choose to set this explicitly set this, make sure not
-      to set incomplete IPv6 address tuples, as they can be sent but don't
-      compare equally with the responses). Non-roundtrippable.
+      request's. Follows the :class:`.interfaces.EndpointAddress` interface.
+      Non-roundtrippable.
 
     * requested_*: Managed by the :class:`.protocol.Request` a response results
       from, and filled with the request's URL data. Non-roundtrippable.

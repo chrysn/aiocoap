@@ -30,8 +30,9 @@ import asyncio
 from collections import namedtuple
 
 from .simple6 import TransportEndpointSimple6 as _TransportEndpointSimple6
+from .. import interfaces
 
-class _Address(namedtuple('_Address', ['serversocket', 'address'])):
+class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.EndpointAddress):
     # hashability and equality follow from being a namedtuple
     def __repr__(self):
         return '<%s via %s to %s>'%(type(self).__name__, self.serversocket, self.address)
@@ -39,11 +40,10 @@ class _Address(namedtuple('_Address', ['serversocket', 'address'])):
     def send(self, data):
         self.serversocket._transport.sendto(data, self.address)
 
-    # .remote interface
+    # EnpointAddress interface
 
-    @property
-    def is_multicast(self):
-        return False
+    is_multicast = False
+    is_multicast_locally = False
 
 class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     @classmethod

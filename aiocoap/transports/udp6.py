@@ -50,7 +50,7 @@ from ..util.asyncio import RecvmsgDatagramProtocol
 from ..util import hostportjoin
 from ..util import socknumbers
 
-class UDP6EndpointAddress:
+class UDP6EndpointAddress(interfaces.EndpointAddress):
     """Remote address type for :cls:`TransportEndpointUDP6`. Remote address is
     stored in form of a socket address; local address can be roundtripped by
     opaque pktinfo data.
@@ -70,8 +70,6 @@ class UDP6EndpointAddress:
     True
     """
 
-    # interface work in progress. chances are those should be immutable or at
-    # least hashable, as they'll be frequently used as dict keys.
     def __init__(self, sockaddr, *, pktinfo=None):
         self.sockaddr = sockaddr
         self.pktinfo = pktinfo
@@ -118,9 +116,6 @@ class UDP6EndpointAddress:
     @property
     def uri(self):
         return 'coap://' + self.hostinfo
-
-    # those are currently the inofficial metadata interface
-    port = property(lambda self: self.sockaddr[1])
 
     @property
     def is_multicast(self):

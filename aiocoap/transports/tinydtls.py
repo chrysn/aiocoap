@@ -70,7 +70,7 @@ class DTLSSecurityStore:
     def _get_psk(self, host, port):
         return b"Client_identity", b"secretPSK"
 
-class DTLSClientConnection:
+class DTLSClientConnection(interfaces.EndpointAddress):
     # for now i'd assyme the connection can double as an address. this means it
     # must be able to reconnect, and to manage itself as a member of a pool.
 

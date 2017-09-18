@@ -31,20 +31,23 @@ from aiocoap import interfaces, error
 from aiocoap import Message, COAP_PORT
 from ..util import hostportjoin
 
-class _Connection(asyncio.DatagramProtocol):
-    # FIXME this should have the same inteface as udp6.UDP6EndpointAddress
-
+class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
     def __init__(self, ready_callback, new_message_callback, new_error_callback, stored_sockaddr):
         self._ready_callback = ready_callback
         self._new_message_callback = new_message_callback
         self._new_error_callback = new_error_callback
+
         # This gets stored in the _Connection because not all implementations
         # of datagram transports will expose the get_extra_info('socket')
         # (right now, all I knew do), or their backend might not be a connected
         # socket (like in uvloop), so the information can't be just obtained
         # from the transport, but is needed to implement .hostinfo
-        self.port = stored_sockaddr[1]
+        #
+        # If _Connections become used in other contexts (eg. tinydtls starts
+        # using them), it might be a good idea to move all this into a subclass
+        # and split it from the pure networking stuff.
         self.hostinfo = hostportjoin(stored_sockaddr[0], None if stored_sockaddr[1] == COAP_PORT else stored_sockaddr[1])
+        self.uri = 'coap://' + self.hostinfo
 
         self._stage = "initializing" #: Status property purely for debugging
 
@@ -57,26 +60,23 @@ class _Connection(asyncio.DatagramProtocol):
 
     # address interface
 
-    @property
-    def is_multicast(self):
-        return False
+    is_multicast = False
+
+    is_multicast_locally = False
+
+    # statically initialized in init
+    hostinfo = None
+    uri = None
 
 # fully disabled because some implementations of asyncio don't make the
 # information available; going the easy route and storing it for all (see
 # attribute population in __init__)
 
-#     # FIXME is this / should this really be part of the interface, or does it
-#     # just happen to be tested by the unit tests?
-#     @property
-#     def port(self):
-#         return self._transport.get_extra_info('socket').getpeername()[1]
-#
 #     # FIXME continued: probably this is, and the above is not (or should not be)
 #     @property
 #     def hostinfo(self):
 #         print("ACCESSING HOSTINFO")
-#         host = self._transport.get_extra_info('socket').getpeername()[0]
-#         port = self.port
+#         host, port = self._transport.get_extra_info('socket').getpeername()[:2]
 #         if port == COAP_PORT:
 #             port = None
 #         # FIXME this should use some of the _plainaddress mechanisms of the udp6 addresses
