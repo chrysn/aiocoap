@@ -53,7 +53,9 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
 
         transport, protocol = yield from loop.create_datagram_endpoint(
                 lambda: cls(ready.set_result, new_message_callback, new_error_callback, log),
-                local_addr=server_address)
+                local_addr=server_address,
+                reuse_address=True,
+                )
 
         return (yield from ready)
 
