@@ -30,6 +30,7 @@ import socket
 from aiocoap import interfaces, error
 from aiocoap import Message, COAP_PORT
 from ..util import hostportjoin
+from .generic_udp import GenericTransportEndpoint
 
 class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
     def __init__(self, ready_callback, new_message_callback, new_error_callback, stored_sockaddr):
@@ -176,53 +177,10 @@ class _DatagramClientSocketpoolSimple6:
             yield from asyncio.wait([s.shutdown() for s in self._sockets])
         del self._sockets
 
-class TransportEndpointSimple6(interfaces.TransportEndpoint):
-    # Ideally, this should be a generic "TransportEndpoint implemented atop
-    # something like _DatagramClientSocketpoolSimple6"; adding "FIXME specific" where
-    # this is not the case.
-    def __init__(self, new_message_callback, new_error_callback, log, loop):
-        self._new_message_callback = new_message_callback
-        self._new_error_callback = new_error_callback
-        self._log = log
-        self._loop = loop
+class TransportEndpointSimple6(GenericTransportEndpoint):
+    @classmethod
+    @asyncio.coroutine
+    def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop):
+        self = cls(new_message_callback, new_error_callback, log, loop)
 
-        # FIXME specific, but only for class
         self._pool = _DatagramClientSocketpoolSimple6(self._loop, self._received_datagram, self._received_exception)
-
-    @asyncio.coroutine
-    def determine_remote(self, request):
-        if request.requested_scheme not in ('coap', None):
-            return None
-
-        if request.unresolved_remote is not None:
-            pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
-            host = pseudoparsed.hostname
-            port = pseudoparsed.port or COAP_PORT
-        elif request.opt.uri_host:
-            host = request.opt.uri_host
-            port = request.opt.uri_port or COAP_PORT
-        else:
-            raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
-
-        return (yield from self._pool.connect((host, port)))
-
-    def _received_datagram(self, address, datagram):
-        try:
-            message = Message.decode(datagram, remote=address)
-        except error.UnparsableMessage:
-            self._log.warning("Ignoring unparsable message from %s"%(address,))
-            return
-
-        self._new_message_callback(message)
-
-    def _received_exception(self, address, exception):
-        self._new_error_callback(exception.errno, address)
-
-    def send(self, message):
-        message.remote.send(message.encode())
-
-    @asyncio.coroutine
-    def shutdown(self):
-        yield from self._pool.shutdown()
-        self._new_message_callback = None
-        self._new_error_callback = None

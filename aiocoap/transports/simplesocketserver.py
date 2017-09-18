@@ -31,6 +31,7 @@ from collections import namedtuple
 
 from .simple6 import TransportEndpointSimple6 as _TransportEndpointSimple6
 from .. import interfaces
+from .generic_udp import GenericTransportEndpoint
 
 class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.EndpointAddress):
     # hashability and equality follow from being a namedtuple
@@ -98,12 +99,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         else:
             self.log.error("Received unexpected connection loss: %s", exception)
 
-class TransportEndpointSimpleServer(_TransportEndpointSimple6):
-    # FIXME the creation interface towards Context is horrible ("await
-    # create_server(address) and don't call __init__ yourself like in
-    # simple6"), but the gist of the simple6 and this version will need to be
-    # factored out anyway.
-
+class TransportEndpointSimpleServer(GenericTransportEndpoint):
     @classmethod
     @asyncio.coroutine
     def create_server(cls, server_address, new_message_callback, new_error_callback, log, loop):
