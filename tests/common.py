@@ -9,7 +9,14 @@
 """Non-fixture utilities shared between tests"""
 
 import sys
+import os
+
 import aiocoap.defaults
+
+if os.environ.get('AIOCOAP_TESTS_LOOP', None) == 'uvloop':
+    import asyncio
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 if 'coverage' in sys.modules:
     PYTHON_PREFIX = [sys.executable, '-m', 'coverage', 'run', '--parallel-mode']
