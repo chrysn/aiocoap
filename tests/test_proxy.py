@@ -7,6 +7,7 @@
 # described in the accompanying LICENSE file.
 
 import asyncio
+import unittest
 
 from . import common
 from .test_server import WithAsyncLoop, Destructing, WithClient, TestServer, CLEANUPTIME
@@ -61,6 +62,8 @@ class TestServerWithProxy(WithProxyClient, TestServer):
         request.opt.uri_host = self.serveraddress
         return request
 
+    test_replacing_resource = unittest.skipIf(common.using_simple6, "Some proxy tests fail with simple6 (https://github.com/chrysn/aiocoap/issues/88)")(TestServer.test_replacing_resource)
+    test_slowbig_resource = unittest.skipIf(common.using_simple6, "Some proxy tests fail with simple6 (https://github.com/chrysn/aiocoap/issues/88)")(TestServer.test_slowbig_resource)
 # leaving that out for a moment because it fails more slowly
 
 #class TestClientWithProxy(WithProxyClient, TestClientWithSetHost):

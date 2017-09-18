@@ -7,6 +7,7 @@
 # described in the accompanying LICENSE file.
 
 import asyncio
+import unittest
 
 from . import common
 from .test_server import WithAsyncLoop, Destructing, WithClient, WithTestServer, CLEANUPTIME
@@ -42,6 +43,7 @@ class WithReverseProxy(WithAsyncLoop, Destructing):
     path_for_real_server = ('aliased', 'name')
 
 class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
+    @unittest.skipIf(common.using_simple6, "Some proxy tests fail with simple6 (https://github.com/chrysn/aiocoap/issues/88)")
     def test_routing(self):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
 
@@ -67,6 +69,7 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
         response = yieldfrom(self.client.request(request).response)
         self.assertEqual(response.code, aiocoap.CONTENT, "GET with path based proxying was not successful)")
 
+    @unittest.skipIf(common.using_simple6, "Some proxy tests fail with simple6 (https://github.com/chrysn/aiocoap/issues/88)")
     def test_options(self):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
         def req():

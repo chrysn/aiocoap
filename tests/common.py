@@ -9,6 +9,7 @@
 """Non-fixture utilities shared between tests"""
 
 import sys
+import aiocoap.defaults
 
 if 'coverage' in sys.modules:
     PYTHON_PREFIX = [sys.executable, '-m', 'coverage', 'run', '--parallel-mode']
@@ -58,6 +59,9 @@ def _find_loopbacknames():
 
 loopbackname_v4, loopbackname_v6, loopbackname_v46 = _find_loopbacknames()
 
+using_simple6 = 'simple6' in list(aiocoap.defaults.get_default_clienttransports())
+
 if __name__ == "__main__":
     print("Python prefix:", PYTHON_PREFIX)
     print("Loopback names:\n  %s (IPv4)\n  %s (IPv6),\n  %s (IPv4+IPv6)"%(loopbackname_v4, loopbackname_v6, loopbackname_v46))
+    print("simple6 transport in use:", using_simple6)
