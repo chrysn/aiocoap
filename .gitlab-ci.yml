@@ -8,11 +8,11 @@ image: "python:3"
 test:3.6:
   image: "python:3.6-stretch"
   script:
-    - rm -f .coverage* && pip3 install coverage && \
-      pip install cython && \
-      AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test && \
-      python3 -m coverage run --parallel ./setup.py test && \
-      AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test && \
+    - rm -f .coverage* && pip3 install coverage &&
+      pip install cython &&
+      AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test &&
+      python3 -m coverage run --parallel ./setup.py test &&
+      AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test &&
       python3 -m coverage combine && python3 -m coverage report --include=aiocoap/\*
 
 # Currently, none of the images provide a recent OpenSSL; waiting for python:3.5-stretch or for python:3.5 to become stretch
