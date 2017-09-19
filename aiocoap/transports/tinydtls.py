@@ -9,7 +9,7 @@
 """This module implements a TransportEndpoint that handles coaps:// using a
 wrapped tinydtls library.
 
-This currently only implements the client side. To have a test server, run:
+This currently only implements the client side. To have a test server, run::
 
     $ git clone https://github.com/obgm/libcoap.git
     $ git submodule update --init
@@ -21,7 +21,7 @@ This currently only implements the client side. To have a test server, run:
 (Using TinyDTLS in libcoap is important; with the default OpenSSL build, I've
 seen DTLS1.0 responses to DTLS1.3 requests, which are hard to debug.)
 
-The test server can then be accessed with the currently built-in credentials using
+The test server can then be accessed with the currently built-in credentials using::
 
     $ ./aiocoap-client coaps://localhost/
 
