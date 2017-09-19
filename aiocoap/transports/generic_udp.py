@@ -7,8 +7,10 @@
 # described in the accompanying LICENSE file.
 
 import asyncio
+import urllib
 
-from aiocoap import interfaces
+from aiocoap import interfaces, error
+from aiocoap import COAP_PORT, Message
 
 class GenericTransportEndpoint(interfaces.TransportEndpoint):
     """GenericTransportEndpoint is not a standalone implementation of a

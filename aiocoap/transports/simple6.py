@@ -184,3 +184,4 @@ class TransportEndpointSimple6(GenericTransportEndpoint):
         self = cls(new_message_callback, new_error_callback, log, loop)
 
         self._pool = _DatagramClientSocketpoolSimple6(self._loop, self._received_datagram, self._received_exception)
+        return self

@@ -528,7 +528,7 @@ class Context(interfaces.RequestProvider):
                 self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
             elif transportname == 'simple6':
                 from .transports.simple6 import TransportEndpointSimple6
-                self.transport_endpoints.append(TransportEndpointSimple6(self._dispatch_message, self._dispatch_error, log=self.log, loop=loop))
+                self.transport_endpoints.append((yield from TransportEndpointSimple6.create_client_transport_endpoint(self._dispatch_message, self._dispatch_error, log=self.log, loop=loop)))
                 # FIXME warn if dump_to is not None
             elif transportname == 'tinydtls':
                 from .transports.tinydtls import TransportEndpointTinyDTLS
