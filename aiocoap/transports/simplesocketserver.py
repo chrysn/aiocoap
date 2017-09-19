@@ -50,6 +50,15 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     @classmethod
     @asyncio.coroutine
     def create(cls, server_address, log, loop, new_message_callback, new_error_callback):
+        if server_address[0] in ('::', '0.0.0.0', ''):
+            # If you feel tempted to remove this check, think about what
+            # happens if two configured addresses can both route to a
+            # requesting endpoint, how that endpoint is supposed to react to a
+            # response from the other address, and if that case is not likely
+            # to ever happen in your field of application, think about what you
+            # tell the first user where it does happen anyway.
+            raise ValueError("The transport can not be bound to any-address.")
+
         ready = asyncio.Future()
 
         transport, protocol = yield from loop.create_datagram_endpoint(
@@ -103,15 +112,6 @@ class TransportEndpointSimpleServer(GenericTransportEndpoint):
     @classmethod
     @asyncio.coroutine
     def create_server(cls, server_address, new_message_callback, new_error_callback, log, loop):
-        if server_address[0] in ('::', '0.0.0.0', ''):
-            # If you feel tempted to remove this check, think about what
-            # happens if two configured addresses can both route to a
-            # requesting endpoint, how that endpoint is supposed to react to a
-            # response from the other address, and if that case is not likely
-            # to ever happen in your field of application, think about what you
-            # tell the first user where it does happen anyway.
-            raise ValueError("The transport can not be bound to any-address.")
-
         self = cls(new_message_callback, new_error_callback, log, loop)
 
         self._pool = yield from _DatagramServerSocketSimple.create(server_address, log, self._loop, self._received_datagram, self._received_exception)
