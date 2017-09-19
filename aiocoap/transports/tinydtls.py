@@ -37,6 +37,7 @@ import functools
 import time
 
 from ..util.asyncio import PeekQueue
+from ..util import hostportjoin
 from ..message import Message
 from .. import interfaces, error
 from ..numbers import COAPS_PORT
@@ -96,6 +97,9 @@ class DTLSClientConnection(interfaces.EndpointAddress):
     # survive its 2**16th message exchange.
 
     is_multicast = False
+    is_multicast_locally = False
+    hostinfo = None # stored at initualization time
+    uri = property(lambda self: 'coaps://' + self.hostinfo)
 
     def __init__(self, host, port, pskId, psk, coaptransport):
         self._ready = False
@@ -111,6 +115,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         self._pskId = pskId
         self._psk = psk
         self.coaptransport = coaptransport
+        self.hostinfo = hostportjoin(host, None if port is 684 else port)
 
         self._task = asyncio.ensure_future(self._run(connect_immediately=True))
 
