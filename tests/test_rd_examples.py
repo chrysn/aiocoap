@@ -11,12 +11,19 @@ specification against it.
 """
 
 import asyncio
-import link_header
+import unittest
 
 import aiocoap
-import aiocoap.cli.rd
 
 from .test_server import WithAsyncLoop, Destructing, WithClient
+
+try:
+    import link_header
+    import aiocoap.cli.rd
+except ImportError:
+    link_header = None
+
+_skip_unless_linkheader = unittest.skipIf(link_header is None, "RD tests require link header extension")
 
 class WithResourceDirectory(WithAsyncLoop, Destructing):
     rd_address = '::1'
@@ -38,6 +45,7 @@ class WithResourceDirectory(WithAsyncLoop, Destructing):
         self._del_to_be_sure('rd')
 
 class TestDiscovery(WithResourceDirectory, WithClient):
+    @_skip_unless_linkheader
     def test_discovery(self):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
 
@@ -64,6 +72,7 @@ class TestDiscovery(WithResourceDirectory, WithClient):
 
         return self._endpoints[rt]
 
+    @_skip_unless_linkheader
     def test_registration(self):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
 
