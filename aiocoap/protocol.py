@@ -573,7 +573,7 @@ class Context(interfaces.RequestProvider):
                 from .transports.simplesocketserver import TransportEndpointSimpleServer
                 self.transport_endpoints.append((yield from TransportEndpointSimpleServer.create_server(bind, new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop)))
             else:
-                raise RuntimeError("Transport %r not know for client context creation"%transportname)
+                raise RuntimeError("Transport %r not know for server context creation"%transportname)
 
         return self
 
