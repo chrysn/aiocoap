@@ -83,11 +83,7 @@ Development
 -----------
 
 aiocoap tries to stay close to PEP8_ recommendations and general best practice,
-and should thus be easy to contribute to. Unit tests are implemented in the
-``./tests/`` directory and easiest run using ``./setup.py test``; complete test
-coverage is aimed for, but not yet complete (and might never be, as the error
-handling for pathological network partners is hard to trigger with a library
-designed not to misbehave).
+and should thus be easy to contribute to.
 
 Documentation is built using sphinx_ with ``./setup.py build_sphinx``; hacks
 used there are described in ``./doc/README.doc``.
@@ -95,9 +91,18 @@ used there are described in ``./doc/README.doc``.
 Bugs (ranging from "design goal" and "wishlist" to typos) are currently tracked
 in the `github issue tracker`_.
 
+Unit tests are implemented in the ``./tests/`` directory and easiest run using
+``./setup.py test``; complete test coverage is aimed for, but not yet complete
+(and might never be, as the error handling for pathological network partners is
+hard to trigger with a library designed not to misbehave). The tests are
+regularly run at the `CI suite at gitlab`_, from where `coverage reports`_ are
+available.
+
 .. _PEP8: http://legacy.python.org/dev/peps/pep-0008/
 .. _sphinx: http://sphinx-doc.org/
 .. _`github issue tracker`: https://github.com/chrysn/aiocoap/issues
+.. _`CI suite at gitlab`: https://gitlab.com/energyharvesting/aiocoap/commits/master
+.. _`coverage reports`: https://energyharvesting.gitlab.io/aiocoap/
 
 Relevant URLs
 -------------
