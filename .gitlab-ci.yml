@@ -1,5 +1,3 @@
-image: "python:3"
-
 # installation of cython is a workaround for tinydtls-cython that should be avoided there
 #
 # running tests twice, so if something breaks when optional dependencies are
@@ -8,13 +6,21 @@ image: "python:3"
 test:3.6:
   image: "python:3.6-stretch"
   script:
-    - rm -f .coverage* && pip3 install coverage &&
-      pip3 install cython &&
-      AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test &&
-      python3 -m coverage run --parallel ./setup.py test &&
-      pip3 install uvloop &&
-      AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test &&
-      python3 -m coverage combine && python3 -m coverage report --include=aiocoap/\*
+    - rm -f .coverage* collected-coverage/3.6/
+    - pip3 install coverage
+    # < 0.27 due to bug https://github.com/cython/cython/issues/1894
+    - pip3 install 'cython==0.26'
+    - AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test
+    - python3 -m coverage run --parallel ./setup.py test
+    - pip3 install uvloop
+    - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
+    - python3 -m coverage combine
+    - python3 -m coverage report --include=aiocoap/\*
+    - mkdir collected-coverage/3.6/ -p
+    - mv .coverage* collected-coverage/3.6/
+  artifacts:
+    paths:
+      - collected-coverage
 
 # Currently, none of the images provide a recent OpenSSL; waiting for python:3.5-stretch or for python:3.5 to become stretch
 
@@ -28,4 +34,20 @@ test:3.6:
 # test:3.4:
 #   image: "python:3.4"
 #   script:
-#     - pip3 install cython && ./setup.py test
+#     - pip3 install cython
+#     - ./setup.py test
+
+pages:
+  image: "python:3.6-stretch"
+  stage: deploy
+  dependencies:
+    - test:3.6
+  script:
+    - pip3 install coverage
+    - rm -f .coverage* public
+    - mv collected-coverage/*/.coverage* .
+    - python3 -m coverage html --include=aiocoap/\*
+    - mv htmlcov public
+  artifacts:
+    paths:
+      - public
