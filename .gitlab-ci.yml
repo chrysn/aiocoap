@@ -15,7 +15,11 @@ test:3.6:
     - pip3 install uvloop
     - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
     - python3 -m coverage combine
+    - python3 -m coverage html --include=aiocoap/\*
     - python3 -m coverage report --include=aiocoap/\*
+  artifacts:
+    paths:
+      - htmlcov
 
 # Currently, none of the images provide a recent OpenSSL; waiting for python:3.5-stretch or for python:3.5 to become stretch
 
