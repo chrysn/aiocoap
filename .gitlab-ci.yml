@@ -6,7 +6,7 @@
 test:3.6:
   image: "python:3.6-stretch"
   script:
-    - rm -f .coverage*
+    - rm -f .coverage* collected-coverage/3.6/
     - pip3 install coverage
     # < 0.27 due to bug https://github.com/cython/cython/issues/1894
     - pip3 install 'cython==0.26'
@@ -15,11 +15,12 @@ test:3.6:
     - pip3 install uvloop
     - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
     - python3 -m coverage combine
-    - python3 -m coverage html --include=aiocoap/\*
     - python3 -m coverage report --include=aiocoap/\*
+    - mkdir collected-coverage/3.6/ -p
+    - mv .coverage* collected-coverage/3.6/
   artifacts:
     paths:
-      - htmlcov
+      - collected-coverage
 
 # Currently, none of the images provide a recent OpenSSL; waiting for python:3.5-stretch or for python:3.5 to become stretch
 
@@ -35,3 +36,18 @@ test:3.6:
 #   script:
 #     - pip3 install cython
 #     - ./setup.py test
+
+pages:
+  image: "python:3.6-stretch"
+  stage: deploy
+  dependencies:
+    - test:3.6
+  script:
+    - pip3 install coverage
+    - rm -f .coverage* public
+    - mv collected-coverage/*/.coverage* .
+    - python3 -m coverage html --include=aiocoap/\*
+    - mv htmlcov public
+  artifacts:
+    paths:
+      - public
