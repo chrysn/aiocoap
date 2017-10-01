@@ -8,7 +8,8 @@ test:3.6:
   script:
     - rm -f .coverage*
     - pip3 install coverage
-    - pip3 install cython
+    # < 0.27 due to bug https://github.com/cython/cython/issues/1894
+    - pip3 install 'cython==0.26'
     - AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test
     - python3 -m coverage run --parallel ./setup.py test
     - pip3 install uvloop
