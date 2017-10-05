@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 
-"""REST all the state"""
+"""REST all the state
+
+This is a draft for an application server all of whose state is available in a
+RESTful manner. More precisely, the applicaton instances that are running on it
+are stored as a link-header document. Applications themselves are often
+stateless, but can create arbitrary resources that may store state.
+
+Applications get no direct means to communicate with the outside world, but
+they can be configured to have their resources bound to other resources in
+either direction."""
 
 import abc
 from collections import namedtuple
 import inspect
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Tuple
 import json
 
 import aiocoap.interfaces, aiocoap.message
@@ -21,7 +30,8 @@ class _Typemap(namedtuple('__Typemap', [
     'type_to_contentformat',
     'default_contentformat',
     ])):
-    """A translator between content-typed resources and native Python types."""
+    """A translator between content-typed resources (whose payloads are always
+    bytes) and native Python types."""
 
 def _raise_as_valueerror(f, accepted_types=(KeyError, )):
     """Wrapper around a function that converts raised exception of
@@ -84,6 +94,17 @@ class NativeResource:
         understood, or possibly raises something else (?)."""
         raise NotImplementedError
 
+    async def put_native(self, value):
+        """Change the state of a resource to a given value. It is not
+        necessaril checked against the typehint, but if the resource is not
+        implemented as a native resource, wrong types might not make it through
+        the typemap.
+
+        This is not declared as an abstract method so non-writable resources
+        can just not implement this."""
+
+        raise NotImplementedError # more of a "Writing not possible"
+
 class HTTPResource:
     @abc.abstractmethod
     async def handle_aiohttp(self, request):
@@ -93,7 +114,22 @@ class HTTPResource:
 
         raise NotImplementedError
 
-class FullResource(NativeResource, aiocoap.interfaces.Resource, HTTPResource):
+CoAPResource = aiocoap.interfaces.Resource
+# at some point in time this shoudl probably be replaced by to-be-developed
+# new-style resources. i imagine them as having just a single render function
+# (rather than the awkward render+needs_blockwise_assembly thing); the function
+# could be an asynchronous function or an asynchronous generator
+#
+# open questions: can both be used by the same call style or do nonobservables
+# need to always "async yield result; return"? can the single interface be
+# easily used from outside, or should we just accept that there's one
+# "implementation name" and one or more "invocation names" provided by the
+# interface class? how do we flag resources that want blockwise handling not
+# done from the outside? how can resources that do want blockwise handling done
+# still slowly chunk out their data (both to quickly get first block responses,
+# and to avoid keeping a whole file in memory)?
+
+class FullResource(NativeResource, CoAPResource, HTTPResource):
     pass
 
 class CoAPFromHTTP:
@@ -117,7 +153,7 @@ class HTTPFromCoAP:
 
         return aiohttp.web.Response(body=response.payload, headers={'Content-Type': 'text/plain'})
 
-class CoAPFromNative(NativeResource):
+class CoAPFromNative(CoAPResource):
     """Mixin that implements answering CoAP requests from a native resource"""
 
     async def needs_blockwise_assembly(self, request):
@@ -131,7 +167,7 @@ class CoAPFromNative(NativeResource):
                     cf = self.typemap.default_contentformat[self.typehint]
                 mapper = self.typemap.type_to_contentformat[(cf, self.typehint)]
             except KeyError:
-                raise aiocoap.error.NoitAcceptable
+                raise aiocoap.error.NotAcceptable
 
             value = await self.get_native()
             return aiocoap.Message(payload=mapper(value))
@@ -155,6 +191,46 @@ class CoAPFromNative(NativeResource):
         else:
             raise aiocoap.error.MethodNotAllowed()
 
+class NativeFromCoAP(NativeResource):
+    """Mixin that implements get_native/put_native() on a CoAP resource"""
+
+    def __init__(self, typehint):
+        self.typehint = typehint
+
+    async def get_native(self):
+        request = aiocoap.Message(
+                code=aiocoap.GET,
+                accept=self.typemap.default_contentformat.get(self.typehint, None),
+                )
+        response = await self.render(request)
+        if response.code != aiocoap.CONTENT:
+            # FIXME: could try without accept header
+            raise RuntimeError("Request did not succeed")
+
+        cf = request.opt.content_format
+        try:
+            if cf is None:
+                cf = self.typemap.default_contentformat[self.typehint]
+            mapper = self.typemap.contentformat_to_type[(cf, self.typehint)]
+        except KeyError:
+            raise ValueError("Conversion not supported")
+
+        return mapper(response.payload)
+
+    async def put_native(self, value):
+        cf = self.typemap.default_contentformat.get(self.typehint)
+        payload = self.typemap.type_to_contentformat[(cf, self.typehint)]
+
+        request = aiocoap.Message(
+                code=aiocoap.PUT,
+                content_format=cf,
+                payload=payload,
+                )
+        response = await self.render(request)
+        if response.code != aiocoap.CHANGED:
+            # FIXME could try with other content formats etc
+            raise RuntimeError("Request did not succeed")
+
 class RemoteCoAPResource(aiocoap.resource.Resource):
     def __init__(self, uri, context):
         self.uri = uri
@@ -166,10 +242,24 @@ class RemoteCoAPResource(aiocoap.resource.Resource):
         return True
 
     async def render(self, request):
-        raise NotImplementedError("TBD: inherti existing CoAP-proxy functionality")
+        # FIXME: The protocol code should really ignore all mtype/mid/token
+        # data or take them purely as hints; resetting all here like
+        # aiocoap.proxy.server does.
+        request = request.copy(
+                mtype=None,
+                mid=None,
+                token=None,
+                remote=None,
+                uri=self.uri,
+                )
+        return (await self.context.request(request).response).copy(mid=None, token=None, mtype=None)
 
-class FullRemoteCoAPResource(HTTPFromCoAP, RemoteCoAPResource, FullResource):
+class FullRemoteCoAPResource(HTTPFromCoAP, RemoteCoAPResource, NativeFromCoAP, FullResource):
     typemap = default_typemap
+
+    def __init__(self, uri, context, typehint):
+        RemoteCoAPResource.__init__(self, uri, context)
+        NativeFromCoAP.__init__(self, typehint)
 
 class RemoteHTTPResource(HTTPResource):
     def __init__(self, uri, clientsession):
@@ -296,6 +386,12 @@ def load_python(file: Path) -> Dict[str, FullResource]:
     module = exec(code, {'rats': Rats()})
     return result
 
+def register_rats(rats, path: Tuple[str, ...], site: aiocoap.resource.Site, router: aiohttp.web_urldispatcher.UrlDispatcher):
+    """Register the result of load_python both at a CoAP site and an HTTP server at a given path."""
+
+    for key, res in rats.items():
+        site.add_resource(path + (key,), res)
+
 # infrastructure demo again
 
 class Demo(aiocoap.util.cli.AsyncCLIDaemon):
@@ -314,7 +410,7 @@ class Demo(aiocoap.util.cli.AsyncCLIDaemon):
         # links and exports
 
         personalwebsite = FullRemoteHTTPResource('http://christian.amsuess.com/', clientcontext)
-        coapme = FullRemoteCoAPResource('coap://coap.me/hello', self.coapcontext)
+        coapme = FullRemoteCoAPResource('coap://coap.me/hello', self.coapcontext, str)
 
         site.add_resource(('personalwebsite',), personalwebsite)
         self.http_app.router.add_get('/personalwebsite', personalwebsite.handle_aiohttp)
@@ -324,13 +420,18 @@ class Demo(aiocoap.util.cli.AsyncCLIDaemon):
 
         # actual rats demo
 
-        for key, res in load_python(Path(__file__).parent / 'rats-adder.py').items():
-            site.add_resource(('adder', key), res)
-            self.http_app.router.add_route('*', '/adder/' + key, res.handle_aiohttp)
+        adder = load_python(Path(__file__).parent / 'rats-adder.py')
+        register_rats(adder, ('adder', ), site, self.http_app.router)
 
+        for key, res in adder.items():
             if isinstance(res, ProxyResource):
                 # wire up static None-initialized resources for the demo
                 res.forward = FullNativeMemoryResource(None, res.typehint_constraint)
+
+        rot13 = load_python(Path(__file__).parent / 'rats-rot13.py')
+        register_rats(rot13, ('rot13', ), site, self.http_app.router)
+
+        rot13['original'].forward = coapme
 
         # needs to be last, because app router gets frozen
 
