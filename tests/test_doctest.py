@@ -6,9 +6,8 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-import unittest
 import doctest
-import aiocoap
+import aiocoap.defaults
 import os
 
 def load_tests(loader, tests, ignore):
@@ -16,9 +15,10 @@ def load_tests(loader, tests, ignore):
         for f in fn:
             if not f.endswith('.py'):
                 continue
-            if "queuewithend" in f:
-                # exclude queuewithend module, it's unstable yet anyway
-                continue
             p = os.path.join(root, f)
+            if 'oscoap' in p and aiocoap.defaults.oscoap_missing_modules():
+                continue
+            if 'resourcedirectory' in p or p == 'aiocoap/cli/rd.py' and aiocoap.defaults.linkheader_missing_modules():
+                continue
             tests.addTests(doctest.DocTestSuite(p[:-3].replace('/', '.')))
     return tests

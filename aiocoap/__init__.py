@@ -36,5 +36,5 @@ time.
 """
 
 from .numbers import *
-from .message import Message
+from .message import Message, NoResponse
 from .protocol import Context

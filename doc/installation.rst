@@ -16,6 +16,9 @@ unpack the latest ``.tar.gz`` file from the `Python package index`_ and run
 
     $ ./setup.py install
 
+
+.. _installation-development:
+
 Development version
 -------------------
 

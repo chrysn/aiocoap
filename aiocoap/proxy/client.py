@@ -6,8 +6,6 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-import socket
-
 import asyncio
 
 from .. import interfaces
@@ -50,7 +48,7 @@ class ProxyRequest(interfaces.Request):
             self.app_request.remote = None
             self.app_request.unresolved_remote = self.proxy.proxy_address
             proxyrequest = self.proxy.context.request(self.app_request, exchange_monitor_factory=self._exchange_monitor_factory)
-            if hasattr(proxyrequest, 'observation'):
+            if proxyrequest.observation is not None:
                 self.observation._hook_onto(proxyrequest.observation)
             else:
                 self.observation.error(Exception("No proxied observation, this should not have been created in the first place."))

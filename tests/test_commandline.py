@@ -15,11 +15,8 @@ aiocoap-rd might need to get tested in a similar way to -proxy."""
 import subprocess
 import asyncio
 
-import aiocoap
-
 from .test_server import WithTestServer, no_warnings
 from .common import PYTHON_PREFIX
-from . import test_server
 
 AIOCOAP_CLIENT = PYTHON_PREFIX + ['./aiocoap-client']
 

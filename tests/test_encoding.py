@@ -6,7 +6,6 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-import struct
 import copy
 
 import aiocoap
@@ -207,8 +206,8 @@ class TestOptiontypes(unittest.TestCase):
 
 class TestMessageOptionConstruction(unittest.TestCase):
     def test_uri_construction(self):
-        message = aiocoap.Message(uri="coap://localhost:1234/some/path/")
-        self.assertEqual(message.opt.uri_host, "localhost")
+        message = aiocoap.Message(uri="coap://some-host:1234/some/path/")
+        self.assertEqual(message.opt.uri_host, "some-host")
         self.assertEqual(message.opt.uri_port, 1234)
         self.assertEqual(message.opt.uri_path, ("some", "path", ""))
 
@@ -231,5 +230,5 @@ class TestMessageOptionConstruction(unittest.TestCase):
         self.assertEqual(new_one.opt.observe, 0)
         self.assertEqual(new_one.opt.content_format, 1234)
 
-        new_two = new_one.copy(uri="coap://localhost/some/path")
+        new_two = new_one.copy(uri="coap://some-host/some/path")
         self.assertEqual(new_two.opt.uri_path, ('some', 'path'))

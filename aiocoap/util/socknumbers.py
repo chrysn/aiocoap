@@ -24,3 +24,9 @@ except ImportError:
     IPV6_RECVERR = 25
     IP_RECVERR = 11
     IPV6_PKTINFO = 50
+
+# for https://bitbucket.org/pypy/pypy/issues/2648/
+try:
+    from socket import MSG_ERRQUEUE
+except ImportError:
+    MSG_ERRQUEUE = 8192

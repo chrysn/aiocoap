@@ -8,22 +8,79 @@
 
 """Extensions to asyncio and workarounds around its shortcomings"""
 
-import asyncio.events
+from . import socknumbers
 
-def cancel_thoroughly(handle):
-    """Use this on a (Timer)Handle when you would .cancel() it, just also drop
-    the callback and arguments for them to be freed soon."""
-    # obsolete as of f68bd88a (around 3.4.3) -- so can be dropped when 3.4
-    # support is dropped
+import asyncio
 
-    assert isinstance(handle, asyncio.events.Handle)
+class PeekQueue:
+    """Queue with a an asynchronous .peek() function.
 
-    handle.cancel()
-    handle._args = handle._callback = None
+    This is not implemented in terms of inheritance because it would depend on
+    the implementation details of PriorityQueue.put(self, (1, item)) being
+    itself implemented in terms of calling self.put_nowait."""
+
+    def __init__(self, *args, **kwargs):
+        self._inner = asyncio.PriorityQueue(*args, **kwargs)
+
+    @asyncio.coroutine
+    def put(self, item):
+        yield from self._inner.put((1, item))
+
+    def put_nowait(self, item):
+        self._inner.put_nowait((1, item))
+
+    @asyncio.coroutine
+    def peek(self):
+        oldprio, first = yield from self._inner.get()
+        self._inner.put_nowait((0, first))
+        return first
+
+    @asyncio.coroutine
+    def get(self):
+        priority, first = yield from self._inner.get()
+        return first
+
+    def get_nowait(self):
+        priority, first = self._inner.get_nowait()
+        return first
+
+import asyncio
+try:
+    from asyncio import StopAsyncIteration
+except ImportError:
+    class StopAsyncIteration(Exception):
+        """Iteration stopper defined to make the asynchronous iterator
+        interface usable on Python 3.4"""
+
+class AsyncGenerator:
+    """An object implementing the __aiter__ protocol until `async def / yield`
+    can be used in all supported versions"""
+
+    def __init__(self):
+        self._queue = asyncio.Queue() #: (data, exception) tuples -- data is valid iff exception is None
+
+    def __aiter__(self):
+        return self
+
+    @asyncio.coroutine
+    def __anext__(self):
+        data, exception = yield from self._queue.get()
+        if exception is None:
+            return data
+        else:
+            raise exception
+
+    def throw(self, exception):
+        self._queue.put_nowait((None, exception))
+
+    def ayield(self, item):
+        self._queue.put_nowait((item, None))
+
+    def finish(self):
+        self.throw(StopAsyncIteration)
 
 from asyncio import DatagramProtocol
 from asyncio.selector_events import _SelectorDatagramTransport, BaseSelectorEventLoop
-import socket
 
 class RecvmsgDatagramProtocol(DatagramProtocol):
     """Inheriting from this indicates that the instance expects to be called
@@ -33,13 +90,20 @@ class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
     def __init__(self, *args, **kwargs):
         super(RecvmsgSelectorDatagramTransport, self).__init__(*args, **kwargs)
 
+        self.__sock = self.get_extra_info('socket')
+        if self.__sock is None:
+            raise RuntimeError("RecvmsgSelectorDatagramTransport requires access to its underlying socket.")
+
     def _read_ready(self):
         try:
-            data, ancdata, flags, addr = self._sock.recvmsg(self.max_size, 1024, socket.MSG_ERRQUEUE)
+            data, ancdata, flags, addr = self.__sock.recvmsg(self.max_size, 1024, socknumbers.MSG_ERRQUEUE)
         except (BlockingIOError, InterruptedError):
             pass
         except OSError as exc:
-            self._protocol.error_received(exc)
+            if repr(exc) == "OSError('received malformed or improperly truncated ancillary data',)":
+                pass # workaround for https://bitbucket.org/pypy/pypy/issues/2649/recvmsg-with-empty-err-queue-raises-odd
+            else:
+                self._protocol.error_received(exc)
         except Exception as exc:
             self._fatal_error(exc, 'Fatal read error on datagram transport')
         else:
@@ -47,7 +111,7 @@ class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
 
         # copied and modified from _SelectorDatagramTransport
         try:
-            data, ancdata, flags, addr = self._sock.recvmsg(self.max_size, 1024) # TODO: find a way for the application to tell the trensport how much data is expected
+            data, ancdata, flags, addr = self.__sock.recvmsg(self.max_size, 1024) # TODO: find a way for the application to tell the trensport how much data is expected
         except (BlockingIOError, InterruptedError):
             pass
         except OSError as exc:
@@ -78,10 +142,10 @@ class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
         if not self._buffer:
             # Attempt to send it right away first.
             try:
-                self._sock.sendmsg((data,), ancdata, flags, address)
+                self.__sock.sendmsg((data,), ancdata, flags, address)
                 return
             except (BlockingIOError, InterruptedError):
-                self._loop.add_writer(self._sock_fd, self._sendto_ready)
+                self._loop.add_writer(self.__sock.fileno(), self._sendto_ready)
             except OSError as exc:
                 self._protocol.error_received(exc)
                 return

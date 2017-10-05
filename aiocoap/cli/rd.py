@@ -13,8 +13,9 @@ import sys
 import logging
 import asyncio
 import argparse
-import abc
 import functools
+from urllib.parse import urljoin
+import itertools
 
 import aiocoap
 from aiocoap.resource import Site, Resource, PathCapable, WKCResource
@@ -32,18 +33,23 @@ class CommonRD:
     # (ep, d) 2-tuples; code that handles key internals should be limited to
     # this class.
 
-    registration_path_prefix = ("ep",)
-    group_path_prefix = ("gp",)
+    entity_prefix = ("reg",)
 
     def __init__(self):
         super().__init__()
 
-        self._endpoints = {} # key -> RegisteredEndpoint
+        self._endpoint_registrations_by_key = {} # key -> Registration
+        self._entities_by_pathtail = {} # path -> Registration or Group
 
-    class RegisteredEndpoint:
+    class Registration:
         grace_period = 15
 
-        def __init__(self, con, timeout_cb, ep, d=None, lt=None, et=None):
+        @property
+        def href(self):
+            return '/' + '/'.join(self.path)
+
+        def __init__(self, path, con, delete_cb, ep, d=None, lt=None, et=None):
+            self.path = path
             self.links = LinkHeader([])
             self.ep = ep
             self.d = d
@@ -51,8 +57,19 @@ class CommonRD:
             self.et = et
             self.con = con
 
-            self.timeout_cb = timeout_cb
+            self._delete_cb = delete_cb
             self._set_timeout()
+
+        def delete(self):
+            # FIXME: if the delete did not occur due to a timeout, we should
+            # maybe leave the registration around for until it's expired for
+            # good -- otherwise, when a registration gets "administratively
+            # deleted" or two devices register with the same endpoint name, the
+            # device that originally registered might be unaware of its
+            # resource's deletion, update its registration, but the URI could
+            # already be in use by another endpoint.
+            self.timeout.cancel()
+            self._delete_cb()
 
         def _set_timeout(self):
             delay = self.lt + self.grace_period
@@ -66,7 +83,7 @@ class CommonRD:
                     delay -= almostday
                 yield from asyncio.sleep(delay)
                 callback()
-            self.timeout = asyncio.Task(longwait(delay, self.timeout_cb))
+            self.timeout = asyncio.Task(longwait(delay, self.delete))
 
         def refresh_timeout(self):
             self.timeout.cancel()
@@ -78,30 +95,53 @@ class CommonRD:
                 args['d'] = self.d
             if self.et:
                 args['et'] = self.et
-            return Link(href=self.con, **args)
+            args['con'] = self.con
+            return Link(href=self.href, **args)
 
-        def get_all_links(self):
+        def get_conned_links(self):
+            """Produce a LinkHeader object that represents all statements in
+            the registration, resolved to the registration's con (and thus
+            suitable for serving from the lookup interface).
+
+            If protocol negotiation is implemented and con becomes a list, this
+            function will probably grow parameters that hint at which con to
+            use.
+            """
             result = []
             for l in self.links.links:
-                href = self.con + l.href if l.href.startswith('/') else l.href
-                data = [[k, self.con + v if (k == 'anchor' and v.startswith('/')) else v] for (k, v) in l.attr_pairs]
-                result.append(Link(href, data))
+                if 'anchor' in l:
+                    data = [(k, v) for (k, v) in l.attr_pairs if k != 'anchor'] + [['anchor', urljoin(self.con, l.anchor)]]
+                else:
+                    data = l.attr_pairs + [['anchor', self.con]]
+                result.append(Link(l.href, data))
             return LinkHeader(result)
 
     @asyncio.coroutine
     def shutdown(self):
         pass
 
-    def initialize_endpoint(self, key, con, ep, lt=None, et=None, d=None):
-        try:
-            self._endpoints[key].timeout.cancel()
-            del self._endpoints[key]
-        except KeyError:
-            pass
+    def _new_pathtail(self):
+        for i in itertools.count(1):
+            # In the spirit of making legal but unconvential choices (see
+            # StandaloneResourceDirectory documentation): Whoever strips or
+            # ignores trailing slashes shall have a hard time keeping
+            # registrations alive.
+            path = (str(i), '')
+            if path not in self._entities_by_pathtail:
+                return path
 
-        self._endpoints[key] = self.RegisteredEndpoint(con=con,
-                timeout_cb=functools.partial(self.delete_key, key),
-                ep=ep, lt=lt, et=et, d=d)
+    def initialize_endpoint(self, con, ep, lt=None, et=None, d=None):
+        # FIXME: It's a bit unclear if the specification actually requires the
+        # idempotency of registration on (ep, d) or any other parameters
+        key = (ep, d)
+
+        try:
+            oldreg = self._endpoint_registrations_by_key[key]
+        except KeyError:
+            path = self._new_pathtail()
+        else:
+            path = oldreg.path[len(self.entity_prefix):]
+            oldreg.delete()
 
         # this was the brutal way towards idempotency (delete and re-create).
         # if any actions based on that are implemented here, they have yet to
@@ -109,68 +149,20 @@ class CommonRD:
         # just ignore them unless something otherwise unchangeable (ep, d)
         # changes.
 
-    def update_endpoint(self, key, lt=None, con=None):
-        endpoint = self._endpoints[key]
-        if lt:
-            endpoint.lt = lt
-        if con:
-            endpoint.con = con
-        endpoint.refresh_timeout()
+        def delete():
+            del self._entities_by_pathtail[path]
+            del self._endpoint_registrations_by_key[key]
 
-    def set_published_links(self, key, data):
-        self._endpoints[key].links = data
+        reg = self.Registration(self.entity_prefix + path, con=con, delete_cb=delete, ep=ep, lt=lt,
+                et=et, d=d)
 
-    def update_published_links(self, key, data):
-        # FIXME did i get rel= right here? why should it be done like that? 
-        original = self._endpoints[key]
-        original_indexed = {(l.href, getattr(l, 'rel', None)): l for l in original.links.links}
-        for l in data.links:
-            indexkey = (l.href, getattr(l, 'rel', None))
-            if indexkey in original_indexed:
-                original.links.links.remove(original_indexed[indexkey])
-            original.links.links.append(l)
+        self._endpoint_registrations_by_key[key] = reg
+        self._entities_by_pathtail[path] = reg
 
-    def get_published_links(self, key):
-        return self._endpoints[key].links
-
-    def delete_key(self, key):
-        self._endpoints[key].timeout.cancel()
-        del self._endpoints[key]
-
-    def get_path_for_key(self, key):
-        if key[1] is None:
-            return self.registration_path_prefix + (key[0], )
-        else:
-            return self.registration_path_prefix + (key[1], key[0])
-
-    def get_key_for_path(self, path):
-        if path[:len(self.registration_path_prefix)] != self.registration_path_prefix:
-            raise KeyError()
-        path = path[len(self.registration_path_prefix):]
-        if len(path) == 1:
-            key = (path[0], None)
-        elif len(path) == 2:
-            key = (path[1], path[0])
-        else:
-            raise KeyError()
-
-        if key not in self._endpoints:
-            raise KeyError()
-        return key
-
-    def get_key_from_ep_d(self, ep, d):
-        """Construct a key from a given endpoint and domain name
-
-        This not so much abstracts away the internals of how a key is built as
-        it provides a point where things will break if the key construction
-        needs to change."""
-        return (ep, d)
+        return reg
 
     def get_endpoints(self):
-        # FIXME if we start handing out RegisteredEndpoint objects here, we can
-        # just as well embrace that and deal in RegisteredEndpoint objects (eg
-        # instead of keys) in other places too
-        return self._endpoints.values()
+        return self._endpoint_registrations_by_key.values()
 
 
 def link_format_from_message(message):
@@ -189,7 +181,7 @@ class ThingWithCommonRD:
         super().__init__()
         self.common_rd = common_rd
 
-class RDFunctionSet(ThingWithCommonRD, Resource):
+class RegistrationInterface(ThingWithCommonRD, Resource):
     ct = 40
     rt = "core.rd"
 
@@ -198,9 +190,7 @@ class RDFunctionSet(ThingWithCommonRD, Resource):
         links = link_format_from_message(request)
 
         query = query_split(request)
-        try:
-            key = self.common_rd.get_key_from_ep_d(query['ep'], query.get('d', None))
-        except KeyError:
+        if 'ep' not in query:
             return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=b"Mandatory ep parameter missing")
 
         # FIXME deduplicate with _update_params
@@ -212,196 +202,159 @@ class RDFunctionSet(ThingWithCommonRD, Resource):
         else:
             lt = None
         # FIXME con needs a good default
-        self.common_rd.initialize_endpoint(key, ep=query['ep'], lt=lt, con=query.get('con', request.remote.uri), d=query.get('d', None), et=query.get('et', None))
-        self.common_rd.set_published_links(key, links)
+        regresource = self.common_rd.initialize_endpoint(ep=query['ep'], lt=lt, con=query.get('con', request.remote.uri), d=query.get('d', None), et=query.get('et', None))
+        regresource.links = links
 
-        return aiocoap.Message(code=aiocoap.CREATED, location_path=self.common_rd.get_path_for_key(key))
+        return aiocoap.Message(code=aiocoap.CREATED, location_path=regresource.path)
 
-class RDFunctionSetLocations(ThingWithCommonRD, Resource, PathCapable):
-    # FIXME the render_ functions look too similar on this one!
+class RegistrationResource(Resource):
+    """The resource object wrapping a registration is just a very thin and
+    ephemeral object; all those methods could just as well be added to
+    Registration with `s/self.reg/self/g`, making RegistrationResource(reg) =
+    reg, but this is kept here for better separation of model and interface."""
+
+    def __init__(self, registration):
+        self.reg = registration
+
+    @asyncio.coroutine
     def render_get(self, request):
-        full_path = self.common_rd.registration_path_prefix + request.opt.uri_path
-        try:
-            key = self.common_rd.get_key_for_path(full_path)
-            data = self.common_rd.get_published_links(key)
-        except KeyError:
-            return aiocoap.Message(code=aiocoap.NOT_FOUND)
+        return aiocoap.Message(payload=str(self.reg.links).encode('utf8'), content_format=aiocoap.numbers.media_types_rev['application/link-format'])
 
-        return aiocoap.Message(payload=str(data).encode('utf8'), content_format=aiocoap.numbers.media_types_rev['application/link-format'])
+    def _update_params(self, msg): # may raise ValueError
+        # FIXME: deduplicate with RegistrationInterface.render_post
+        query = query_split(msg)
+        args = {}
+        if 'lt' in query:
+            self.reg.lt = int(query['lt'])
+        if 'con' in query:
+            self.reg.con = query['con']
+        self.reg.refresh_timeout()
 
+    @asyncio.coroutine
     def render_post(self, request):
-        full_path = self.common_rd.registration_path_prefix + request.opt.uri_path
-        try:
-            key = self.common_rd.get_key_for_path(full_path)
-            # should probably be processed in an atomic fashion... nvm
-            self._update_params(key, request)
-            if not (request.opt.content_format is None and request.payload == b''):
-                links = link_format_from_message(request)
-                self.common_rd.update_published_links(key, links)
-        except KeyError:
-            return aiocoap.Message(code=aiocoap.NOT_FOUND)
-
+        self.reg._update_params(request)
+        if not (request.opt.content_format is None and request.payload == b''):
+            links = link_format_from_message(request)
+            raise error.NotImplemented("I suppose this should update and append the links, how is that done exactly?")
+#             # FIXME did i get rel= right here? why should it be done like that?
+#             original = self.reg._endpoint_registrations_by_key[key]
+#             original_indexed = {(l.href, getattr(l, 'rel', None)): l for l in original.links.links}
+#             for l in data.links:
+#                 indexkey = (l.href, getattr(l, 'rel', None))
+#                 if indexkey in original_indexed:
+#                     original.links.links.remove(original_indexed[indexkey])
+#                 original.links.links.append(l)
         return aiocoap.Message(code=aiocoap.CHANGED)
 
+    @asyncio.coroutine
     def render_put(self, request):
-        # this is not mentioned in the spec, but seems to make sense
+        # this is not mentioned in the current spec, but seems to make sense
         links = link_format_from_message(request)
 
-        full_path = self.common_rd.registration_path_prefix + request.opt.uri_path
-        try:
-            key = self.common_rd.get_key_for_path(full_path)
-            self._update_params(key, request)
-            self.common_rd.set_published_links(key, links)
-        except KeyError:
-            return aiocoap.Message(code=aiocoap.NOT_FOUND)
+        self.reg._update_params(request)
+        self.reg.links = links
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
     def render_delete(self, request):
-        full_path = self.common_rd.registration_path_prefix + request.opt.uri_path
-        try:
-            key = self.common_rd.get_key_for_path(full_path)
-            self.common_rd.delete_key(key)
-        except KeyError:
-            return aiocoap.Message(code=aiocoap.NOT_FOUND)
+        self.reg.delete()
 
         return aiocoap.Message(code=aiocoap.DELETED)
 
-    # FIXME patch not implemented
+class EntityDispatchSite(ThingWithCommonRD, Resource, PathCapable):
+    @asyncio.coroutine
+    def render(self, request):
+        try:
+            entity = self.common_rd._entities_by_pathtail[request.opt.uri_path]
+        except KeyError:
+            raise error.NotFound
 
-    def _update_params(self, key, msg): # may raise ValueError
-        # FIXME: deduplicate with RDFunctionSet.render_post
-        query = query_split(msg)
-        args = {}
-        if 'lt' in query:
-            args['lt'] = int(query['lt'])
-        if 'con' in query:
-            args['con'] = query['con']
-        self.common_rd.update_endpoint(key, **args)
+        if isinstance(entity, CommonRD.Registration):
+            entity = RegistrationResource(entity)
+        else:
+            raise ValueError("Unexpected object in entities")
 
-class RDGroupFunctionSet(ThingWithCommonRD, Resource):
+        return entity.render(request.copy(uri_path=()))
+
+class GroupRegistrationInterface(ThingWithCommonRD, Resource):
     ct = 40
     rt = "core.rd-group"
 
-class RDGroupFunctionSetLocations(ThingWithCommonRD, Resource, PathCapable):
-    pass
+class EndpointLookupInterface(ThingWithCommonRD, Resource):
+    ct = 40
+    rt = "core.rd-lookup-ep"
 
-class RDLookupFunctionSet(Site):
-    def __init__(self, common_rd):
-        super().__init__()
-        self.add_resource(('ep',), self.EP(common_rd=common_rd))
-        self.add_resource(('d',), self.D(common_rd=common_rd))
-        self.add_resource(('res',), self.Res(common_rd=common_rd))
-        self.add_resource(('gp',), self.Gp(common_rd=common_rd))
+    @asyncio.coroutine
+    def render_get(self, request):
+        query = query_split(request)
 
-    class EP(ThingWithCommonRD, Resource):
-        ct = 40
-        rt = "core.rd-lookup-ep"
+        candidates = self.common_rd.get_endpoints()
+        # FIXME which of the below can be done on the generated host links with
+        # generic filtering rules, which would for example do =...* right?
+        if 'href' in query:
+            candidates = (c for c in candidates if c.href == query['href'])
+        if 'd' in query:
+            candidates = (c for c in candidates if c.d == query['d'])
+        if 'ep' in query:
+            candidates = (c for c in candidates if c.ep == query['ep'])
+        if 'gp' in query:
+            pass # FIXME
+        if 'rt' in query:
+            pass # FIXME
+        if 'et' in query:
+            candidates = (c for c in candidates if c.et == query['et'])
 
-        @asyncio.coroutine
-        def render_get(self, request):
-            query = query_split(request)
+        try:
+            candidates = list(candidates)
+            if 'page' in query:
+                candidates = candidates[int(query['page']) * int(query['count']):]
+            if 'count' in query:
+                candidates = candidates[:int(query['count'])]
+        except (KeyError, ValueError):
+            raise BadRequest("page requires count, and both must be ints")
 
-            candidates = self.common_rd.get_endpoints()
-            if 'd' in query:
-                candidates = (c for c in candidates if c.d == query['d'])
-            if 'ep' in query:
-                candidates = (c for c in candidates if c.ep == query['ep'])
-            if 'gp' in query:
-                pass # FIXME
-            if 'rt' in query:
-                pass # FIXME
-            if 'et' in query:
-                candidates = (c for c in candidates if c.et == query['et'])
+        result = [c.get_host_link() for c in candidates]
 
-            try:
-                candidates = list(candidates)
-                if 'page' in query:
-                    candidates = candidates[int(query['page']) * int(query['count'])]
-                if 'count' in query:
-                    candidates = candidates[:int(query['count'])]
-            except (KeyError, ValueError):
-                raise BadRequest("page requires count, and both must be ints")
+        return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'), content_format=40)
 
-            result = [c.get_host_link() for c in candidates]
+class ResourceLookupInterface(ThingWithCommonRD, Resource):
+    ct = 40
+    rt = "core.rd-lookup-res"
 
-            return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'), content_format=40)
+    @asyncio.coroutine
+    def render_get(self, request):
+        query = query_split(request)
 
-    class D(ThingWithCommonRD, Resource):
-        ct = 40
-        rt = "core.rd-lookup-d"
+        eps = self.common_rd.get_endpoints()
+        if 'd' in query:
+            eps = (e for e in eps if e.d == query['d'])
+        if 'ep' in query:
+            eps = (e for e in eps if e.ep == query['ep'])
+        if 'gp' in query:
+            pass # FIXME
+        if 'et' in query:
+            eps = (e for e in eps if e.et == query['et'])
 
-        @asyncio.coroutine
-        def render_get(self, request):
-            query = query_split(request)
+        candidates = itertools.chain(*(e.get_conned_links().links for e in eps))
+        for other_query in query:
+            if other_query in ('d', 'ep', 'gp', 'et', 'page', 'count'):
+                continue
+            candidates = (l for l in candidates if getattr(l, other_query) == query[other_query])
 
-            candidates = self.common_rd.get_endpoints()
-            if 'd' in query:
-                candidates = (c for c in candidates if c.d == query['d'])
-            if 'ep' in query:
-                candidates = (c for c in candidates if c.ep == query['ep'])
-            if 'gp' in query:
-                pass # FIXME
-            if 'rt' in query:
-                pass # FIXME
-            if 'et' in query:
-                candidates = (c for c in candidates if c.et == query['et'])
+        try:
+            candidates = list(candidates)
+            if 'page' in query:
+                candidates = candidates[int(query['page']) * int(query['count'])]
+            if 'count' in query:
+                candidates = candidates[:int(query['count'])]
+        except (KeyError, ValueError):
+            raise BadRequest("page requires count, and both must be ints")
 
-            candidates = sorted(set(c.d for c in candidates if c.d is not None))
+        return aiocoap.Message(payload=str(LinkHeader(candidates)).encode('utf8'), content_format=40)
 
-            try:
-                if 'page' in query:
-                    candidates = candidates[int(query['page']) * int(query['count'])]
-                if 'count' in query:
-                    candidates = candidates[:int(query['count'])]
-            except (KeyError, ValueError):
-                raise BadRequest("page requires count, and both must be ints")
-
-            return aiocoap.Message(payload=",".join('<>;d="%s"'%c for c in candidates).encode('utf8'), content_format=40)
-
-    class Res(ThingWithCommonRD, Resource):
-        ct = 40
-        rt = "core.rd-lookup-res"
-
-        @asyncio.coroutine
-        def render_get(self, request):
-            query = query_split(request)
-
-            eps = self.common_rd.get_endpoints()
-            candidates = sum(([(e, l) for l in e.get_all_links().links] for e in eps), [])
-            if 'd' in query:
-                candidates = ([e, l] for [e, l] in candidates if e.d == query['d'])
-            if 'ep' in query:
-                candidates = ([e, l] for [e, l] in candidates if e.ep == query['ep'])
-            if 'gp' in query:
-                pass # FIXME
-            if 'rt' in query:
-                candidates = ([e, l] for [e, l] in candidates if query['rt'] in l.rt)
-            if 'et' in query:
-                candidates = ([e, l] for [e, l] in candidates if e.et == query['et'])
-            for other_query in query:
-                if other_query in ('d', 'ep', 'gp', 'rt', 'et', 'page', 'count'):
-                    continue
-                candidates = ([e, l] for [e, l] in candidates if getattr(e, other_query) == query[other_query])
-
-            try:
-                candidates = list(candidates)
-                if 'page' in query:
-                    candidates = candidates[int(query['page']) * int(query['count'])]
-                if 'count' in query:
-                    candidates = candidates[:int(query['count'])]
-            except (KeyError, ValueError):
-                raise BadRequest("page requires count, and both must be ints")
-
-            result = [l for (e, l) in candidates]
-
-            return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'), content_format=40)
-
-    class Gp(ThingWithCommonRD, Resource):
-        ct = 40
-        rt = "core.rd-lookup-gp"
-
-        pass
+class GroupLookupInterface(ThingWithCommonRD, Resource):
+    ct = 40
+    rt = "core.rd-lookup-gp"
 
 class SimpleRegistrationWKC(WKCResource):
     def __init__(self, listgenerator, common_rd):
@@ -410,12 +363,10 @@ class SimpleRegistrationWKC(WKCResource):
 
     @asyncio.coroutine
     def render_post(self, request):
-        # FIXME deduplicate with _update_params / RDFunctionSet.render_post
+        # FIXME deduplicate with _update_params / RegistrationInterface.render_post
 
         query = query_split(request)
-        try:
-            key = self.common_rd.get_key_from_ep_d(query['ep'], query.get('d', None))
-        except KeyError:
+        if 'ep' not in query:
             return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=b"Mandatory ep parameter missing")
 
         if 'lt' in query:
@@ -451,9 +402,8 @@ class SimpleRegistrationWKC(WKCResource):
             logging.exception(e)
             return
 
-        key = self.common_rd.get_key_from_ep_d(ep, d)
-        self.common_rd.initialize_endpoint(key, ep=ep, lt=lt, con=con, d=d)
-        self.common_rd.set_published_links(key, links)
+        registration = self.common_rd.initialize_endpoint(ep=ep, lt=lt, con=con, d=d)
+        registration.links = links
 
 class StandaloneResourceDirectory(Site):
     """A site that contains all function sets of the CoAP Resource Directoru
@@ -464,23 +414,31 @@ class StandaloneResourceDirectory(Site):
 
     rd_path = ("resourcedirectory",)
     group_path = ("resourcedirectory-group",)
-    lookup_path = ("resouredirectory-lookup",)
+    ep_lookup_path = ("endpoint-lookup",)
+    gp_lookup_path = ("group-lookup",)
+    res_lookup_path = ("resource-lookup",)
 
-    def __init__(self, *, common_rd=None):
+    def __init__(self):
         super().__init__()
 
-        if common_rd is None:
-            common_rd = CommonRD()
+        common_rd = CommonRD()
 
         self._simple_wkc = SimpleRegistrationWKC(self.get_resources_as_linkheader, common_rd=common_rd)
         self.add_resource((".well-known", "core"), self._simple_wkc)
 
-        self.add_resource(self.rd_path, RDFunctionSet(common_rd=common_rd))
-        self.add_resource(self.group_path, RDGroupFunctionSet(common_rd=common_rd))
-        self.add_resource(self.lookup_path, RDLookupFunctionSet(common_rd=common_rd))
+        self.add_resource(self.rd_path, RegistrationInterface(common_rd=common_rd))
+        self.add_resource(self.group_path, GroupRegistrationInterface(common_rd=common_rd))
+        self.add_resource(self.ep_lookup_path, EndpointLookupInterface(common_rd=common_rd))
+        self.add_resource(self.gp_lookup_path, GroupLookupInterface(common_rd=common_rd))
+        self.add_resource(self.res_lookup_path, ResourceLookupInterface(common_rd=common_rd))
 
-        self.add_resource(common_rd.registration_path_prefix, RDFunctionSetLocations(common_rd=common_rd))
-        self.add_resource(common_rd.group_path_prefix, RDGroupFunctionSetLocations(common_rd=common_rd))
+        self.add_resource(common_rd.entity_prefix, EntityDispatchSite(common_rd=common_rd))
+
+        self.common_rd = common_rd
+
+    @asyncio.coroutine
+    def shutdown(self):
+        yield from self.common_rd.shutdown()
 
     # the need to pass this around crudely demonstrates that the setup of sites
     # and contexts direly needs improvement, and thread locals are giggling
@@ -502,17 +460,15 @@ class Main(AsyncCLIDaemon):
         parser = build_parser()
         options = parser.parse_args(args if args is not None else sys.argv[1:])
 
-        self.common_rd = CommonRD()
+        self.site = StandaloneResourceDirectory()
 
-        site = StandaloneResourceDirectory(common_rd=self.common_rd)
-
-        self.context = yield from aiocoap.Context.create_server_context(site, bind=(options.server_address, options.server_port))
-        site.set_context(self.context)
+        self.context = yield from aiocoap.Context.create_server_context(self.site, bind=(options.server_address, options.server_port))
+        self.site.set_context(self.context)
 
     @asyncio.coroutine
     def shutdown(self):
+        yield from self.site.shutdown()
         yield from self.context.shutdown()
-        yield from self.common_rd.shutdown()
 
 sync_main = Main.sync_main
 

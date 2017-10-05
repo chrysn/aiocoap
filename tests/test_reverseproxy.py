@@ -7,7 +7,9 @@
 # described in the accompanying LICENSE file.
 
 import asyncio
+import unittest
 
+from . import common
 from .test_server import WithAsyncLoop, Destructing, WithClient, WithTestServer, CLEANUPTIME
 import aiocoap.proxy.client
 import aiocoap.cli.proxy
@@ -16,7 +18,7 @@ class WithReverseProxy(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithReverseProxy, self).setUp()
 
-        self.reverseproxy = aiocoap.cli.proxy.Main(["--reverse", "--server-port", str(self.proxyport), "--namebased", "%s:%s"%(self.name_for_real_server, self.servernetloc), "--pathbased", "%s:%s"%("/".join(self.path_for_real_server), self.servernetloc)])
+        self.reverseproxy = aiocoap.cli.proxy.Main(["--reverse", "--server-port", str(self.proxyport), "--server-address", self.proxyhost, "--namebased", "%s:%s"%(self.name_for_real_server, self.servernetloc), "--pathbased", "%s:%s"%("/".join(self.path_for_real_server), self.servernetloc)])
         self.loop.run_until_complete(self.reverseproxy.initializing)
 
     def tearDown(self):
@@ -34,12 +36,14 @@ class WithReverseProxy(WithAsyncLoop, Destructing):
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
 
     proxyport = 56839
-    proxyaddress = 'localhost:%d'%proxyport
+    proxyhost = common.loopbackname_v6 or common.loopbackname_v46
+    proxyaddress = '%s:%d'%(proxyhost, proxyport)
 
     name_for_real_server = 'aliasedname'
     path_for_real_server = ('aliased', 'name')
 
 class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
+    @unittest.skipIf(common.using_simple6, "Some proxy tests fail with simple6 (https://github.com/chrysn/aiocoap/issues/88)")
     def test_routing(self):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
 
@@ -65,6 +69,7 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
         response = yieldfrom(self.client.request(request).response)
         self.assertEqual(response.code, aiocoap.CONTENT, "GET with path based proxying was not successful)")
 
+    @unittest.skipIf(common.using_simple6, "Some proxy tests fail with simple6 (https://github.com/chrysn/aiocoap/issues/88)")
     def test_options(self):
         yieldfrom = lambda f: self.loop.run_until_complete(f)
         def req():

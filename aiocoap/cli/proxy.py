@@ -11,7 +11,6 @@
 import sys
 import asyncio
 import argparse
-import functools
 
 import aiocoap
 from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ReverseProxyWithPooledObservations, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector
@@ -28,6 +27,9 @@ def build_parser():
     details.add_argument('--server-address', help="Address to bind the server context to", metavar="HOST", default="::")
     details.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=aiocoap.COAP_PORT, type=int)
     details.add_argument('--proxy', help="Relay outgoing requests through yet another proxy", metavar="HOST[:PORT]")
+    details.add_argument('--dump-client', help="Log network traffic from clients to FILE", metavar="FILE")
+    details.add_argument('--dump-server', help="Log network traffic to servers to FILE", metavar="FILE")
+
     r = p.add_argument_group('Rules', description="Sequence of forwarding rules that, if matched by a request, specify a forwarding destination")
     class TypedAppend(argparse.Action):
         def __call__(self, parser, namespace, values, option_string=None):
@@ -49,7 +51,7 @@ class Main(AsyncCLIDaemon):
         if options.direction is None:
             raise parser.error("Either --forward or --reverse must be given.")
 
-        self.outgoing_context = yield from aiocoap.Context.create_client_context(dump_to='/tmp/proxy-out.log')
+        self.outgoing_context = yield from aiocoap.Context.create_client_context(dump_to=options.dump_server)
         proxy = options.direction(self.outgoing_context)
         for kind, data in options.r or ():
             if kind == '--namebased':
@@ -70,7 +72,7 @@ class Main(AsyncCLIDaemon):
                 raise AssertionError('Unknown redirectory kind')
             proxy.add_redirector(r)
 
-        self.proxy_context = yield from aiocoap.Context.create_server_context(proxy, dump_to='/tmp/proxy-in.log', bind=(options.server_address, options.server_port))
+        self.proxy_context = yield from aiocoap.Context.create_server_context(proxy, dump_to=options.dump_client, bind=(options.server_address, options.server_port))
 
     @asyncio.coroutine
     def shutdown(self):

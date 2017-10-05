@@ -14,6 +14,20 @@ DEFAULT_BLOCK_SIZE_EXP, EMPTY_ACK_DELAY)."""
 COAP_PORT = 5683
 """The IANA-assigned standard port for COAP services."""
 
+COAPS_PORT = 5684
+
+MCAST_IPV4_ALLCOAPNODES = "224.0.1.187"
+MCAST_IPV6_LINKLOCAL_ALLNODES = "ff02::1"
+MCAST_IPV6_LINKLOCAL_ALLCOAPNODES = "ff02::fd"
+MCAST_IPV6_SITELOCAL_ALLNODES = "ff05::1"
+MCAST_IPV6_SITELOCAL_ALLCOAPNODES = "ff05::fd"
+MCAST_IPV6_ALL = (
+      MCAST_IPV6_LINKLOCAL_ALLNODES,
+      MCAST_IPV6_LINKLOCAL_ALLCOAPNODES,
+      MCAST_IPV6_SITELOCAL_ALLNODES,
+      MCAST_IPV6_SITELOCAL_ALLCOAPNODES,
+      )
+
 #   +-------------------+---------------+
 #   | name              | default value |
 #   +-------------------+---------------+

@@ -10,15 +10,17 @@
 
 import sys
 import asyncio
-import subprocess
 import unittest
 
 import aiocoap
+import aiocoap.defaults
 
 from .test_server import WithAsyncLoop, WithClient
+from . import common
 
 from .common import PYTHON_PREFIX
-SERVER = PYTHON_PREFIX + ['./contrib/oscoap-plugtest/plugtest-server']
+SERVER_ADDRESS = '::1'
+SERVER = PYTHON_PREFIX + ['./contrib/oscoap-plugtest/plugtest-server', '--server-address', SERVER_ADDRESS]
 CLIENT = PYTHON_PREFIX + ['./contrib/oscoap-plugtest/plugtest-client']
 
 class WithAssertNofaillines(unittest.TestCase):
@@ -36,6 +38,7 @@ class WithAssertNofaillines(unittest.TestCase):
         self.assertEqual([], list(errorlines), message)
 
 @unittest.skipIf(sys.version_info < (3, 5), "OSCOAP plug test server uses Python 3.5 'async def' idioms")
+@unittest.skipIf(aiocoap.defaults.oscoap_missing_modules(), "Mdules missing for running OSCOAP tests: %s"%(aiocoap.defaults.oscoap_missing_modules(),))
 class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
     def setUp(self):
         super(WithPlugtestServer, self).setUp()
@@ -54,7 +57,14 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         while True:
             l = yield from self.process.stdout.readline()
             if l == b"":
-                raise RuntimeError("OSCOAP server process terminated during startup.")
+                try:
+                    _, err = yield from self.process.communicate()
+                    message = err.decode('utf8')
+                except BaseException as e:
+                    message = str(e)
+                finally:
+                    readiness.set_exception(RuntimeError("OSCOAP server process terminated during startup: %s."%message))
+                return
             if l == b'Plugtest server ready.\n':
                 break
         readiness.set_result(True)
@@ -75,18 +85,16 @@ class TestOSCOAPPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
     @asyncio.coroutine
     def _test_plugtestclient(self, x):
-        set_seqno = aiocoap.Message(code=aiocoap.PUT, uri='coap://localhost/sequence-numbers', payload=str(x).encode('ascii'))
+        set_seqno = aiocoap.Message(code=aiocoap.PUT, uri='coap://%s/sequence-numbers'%(common.loopbackname_v6 or common.loopbackname_v46), payload=str(x).encode('ascii'))
         yield from self.client.request(set_seqno).response_raising
 
-        proc = yield from asyncio.create_subprocess_exec(*(CLIENT + ['localhost', str(x)]), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        proc = yield from asyncio.create_subprocess_exec(*(CLIENT + ['[' + SERVER_ADDRESS + ']', str(x)]), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         out, err = yield from proc.communicate()
 
         self.assertNoFaillines(out, '"failed" showed up in plugtest client stdout')
         self.assertNoFaillines(err, '"failed" showed up in plugtest client stderr')
-        self.assertEqual(proc.returncode, 0, 'Plugtest client return non-zero exit state')
+        self.assertEqual(proc.returncode, 0, 'Plugtest client return non-zero exit state\nOutput was:\n' + out.decode('utf8') + '\nErrorr output was:\n' + err.decode('utf8'))
 
-for x in range(1, 17):
+for x in range(0, 13):
     test = lambda self, x=x: self.loop.run_until_complete(self._test_plugtestclient(x))
-    if 8 <= x <= 15:
-        test = unittest.skip("Test requires operator to judge timeout")(test)
     setattr(TestOSCOAPPlugtest, 'test_%d'%x, test)

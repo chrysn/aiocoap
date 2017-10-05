@@ -36,6 +36,7 @@ class TestClientWithSetHost(WithTestServer, WithClient):
         self.assertEqual(response.get_request_uri(), "coap://" + self.servernamealias + "/empty", "Host name did not get round-tripped")
 
     @no_warnings
+    @unittest.skipIf(type(asyncio.get_event_loop()).__module__ == 'uvloop', "uvloop can't report error (https://github.com/MagicStack/uvloop/issues/109)")
     def test_uri_parser2(self):
         """A difficult test because it is prone to keeping the transport
         around, bothering later tests"""
@@ -47,12 +48,14 @@ class TestClientWithSetHost(WithTestServer, WithClient):
         resp = self.client.request(request).response
         try:
             # give the request some time to finish getaddrinfo
-            yieldfrom(asyncio.as_completed([resp], timeout=0.01).__next__())
+            result = yieldfrom(asyncio.as_completed([resp], timeout=0.01).__next__())
         except OSError as e:
             self.assertEqual(e.errno, errno.ECONNREFUSED, "")
+        except asyncio.TimeoutError:
+            self.fail("Request to non-opened port did not come back with 'Connection Refused' immediately")
         else:
-            self.fail("Request to non-opened port did not come back with 'Connection Refused'")
-        self.assertEqual(request.remote.port, 9999, "Remote port was not parsed")
+            self.fail("Request to non-opened port did not come back with 'Connection Refused', but another result: %s"%(result,))
+        self.assertTrue(request.remote.hostinfo.endswith(':9999'), "Remote port was not parsed")
         resp.cancel()
 
     @no_warnings

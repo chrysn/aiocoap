@@ -13,12 +13,19 @@ import copy
 from . import error
 from .numbers import *
 from .options import Options
-from .util import hostportjoin
+from .util import hostportjoin, Sentinel
+
+__all__ = ['Message', 'NoResponse']
+
+# FIXME there should be a proper inteface for this that does all the urllib
+# patching possibly required and works with pluggable transports. urls qualify
+# if they can be parsed into the Proxy-Scheme / Uri-* structure.
+coap_schemes = ['coap', 'coaps']
 
 ## Monkey patch urllib to make URL joining available in CoAP
 # This is a workaround for <http://bugs.python.org/issue23759>.
-urllib.parse.uses_relative.append('coap')
-urllib.parse.uses_netloc.append('coap')
+urllib.parse.uses_relative.extend(coap_schemes)
+urllib.parse.uses_netloc.extend(coap_schemes)
 
 class Message(object):
     """CoAP Message with some handling metadata
@@ -46,12 +53,16 @@ class Message(object):
     * :attr:`remote`: The socket address of the other side, managed by the
       :class:`.protocol.Request` by resolving the ``.opt.uri_host`` or
       ``unresolved_remote``, or the :class:`.Responder` by echoing the incoming
-      request's. (If you choose to set this explicitly set this, make sure not
-      to set incomplete IPv6 address tuples, as they can be sent but don't
-      compare equally with the responses). Non-roundtrippable.
+      request's. Follows the :class:`.interfaces.EndpointAddress` interface.
+      Non-roundtrippable.
 
     * requested_*: Managed by the :class:`.protocol.Request` a response results
       from, and filled with the request's URL data. Non-roundtrippable.
+
+      requested_scheme is an exception here in that it is also set on requests
+      to indicate which transport should be used when unresolved_remote gets
+      resolved.
+
     * unresolved_remote: ``host[:port]`` (strictly speaking; hostinfo as in a
       URI) formatted string. If this attribute is set, it overrides
       ``.opt.uri_host`` (and ``-_port``) when it comes to filling the
@@ -130,17 +141,23 @@ class Message(object):
         arguments in the constructor, and update the copy."""
         # This is part of moving messages in an "immutable" direction; not
         # necessarily hard immutable. Let's see where this goes.
-        new = copy.deepcopy(self)
-        if 'mtype' in kwargs:
-            new.mtype = Type(kwargs.pop('mtype'))
-        if 'mid' in kwargs:
-            new.mid = kwargs.pop('mid')
-        if 'code' in kwargs:
-            new.code = Code(kwargs.pop('code'))
-        if 'payload' in kwargs:
-            new.payload = kwargs.pop('payload')
-        if 'token' in kwargs:
-            new.token = kwargs.pop('token')
+
+        new = type(self)(
+                mtype=kwargs.pop('mtype', self.mtype),
+                mid=kwargs.pop('mid', self.mid),
+                code=kwargs.pop('code', self.code),
+                payload=kwargs.pop('payload', self.payload),
+                token=kwargs.pop('token', self.token),
+                )
+        new.remote = kwargs.pop('remote', self.remote)
+        new.unresolved_remote = self.unresolved_remote
+        new.requested_proxy_uri = self.requested_proxy_uri
+        new.requested_scheme = self.requested_scheme
+        new.requested_hostinfo = self.requested_hostinfo
+        new.requested_path = self.requested_path
+        new.requested_query = self.requested_query
+        new.opt = copy.deepcopy(self.opt)
+
         if 'uri' in kwargs:
             new.set_request_uri(kwargs.pop('uri'))
 
@@ -222,15 +239,23 @@ class Message(object):
         start = number * size
         if start < len(self.payload):
             end = start + size if start + size < len(self.payload) else len(self.payload)
-            block = copy.deepcopy(self)
-            block.payload = block.payload[start:end]
-            block.mid = None
             more = True if end < len(self.payload) else False
-            if block.code.is_request():
-                block.opt.block1 = (number, more, size_exp)
+
+            payload = self.payload[start:end]
+            blockopt = (number, more, size_exp)
+
+            if self.code.is_request():
+                return self.copy(
+                        payload=payload,
+                        mid=None,
+                        block1=blockopt
+                        )
             else:
-                block.opt.block2 = (number, more, size_exp)
-            return block
+                return self.copy(
+                        payload=payload,
+                        mid=None,
+                        block2=blockopt
+                        )
 
     def _append_request_block(self, next_block):
         """Modify message by appending another block"""
@@ -273,18 +298,20 @@ class Message(object):
 
         This method is used by client after receiving blockwise response from
         server with "more" flag set."""
-        request = copy.deepcopy(self)
-        request.payload = b""
-        request.mid = None
         if response.opt.block2.block_number == 0 and response.opt.block2.size_exponent > DEFAULT_BLOCK_SIZE_EXP:
             new_size_exponent = DEFAULT_BLOCK_SIZE_EXP
             new_block_number = 2 ** (response.opt.block2.size_exponent - new_size_exponent)
-            request.opt.block2 = (new_block_number, False, new_size_exponent)
+            blockopt = (new_block_number, False, new_size_exponent)
         else:
-            request.opt.block2 = (response.opt.block2.block_number + 1, False, response.opt.block2.size_exponent)
-        del request.opt.block1
-        del request.opt.observe
-        return request
+            blockopt = (response.opt.block2.block_number + 1, False, response.opt.block2.size_exponent)
+
+        return self.copy(
+                payload=b"",
+                mid=None,
+                block2=blockopt,
+                block1=None,
+                observe=None
+                )
 
     def _generate_next_block1_response(self):
         """Generate a response to acknowledge incoming request block.
@@ -353,6 +380,7 @@ class Message(object):
             host = self.opt.uri_host
         elif self.code.is_request() and self.unresolved_remote is not None:
             hostinfo = self.unresolved_remote
+            scheme = self.requested_scheme
         else:
             hostinfo = self.remote.hostinfo
 
@@ -389,7 +417,7 @@ class Message(object):
 
         parsed = urllib.parse.urlparse(uri, allow_fragments=False)
 
-        if parsed.scheme != 'coap':
+        if parsed.scheme not in coap_schemes:
             self.opt.proxy_uri = uri
             return
 
@@ -413,3 +441,11 @@ class Message(object):
             self.opt.uri_host = parsed.hostname
         else:
             self.unresolved_remote = parsed.netloc
+        self.requested_scheme = parsed.scheme
+
+#: Result that can be returned from a render method instead of a Message when
+#: due to defaults (eg. multicast link-format queries) or explicit
+#: configuration (eg. the No-Response option), no response should be sent at
+#: all. Note that per RFC7967 section 2, an ACK is still sent to a CON
+#: request.
+NoResponse = Sentinel("NoResponse")

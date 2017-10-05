@@ -18,6 +18,8 @@ import pprint
 import weakref
 import gc
 
+from . import common
+
 # time granted to asyncio to receive datagrams sent via loopback, and to close
 # connections. if tearDown checks fail erratically, tune this up -- but it
 # causes per-fixture delays.
@@ -86,6 +88,9 @@ class RootResource(aiocoap.resource.Resource):
 class TestingSite(aiocoap.resource.Site):
     def __init__(self):
         super(TestingSite, self).__init__()
+
+        # Not part of the test suite, but handy when running standalone
+        self.add_resource(('.well-known', 'core'), aiocoap.resource.WKCResource(self.get_resources_as_linkheader))
 
         self.add_resource(('empty',), MultiRepresentationResource())
         self.add_resource(('slow',), SlowResource())
@@ -227,7 +232,7 @@ class WithTestServer(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithTestServer, self).setUp()
 
-        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site()))
+        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site(), bind=(self.serveraddress, aiocoap.COAP_PORT)))
 
     def tearDown(self):
         # let the server receive the acks we just sent
@@ -239,7 +244,7 @@ class WithTestServer(WithAsyncLoop, Destructing):
 
     serveraddress = "::1"
     servernetloc = "[%s]"%serveraddress
-    servernamealias = "ip6-loopback"
+    servernamealias = common.loopbackname_v6 or common.loopbackname_v46
 
 class WithClient(WithAsyncLoop, Destructing):
     def setUp(self):
@@ -392,8 +397,7 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Root resource was not found")
 
-# for testing the server standalone
-if __name__ == "__main__":
+def run_fixture_as_standalone_server(fixture):
     import sys
     if '-v' in sys.argv:
         logging.basicConfig()
@@ -401,10 +405,14 @@ if __name__ == "__main__":
         logging.getLogger("coap-server").setLevel(logging.DEBUG)
 
     print("Running test server")
-    s = WithTestServer()
+    s = fixture()
     s.setUp()
     try:
         s.loop.run_forever()
     except KeyboardInterrupt:
         print("Shutting down test server")
         s.tearDown()
+
+if __name__ == "__main__":
+    # due to the imports, you'll need to run this as `python3 -m tests.test_server`
+    run_fixture_as_standalone_server(WithTestServer)

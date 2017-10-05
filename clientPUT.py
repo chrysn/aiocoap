@@ -20,13 +20,10 @@ from aiocoap import *
 logging.basicConfig(level=logging.INFO)
 
 async def main():
-    """
-    Example class which performs single PUT request to localhost
-    port 5683 (official IANA assigned CoAP port), URI "/other/block".
-    Request is sent 2 seconds after initialization.
+    """Perform a single PUT request to localhost on the default port, URI
+    "/other/block". The request is sent 2 seconds after initialization.
 
-    Payload is bigger than 1kB, and thus is sent as several blocks.
-    """
+    The payload is bigger than 1kB, and thus sent as several blocks."""
 
     context = await Context.create_client_context()
 
@@ -34,6 +31,8 @@ async def main():
 
     payload = b"The quick brown fox jumps over the lazy dog.\n" * 30
     request = Message(code=PUT, payload=payload)
+    # These direct assignments are an alternative to setting the URI like in
+    # the GET example:
     request.opt.uri_host = '127.0.0.1'
     request.opt.uri_path = ("other", "block")
 

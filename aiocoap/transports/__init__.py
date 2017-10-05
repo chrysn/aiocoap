@@ -10,7 +10,18 @@
 
 Transports are expected to be the modular backends of aiocoap, and implement
 the specifics of eg. TCP, WebSockets or SMS, possibly divided by backend
-implementations as well. (If, for example, a non-posix platform is added, it
-might be easier to rewrite the :mod:`.udp6` for that platform
-instead of "ifdef hell").
+implementations as well.
+
+Transports are not part of the API, so the class descriptions in the modules
+are purely informational.
+
+Multiple transports can be used in parallel in a single :class:`.Context`, and
+are loaded in a particular sequence. Some transports will grab all addresses of
+a given protocol, so they might not be practical to combine. Which transports
+are started in a given Context follows the
+:func:`.defaults.get_default_clienttransports` function.
+
+The available transports are:
+
+.. the files in this directory.
 """

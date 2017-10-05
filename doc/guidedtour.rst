@@ -14,9 +14,11 @@ First, some tools
 -----------------
 
 Before we get into programming, let's establish tools with which we can probe a
-server, and a server itself.
+server, and a server itself. If you have not done it already,
+:doc:`install aiocoap for development<installation>`.
 
-Start off with the sample server by running the following in a terminal::
+Start off with the sample server by running the following in a terminal inside
+the aiocoap directory::
 
     $ ./server.py
 

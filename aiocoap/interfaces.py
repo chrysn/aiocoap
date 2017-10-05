@@ -26,9 +26,65 @@ class TransportEndpoint(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     @coroutine
-    def fill_remote(self, message):
-        """Populate a message's remote property based on its .opt.uri_host or
-        .unresolved_remote. This interface is likely to change."""
+    def determine_remote(self, message):
+        """Return a value suitable for the message's remote property based on
+        its .opt.uri_host or .unresolved_remote.
+
+        May return None, which indicates that the TransportEndpoint can not
+        transport the message (typically because it is of the wrong scheme)."""
+
+class EndpointAddress(metaclass=abc.ABCMeta):
+    """An address that is suitable for routing through the application to a
+    remote endpoint.
+
+    Depending on the TransportEndpoint implementation used, an EndpointAddress
+    property of a message can mean the message is exchanged "with
+    [2001:db8::2:1]:5683, while my local address was [2001:db8:1::1]:5683"
+    (typical of UDP6), "over the connected <Socket at
+    0x1234>, whereever that's connected to" (simple6 or TCP) or "with
+    participant 0x01 of the OSCAP key 0x..., routed over <another
+    EndpointAddress>".
+
+    EndpointAddresses are only concstructed by TransportEndpoint objects,
+    either for incoming messages or when populating a message's .remote in
+    :meth:`TransportEndpoint.determine_remote`.
+
+    There is no requirement that those address are always identical for a given
+    address. However, incoming addresses must be hashable and hash-compare
+    identically to requests from the same context. The "same context", for the
+    purpose of EndpointAddresses, means that the message must be eligible for
+    request/response, blockwise (de)composition and observations. (For example,
+    in a DTLS context, the hash must change between epochs due to RFC7252
+    Section 9.1.2).
+
+    So far, it is required that hash-identical objects also compare the same.
+    That requirement might go away in future to allow equality to reflect finer
+    details that are not hashed. (The only property that is currently known not
+    to be hashed is the local address in UDP6, because that is *unknown* in
+    initially sent packages, and thus disregarded for comparison but needed to
+    round-trip through responses.)
+    """
+
+    @property
+    @abc.abstractmethod
+    def hostinfo(self):
+        """The authority component of URIs that this endpoint represents"""
+
+    @property
+    @abc.abstractmethod
+    # FIXME htis is so far only used in RD, might still need renaming
+    def uri(self):
+        """The base URI for this endpoint (typically scheme plus .hostinfo)"""
+
+    @property
+    @abc.abstractmethod
+    def is_multicast(self):
+        """True if the remote address is a multicast address, otherwise false."""
+
+    @property
+    @abc.abstractmethod
+    def is_multicast_locally(self):
+        """True if the local address is a multicast address, otherwise false."""
 
 class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
@@ -54,7 +110,12 @@ class Resource(metaclass=abc.ABCMeta):
         """Return a message that can be sent back to the requester.
 
         This does not need to set any low-level message options like remote,
-        token or message type; it does however need to set a response code."""
+        token or message type; it does however need to set a response code.
+
+        The ``aiocoap.message.NoResponse`` sentinel can be returned if the
+        resources wishes to suppress an answer on the request/response
+        layer. (An empty ACK is sent responding to a CON request on message
+        layer nevertheless.)"""
 
     @abc.abstractmethod
     @coroutine

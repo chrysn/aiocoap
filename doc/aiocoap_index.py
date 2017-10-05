@@ -1,7 +1,6 @@
 import functools
 import re
 import os
-import tempfile
 import textwrap
 import glob
 import os.path
@@ -43,10 +42,7 @@ def modified_insert_input(include_lines, path, original=None):
         filelink_match = filelink_re.match(line)
         if rtd_match:
             pattern, linkbody = rtd_match.groups()
-            if 'module' in pattern: # dirty hint
-                prefix = 'mod'
-            else:
-                prefix = 'doc'
+            prefix = 'doc'
             addrepl(replacements, pattern, prefix, linkbody)
         elif filelink_match:
             # for things like LICENSE
@@ -83,10 +79,10 @@ def build_moduledocs(app):
     for x in docs:
         commonstart = textwrap.dedent("""\
             {x} module
-            ========================================
+            ====================================================================================
             """).format(x=x)
 
-        if x == 'aiocoap.numbers':
+        if x in ('aiocoap.numbers', 'aiocoap.transports'):
             # this does miss out on media_types{,rev}, but they're a mess
             # anyway so far
             text = commonstart + textwrap.dedent("""
@@ -94,7 +90,7 @@ def build_moduledocs(app):
                 .. toctree::
                     :glob:
 
-                    aiocoap.numbers.*
+                    {x}.*
                 """).format(x=x)
         elif x.startswith('aiocoap.cli.'):
             executablename = "aiocoap-" + x[len('aiocoap.cli.'):]
