@@ -61,6 +61,13 @@ class CommonRD:
             self._set_timeout()
 
         def delete(self):
+            # FIXME: if the delete did not occur due to a timeout, we should
+            # maybe leave the registration around for until it's expired for
+            # good -- otherwise, when a registration gets "administratively
+            # deleted" or two devices register with the same endpoint name, the
+            # device that originally registered might be unaware of its
+            # resource's deletion, update its registration, but the URI could
+            # already be in use by another endpoint.
             self.timeout.cancel()
             self._delete_cb()
 
