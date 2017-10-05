@@ -39,7 +39,7 @@ def build_parser():
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
     p.add_argument('--dump', help="Log network traffic to FILE", metavar="FILE")
-    p.add_argument('--interactive', help="Enter interactive mode", action="store_true")
+    p.add_argument('--interactive', help="Enter interactive mode", action="store_true") # careful: picked before parsing
     p.add_argument('url', help="CoAP address to fetch")
 
     return p
