@@ -97,7 +97,7 @@ class CommonRD:
 
                 actual_change = any(v != self.registration_parameters[k] for (k, v) in registration_parameters.items())
 
-                self.registration_parameters = dict(self.registration_parameters, registration_parameters)
+                self.registration_parameters = dict(self.registration_parameters, **registration_parameters)
 
             if 'lt' in registration_parameters:
                 try:
@@ -116,7 +116,7 @@ class CommonRD:
             if is_initial:
                 self._set_timeout()
             else:
-                self.reg.refresh_timeout()
+                self.refresh_timeout()
 
             if actual_change:
                 self._update_cb()
@@ -193,7 +193,7 @@ class CommonRD:
         try:
             ep = registration_parameters['ep']
         except KeyError:
-            raise BadRequest("ep argument missing")
+            raise error.BadRequest("ep argument missing")
         d = registration_parameters.get('d', None)
 
         key = (ep, d)
@@ -281,7 +281,7 @@ class RegistrationResource(Resource):
 
     @asyncio.coroutine
     def render_post(self, request):
-        self.reg._update_params(request)
+        self._update_params(request)
 
         if request.opt.content_format is not None or request.payload:
             raise error.BadRequest("Registration update with body not specified")
@@ -293,7 +293,7 @@ class RegistrationResource(Resource):
         # this is not mentioned in the current spec, but seems to make sense
         links = link_format_from_message(request)
 
-        self.reg._update_params(request)
+        self._update_params(request)
         self.reg.links = links
 
         return aiocoap.Message(code=aiocoap.CHANGED)
