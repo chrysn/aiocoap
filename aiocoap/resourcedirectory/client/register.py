@@ -97,6 +97,11 @@ class Registerer:
 
     @asyncio.coroutine
     def _fill_directory_resource(self, blacklist=set()):
+        # FIXME: this should at some point catch network errors (short of
+        # falling back to "RD discovery failed, backing off"), but that needs
+        # falling back to other discovery methods here, and i don't know how
+        # this will be done yet
+
         if self._directory_resource is not None:
             return
 
@@ -177,7 +182,10 @@ class Registerer:
 
     @asyncio.coroutine
     def _request_with_retries(self, message):
-        response = yield from self._context.request(message).response
+        # FIXME: response_nonraising gives 5.00 now, but for debugging we might
+        # want to show something better, and for URI discovery, we should not
+        # consider this a final error
+        response = yield from self._context.request(message).response_nonraising
 
         unavailable_retries = 0
         while response.code == SERVICE_UNAVAILABLE and response.opt.max_age is not None:
@@ -185,7 +193,7 @@ class Registerer:
                 raise self._RetryableError("RD responded with Service Unavailable too often")
             self.log.info("RD asked to retry the operation later")
             yield from asyncio.sleep(max(response.opt.max_age, 2**(unavailable_retries)))
-            response = yield from self._context.request(message).response
+            response = yield from self._context.request(message).response_nonraising
 
         return response
 
