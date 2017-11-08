@@ -6,8 +6,19 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""a plain CoAP resource directory according to
-draft-ietf-core-resource-directory-09"""
+"""A plain CoAP resource directory according to
+draft-ietf-core-resource-directory-12
+
+Known Caveats:
+
+    * Nothing group related is implemented.
+
+    * Multiply given registration parameters are not handled.
+
+    * It is very permissive. Not only is no security implemented, it also
+    allows mechanisms that follow from the simple implementation, like Simple
+    Registration with con=.
+"""
 
 import sys
 import logging
@@ -18,7 +29,7 @@ from urllib.parse import urljoin
 import itertools
 
 import aiocoap
-from aiocoap.resource import Site, Resource, PathCapable, WKCResource
+from aiocoap.resource import Site, Resource, ObservableResource, PathCapable, WKCResource
 from aiocoap.util.cli import AsyncCLIDaemon
 from aiocoap import error
 
@@ -41,34 +52,78 @@ class CommonRD:
         self._endpoint_registrations_by_key = {} # key -> Registration
         self._entities_by_pathtail = {} # path -> Registration or Group
 
+        self._updated_state_cb = []
+
     class Registration:
+        # FIXME: split this into soft and hard grace period (where the former
+        # may be 0). the node stays discoverable for the soft grace period, but
+        # the registration stays alive for a (possibly much longer, at least
+        # +lt) hard grace period, in which any action on the reg resource
+        # reactivates it -- preventing premature reuse of the resource URI
         grace_period = 15
 
         @property
         def href(self):
             return '/' + '/'.join(self.path)
 
-        def __init__(self, path, con, delete_cb, ep, d=None, lt=None, et=None):
+        def __init__(self, path, network_con, delete_cb, update_cb, registration_parameters):
+            # note that this can not modify d and ep any more, since they were
+            # already used in keying to a path
             self.path = path
             self.links = LinkHeader([])
-            self.ep = ep
-            self.d = d
-            self.lt = lt or 86400
-            self.et = et
-            self.con = con
 
             self._delete_cb = delete_cb
-            self._set_timeout()
+            self._update_cb = update_cb
+            self.update_params(network_con, registration_parameters, is_initial=True)
+
+        def update_params(self, network_con, registration_parameters, is_initial=False):
+            """Set the registration_parameters from the parsed query arguments,
+            update any effects of them, and and trigger any observation
+            observation updates if requried (the typical ones don't because
+            their registration_parameters are {} and all it does is restart the
+            lifetime counter)"""
+
+            if is_initial:
+                self.registration_parameters = registration_parameters
+                self.lt = 86400
+                self.con_is_explicit = False
+                self.con = network_con
+
+                # technically might be a re-registration, but we can't catch that at this point
+                actual_change = True
+            else:
+                if 'd' in registration_parameters or 'ep' in registration_parameters:
+                    raise error.BadRequest("Parameters 'd' and 'ep' can not be updated")
+
+                actual_change = any(v != self.registration_parameters[k] for (k, v) in registration_parameters.items())
+
+                self.registration_parameters = dict(self.registration_parameters, **registration_parameters)
+
+            if 'lt' in registration_parameters:
+                try:
+                    self.lt = int(registration_parameters['lt'])
+                except ValueError:
+                    raise error.BadRequest("lt must be numeric")
+
+            if 'con' in registration_parameters:
+                self.con = registration_parameters['con']
+                self.con_is_explicit = True
+
+            if not self.con_is_explicit and self.con != network_con:
+                self.con = network_con
+                actual_change = True
+
+            if is_initial:
+                self._set_timeout()
+            else:
+                self.refresh_timeout()
+
+            if actual_change:
+                self._update_cb()
 
         def delete(self):
-            # FIXME: if the delete did not occur due to a timeout, we should
-            # maybe leave the registration around for until it's expired for
-            # good -- otherwise, when a registration gets "administratively
-            # deleted" or two devices register with the same endpoint name, the
-            # device that originally registered might be unaware of its
-            # resource's deletion, update its registration, but the URI could
-            # already be in use by another endpoint.
             self.timeout.cancel()
+            self._update_cb()
             self._delete_cb()
 
         def _set_timeout(self):
@@ -90,12 +145,7 @@ class CommonRD:
             self._set_timeout()
 
         def get_host_link(self):
-            args = {'ep': self.ep}
-            if self.d:
-                args['d'] = self.d
-            if self.et:
-                args['et'] = self.et
-            args['con'] = self.con
+            args = dict(self.registration_parameters, con=self.con)
             return Link(href=self.href, **args)
 
         def get_conned_links(self):
@@ -120,6 +170,15 @@ class CommonRD:
     def shutdown(self):
         pass
 
+    def register_change_callback(self, callback):
+        """Ask RD to invoke the callback whenever any of the RD state
+        changed"""
+        self._updated_state_cb.append(callback)
+
+    def _updated_state(self):
+        for cb in self._updated_state_cb:
+            cb()
+
     def _new_pathtail(self):
         for i in itertools.count(1):
             # In the spirit of making legal but unconvential choices (see
@@ -130,9 +189,13 @@ class CommonRD:
             if path not in self._entities_by_pathtail:
                 return path
 
-    def initialize_endpoint(self, con, ep, lt=None, et=None, d=None):
-        # FIXME: It's a bit unclear if the specification actually requires the
-        # idempotency of registration on (ep, d) or any other parameters
+    def initialize_endpoint(self, network_con, registration_parameters):
+        try:
+            ep = registration_parameters['ep']
+        except KeyError:
+            raise error.BadRequest("ep argument missing")
+        d = registration_parameters.get('d', None)
+
         key = (ep, d)
 
         try:
@@ -153,8 +216,8 @@ class CommonRD:
             del self._entities_by_pathtail[path]
             del self._endpoint_registrations_by_key[key]
 
-        reg = self.Registration(self.entity_prefix + path, con=con, delete_cb=delete, ep=ep, lt=lt,
-                et=et, d=d)
+        reg = self.Registration(self.entity_prefix + path, network_con, delete,
+                self._updated_state, registration_parameters)
 
         self._endpoint_registrations_by_key[key] = reg
         self._entities_by_pathtail[path] = reg
@@ -181,6 +244,9 @@ class ThingWithCommonRD:
         super().__init__()
         self.common_rd = common_rd
 
+        if isinstance(self, ObservableResource):
+            self.common_rd.register_change_callback(self.updated_state)
+
 class RegistrationInterface(ThingWithCommonRD, Resource):
     ct = 40
     rt = "core.rd"
@@ -189,20 +255,9 @@ class RegistrationInterface(ThingWithCommonRD, Resource):
     def render_post(self, request):
         links = link_format_from_message(request)
 
-        query = query_split(request)
-        if 'ep' not in query:
-            return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=b"Mandatory ep parameter missing")
+        registration_parameters = query_split(request)
 
-        # FIXME deduplicate with _update_params
-        if 'lt' in query:
-            try:
-                lt = int(query['lt'])
-            except ValueError:
-                return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=b"lt parameter not integer")
-        else:
-            lt = None
-        # FIXME con needs a good default
-        regresource = self.common_rd.initialize_endpoint(ep=query['ep'], lt=lt, con=query.get('con', request.remote.uri), d=query.get('d', None), et=query.get('et', None))
+        regresource = self.common_rd.initialize_endpoint(request.remote.uri, registration_parameters)
         regresource.links = links
 
         return aiocoap.Message(code=aiocoap.CREATED, location_path=regresource.path)
@@ -220,30 +275,17 @@ class RegistrationResource(Resource):
     def render_get(self, request):
         return aiocoap.Message(payload=str(self.reg.links).encode('utf8'), content_format=aiocoap.numbers.media_types_rev['application/link-format'])
 
-    def _update_params(self, msg): # may raise ValueError
-        # FIXME: deduplicate with RegistrationInterface.render_post
+    def _update_params(self, msg):
         query = query_split(msg)
-        args = {}
-        if 'lt' in query:
-            self.reg.lt = int(query['lt'])
-        if 'con' in query:
-            self.reg.con = query['con']
-        self.reg.refresh_timeout()
+        self.reg.update_params(msg.remote.uri, query)
 
     @asyncio.coroutine
     def render_post(self, request):
-        self.reg._update_params(request)
-        if not (request.opt.content_format is None and request.payload == b''):
-            links = link_format_from_message(request)
-            raise error.NotImplemented("I suppose this should update and append the links, how is that done exactly?")
-#             # FIXME did i get rel= right here? why should it be done like that?
-#             original = self.reg._endpoint_registrations_by_key[key]
-#             original_indexed = {(l.href, getattr(l, 'rel', None)): l for l in original.links.links}
-#             for l in data.links:
-#                 indexkey = (l.href, getattr(l, 'rel', None))
-#                 if indexkey in original_indexed:
-#                     original.links.links.remove(original_indexed[indexkey])
-#                 original.links.links.append(l)
+        self._update_params(request)
+
+        if request.opt.content_format is not None or request.payload:
+            raise error.BadRequest("Registration update with body not specified")
+
         return aiocoap.Message(code=aiocoap.CHANGED)
 
     @asyncio.coroutine
@@ -251,7 +293,7 @@ class RegistrationResource(Resource):
         # this is not mentioned in the current spec, but seems to make sense
         links = link_format_from_message(request)
 
-        self.reg._update_params(request)
+        self._update_params(request)
         self.reg.links = links
 
         return aiocoap.Message(code=aiocoap.CHANGED)
@@ -280,7 +322,22 @@ class GroupRegistrationInterface(ThingWithCommonRD, Resource):
     ct = 40
     rt = "core.rd-group"
 
-class EndpointLookupInterface(ThingWithCommonRD, Resource):
+def _paginate(candidates, query):
+    try:
+        candidates = list(candidates)
+        if 'page' in query:
+            candidates = candidates[int(query['page']) * int(query['count']):]
+        if 'count' in query:
+            candidates = candidates[:int(query['count'])]
+    except (KeyError, ValueError):
+        raise BadRequest("page requires count, and both must be ints")
+
+    return candidates
+
+def _link_matches(link, key, condition):
+    return any(k == key and condition(v) for (k, v) in link.attr_pairs)
+
+class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
     ct = 40
     rt = "core.rd-lookup-ep"
 
@@ -289,35 +346,39 @@ class EndpointLookupInterface(ThingWithCommonRD, Resource):
         query = query_split(request)
 
         candidates = self.common_rd.get_endpoints()
-        # FIXME which of the below can be done on the generated host links with
-        # generic filtering rules, which would for example do =...* right?
-        if 'href' in query:
-            candidates = (c for c in candidates if c.href == query['href'])
-        if 'd' in query:
-            candidates = (c for c in candidates if c.d == query['d'])
-        if 'ep' in query:
-            candidates = (c for c in candidates if c.ep == query['ep'])
-        if 'gp' in query:
-            pass # FIXME
-        if 'rt' in query:
-            pass # FIXME
-        if 'et' in query:
-            candidates = (c for c in candidates if c.et == query['et'])
 
-        try:
-            candidates = list(candidates)
-            if 'page' in query:
-                candidates = candidates[int(query['page']) * int(query['count']):]
-            if 'count' in query:
-                candidates = candidates[:int(query['count'])]
-        except (KeyError, ValueError):
-            raise BadRequest("page requires count, and both must be ints")
+        for search_key, search_value in query.items():
+            if search_key in ('page', 'count'):
+                continue # filtered last
+
+            if search_value.endswith('*'):
+                matches = lambda x, start=search_value[:-1]: x.startswith(start)
+            else:
+                matches = lambda x: x == search_value
+
+            if search_key in ('if', 'rt'):
+                candidates = (c for c in candidates if any(any(matches(x) for x in getattr(r, search_key, '').split()) for r in c.get_conned_links().links))
+                continue
+
+            if search_key == 'href':
+                candidates = (c for c in candidates if
+                        matches(c.href) or
+                        any(matches(r.href) for r in c.get_conned_links().links)
+                        )
+                continue
+
+            candidates = (c for c in candidates if
+                    (search_key in c.registration_parameters and matches(c.registration_parameters[search_key])) or
+                    any(_link_matches(r, search_key, matches) for r in c.get_conned_links().links)
+                    )
+
+        candidates = _paginate(candidates, query)
 
         result = [c.get_host_link() for c in candidates]
 
         return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'), content_format=40)
 
-class ResourceLookupInterface(ThingWithCommonRD, Resource):
+class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
     ct = 40
     rt = "core.rd-lookup-res"
 
@@ -326,33 +387,44 @@ class ResourceLookupInterface(ThingWithCommonRD, Resource):
         query = query_split(request)
 
         eps = self.common_rd.get_endpoints()
-        if 'd' in query:
-            eps = (e for e in eps if e.d == query['d'])
-        if 'ep' in query:
-            eps = (e for e in eps if e.ep == query['ep'])
-        if 'gp' in query:
-            pass # FIXME
-        if 'et' in query:
-            eps = (e for e in eps if e.et == query['et'])
+        candidates = ((e, c) for e in eps for c in e.get_conned_links().links)
 
-        candidates = itertools.chain(*(e.get_conned_links().links for e in eps))
-        for other_query in query:
-            if other_query in ('d', 'ep', 'gp', 'et', 'page', 'count'):
+        for search_key, search_value in query.items():
+            if search_key in ('page', 'count'):
+                continue # filtered last
+
+            # FIXME: maybe we need query_split to turn ?rt=foo&obs into {'rt':
+            # 'foo', 'obs': True} to match on obs, and then this needs more
+            # type checking
+            if search_value.endswith('*'):
+                matches = lambda x, start=search_value[:-1]: x.startswith(start)
+            else:
+                matches = lambda x: x == search_value
+
+            if search_key in ('if', 'rt'):
+                candidates = ((e, c) for (e, c) in candidates if any(matches(x) for x in getattr(c, search_key, '').split()))
                 continue
-            candidates = (l for l in candidates if getattr(l, other_query) == query[other_query])
 
-        try:
-            candidates = list(candidates)
-            if 'page' in query:
-                candidates = candidates[int(query['page']) * int(query['count'])]
-            if 'count' in query:
-                candidates = candidates[:int(query['count'])]
-        except (KeyError, ValueError):
-            raise BadRequest("page requires count, and both must be ints")
+            if search_key == 'href':
+                candidates = ((e, c) for (e, c) in candidates if
+                        matches(c.href) or
+                        matches(e.href)
+                        )
+                continue
+
+            candidates = ((e, c) for (e, c) in candidates if
+                    _link_matches(c, search_key, matches) or
+                    (search_key in e.registration_parameters and matches(e.registration_parameters[search_key]))
+                    )
+
+        # strip endpoint
+        candidates = (c for (e, c) in candidates)
+
+        candidates = _paginate(candidates, query)
 
         return aiocoap.Message(payload=str(LinkHeader(candidates)).encode('utf8'), content_format=40)
 
-class GroupLookupInterface(ThingWithCommonRD, Resource):
+class GroupLookupInterface(ThingWithCommonRD, ObservableResource):
     ct = 40
     rt = "core.rd-lookup-gp"
 
@@ -363,36 +435,34 @@ class SimpleRegistrationWKC(WKCResource):
 
     @asyncio.coroutine
     def render_post(self, request):
-        # FIXME deduplicate with _update_params / RegistrationInterface.render_post
-
         query = query_split(request)
+
+        # this is not deduplicated with update_params in full because that code
+        # path is triggered later when the response was already sent
+
         if 'ep' not in query:
-            return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=b"Mandatory ep parameter missing")
+            raise error.BadRequest("ep argument missing")
 
         if 'lt' in query:
             try:
-                lt = int(query['lt'])
+                _ = int(query['lt'])
             except ValueError:
-                return aiocoap.Message(code=aiocoap.BAD_REQUEST, payload=b"lt parameter not integer")
-        else:
-            lt = None
+                raise error.BadRequest("lt must be numeric")
 
         asyncio.Task(self.process_request(
-                ep=query['ep'],
-                lt=lt,
-                con=query.get('con', request.remote.uri),
-                d=query.get('d', None),
-                et=query.get('et', None),
+                network_con=request.remote.uri,
+                registration_parameters=query,
             ))
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
     @asyncio.coroutine
-    def process_request(self, ep, lt, con, d, et):
+    def process_request(self, network_con, registration_parameters):
+        con = network_con
+        if 'con' in registration_parameters:
+            con = registration_parameters['con']
         # FIXME actually we should have complained about the con uri not being in host-only form ... and is that defined at all?
         fetch_address = (con + '/.well-known/core')
-
-        print(fetch_address)
 
         try:
             response = yield from self.context.request(aiocoap.Message(code=aiocoap.GET, uri=fetch_address)).response_raising
@@ -402,7 +472,7 @@ class SimpleRegistrationWKC(WKCResource):
             logging.exception(e)
             return
 
-        registration = self.common_rd.initialize_endpoint(ep=ep, lt=lt, con=con, d=d)
+        registration = self.common_rd.initialize_endpoint(network_con, registration_parameters)
         registration.links = links
 
 class StandaloneResourceDirectory(Site):
