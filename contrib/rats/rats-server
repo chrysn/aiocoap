@@ -391,6 +391,7 @@ def register_rats(rats, path: Tuple[str, ...], site: aiocoap.resource.Site, rout
 
     for key, res in rats.items():
         site.add_resource(path + (key,), res)
+        router.add_get('/' + '/'.join(path + (key,)), res.handle_aiohttp)
 
 # infrastructure demo again
 
