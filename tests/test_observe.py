@@ -24,13 +24,20 @@ class ObservableCounter(ObservableResource):
         super(ObservableCounter, self).__init__()
         self.count = 0
 
-    def increment(self):
+    @asyncio.coroutine
+    def render_post(self, request):
         self.count += 1
         self.updated_state()
+        return aiocoap.Message(code=aiocoap.CHANGED)
 
     @asyncio.coroutine
     def render_get(self, request):
         return aiocoap.Message(code=aiocoap.CONTENT, payload=str(self.count).encode('ascii'))
+
+    @asyncio.coroutine
+    def render_fetch(self, request):
+        return aiocoap.Message(code=aiocoap.CONTENT,
+                payload=("%s; request had length %s"%(self.count, len(request.payload))).encode('ascii'))
 
 class ObservableReplacingResource(ReplacingResource, ObservableResource):
     @asyncio.coroutine
@@ -70,10 +77,8 @@ class ObserveTestingSite(aiocoap.resource.Site):
     def __init__(self):
         super(ObserveTestingSite, self).__init__()
 
-        self.counter = ObservableCounter()
-
         self.add_resource(self.prefix + ('unobservable',), MultiRepresentationResource())
-        self.add_resource(self.prefix + ('count',), self.counter)
+        self.add_resource(self.prefix + ('count',), ObservableCounter())
         self.add_resource(self.prefix + ('echo',), ObservableReplacingResource())
         self.add_resource(self.prefix + ('notreally',), ObserveLateUnbloomer())
         self.add_resource(self.prefix + ('failure',), ObservableFailure())
@@ -88,8 +93,6 @@ class NestedSite(aiocoap.resource.Site):
         self.subsite = ObserveTestingSite()
 
         self.add_resource(('deep',), self.subsite)
-
-    counter = property(lambda self: self.subsite.counter)
 
 class UnnestedSite(ObserveTestingSite):
     prefix = ('deep',)
@@ -142,6 +145,12 @@ class TestObserve(WithObserveTestServer, WithClient):
         yieldfrom(asyncio.sleep(0.1))
         self.assertEqual(str(observation_results), '[NotObservable()]')
 
+    @asyncio.coroutine
+    def _increment(self):
+        request = aiocoap.Message(code=aiocoap.POST, uri_path=('deep', 'count'))
+        request.unresolved_remote = self.servernetloc
+        yield from self.client.request(request).response_raising
+
     @no_warnings
     def test_counter(self):
         yieldfrom = self.loop.run_until_complete
@@ -152,11 +161,11 @@ class TestObserve(WithObserveTestServer, WithClient):
         self.assertEqual(response.code, aiocoap.CONTENT, "Observe base request did not succede")
         self.assertEqual(response.payload, b'0', "Observe base request gave unexpected result")
 
-        self.testingsite.counter.increment()
+        yieldfrom(self._increment())
         yieldfrom(asyncio.sleep(0.1))
         self.assertEqual(observation_results, [b'1'])
 
-        self.testingsite.counter.increment()
+        yieldfrom(self._increment())
         yieldfrom(asyncio.sleep(0.1))
         self.assertEqual(observation_results, [b'1', b'2'])
 
