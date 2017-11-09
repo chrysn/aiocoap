@@ -29,12 +29,17 @@ class ProtectedRequester(interfaces.RequestProvider):
         self._wire = underlying_requester
         self._prefixes = {}
 
+        import logging
+        self.log = logging.getLogger('protected-requester')
+        self.exchange_monitor_factory = lambda message: None
+
     def set_uri_prefix_context(self, prefix, security_context):
         """Use the given security context for all URIs starting with the
         prefix"""
         self._prefixes[prefix] = security_context
 
-    def request(self, request_message):
+    def request(self, request_message, handle_blockwise=True, exchange_monitor_factory=lambda message:None):
+        # "handle_blockwise" means inner blockwise here
         uri = request_message.get_request_uri()
         for (prefix, context) in sorted(self._prefixes.items(), reverse=True):
             if uri.startswith(prefix):
@@ -43,7 +48,10 @@ class ProtectedRequester(interfaces.RequestProvider):
         else:
             raise KeyError("No suitable security context found.")
 
-        return self.Request(self._wire, security_context, request_message)
+        if handle_blockwise:
+            return protocol.BlockwiseRequest(self, request_message)
+        else:
+            return self.Request(self._wire, security_context, request_message)
 
     class Request(interfaces.Request):
         def __init__(self, wire, security_context, request_message):
@@ -274,6 +282,23 @@ class PlugtestClientProgram:
         else:
             print("Failed: the validation passed.")
             print("Unprotected response:", unprotected_response)
+
+    # unofficial blockwise tests start here
+
+    @__implements_tests([16, 17])
+    async def test_block2(self):
+        #request = Message(code=GET, uri='coap://' + self.host + '/block/' + {16: 'outer', 17: 'inner'}[self.testno])
+        request = Message(code=GET, uri='coap://' + self.host + '/LargeResource')
+
+        expected = {'content_format': 0}
+        unprotected_response = await self.protected_ctx.request(request, handle_blockwise=True).response
+        if self.testno == 17:
+            # the library should probably strip that
+            expected['block2'] = optiontypes.BlockOption.BlockwiseTuple(block_number=1, more=False, size_exponent=6)
+
+        print("Unprotected response:", unprotected_response)
+        additional_verify("Code as expected", unprotected_response.code, CONTENT)
+        additional_verify("Options as expected", unprotected_response.opt, Message(**expected).opt)
 
 if __name__ == "__main__":
     PlugtestClientProgram.sync_run()

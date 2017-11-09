@@ -114,6 +114,36 @@ class DeleteResource(resource.Resource):
         additional_verify("Request options empty as expected", aiocoap.Message().opt, request.opt)
         return aiocoap.Message(code=aiocoap.DELETED)
 
+class BlockResource(PlugtestResource):
+    expected_options = {}
+    options = {'content_format': 0}
+
+    message = "This is a large resource\n" + "0123456789" * 101
+
+class InnerBlockMixin:
+    # this might become general enough that it could replace response blockwise
+    # handler some day -- right now, i'm only doing the absolute minimum
+    # necessary to satisfy the use case
+
+    inner_default_szx = aiocoap.DEFAULT_BLOCK_SIZE_EXP
+
+    async def render(self, request):
+        response = await super().render(request)
+
+        if request.opt.block2 is None:
+            szx = self.inner_default_szx
+            blockno = 0
+        else:
+            szx = request.opt.block2.size_exponent
+            blockno = request.opt.block2.block_number
+
+        # FIXME this default needs to move *some*where
+        if response.code is None:
+            response.code = aiocoap.CONTENT
+        return response._extract_block(blockno, szx)
+
+class InnerBlockResource(InnerBlockMixin, BlockResource):
+    pass
 
 class SeqnoManager(resource.ObservableResource):
     def __init__(self, contexts):
@@ -337,6 +367,9 @@ class PlugtestSite(ProtectedSite):
         self.add_protected_resource(('hello', '6'), Hello6())
         self.add_protected_resource(('hello', '7'), Hello7())
         self.add_protected_resource(('test',), DeleteResource())
+
+        self.add_protected_resource(('block', 'outer'), BlockResource())
+        self.add_protected_resource(('block', 'inner'), InnerBlockResource())
 
         self.add_resource(('sequence-numbers',), SeqnoManager(self.contexts))
 
