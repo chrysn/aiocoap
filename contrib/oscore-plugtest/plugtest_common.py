@@ -24,7 +24,7 @@ def get_security_context(testno, role, persist=None):
     # from this data
     if role == 'client':
         if testno == 10:
-            settingsdata['client-sender-id_hex'] += '0000'
+            settingsdata['client-sender-id_hex'] += '00'
 
     with open(os.path.join(contextcopy, 'settings.json'), 'w') as out:
         json.dump(settingsdata, out)
