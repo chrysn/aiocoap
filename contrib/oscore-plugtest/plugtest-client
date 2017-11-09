@@ -117,7 +117,11 @@ class PlugtestClientProgram:
         self.protected_ctx = ProtectedRequester(self.ctx)
         self.protected_ctx.set_uri_prefix_context("coap://%s" % self.host, self.regular_context)
 
-        await self.run_test(opts.testno)
+        try:
+            await self.run_test(opts.testno)
+        except oscore.NotAProtectedMessage as e:
+            print("Response carried no Object-Security option, but was: %s %s"%(e.plain_message, e.plain_message.payload))
+            raise
 
     @classmethod
     def sync_run(cls):
