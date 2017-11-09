@@ -563,11 +563,13 @@ class Context(interfaces.RequestProvider):
                 from .transports.simple6 import TransportEndpointSimple6
                 self.transport_endpoints.append((yield from TransportEndpointSimple6.create_client_transport_endpoint(self._dispatch_message, self._dispatch_error, log=self.log, loop=loop)))
                 # FIXME warn if dump_to is not None
-            elif transportname == 'tinydtls':
-                from .transports.tinydtls import TransportEndpointTinyDTLS
-
-                self.transport_endpoints.append((yield from TransportEndpointTinyDTLS.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
             # FIXME end duplication
+            elif transportname == 'tinydtls':
+                pass
+#                 from .transports.tinydtls_server import TransportEndpointTinyDTLSServer
+# 
+#                 self.transport_endpoints.append((yield from TransportEndpointTinyDTLSServer.create_server(bind, new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop)))
+#                 # FIXME dump_to not implemented
             elif transportname == 'simplesocketserver':
                 # FIXME dump_to not implemented
                 from .transports.simplesocketserver import TransportEndpointSimpleServer
@@ -1359,7 +1361,7 @@ class Responder(object):
             self._serverobservation = old_observation
             return
 
-        if request.code == GET and request.opt.observe == 0 and hasattr(self.protocol.serversite, "add_observation"):
+        if request.code in (GET, FETCH) and request.opt.observe == 0 and hasattr(self.protocol.serversite, "add_observation"):
             sobs = ServerObservation(self.protocol, request, self.log)
             yield from self.protocol.serversite.add_observation(request, sobs)
             if sobs.accepted:

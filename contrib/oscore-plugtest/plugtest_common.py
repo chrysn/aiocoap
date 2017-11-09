@@ -4,7 +4,7 @@ import json
 
 import cbor
 
-from aiocoap import oscoap
+from aiocoap import oscore
 
 contextdir = os.path.dirname(__file__) + '/common-context/'
 
@@ -24,7 +24,7 @@ def get_security_context(testno, role, persist=None):
     # from this data
     if role == 'client':
         if testno == 10:
-            settingsdata['client-sender-id_hex'] += '0000'
+            settingsdata['client-sender-id_hex'] += '00'
 
     with open(os.path.join(contextcopy, 'settings.json'), 'w') as out:
         json.dump(settingsdata, out)
@@ -39,7 +39,7 @@ def get_security_context(testno, role, persist=None):
             json.dump(sequence, out)
 
     print("Temporary context with seqno %d copied to %s"%(testno, contextcopy))
-    secctx = oscoap.FilesystemSecurityContext(contextcopy, role=role)
+    secctx = oscore.FilesystemSecurityContext(contextcopy, role=role)
 
     # this needs to be messed with late, as it is not explicit in the context
     # files

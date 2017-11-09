@@ -69,7 +69,7 @@ DTLS_CLOCK_OFFSET = time.time()
 
 class DTLSSecurityStore:
     def _get_psk(self, host, port):
-        return b"Client_identity", b"secretPSK"
+        return b"", b"LzoiYMmZdKg4huCC"
 
 class DTLSClientConnection(interfaces.EndpointAddress):
     # for now i'd assyme the connection can double as an address. this means it

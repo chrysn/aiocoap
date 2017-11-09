@@ -8,7 +8,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""A server suitable for running the OSCOAP plug test series against it
+"""A server suitable for running the OSCORE plug test series against it
 
 See https://github.com/EricssonResearch/OSCOAP for the test suite
 description."""
@@ -19,16 +19,16 @@ import logging
 import argparse
 
 import aiocoap
-import aiocoap.oscoap as oscoap
+import aiocoap.oscore as oscore
 import aiocoap.error as error
 from aiocoap.util.cli import AsyncCLIDaemon
 import aiocoap.resource as resource
 
 from plugtest_common import *
 
-class PleaseUseOscoap(error.ConstructionRenderableError):
+class PleaseUseOscore(error.ConstructionRenderableError):
     code = aiocoap.UNAUTHORIZED
-    message = "This is an OSCOAP plugtest, please use option %d"%aiocoap.numbers.optionnumbers.OptionNumber.OBJECT_SECURITY
+    message = "This is an OSCORE plugtest, please use option %d"%aiocoap.numbers.optionnumbers.OptionNumber.OBJECT_SECURITY
 
 
 class PlugtestResource(resource.Resource):
@@ -114,6 +114,36 @@ class DeleteResource(resource.Resource):
         additional_verify("Request options empty as expected", aiocoap.Message().opt, request.opt)
         return aiocoap.Message(code=aiocoap.DELETED)
 
+class BlockResource(PlugtestResource):
+    expected_options = {}
+    options = {'content_format': 0}
+
+    message = "This is a large resource\n" + "0123456789" * 101
+
+class InnerBlockMixin:
+    # this might become general enough that it could replace response blockwise
+    # handler some day -- right now, i'm only doing the absolute minimum
+    # necessary to satisfy the use case
+
+    inner_default_szx = aiocoap.DEFAULT_BLOCK_SIZE_EXP
+
+    async def render(self, request):
+        response = await super().render(request)
+
+        if request.opt.block2 is None:
+            szx = self.inner_default_szx
+            blockno = 0
+        else:
+            szx = request.opt.block2.size_exponent
+            blockno = request.opt.block2.block_number
+
+        # FIXME this default needs to move *some*where
+        if response.code is None:
+            response.code = aiocoap.CONTENT
+        return response._extract_block(blockno, szx)
+
+class InnerBlockResource(InnerBlockMixin, BlockResource):
+    pass
 
 class SeqnoManager(resource.ObservableResource):
     def __init__(self, contexts):
@@ -148,12 +178,12 @@ class SeqnoManager(resource.ObservableResource):
         return aiocoap.Message(code=aiocoap.CHANGED)
 
 class ProtectedSite(resource.Site):
-    """A site that requires OSCOAP protection for resources added with the
+    """A site that requires OSCORE protection for resources added with the
     :meth:`add_protected_resource` method.
 
     All resources will be shown in :meth:`get_resources_as_linkheader`."""
 
-    def __init__(self, *, contexts=[], loggername="oscoap-site"):
+    def __init__(self, *, contexts=[], loggername="oscore-site"):
         super().__init__();
         self.log = logging.getLogger(loggername)
 
@@ -186,7 +216,7 @@ class ProtectedSite(resource.Site):
         # request will always return an unsuccessful code -- but i'm not 100%
         # sure.
 
-        class OSCOAPObservation:
+        class OSCOREObservation:
             def __init__(self, serverobservation):
                 self._serverobservation = serverobservation
                 self._original_response_context = None
@@ -208,7 +238,7 @@ class ProtectedSite(resource.Site):
                     self._canceller()
 
                 if not coming_from_transport:
-                    self._serverobservation.deregister("OSCOAP resource said: " + reason)
+                    self._serverobservation.deregister("OSCORE resource said: " + reason)
 
             def accept(self, canceller):
                 if self._cancelled:
@@ -224,16 +254,16 @@ class ProtectedSite(resource.Site):
                 if response is None:
                     self._serverobservation.trigger(aiocoap.Message(code=aiocoap.INTERNAL_SERVER_ERROR))
                     # the original request won't be decoded any more, and
-                    # OSCOAPObservation is not integrated deeply enough to
+                    # OSCOREObservation is not integrated deeply enough to
                     # store the decoded request
-                    raise ValueError("Can not use empty triggering with OSCOAP")
+                    raise ValueError("Can not use empty triggering with OSCORE")
 
-                protected, _ = self._original_response_context.protect(response, self._original_request_seqno, can_use_bitflip=False)
+                protected, _ = self._original_response_context.protect(response, self._original_request_seqno, can_reuse_partiv=False)
 
                 self._serverobservation.trigger(protected)
 
         if request.opt.object_security is not None:
-            oscobs = OSCOAPObservation(serverobservation)
+            oscobs = OSCOREObservation(serverobservation)
 
             assert self.__stored_serverobservation is None
             self.__stored_serverobservation = (request, oscobs)
@@ -247,8 +277,8 @@ class ProtectedSite(resource.Site):
             self.__stored_serverobservation = None
 
         try:
-            recipient_id = oscoap.verify_start(request)
-        except oscoap.NotAProtectedMessage:
+            recipient_id = oscore.verify_start(request)
+        except oscore.NotAProtectedMessage:
             try:
                 return await super().render(request)
             except error.NotFound:
@@ -256,7 +286,7 @@ class ProtectedSite(resource.Site):
                 # nonprotected resources, to ensure that information about
                 # resources' existence is not leaked if they hide from the
                 # .well-known/core.
-                raise PleaseUseOscoap()
+                raise PleaseUseOscore()
 
         try:
             sc = self.contexts[recipient_id]
@@ -268,17 +298,17 @@ class ProtectedSite(resource.Site):
 
         try:
             unprotected, seqno = sc.unprotect(request)
-        except oscoap.ReplayError:
+        except oscore.ReplayError:
             if request.mtype == aiocoap.CON:
                 raise error.BadRequest("Replay protection failed")
             else:
                 return aiocoap.message.NoResponse
-        except oscoap.DecodeError:
+        except oscore.DecodeError:
             if request.mtype == aiocoap.CON:
                 raise error.BadOption("Failed to decode COSE")
             else:
                 return aiocoap.message.NoResponse
-        except oscoap.ProtectionInvalid as e:
+        except oscore.ProtectionInvalid as e:
             if request.mtype == aiocoap.CON:
                 raise error.BadRequest("Decryption failed")
             else:
@@ -291,7 +321,7 @@ class ProtectedSite(resource.Site):
             if not oscobs._accepted:
                 await self._inner_site.add_observation(unprotected, oscobs)
             if not oscobs._accepted:
-                oscobs.deregister("OSCOAP resource does not provide observation")
+                oscobs.deregister("OSCORE resource does not provide observation")
             else:
                 oscobs._original_response_context = sc
                 oscobs._original_request_seqno = seqno
@@ -314,6 +344,10 @@ class ProtectedSite(resource.Site):
         if response.code is None:
             # FIXME: this duplicates the default setting in aiocoap.protocol
             response.code = aiocoap.CONTENT
+
+        if unprotected.opt.observe is not None and oscobs._accepted:
+            # value won't be transmitted anyway, but protecter needs to know
+            response.opt.observe = 0
 
         self.log.debug("Will encrypt message as response: %s", response)
 
@@ -338,11 +372,14 @@ class PlugtestSite(ProtectedSite):
         self.add_protected_resource(('hello', '7'), Hello7())
         self.add_protected_resource(('test',), DeleteResource())
 
+        self.add_protected_resource(('block', 'outer'), BlockResource())
+        self.add_protected_resource(('block', 'inner'), InnerBlockResource())
+
         self.add_resource(('sequence-numbers',), SeqnoManager(self.contexts))
 
 class PlugtestServerProgram(AsyncCLIDaemon):
     async def start(self):
-        p = argparse.ArgumentParser(description="Server for the OSCOAP plug test. Requires a test number to be present.")
+        p = argparse.ArgumentParser(description="Server for the OSCORE plug test. Requires a test number to be present.")
         p.add_argument("contextdir", nargs="?", help="Directory name where to persist sequence numbers")
         p.add_argument('--verbose', help="Increase log level", action='store_true')
         p.add_argument('--server-address', help="Address to bind to", metavar="HOST", default="::")

@@ -37,12 +37,12 @@ This library supports the following standards in full or partially:
   missing.
 * RFC7959_ (Blockwise): Multicast exceptions missing.
 * RFC7967_ (No-Response): Basic support, but not automated in library
-* RFC8132_ (PATCH/FETCH): Types and codes known (rest is up to the application)
+* RFC8132_ (PATCH/FETCH): Types and codes known, FETCH observation supported
 * draft-ietf-core-resource-directory_: A standalone resource directory
   server is provided along with a library function to register at one. They
   lack support for groups, PATCHes to endpoint locations and security
   considerations, and are generally rather simplistic.
-* draft-ietf-core-object-security-02_ (OSCOAP): Infrastructure for supporting
+* draft-ietf-core-object-security-06_ (OSCORE, formerly OSCOAP): Infrastructure for supporting
   it is in place (lacking observe and inner-blockwise support), but no simple
   way exists yet for launching protected servers or requests yet.
 
@@ -56,7 +56,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC7967: https://tools.ietf.org/html/rfc7967
 .. _RFC8132: https://tools.ietf.org/html/rfc8132
 .. _draft-ietf-core-resource-directory: https://tools.ietf.org/html/draft-ietf-core-resource-directory-12
-.. _draft-ietf-core-object-security-02: https://tools.ietf.org/html/draft-ietf-core-object-security-02
+.. _draft-ietf-core-object-security-06: https://tools.ietf.org/html/draft-ietf-core-object-security-06
 
 Dependencies
 ------------
@@ -70,7 +70,7 @@ their respective caveats.
 The examples_ require Python 3.5 as they use newer syntax.
 
 Some components (eg. servers that should auto-generate ``.well-known/core``
-resources, OSCOAP, DTLS) require additional packages to be present; they are
+resources, OSCORE, DTLS) require additional packages to be present; they are
 automatically installed when following the installation_ instructions. For
 slimmer systems, see ``setup.py`` for the definition of the "extras".
 
