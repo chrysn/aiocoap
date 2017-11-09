@@ -345,6 +345,10 @@ class ProtectedSite(resource.Site):
             # FIXME: this duplicates the default setting in aiocoap.protocol
             response.code = aiocoap.CONTENT
 
+        if unprotected.opt.observe is not None and oscobs._accepted:
+            # value won't be transmitted anyway, but protecter needs to know
+            response.opt.observe = 0
+
         self.log.debug("Will encrypt message as response: %s", response)
 
         protected_response, _ = sc.protect(response, seqno)

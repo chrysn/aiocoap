@@ -159,9 +159,9 @@ class SecurityContext:
             inner_message = message.copy()
 
             if message.opt.observe is None:
-                outer_code = CONTENT
+                outer_code = CHANGED
             else:
-                outer_code = UPDATED
+                outer_code = CONTENT
 
         outer_message = Message(code=outer_code, uri=outer_uri,
                 observe=None if message.code.is_response() else message.opt.observe,
@@ -233,7 +233,7 @@ class SecurityContext:
 
         outer_message, inner_message = self._split_message(message)
 
-        if request_data is None or not can_reuse_partiv:
+        if request_data is None or not can_reuse_partiv or message.opt.observe is not None:
             nonce, partial_iv_short = self._build_new_nonce()
 
             unprotected = {
