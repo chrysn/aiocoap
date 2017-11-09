@@ -6,7 +6,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module contains the tools to send OSCOAP secured messages.
+"""This module contains the tools to send OSCORE secured messages.
 
 (Work in progress.)"""
 
@@ -30,20 +30,20 @@ import cbor
 USE_COMPRESSION = True
 
 class NotAProtectedMessage(ValueError):
-    """Raised when verification is attempted on a non-OSCOAP message"""
+    """Raised when verification is attempted on a non-OSCORE message"""
 
     def __init__(self, message, plain_message):
         super().__init__(message)
         self.plain_message = plain_message
 
 class ProtectionInvalid(ValueError):
-    """Raised when verification of an OSCOAP message fails"""
+    """Raised when verification of an OSCORE message fails"""
 
 class DecodeError(ProtectionInvalid):
-    """Raised when verification of an OSCOAP message fails because CBOR or compressed data were erroneous"""
+    """Raised when verification of an OSCORE message fails because CBOR or compressed data were erroneous"""
 
 class ReplayError(ProtectionInvalid):
-    """Raised when verification of an OSCOAP message fails because the sequence numbers was already used"""
+    """Raised when verification of an OSCORE message fails because the sequence numbers was already used"""
 
 def _xor_bytes(a, b):
     assert len(a) == len(b)
@@ -229,16 +229,16 @@ class SecurityContext:
                 else:
                     kid_data = b""
 
-                oscoap_data = bytes([firstbyte]) + piv + kid_data + ciphertext + tag
+                oscore_data = bytes([firstbyte]) + piv + kid_data + ciphertext + tag
         else:
             cose_encrypt0 = [protected_serialized, unprotected, ciphertext + tag]
-            oscoap_data = cbor.dumps(cose_encrypt0)
+            oscore_data = cbor.dumps(cose_encrypt0)
 
         if inner_message.code.can_have_payload():
             outer_message.opt.object_security = b''
-            outer_message.payload = oscoap_data
+            outer_message.payload = oscore_data
         else:
-            outer_message.opt.object_security = oscoap_data
+            outer_message.opt.object_security = oscore_data
 
         # FIXME go through options section
         return outer_message, (request_kid, request_partiv)

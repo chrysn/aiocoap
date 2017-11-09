@@ -30,7 +30,7 @@
    module/aiocoap.util.secrets
    module/aiocoap.cli
 
-   module/aiocoap.oscoap
+   module/aiocoap.oscore
 
    examples
    tools
