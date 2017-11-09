@@ -37,7 +37,7 @@ This library supports the following standards in full or partially:
   missing.
 * RFC7959_ (Blockwise): Multicast exceptions missing.
 * RFC7967_ (No-Response): Basic support, but not automated in library
-* RFC8132_ (PATCH/FETCH): Types and codes known (rest is up to the application)
+* RFC8132_ (PATCH/FETCH): Types and codes known, FETCH observation supported
 * draft-ietf-core-resource-directory_: A standalone resource directory
   server is provided along with a library function to register at one. They
   lack support for groups, PATCHes to endpoint locations and security

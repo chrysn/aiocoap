@@ -1361,7 +1361,7 @@ class Responder(object):
             self._serverobservation = old_observation
             return
 
-        if request.code == GET and request.opt.observe == 0 and hasattr(self.protocol.serversite, "add_observation"):
+        if request.code in (GET, FETCH) and request.opt.observe == 0 and hasattr(self.protocol.serversite, "add_observation"):
             sobs = ServerObservation(self.protocol, request, self.log)
             yield from self.protocol.serversite.add_observation(request, sobs)
             if sobs.accepted:
