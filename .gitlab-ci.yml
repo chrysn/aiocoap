@@ -6,7 +6,7 @@
 test:3.6:
   image: "python:3.6-stretch"
   script:
-    - echo "Using cache: "; ls .eggs/
+    - echo Using cache:; ls .eggs/
     - rm -f .coverage* collected-coverage/3.6/
     - pip3 install coverage
     - pip3 install cython
