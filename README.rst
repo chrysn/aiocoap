@@ -74,6 +74,11 @@ resources, OSCORE, DTLS) require additional packages to be present; they are
 automatically installed when following the installation_ instructions. For
 slimmer systems, see ``setup.py`` for the definition of the "extras".
 
+Developers of projects building on aiocoap should specify the required extras
+in their own dependency statements. For example, an application that provides a
+server with a ``.well-known/core`` file and OSCORE will want to depend on
+``aiocoap[linkheader,oscore] >= 0.4a1``.
+
 .. _Python: https://www.python.org/
 .. _`platform issues`: https://github.com/chrysn/aiocoap/issues?q=is%3Aissue+is%3Aopen+label%3A%22platform+support%22
 .. _server: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.simpleserversocket.html
