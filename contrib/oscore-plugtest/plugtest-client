@@ -192,8 +192,18 @@ class PlugtestClientProgram:
         additional_verify("Code as expected", unprotected_response.code, CONTENT)
         additional_verify("Observe option present", unprotected_response.opt.observe is not None, True)
 
+        payloads = []
+
         async for o in request.observation:
+            payloads.append(o.payload)
             print("Verify: Received message", o, o.payload)
+
+        if not payloads:
+            print("Failed: Observation ended with no notifications.")
+
+        if b'Zwei' in payloads:
+            # be more strict: this is our own test server that should give exactly 5 responses
+            additional_verify("Own server gave the expected responses", payloads, [b'Zwei', b'Drei', b'und aus!', b'server is bored with client'])
 
     @__implements_tests([6])
     async def test_post(self):
