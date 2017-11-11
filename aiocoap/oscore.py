@@ -178,7 +178,7 @@ class SecurityContext:
 
         partial_iv = seqno.to_bytes(5, 'big')
 
-        return (self._construct_nonce(partial_iv, self.sender_id), partial_iv.lstrip(b'\0')) or b'\0'
+        return (self._construct_nonce(partial_iv, self.sender_id), partial_iv.lstrip(b'\0') or b'\0')
 
     def _construct_nonce(self, partial_iv_short, piv_generator_id):
         partial_iv = b"\0" * (5 - len(partial_iv_short)) + partial_iv_short
