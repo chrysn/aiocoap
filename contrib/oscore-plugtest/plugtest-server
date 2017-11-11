@@ -300,7 +300,7 @@ class ProtectedSite(resource.Site):
             unprotected, seqno = sc.unprotect(request)
         except oscore.ReplayError:
             if request.mtype == aiocoap.CON:
-                raise error.BadRequest("Replay protection failed")
+                return aiocoap.Message(code=aiocoap.SERVICE_UNAVAILABLE, max_age=0, payload=b"Replay protection failed")
             else:
                 return aiocoap.message.NoResponse
         except oscore.DecodeError:
