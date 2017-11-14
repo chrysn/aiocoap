@@ -258,6 +258,19 @@ class ProtectedSite(resource.Site):
                     # store the decoded request
                     raise ValueError("Can not use empty triggering with OSCORE")
 
+                # FIXME this is duplciated from ServerObservation.trigger, and
+                # Responder.handle_observe_response
+                if response.code in (aiocoap.VALID, aiocoap.CONTENT):
+                    # value won't be transmitted anyway, but protecter needs to know
+                    response.opt.observe = 0
+                    # FIXME that the absence of .opt.observe triggers a
+                    # server-side shutdown of the underlying observation is
+                    # only because it influences the code from Content to
+                    # Changed, which is not fully specified (and should not
+                    # matter protocol-wise); the "observations done right"
+                    # refactoring should change that anyway.
+                # else, the absence of the observe option will cancel the lower-level observation
+
                 protected, _ = self._original_response_context.protect(response, self._original_request_seqno, can_reuse_partiv=False)
 
                 self._serverobservation.trigger(protected)
@@ -300,7 +313,7 @@ class ProtectedSite(resource.Site):
             unprotected, seqno = sc.unprotect(request)
         except oscore.ReplayError:
             if request.mtype == aiocoap.CON:
-                raise error.BadRequest("Replay protection failed")
+                return aiocoap.Message(code=aiocoap.SERVICE_UNAVAILABLE, max_age=0, payload=b"Replay protection failed")
             else:
                 return aiocoap.message.NoResponse
         except oscore.DecodeError:
