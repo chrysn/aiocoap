@@ -563,13 +563,11 @@ class Context(interfaces.RequestProvider):
                 from .transports.simple6 import TransportEndpointSimple6
                 self.transport_endpoints.append((yield from TransportEndpointSimple6.create_client_transport_endpoint(self._dispatch_message, self._dispatch_error, log=self.log, loop=loop)))
                 # FIXME warn if dump_to is not None
-            # FIXME end duplication
             elif transportname == 'tinydtls':
-                pass
-#                 from .transports.tinydtls_server import TransportEndpointTinyDTLSServer
-# 
-#                 self.transport_endpoints.append((yield from TransportEndpointTinyDTLSServer.create_server(bind, new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop)))
-#                 # FIXME dump_to not implemented
+                from .transports.tinydtls import TransportEndpointTinyDTLS
+
+                self.transport_endpoints.append((yield from TransportEndpointTinyDTLS.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
+            # FIXME end duplication
             elif transportname == 'simplesocketserver':
                 # FIXME dump_to not implemented
                 from .transports.simplesocketserver import TransportEndpointSimpleServer
