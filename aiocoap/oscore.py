@@ -20,7 +20,7 @@ import abc
 
 from aiocoap.message import Message
 from aiocoap.util import secrets
-from aiocoap.numbers import POST, FETCH, CHANGED, CONTENT
+from aiocoap.numbers import POST, FETCH, CHANGED
 
 from cryptography.hazmat.primitives.ciphers.aead import AESCCM
 import cryptography.exceptions
@@ -158,10 +158,7 @@ class SecurityContext:
 
             inner_message = message.copy()
 
-            if message.opt.observe is None:
-                outer_code = CHANGED
-            else:
-                outer_code = CONTENT
+            outer_code = CHANGED
 
         outer_message = Message(code=outer_code, uri=outer_uri,
                 observe=None if message.code.is_response() else message.opt.observe,
@@ -371,8 +368,8 @@ class SecurityContext:
             s = tail[0]
             if len(tail) - 1 < s:
                 raise DecodeError("Context hint announced but not present")
-            # discarded, see @@@
-            context_hint = tail[1:s+1]
+            kidctx = 'FIXME' # number to be assigned
+            unprotected[kidctx] = tail[1:s+1]
             tail = tail[s+1:]
 
         if firstbyte & 0b00001000:
