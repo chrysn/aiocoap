@@ -40,7 +40,6 @@ class AsyncCLIDaemon:
     def sync_main(cls, *args, **kwargs):
         """Run the application in an AsyncIO main loop, shutting down cleanly
         on keyboard interrupt."""
-        logging.basicConfig(level=logging.DEBUG)
         loop = asyncio.get_event_loop()
         main = cls(*args, **kwargs)
         try:

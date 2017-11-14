@@ -6,7 +6,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module contains the tools to send OSCOAP secured messages.
+"""This module contains the tools to send OSCORE secured messages.
 
 (Work in progress.)"""
 
@@ -20,6 +20,7 @@ import abc
 
 from aiocoap.message import Message
 from aiocoap.util import secrets
+from aiocoap.numbers import POST, FETCH, CHANGED
 
 from cryptography.hazmat.primitives.ciphers.aead import AESCCM
 import cryptography.exceptions
@@ -28,37 +29,29 @@ import hkdf
 import cbor
 
 USE_COMPRESSION = True
+MAX_SEQNO = 2**40 - 1
 
 class NotAProtectedMessage(ValueError):
-    """Raised when verification is attempted on a non-OSCOAP message"""
+    """Raised when verification is attempted on a non-OSCORE message"""
 
     def __init__(self, message, plain_message):
         super().__init__(message)
         self.plain_message = plain_message
 
 class ProtectionInvalid(ValueError):
-    """Raised when verification of an OSCOAP message fails"""
+    """Raised when verification of an OSCORE message fails"""
 
 class DecodeError(ProtectionInvalid):
-    """Raised when verification of an OSCOAP message fails because CBOR or compressed data were erroneous"""
+    """Raised when verification of an OSCORE message fails because CBOR or compressed data were erroneous"""
 
 class ReplayError(ProtectionInvalid):
-    """Raised when verification of an OSCOAP message fails because the sequence numbers was already used"""
+    """Raised when verification of an OSCORE message fails because the sequence numbers was already used"""
 
 def _xor_bytes(a, b):
     assert len(a) == len(b)
     # FIXME is this an efficient thing to do, or should we store everything
     # that possibly needs xor'ing as long integers with an associated length?
     return bytes(_a ^ _b for (_a, _b) in zip(a, b))
-
-def _flip_first_bit(a):
-    """Flip the first bit in a hex string"""
-    return _xor_bytes(a, b"\x80" + b"\x00" * (len(a) - 1))
-
-def _pad_iv(algorithm, short_partial):
-    """Return the short_partial abbreviated version of a Partial IV and return
-    the full Partial IV"""
-    return b"\0" * (algorithm.iv_bytes - len(short_partial)) + short_partial
 
 class Algorithm(metaclass=abc.ABCMeta):
     @abc.abstractmethod
@@ -85,16 +78,22 @@ class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
         except cryptography.exceptions.InvalidTag:
             raise ProtectionInvalid("Tag invalid")
 
-    max_seqno = property(lambda self: 2**(min(8 * self.iv_bytes, 56) - 1) - 1)
-
 class AES_CCM_64_64_128(AES_CCM):
-    # from draft-ietf-cose-msg-24 and draft-ietf-core-object-security 3.2.1
+    # from RFC8152 and draft-ietf-core-object-security-0[012] 3.2.1
     value = 12
     key_bytes = 16 # 128 bit, the 'k' column
     iv_bytes = 7 # 56 bit nonce. Implies the 64bit (8 bytes = 15 - 7) in the 'L' column
     tag_bytes = 8 # 64 bit tag, the 'M' column
 
+class AES_CCM_16_64_128(AES_CCM):
+    # from RFC8152
+    value = 10
+    key_bytes = 16 # 128 bit, the 'k' column
+    iv_bytes = 13 # from L=16 column: 15 - L/8 = 13, and the description
+    tag_bytes = 8 # 64 bit tag, the 'M' column
+
 algorithms = {
+        'AES-CCM-16-64-128': AES_CCM_16_64_128(),
         'AES-CCM-64-64-128': AES_CCM_64_64_128(),
         }
 
@@ -103,27 +102,24 @@ hashfunctions = {
         }
 
 class SecurityContext:
-    # FIXME: protcol
+    # FIXME: define an interface for that
 
     # message processing
 
-    def _extract_external_aad(self, message, request_kid, request_seq):
+    def _extract_external_aad(self, message, request_kid, request_piv):
         # If any option were actually Class I, it would be something like
         #
-        # class_i_options = Message(observe=message.opt.observe).opt.encode()
-        #
-        # (but Observe is in proper Class I neither in requests nor in
-        # responses)
+        # class_i_options = Message(the_options).opt.encode()
 
+        version = 1
         class_i_options = b""
 
         external_aad = [
-                1, # ver
-                message.code,
-                class_i_options,
+                version,
                 self.algorithm.value,
                 request_kid,
-                request_seq
+                request_piv,
+                class_i_options,
                 ]
 
         external_aad = cbor.dumps(external_aad)
@@ -135,47 +131,107 @@ class SecurityContext:
         all Class I and Class U options (but without payload or Object-Security
         option), and a proto-inner message that contains all Class E options."""
 
-
-        # not trying to preserve token or mid, they're up to the transport
-        outer_message = Message(code=message.code)
         inner_message = message.copy()
 
-        if inner_message.code.is_request():
-            protected_uri = inner_message.get_request_uri()
+        if message.code.is_request():
+            outer_uri = message.get_request_uri()
 
-            if protected_uri.count('/') >= 3:
-                protected_uri = protected_uri[:protected_uri.index('/', protected_uri.index('/', protected_uri.index('/') + 1) + 1)]
-            outer_message.set_request_uri(protected_uri)
+            if outer_uri.count('/') >= 3:
+                outer_uri = outer_uri[:outer_uri.index('/', outer_uri.index('/', outer_uri.index('/') + 1) + 1)]
 
-            if inner_message.opt.proxy_uri:
-                # pack them into the separatable fields ... hopefully (FIXME
-                # use a set_request_uri that *never* uses Proxy-Uri)
-                inner_message.set_request_uri(protected_uri)
+            inner_message = message.copy(
+                    # explicitly passing the .uri so that it gets split up;
+                    # FIXME make sure it always is, even in exotic schemes
+                    uri=message.get_request_uri(),
+                    uri_host=None,
+                    uri_port=None,
+                    proxy_uri=None,
+                    proxy_scheme=None,
+                    )
 
-            inner_message.opt.uri_host = None
-            inner_message.opt.uri_port = None
-            inner_message.opt.proxy_uri = None
-            inner_message.opt.proxy_scheme = None
+            if message.opt.observe is None:
+                outer_code = POST
+            else:
+                outer_code = FETCH
+        else:
+            outer_uri = None
 
-        outer_message.opt.observe = inner_message.opt.observe
-        if inner_message.code.is_response():
-            inner_message.opt.observe = None
+            inner_message = message.copy()
+
+            outer_code = CHANGED
+
+        outer_message = Message(code=outer_code, uri=outer_uri,
+                observe=None if message.code.is_response() else message.opt.observe,
+                max_age=0 if message.code.is_response() and message.opt.observe is not None else None,
+                )
 
         return outer_message, inner_message
 
-    def protect(self, message, request_data=None, *, can_use_bitflip=True):
+    def _build_new_nonce(self):
+        """This implements generation of a new nonce, assembled as per Figure 5
+        of draft-ietf-core-object-security-06. Returns the shortened partial IV
+        as well."""
+        seqno = self.new_sequence_number()
+
+        partial_iv = seqno.to_bytes(5, 'big')
+
+        return (self._construct_nonce(partial_iv, self.sender_id), partial_iv.lstrip(b'\0') or b'\0')
+
+    def _construct_nonce(self, partial_iv_short, piv_generator_id):
+        partial_iv = b"\0" * (5 - len(partial_iv_short)) + partial_iv_short
+
+        s = bytes([len(piv_generator_id)])
+        pad = b'\0' * (self.algorithm.iv_bytes - 6 - len(piv_generator_id))
+
+        components = s + \
+                pad + \
+                piv_generator_id + \
+                partial_iv
+
+        nonce = _xor_bytes(self.common_iv, components)
+
+        return nonce
+
+    @staticmethod
+    def _compress(unprotected, protected):
+        """Pack the untagged COSE_Encrypt0 object described by the arguments
+        into two bytestrings suitable for the Object-Security option and the
+        message body"""
+
+        if protected:
+            raise RuntimeError("Protection produced a message that has uncompressable fields.")
+
+        if set(unprotected.keys()) - {4, 6}:
+            raise RuntimeError("Protection produced a message that has uncompressable fields.")
+
+        if 6 in unprotected:
+            piv = unprotected[6] or b""
+            if len(piv) > 0b111:
+                raise ValueError("Can't encode overly long partial IV")
+        else:
+            piv = b""
+
+        firstbyte = len(piv)
+        if 4 in unprotected:
+            firstbyte |= 0b1000
+            kid_data = unprotected[4]
+        else:
+            kid_data = b""
+
+        if firstbyte:
+            return bytes([firstbyte]) + piv + kid_data
+        else:
+            return b""
+
+    def protect(self, message, request_data=None, *, can_reuse_partiv=True):
         assert (request_data is None) == message.code.is_request()
         if request_data is not None:
-            request_kid, request_partiv = request_data
+            request_kid, request_partiv, request_nonce = request_data
 
         outer_message, inner_message = self._split_message(message)
 
-        if request_data is None or not can_use_bitflip:
-            seqno = self.new_sequence_number()
-
-            partial_iv = seqno.to_bytes(self.algorithm.iv_bytes, 'big')
-            partial_iv_short = partial_iv.lstrip(b'\0')
-            iv = _xor_bytes(self.sender_iv, partial_iv)
+        if request_data is None or not can_reuse_partiv or message.opt.observe is not None:
+            nonce, partial_iv_short = self._build_new_nonce()
 
             unprotected = {
                     6: partial_iv_short,
@@ -186,9 +242,9 @@ class SecurityContext:
 
                 request_kid = self.sender_id
                 request_partiv = partial_iv_short
+                request_nonce = nonce
         else:
-            partial_iv = _pad_iv(self.algorithm, request_partiv)
-            iv = _flip_first_bit(_xor_bytes(partial_iv, self.sender_iv))
+            nonce = request_nonce
             unprotected = {}
 
         protected = {}
@@ -199,56 +255,32 @@ class SecurityContext:
         aad = cbor.dumps(enc_structure)
         key = self.sender_key
 
-        plaintext = inner_message.opt.encode()
+        plaintext = bytes([inner_message.code]) + inner_message.opt.encode()
         if inner_message.payload:
             plaintext += bytes([0xFF])
             plaintext += inner_message.payload
 
 
-        ciphertext, tag = self.algorithm.encrypt(plaintext, aad, key, iv)
+        ciphertext, tag = self.algorithm.encrypt(plaintext, aad, key, nonce)
 
-        if USE_COMPRESSION:
-            if protected:
-                raise RuntimeError("Protection produced a message that has uncompressable fields.")
+        option_data = self._compress(unprotected, protected)
 
-            if set(unprotected.keys()) - {4, 6}:
-                raise RuntimeError("Protection produced a message that has uncompressable fields.")
-            else:
-                if 6 in unprotected:
-                    # or b"\0": FIXME is this explicit in the spec? this works
-                    # around the piv being treated as absent when decoded.
-                    piv = unprotected[6] or b"\0"
-                    if len(piv) > 0b111:
-                        raise ValueError("Can't encode overly long partial IV")
-                else:
-                    piv = b""
-                firstbyte = len(piv)
-                if 4 in unprotected:
-                    firstbyte |= 0b1000
-                    kid_data = bytes([len(unprotected[4])]) + unprotected[4]
-                else:
-                    kid_data = b""
-
-                oscoap_data = bytes([firstbyte]) + piv + kid_data + ciphertext + tag
-        else:
-            cose_encrypt0 = [protected_serialized, unprotected, ciphertext + tag]
-            oscoap_data = cbor.dumps(cose_encrypt0)
-
-        if inner_message.code.can_have_payload():
-            outer_message.opt.object_security = b''
-            outer_message.payload = oscoap_data
-        else:
-            outer_message.opt.object_security = oscoap_data
+        outer_message.opt.object_security = option_data
+        outer_message.payload = ciphertext + tag
 
         # FIXME go through options section
-        return outer_message, (request_kid, request_partiv)
+
+        # the request_data in the second argument should be discarded by the
+        # caller when protecting a response -- is that reason enough for an
+        # `if` and returning None?
+        return outer_message, (request_kid, request_partiv, request_nonce)
 
     def unprotect(self, protected_message, request_data=None):
         assert (request_data is not None) == protected_message.code.is_response()
         if request_data is not None:
-            request_kid, request_partiv = request_data
+            request_kid, request_partiv, request_nonce = request_data
 
-        protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message, is_request=request_data is None)
+        protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message)
 
         if protected:
             raise ProtectionInvalid("The protected field is not empty")
@@ -264,28 +296,28 @@ class SecurityContext:
         if 6 not in unprotected:
             if request_data is None:
                 raise ProtectonInvalid("No sequence number provided in request")
-            partial_iv = _pad_iv(self.algorithm, request_partiv)
-            iv = _flip_first_bit(_xor_bytes(partial_iv, self.recipient_iv))
+
+            nonce = request_nonce
             seqno = None # sentinel for not striking out anyting
         else:
             partial_iv_short = unprotected[6]
-
-            if request_data is None:
-                request_partiv = partial_iv_short
-                request_kid = self.recipient_id
 
             seqno = int.from_bytes(partial_iv_short, 'big')
 
             if not self.recipient_replay_window.is_valid(seqno):
                 raise ReplayError("Sequence number was re-used")
 
-            partial_iv = _pad_iv(self.algorithm, partial_iv_short)
-            iv = _xor_bytes(self.recipient_iv, partial_iv)
+            nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
+
+            if request_data is None: # ie. we're unprotecting a request
+                request_partiv = partial_iv_short
+                request_kid = self.recipient_id
+                request_nonce = nonce
 
         # FIXME is it an error for additional data to be present in unprotected?
 
-        if len(ciphertext) < self.algorithm.tag_bytes:
-            raise ProtectionInvalid("Ciphertext shorter than tag length")
+        if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0]
+            raise ProtectionInvalid("Ciphertext too short")
 
         tag = ciphertext[-self.algorithm.tag_bytes:]
         ciphertext = ciphertext[:-self.algorithm.tag_bytes]
@@ -293,82 +325,79 @@ class SecurityContext:
         enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_kid, request_partiv)]
         aad = cbor.dumps(enc_structure)
 
-        plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.recipient_key, iv)
+        plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.recipient_key, nonce)
 
         if seqno is not None:
             self.recipient_replay_window.strike_out(seqno)
 
         # FIXME add options from unprotected
 
-        unprotected_message = Message(code=protected_message.code)
-        unprotected_message.payload = unprotected_message.opt.decode(plaintext)
+        unprotected_message = Message(code=plaintext[0])
+        unprotected_message.payload = unprotected_message.opt.decode(plaintext[1:])
 
-        if unprotected_message.code.is_request:
+        if unprotected_message.code.is_request():
             unprotected_message.opt.observe = protected_message.opt.observe
         else:
             if protected_message.opt.observe is not None:
-                # is it really be as easy as that?
                 unprotected_message.opt.observe = seqno
 
-        return unprotected_message, (request_kid, request_partiv)
+        return unprotected_message, (request_kid, request_partiv, request_nonce)
+
+    @staticmethod
+    def _uncompress(option_data):
+        if option_data == b"":
+            firstbyte = 0
+        else:
+            firstbyte = option_data[0]
+            tail = option_data[1:]
+
+        unprotected = {}
+
+        if firstbyte & 0b11100000:
+            raise DecodeError("Protected data uses reserved fields")
+
+        pivsz = firstbyte & 0b111
+        if pivsz:
+            if len(tail) < pivsz:
+                raise DecodeError("Partial IV announced but not present")
+            unprotected[6] = tail[:pivsz]
+            tail = tail[pivsz:]
+
+        if firstbyte & 0b00010000:
+            # context hint
+            s = tail[0]
+            if len(tail) - 1 < s:
+                raise DecodeError("Context hint announced but not present")
+            kidctx = 'FIXME' # number to be assigned
+            unprotected[kidctx] = tail[1:s+1]
+            tail = tail[s+1:]
+
+        if firstbyte & 0b00001000:
+            kid = tail
+            unprotected[4] = tail
+
+        return b"", {}, unprotected
 
     @classmethod
-    def _extract_encrypted0(cls, message, is_request):
+    def _extract_encrypted0(cls, message):
         if message.opt.object_security is None:
             raise NotAProtectedMessage("No Object-Security option present", message)
 
-        # FIXME it's an error to have this in the wrong place
-        serialized = message.opt.object_security or message.payload
-
-        if USE_COMPRESSION:
-            if not serialized:
-                raise DecodeError("Protected data too short for uncompression")
-
-            if serialized[0] & 0b11110000:
-                raise DecodeError("Protected data uses reserved fields")
-
-            unprotected = {}
-
-            k = (serialized[0] >> 3) & 1
-            pivsz = serialized[0] & 0b111
-            if pivsz:
-                unprotected[6] = serialized[1:1 + pivsz]
-            tail = serialized[1 + pivsz:]
-            if k:
-                if not tail:
-                    raise DecodeError("Protected data too short for kid uncompression")
-                unprotected[4] = tail[1:1 + tail[0]]
-                tail = tail[1 + tail[0]:]
-
-            return b"", {}, unprotected, tail
-        else:
-            try:
-                encrypted0 = cbor.loads(serialized)
-            except ValueError:
-                raise DecodeError("Error parsing the CBOR payload")
-
-            if not isinstance(encrypted0, list) or len(encrypted0) != 3:
-                raise DecodeError("CBOR payload is not structured like Encrypt0")
-
-            try:
-                protected = cbor.loads(encrypted0[0])
-            except ValueError:
-                raise DecodeError("Error parsing the CBOR protected data")
-
-            return encrypted0[0], protected, encrypted0[1], encrypted0[2]
+        protected_serialized, protected, unprotected = cls._uncompress(message.opt.object_security)
+        return protected_serialized, protected, unprotected, message.payload
 
     # sequence number handling
 
     def new_sequence_number(self):
         retval = self.sender_sequence_number
-        if retval > self.algorithm.max_seqno:
+        if retval >= MAX_SEQNO:
             raise ValueError("Sequence number too large, context is exhausted.")
         self.sender_sequence_number += 1
         # FIXME maybe _store now?
         return retval
 
 class ReplayWindow:
-    # FIXME: protcol, abc
+    # FIXME: interface, abc
     pass
 
 class SimpleReplayWindow(ReplayWindow):
@@ -457,11 +486,22 @@ class FilesystemSecurityContext(SecurityContext):
     directory, thus forbidding the user to remove the settings/secret files not
     owned by him.
     """
+
+    class LoadError(ValueError):
+        """Exception raised with a descriptive message when trying to load a
+        faulty security context"""
+
     def __init__(self, basedir, role):
         self.basedir = basedir
-        self._load(role)
+        try:
+            self._load(role)
+        except KeyError as k:
+            raise self.LoadError("Configuration key missing: %s"%(k.args[0],))
 
     def _load(self, my_role):
+        # doesn't check for KeyError on every occasion, relies on __init__ to
+        # catch that
+
         data = {}
         for readfile in ("secret.json", "settings.json"):
             try:
@@ -478,15 +518,13 @@ class FilesystemSecurityContext(SecurityContext):
                     value = value.encode('ascii')
 
                 if key in data:
-                    raise ValueError("Datum %r present in multiple input files at %r."%(key, self.basedir))
+                    raise self.LoadError("Datum %r present in multiple input files at %r."%(key, self.basedir))
 
                 data[key] = value
 
         self.algorithm = algorithms[data.get('algorithm', 'AES-CCM-64-64-128')]
         self.hashfun = hashfunctions[data.get('kdf-hashfun', 'sha256')]
 
-        sender_id = data.get('sender-id', b'\x00')
-        recipient_id = data.get('recipient-id', b'\x01')
         if my_role == 'server':
             self.sender_id = data['server-sender-id']
             self.recipient_id = data['client-sender-id']
@@ -494,15 +532,18 @@ class FilesystemSecurityContext(SecurityContext):
             self.sender_id = data['client-sender-id']
             self.recipient_id = data['server-sender-id']
         else:
-            raise ValueError("Unknown role")
+            raise self.LoadError("Unknown role")
+
+        if max(len(self.sender_id), len(self.recipient_id)) > self.algorithm.iv_bytes - 6:
+            raise self.LoadError("Sender or Recipient ID too long (maximum length %s for this algorithm)" % (self.algorithm.iv_bytes - 6))
 
         master_secret = data['secret']
         master_salt = data.get('salt', b'')
 
-        self.sender_key = self._kdf(master_secret, master_salt, self.sender_id, 'Key')
-        self.sender_iv = self._kdf(master_secret, master_salt, self.sender_id, 'IV')
-        self.recipient_key = self._kdf(master_secret, master_salt, self.recipient_id, 'Key')
-        self.recipient_iv = self._kdf(master_secret, master_salt, self.recipient_id, 'IV')
+        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, 'Key')
+        self.recipient_key = self._kdf(master_salt, master_secret, self.recipient_id, 'Key')
+
+        self.common_iv = self._kdf(master_salt, master_secret, None, 'IV')
 
         try:
             sequence = json.load(open(os.path.join(self.basedir, 'sequence.json')))
@@ -519,7 +560,7 @@ class FilesystemSecurityContext(SecurityContext):
                 warnings.warn("Sequence files shared between roles are "
                         "currently not supported.")
 
-    def _kdf(self, master_secret, master_salt, role_id, out_type):
+    def _kdf(self, master_salt, master_secret, role_id, out_type):
         out_bytes = {'Key': self.algorithm.key_bytes, 'IV': self.algorithm.iv_bytes}[out_type]
 
         info = cbor.dumps([
@@ -571,9 +612,9 @@ class FilesystemSecurityContext(SecurityContext):
         os.makedirs(basedir)
         with open(os.path.join(basedir, 'settings.json'), 'w') as settingsfile:
             settingsfile.write("{\n"
-                    '  "sender-id_hex": "00",\n'
-                    '  "recipient-id_hex": "01",\n'
-                    '  "algorithm": "AES-CCM-64-64-128",\n'
+                    '  "server-id_hex": "00",\n'
+                    '  "client-id_hex": "01",\n'
+                    '  "algorithm": "AES-CCM-16-64-128",\n'
                     '  "kdf-hashfun": "sha256"\n'
                     '}')
 
@@ -595,11 +636,11 @@ def verify_start(message):
     context anyway, and there is usually no information to be gained (and
     things would even fail completely in compressed messages)."""
 
-    _, _, unprotected, _ = SecurityContext._extract_encrypted0(message, is_request=True)
+    _, _, unprotected, _ = SecurityContext._extract_encrypted0(message)
 
     try:
         # FIXME raise on duplicate key
         return unprotected[4]
     except KeyError:
-        raise NotAProtectedMessage("No CID present", message)
+        raise NotAProtectedMessage("No Sender ID present", message)
 

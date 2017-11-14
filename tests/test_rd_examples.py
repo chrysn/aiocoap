@@ -17,13 +17,11 @@ import aiocoap
 
 from .test_server import WithAsyncLoop, Destructing, WithClient
 
-try:
+linkheader_modules = aiocoap.defaults.linkheader_missing_modules()
+_skip_unless_linkheader = unittest.skipIf(linkheader_modules, "Modules missing for running RD tests: %s"%(linkheader_modules,))
+if not linkheader_modules:
     import link_header
     import aiocoap.cli.rd
-except ImportError:
-    link_header = None
-
-_skip_unless_linkheader = unittest.skipIf(link_header is None, "RD tests require link header extension")
 
 class WithResourceDirectory(WithAsyncLoop, Destructing):
     rd_address = '::1'

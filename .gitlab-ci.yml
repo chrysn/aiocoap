@@ -6,10 +6,10 @@
 test:3.6:
   image: "python:3.6-stretch"
   script:
+    - echo Using cache:; ls .eggs/
     - rm -f .coverage* collected-coverage/3.6/
     - pip3 install coverage
-    # < 0.27 due to bug https://github.com/cython/cython/issues/1894
-    - pip3 install 'cython==0.26'
+    - pip3 install cython
     - AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test
     - python3 -m coverage run --parallel ./setup.py test
     - pip3 install uvloop
@@ -21,6 +21,9 @@ test:3.6:
   artifacts:
     paths:
       - collected-coverage
+  cache:
+    paths:
+      - .eggs/
 
 # Currently, none of the images provide a recent OpenSSL; waiting for python:3.5-stretch or for python:3.5 to become stretch
 

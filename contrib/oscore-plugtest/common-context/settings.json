@@ -1,5 +1,5 @@
 {
-  "algorithm": "AES-CCM-64-64-128",
+  "algorithm": "AES-CCM-16-64-128",
 
   "client-sender-id_hex": "636C69656E74",
   "server-sender-id_hex": "736572766572"

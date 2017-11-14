@@ -6,7 +6,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""Run the OSCOAP plug test"""
+"""Run the OSCORE plug test"""
 
 import sys
 import asyncio
@@ -20,8 +20,8 @@ from . import common
 
 from .common import PYTHON_PREFIX
 SERVER_ADDRESS = '::1'
-SERVER = PYTHON_PREFIX + ['./contrib/oscoap-plugtest/plugtest-server', '--server-address', SERVER_ADDRESS]
-CLIENT = PYTHON_PREFIX + ['./contrib/oscoap-plugtest/plugtest-client']
+SERVER = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-server', '--server-address', SERVER_ADDRESS]
+CLIENT = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-client']
 
 class WithAssertNofaillines(unittest.TestCase):
     def assertNoFaillines(self, text_to_check, message):
@@ -37,8 +37,8 @@ class WithAssertNofaillines(unittest.TestCase):
         errorlines = (l for l in lines if 'fail'in l)
         self.assertEqual([], list(errorlines), message)
 
-@unittest.skipIf(sys.version_info < (3, 5), "OSCOAP plug test server uses Python 3.5 'async def' idioms")
-@unittest.skipIf(aiocoap.defaults.oscoap_missing_modules(), "Mdules missing for running OSCOAP tests: %s"%(aiocoap.defaults.oscoap_missing_modules(),))
+@unittest.skipIf(sys.version_info < (3, 5), "OSCORE plug test server uses Python 3.5 'async def' idioms")
+@unittest.skipIf(aiocoap.defaults.oscore_missing_modules(), "Mdules missing for running OSCORE tests: %s"%(aiocoap.defaults.oscore_missing_modules(),))
 class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
     def setUp(self):
         super(WithPlugtestServer, self).setUp()
@@ -63,7 +63,7 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
                 except BaseException as e:
                     message = str(e)
                 finally:
-                    readiness.set_exception(RuntimeError("OSCOAP server process terminated during startup: %s."%message))
+                    readiness.set_exception(RuntimeError("OSCORE server process terminated during startup: %s."%message))
                 return
             if l == b'Plugtest server ready.\n':
                 break
@@ -81,11 +81,11 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         self.assertNoFaillines(out, '"failed" showed up in plugtest server stdout')
         self.assertNoFaillines(err, '"failed" showed up in plugtest server stderr')
 
-class TestOSCOAPPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
+class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
     @asyncio.coroutine
     def _test_plugtestclient(self, x):
-        set_seqno = aiocoap.Message(code=aiocoap.PUT, uri='coap://%s/sequence-numbers'%(common.loopbackname_v6 or common.loopbackname_v46), payload=str(x).encode('ascii'))
+        set_seqno = aiocoap.Message(code=aiocoap.PUT, uri='coap://%s/sequence-numbers'%(common.loopbackname_v6 or common.loopbackname_v46), payload=b'0')
         yield from self.client.request(set_seqno).response_raising
 
         proc = yield from asyncio.create_subprocess_exec(*(CLIENT + ['[' + SERVER_ADDRESS + ']', str(x)]), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -97,4 +97,4 @@ class TestOSCOAPPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
 for x in range(0, 13):
     test = lambda self, x=x: self.loop.run_until_complete(self._test_plugtestclient(x))
-    setattr(TestOSCOAPPlugtest, 'test_%d'%x, test)
+    setattr(TestOSCOREPlugtest, 'test_%d'%x, test)

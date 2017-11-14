@@ -17,8 +17,8 @@ this module is considered internal to aiocoap and not part of the API.
 The ``_missing_modules`` functions are helpers for inspecting what is
 reasonable to expect to work. They can influence default values, but should not
 be used in the rest of the code for feature checking (just raise the
-ImportErrors) unless it's directly user-visible ("You configured OSCOAP key
-material, but OSCOAP needs the following unavailable modules") or in the test
+ImportErrors) unless it's directly user-visible ("You configured OSCORE key
+material, but OSCORE needs the following unavailable modules") or in the test
 suite to decide which tests to skip.
 """
 
@@ -118,8 +118,8 @@ def get_default_servertransports(*, loop=None):
 
 # FIXME: If there were a way to check for the extras defined in setup.py, or to link these lists to what is descibed there, that'd be great.
 
-def oscoap_missing_modules():
-    """Return a list of modules that are missing in order to use OSCOAP, or a
+def oscore_missing_modules():
+    """Return a list of modules that are missing in order to use OSCORE, or a
     false value if everything is present"""
     missing = []
     try:

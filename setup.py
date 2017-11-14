@@ -17,13 +17,13 @@ from distutils.core import Command
 import os
 
 name = "aiocoap"
-version = "0.3"
+version = "0.4a1"
 description = "Python CoAP library"
 longdescription = __doc__
 
 extras_require = {
         'linkheader': ['LinkHeader'],
-        'oscoap': ['hkdf', 'cbor', 'cryptography (>= 2.0)'],
+        'oscore': ['hkdf', 'cbor', 'cryptography (>= 2.0)'],
         'tinydtls': ['DTLSSocket >= 0.1.0'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         'all': [], # populated below, contains everything but documentation dependencies for easier installation
@@ -106,6 +106,7 @@ setup(
         'console_scripts': [
             'aiocoap-client = aiocoap.cli.client:sync_main',
             'aiocoap-proxy = aiocoap.cli.proxy:sync_main',
+            'aiocoap-rd = aiocoap.cli.rd:sync_main',
             ]
         },
 
