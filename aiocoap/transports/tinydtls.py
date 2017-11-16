@@ -163,10 +163,10 @@ class DTLSClientConnection(interfaces.EndpointAddress):
                 self._retransmission_task = asyncio.Task(self._run_retransmissions())
         except OSError as e:
             self.log.debug("Expressing exception %r as errno %d.", e, e.errno)
-            self.coaptransport.new_error_callback(e.errno, self)
+            self.coaptransport.ctx.dispatch_error(e.errno, self)
         except Exception as e:
             self.log.error("Exception %r can not be represented as errno, setting -1.", e)
-            self.coaptransport.new_error_callback(-1, self)
+            self.coaptransport.ctx.dispatch_error(-1, self)
         finally:
             if self._connection is not None:
                 try:
@@ -207,7 +207,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return len(data)
 
-        self.coaptransport.new_message_callback(message)
+        self.coaptransport.ctx.dispatch_message(message)
 
         return len(data)
 
@@ -262,11 +262,11 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             self.parent._dtls_socket.handleMessage(self.parent._connection, data)
 
 class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
-    def __init__(self, new_message_callback, new_error_callback, log, loop):
+    def __init__(self, ctx: interfaces.MessageManager, log, loop):
         self._pool = weakref.WeakValueDictionary({}) # see _connection_for_address
 
-        self.new_message_callback = new_message_callback
-        self.new_error_callback = new_error_callback
+        self.ctx = ctx
+
         self.log = log
         self.loop = loop
 
@@ -288,10 +288,10 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
 
     @classmethod
     @asyncio.coroutine
-    def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to):
+    def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to):
         if dump_to is not None:
             log.error("Ignoring dump_to in tinyDTLS transport endpoint")
-        return cls(new_message_callback, new_error_callback, log, loop)
+        return cls(ctx, log, loop)
 
     @asyncio.coroutine
     def determine_remote(self, request):
