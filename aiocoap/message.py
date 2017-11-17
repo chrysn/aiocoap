@@ -109,7 +109,7 @@ class Message(object):
         # path and query are stored as lists, as they would be accessed for
         # example by self.opt.uri_path
         self.requested_proxy_uri = None
-        self.requested_scheme = None
+        self.requested_scheme = 'coap'
         self.requested_hostinfo = None
         self.requested_path = None
         self.requested_query = None
@@ -365,12 +365,12 @@ class Message(object):
 
         if self.code.is_response():
             proxyuri = self.requested_proxy_uri
-            scheme = self.requested_scheme or 'coap'
+            scheme = self.requested_scheme
             query = self.requested_query
             path = self.requested_path
         else:
             proxyuri = self.opt.proxy_uri
-            scheme = self.opt.proxy_scheme or 'coap'
+            scheme = self.opt.proxy_scheme or self.requested_scheme
             query = self.opt.uri_query or ()
             path = self.opt.uri_path
 
