@@ -14,6 +14,7 @@ class TestMessage(unittest.TestCase):
     normal_uris = [
             'coap://hostname:1234/path',
             'coap://hostname:1234/path?query=string&argument=x',
+            'coap+tcp://hostname/path',
             'coaps://hostname:1234/path',
             ]
 
