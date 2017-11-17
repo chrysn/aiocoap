@@ -413,7 +413,10 @@ class Message(object):
         When ``set_uri_host=False`` is passed, the host/port is stored in the
         ``unresolved_remote`` message property instead of the uri_host option;
         as a result, the unresolved host name is not sent on the wire, which
-        breaks virtual hosts but makes message sizes smaller."""
+        breaks virtual hosts but makes message sizes smaller.
+
+        This implements Section 6.4 of RFC7252.
+        """
 
         parsed = urllib.parse.urlparse(uri)
 
