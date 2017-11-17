@@ -9,6 +9,7 @@
 import urllib.parse
 import struct
 import copy
+import string
 
 from . import error
 from .numbers import *
@@ -430,24 +431,29 @@ class Message(object):
         if parsed.username or parsed.password:
             raise ValueError("User name and password not supported.")
 
-        # FIXME as with get_request_uri, this hould do encoding/decoding and section 6.5 etc
-
         if parsed.path not in ('', '/'):
-            self.opt.uri_path = parsed.path.split('/')[1:]
+            self.opt.uri_path = [urllib.parse.unquote(x) for x in parsed.path.split('/')[1:]]
         else:
             self.opt.uri_path = []
         if parsed.query:
-            self.opt.uri_query = parsed.query.split('&')
+            self.opt.uri_query = [urllib.parse.unquote(x) for x in parsed.query.split('&')]
         else:
             self.opt.uri_query = []
 
         if set_uri_host:
             if parsed.port:
+                # FIXME this should consider the protocol's default port
                 self.opt.uri_port = parsed.port
-            self.opt.uri_host = parsed.hostname
+            parts = parsed.hostname.split('.')
+            if parsed.hostname.startswith('[') or (len(parts) == 4 and all(c in '0123456789.' for c in parsed.hostname) and all(int(x) <= 255 for x in parts)):
+                pass # not storing IP addresses
+            else:
+                self.opt.uri_host = urllib.parse.unquote(parsed.hostname).translate(_ascii_lowercase)
         else:
             self.unresolved_remote = parsed.netloc
         self.requested_scheme = parsed.scheme
+
+_ascii_lowercase = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 
 #: Result that can be returned from a render method instead of a Message when
 #: due to defaults (eg. multicast link-format queries) or explicit
