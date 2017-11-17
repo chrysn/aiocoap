@@ -415,7 +415,10 @@ class Message(object):
         as a result, the unresolved host name is not sent on the wire, which
         breaks virtual hosts but makes message sizes smaller."""
 
-        parsed = urllib.parse.urlparse(uri, allow_fragments=False)
+        parsed = urllib.parse.urlparse(uri)
+
+        if parsed.fragment:
+            raise ValueError("Fragment identifiers can not be set on a request URI")
 
         if parsed.scheme not in coap_schemes:
             self.opt.proxy_uri = uri
