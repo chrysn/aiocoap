@@ -30,7 +30,10 @@ class TestMessage(unittest.TestCase):
     # normal URI.
     denormal_uris = {
             'coap://hostname:1234': 'coap://hostname:1234/',
+            'CoAp://HoStNaMe/': 'coap://hostname/',
+            'coap://host/%7Esensors': 'coap://host/~sensors',
             'coap://hostname:5683/path': 'coap://hostname:5683/path', # could strip the port
+            'coap://host/blåbærsyltetøy': 'coap://host/bl%C3%A5b%C3%A6rsyltet%C3%B8y',
             }
 
     def test_denormal(self):
