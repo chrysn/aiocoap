@@ -41,6 +41,7 @@ from ..util import hostportjoin
 from ..message import Message
 from .. import interfaces, error
 from ..numbers import COAPS_PORT
+from ..credentials import CredentialsMissingError
 
 # tinyDTLS passes address information around in its session data, but the way
 # it's used here that will be ignored; this is the data that is sent to / read
@@ -66,10 +67,6 @@ CODE_CLOSE_NOTIFY = 0
 # FIXME this should be exposed by the dtls wrapper
 DTLS_TICKS_PER_SECOND = 1000
 DTLS_CLOCK_OFFSET = time.time()
-
-class DTLSSecurityStore:
-    def _get_psk(self, uri):
-        return b"Client_identity", b"secretPSK"
 
 class DTLSClientConnection(interfaces.EndpointAddress):
     # for now i'd assyme the connection can double as an address. this means it
@@ -270,8 +267,6 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
         self.log = log
         self.loop = loop
 
-        self.security = DTLSSecurityStore()
-
     @asyncio.coroutine
     def _connection_for_address(self, host, port, pskId, psk):
         """Return a DTLSConnection to a given address. This will always give
@@ -308,7 +303,11 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-        pskId, psk = self.security._get_psk(request.get_request_uri())
+        dtlsparams = self.ctx.credentialsmap.credentials_from_request(request)
+        try:
+            pskId, psk = dtlsparams.as_dtls_psk()
+        except AttributeError:
+            raise CredentialsMissingError("Credentials for requested URI are not compatible with DTLS-PSK")
         result = yield from self._connection_for_address(host, port, pskId, psk)
         return result
 

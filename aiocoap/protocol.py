@@ -32,6 +32,7 @@ from .util import hostportjoin
 from . import error
 from . import defaults
 from .optiontypes import BlockOption
+from .credentials import CredentialsMap
 
 import logging
 # log levels used:
@@ -101,7 +102,7 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
 
     """
 
-    def __init__(self, loop=None, serversite=None, loggername="coap"):
+    def __init__(self, loop=None, serversite=None, loggername="coap", credentialsmap=None):
         self.message_id = random.randint(0, 65535)
         self.token = random.randint(0, 65535)
         self.serversite = serversite
@@ -118,6 +119,8 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
         self.loop = loop or asyncio.get_event_loop()
 
         self.transport_endpoints = []
+
+        self.credentialsmap = credentialsmap or CredentialsMap()
 
     @asyncio.coroutine
     def shutdown(self):

@@ -103,6 +103,12 @@ class MessageManager(metaclass=abc.ABCMeta):
         limited to errno-style errors, and might allow transporting additional
         data."""
 
+    @property
+    @abc.abstractmethod
+    def credentialsmap(self):
+        """A CredentialsMap that transports should consult when trying to
+        establish a security context"""
+
 class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def request(self, request_message):
