@@ -1,0 +1,237 @@
+# This file is part of the Python aiocoap library project.
+#
+# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
+#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+#
+# aiocoap is free software, this file is published under the MIT license as
+# described in the accompanying LICENSE file.
+
+"""This module describes how security credentials are expressed in aiocoap,
+how security protocols (TLS, DTLS, OSCOAP) can store and access their key
+material, and for which URIs they are used.
+
+(this text goes to a class later)
+
+For consistency, mappings between accessible resources and their credentials
+are always centered around URIs. This is slightly atypical, because a client
+will typically use a particular set of credentials for all operations on one
+server, while a server first loads all available credentials and then filters
+out whether the client may actually access a resource per-path, but it works
+with full URIs (or patterns thereof) just as well. That approach allows using
+more similar structures both on the server and the client, and works smoothly
+for virtual hosting, firewalling and clients accessing resources with varying
+credentials.
+
+(different note for different place)
+
+Should this support loading CBOR Web Tokens (CWT)?
+
+(and probably stays here)
+
+Library developer notes
+~~~~~~~~~~~~~~~~~~~~~~~
+
+This whole module currently relies on a mixture of introspection and manual
+parsing of the JSON-ish tree. A preferred expression of the same would rely on
+the credentials.cddl description and build an object tree from that, but the
+author is unaware of any existing CDDL Python implementation. That might also
+ease porting to platforms that don't support inspect like micropython does.
+"""
+
+import inspect
+from fnmatch import fnmatchcase
+
+try:
+    from typing import Optional
+except ImportError:
+    # Python 3.4 workaround. This obviously doesn't preserve the full
+    # semantics, but the type checker in the parser will interpret Optional[x]
+    # as "must be x, the Optional is just to allow the default None" anyway.
+
+    class Optional:
+        @staticmethod
+        def __getitem__(x):
+            return x
+
+
+'''
+server: {
+            'coaps://mysite*': { 'dtls-psk' (or other granularity): { 'psk': 'abcd' }},
+            'coap://mysite*': { 'oscore': { 'contextfile': 'my-contextfile/' (implied: 'role': 'server') } },
+            'coap://myothersite/firmware': ':myotherkey',
+            'coap://myothersite/reset': ':myotherkey',
+            'coap://othersite*': { 'unprotected': true },
+            ':myotherkey': { 'oscore': { 'contextfile': 'my-contextfile/'} }
+        }
+
+server can of course just say it doesn't want to have the Site handle it and
+just say '*': { 'unprotected': true }, add some ':foo': {'dtls-psk': ...}
+entries (so communication can be established in the first place) and let
+individual resources decide whether they return 4.01 or something else.
+
+client can be the same with different implied role, or have something like
+
+client: {
+            'coap://myothersite*': ':myotherkey',
+            ...
+        }
+
+in future also
+
+server: {
+        'coaps://mysite*': { 'dtls-cert': {'key': '...pem', 'cert': '...crt'} }
+        }
+
+client: {
+        '*': { 'dtls-cert': { 'ca': '/etc/ssl/...' } }
+}
+
+or more complex ones:
+
+server: {
+        'coaps://myothersite/wellprotected': { 'all': [ ':mydtls', ':myotherkey' ]}
+        'coaps://myothersite/*': { 'any': [ ':mydtls', ':myotherkey' ]}
+}
+'''
+
+class CredentialsLoadError(ValueError):
+    """Raised by functions that create a CredentialsMap or its parts from
+    simple data structures"""
+
+class CredentialsMissingError(RuntimeError):
+    """Raised when no suiting credentials can be found for a message, or
+    credentials are found but inapplicable to a transport's security
+    mechanisms."""
+
+class CredentialReference:
+    def __init__(self, name, map):
+        if not name.startswith(':'):
+            raise CredentialsLoadError("Credential references must start with a colon (':')")
+        self.name = name
+        self.map = map
+
+class _Listish(list):
+    @classmethod
+    def from_item(cls, v):
+        if not isinstance(v, list):
+            raise CredentialsLoadError("%s goes with a list" % cls.__name__)
+        return cls(v)
+
+class AnyOf(_Listish):
+    pass
+
+class AllOf(_Listish):
+    pass
+
+class _Objectish:
+    @classmethod
+    def from_item(cls, init_data):
+        if not isinstance(init_data, dict):
+            raise CredentialsLoadError("%s goes with an object" % cls.__name__)
+
+        init_data = {k.replace('-', '_'): v for (k, v) in init_data.items()}
+
+        sig = inspect.signature(cls)
+
+        for k, v in init_data.items():
+            try:
+                annotation = sig.parameters[k].annotation
+            except KeyError as e:
+                # let this raise later in binding
+                continue
+
+            # Not using isinstance because I foundno way to extract the type
+            # information from an Optional/Union again; this whole thing works
+            # only for strings and ints anyway, so why not.
+            if type(v) != annotation and Optional[type(v)] != annotation:
+                # explicitly not excluding inspect._empty here: constructors
+                # need to be fully annotated
+                raise CredentialsLoadError("Type mismatch in attribute %s of %s: expected %s, got %r" % (k, cls.__name__, annotation, v))
+
+        try:
+            bound = sig.bind(**init_data)
+        except TypeError as e:
+            raise CredentialsLoadError("%s: %s" % (cls.__name__, e.args[0]))
+
+        return cls(*bound.args, **bound.kwargs)
+
+class DTLS(_Objectish):
+    def __init__(self, psk: bytes, client_identity: bytes):
+        self.psk = psk
+        self.client_identity = client_identity
+
+    def as_dtls_psk(self):
+        return (self.client_identity, self.psk)
+
+class OSCORE(_Objectish):
+    def __init__(self, contextfile: str,
+                 server_sender_id: Optional[bytes]=None,
+                 client_sender_id: Optional[bytes]=None
+                 ):
+        pass
+
+class CredentialsMap(dict):
+    """
+    FIXME: outdated, rewrite when usable
+
+    A CredentialsMap, for any URI template and operation, which
+    security contexts are sufficient to to perform the operation on a matching
+    URI.
+
+    The same context can be used both by the server and the client, where the
+    client uses the information on allowed client credentials to decide which
+    credentials to present, and the information on allowed server credentials
+    to decide whether the server can be trusted.
+
+    Conversely, the server typically loads all available server credentials at
+    startup, and then uses the client credentials list to decide whether to
+    serve the request."""
+
+    @classmethod
+    def from_dict(cls, d):
+        """Create a CredentialsMap from a dictionary, which would typically
+        have been loaded from a JSON/YAML file and needs to match the CDDL in
+        credentials.cddl."""
+        self = cls()
+        for k, v in d.items():
+            self[k] = self._item_from_dict(v)
+        return self
+
+    def _item_from_dict(self, v):
+        if isinstance(v, str):
+            return CredentialReference(v)
+        elif isinstance(v, dict):
+            try:
+                (key, value), = v.items()
+            except ValueError:
+                # this follows how Rust Enums are encoded in serde JSON
+                raise CredentialsLoadError(
+                        "Items in a credentials map must have exactly one key"
+                        " (found %s)" % ("," .join(v.keys()) or "empty")
+                    )
+
+            try:
+                constructor = self._class_map[key].from_item
+            except KeyError:
+                raise CredentialsLoadError("Unknown credential type: %s" % key)
+
+            return constructor(value)
+
+    _class_map = {
+            'dtls': DTLS,
+            'oscore': OSCORE,
+            'any-of': AnyOf,
+            'all-of': AllOf,
+            }
+
+    def credentials_from_request(self, msg):
+        """Return the most specific match to a request message. Matching is
+        currently based on wildcards, but not yet very well thought out."""
+
+        uri = msg.get_request_uri()
+
+        for (k, v) in sorted(self.items(), key=lambda x: len(x[0]), reverse=True):
+            if fnmatchcase(uri, k):
+                return v
+        else:
+            raise CredentialsMissingError("No suitable credentials for %s" % uri)
