@@ -28,6 +28,7 @@
    module/aiocoap.util.cli
    module/aiocoap.util.socknumbers
    module/aiocoap.util.secrets
+   module/aiocoap.util.uri
    module/aiocoap.cli
 
    module/aiocoap.oscore

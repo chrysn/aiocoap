@@ -9,18 +9,20 @@
 import urllib.parse
 import struct
 import copy
+import string
 
 from . import error
 from .numbers import *
 from .options import Options
 from .util import hostportjoin, Sentinel
+from .util.uri import quote_factory, unreserved, sub_delims
 
 __all__ = ['Message', 'NoResponse']
 
 # FIXME there should be a proper inteface for this that does all the urllib
 # patching possibly required and works with pluggable transports. urls qualify
 # if they can be parsed into the Proxy-Scheme / Uri-* structure.
-coap_schemes = ['coap', 'coaps']
+coap_schemes = ['coap', 'coaps', 'coap+tcp', 'coaps+tcp', 'coap+ws', 'coaps+ws']
 
 ## Monkey patch urllib to make URL joining available in CoAP
 # This is a workaround for <http://bugs.python.org/issue23759>.
@@ -109,7 +111,7 @@ class Message(object):
         # path and query are stored as lists, as they would be accessed for
         # example by self.opt.uri_path
         self.requested_proxy_uri = None
-        self.requested_scheme = None
+        self.requested_scheme = 'coap'
         self.requested_hostinfo = None
         self.requested_path = None
         self.requested_query = None
@@ -331,21 +333,6 @@ class Message(object):
     # the message in the context of network and addresses
     #
 
-    @staticmethod
-    def _build_request_uri(scheme, hostinfo, path, query):
-        """Assemble path components as found in CoAP options into a URL. Helper
-        for :meth:`get_request_uri`."""
-
-        netloc = hostinfo
-
-        # FIXME this should follow coap section 6.5 more closely
-        query = "&".join(query)
-        path = '/'.join(("",) + path) or '/'
-
-        fragment = None
-        params = "" # are they not there at all?
-
-        return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
 
     def get_request_uri(self):
         """The absolute URI this message belongs to.
@@ -355,50 +342,55 @@ class Message(object):
         to preserve the request information (which could have been kept by the
         requesting application), but also because the Request can know about
         multicast responses (which would update the host component) and
-        redirects (FIXME do they exist?)."""
+        redirects (FIXME do they exist?).
+
+        This implements Section 6.5 of RFC7252.
+        """
 
         # maybe this function does not belong exactly *here*, but it belongs to
         # the results of .request(message), which is currently a message itself.
 
-        hostinfo = None
         host = None
 
         if self.code.is_response():
             proxyuri = self.requested_proxy_uri
-            scheme = self.requested_scheme or 'coap'
+            scheme = self.requested_scheme
             query = self.requested_query
             path = self.requested_path
         else:
             proxyuri = self.opt.proxy_uri
-            scheme = self.opt.proxy_scheme or 'coap'
+            scheme = self.opt.proxy_scheme or self.requested_scheme
             query = self.opt.uri_query or ()
             path = self.opt.uri_path
-
-        if self.code.is_response() and self.requested_hostinfo is not None:
-            hostinfo = self.requested_hostinfo
-        elif self.code.is_request() and self.opt.uri_host is not None:
-            host = self.opt.uri_host
-        elif self.code.is_request() and self.unresolved_remote is not None:
-            hostinfo = self.unresolved_remote
-            scheme = self.requested_scheme
-        else:
-            hostinfo = self.remote.hostinfo
 
         if self.code.is_request() and self.opt.uri_port is not None:
             port = self.opt.uri_port
         else:
             port = None
 
+        if self.code.is_response() and self.requested_hostinfo is not None:
+            netloc = self.requested_hostinfo
+        elif self.code.is_request() and self.opt.uri_host is not None:
+            if self.opt.uri_host is None:
+                raise ValueError("Can not construct URI without any information on the set host")
+            netloc = hostportjoin(urllib.parse.quote(self.opt.uri_host), port)
+        elif self.code.is_request() and self.unresolved_remote is not None:
+            netloc = self.unresolved_remote
+            scheme = self.requested_scheme
+        else:
+            netloc = self.remote.hostinfo
+
         if proxyuri is not None:
             return proxyuri
 
-        if hostinfo is None and host is None:
-            raise ValueError("Can not construct URI without any information on the set host")
+        # FIXME this should follow coap section 6.5 more closely
+        query = "&".join(_quote_for_query(q) for q in query)
+        path = ''.join("/" + _quote_for_path(p) for p in path) or '/'
 
-        if hostinfo is None:
-            hostinfo = hostportjoin(host, port)
+        fragment = None
+        params = "" # are they not there at all?
 
-        return self._build_request_uri(scheme, hostinfo, path, query)
+        return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
 
     def set_request_uri(self, uri, *, set_uri_host=True):
         """Parse a given URI into the uri_* fields of the options.
@@ -413,9 +405,15 @@ class Message(object):
         When ``set_uri_host=False`` is passed, the host/port is stored in the
         ``unresolved_remote`` message property instead of the uri_host option;
         as a result, the unresolved host name is not sent on the wire, which
-        breaks virtual hosts but makes message sizes smaller."""
+        breaks virtual hosts but makes message sizes smaller.
 
-        parsed = urllib.parse.urlparse(uri, allow_fragments=False)
+        This implements Section 6.4 of RFC7252.
+        """
+
+        parsed = urllib.parse.urlparse(uri)
+
+        if parsed.fragment:
+            raise ValueError("Fragment identifiers can not be set on a request URI")
 
         if parsed.scheme not in coap_schemes:
             self.opt.proxy_uri = uri
@@ -424,24 +422,35 @@ class Message(object):
         if parsed.username or parsed.password:
             raise ValueError("User name and password not supported.")
 
-        # FIXME as with get_request_uri, this hould do encoding/decoding and section 6.5 etc
-
         if parsed.path not in ('', '/'):
-            self.opt.uri_path = parsed.path.split('/')[1:]
+            self.opt.uri_path = [urllib.parse.unquote(x) for x in parsed.path.split('/')[1:]]
         else:
             self.opt.uri_path = []
         if parsed.query:
-            self.opt.uri_query = parsed.query.split('&')
+            self.opt.uri_query = [urllib.parse.unquote(x) for x in parsed.query.split('&')]
         else:
             self.opt.uri_query = []
 
         if set_uri_host:
             if parsed.port:
+                # FIXME this should consider the protocol's default port
                 self.opt.uri_port = parsed.port
-            self.opt.uri_host = parsed.hostname
+            parts = parsed.hostname.split('.')
+            if parsed.netloc.startswith('[') or (len(parts) == 4 and all(c in '0123456789.' for c in parsed.hostname) and all(int(x) <= 255 for x in parts)):
+                # uri_host must not be IP literals -- not only because the
+                # parsing rules say so, but also because it'd mess up the
+                # escaping during a round trip.
+                self.unresolved_remote = parsed.netloc
+            else:
+                self.opt.uri_host = urllib.parse.unquote(parsed.hostname).translate(_ascii_lowercase)
         else:
             self.unresolved_remote = parsed.netloc
         self.requested_scheme = parsed.scheme
+
+_ascii_lowercase = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
+
+_quote_for_path = quote_factory(unreserved + sub_delims + ':@')
+_quote_for_query = quote_factory(unreserved + "".join(c for c in sub_delims if c != '&') + ':@/?')
 
 #: Result that can be returned from a render method instead of a Message when
 #: due to defaults (eg. multicast link-format queries) or explicit
