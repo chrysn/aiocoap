@@ -17,16 +17,18 @@ from aiocoap.credentials import CredentialsMap, DTLS
 class TestCredentialsLoad(unittest.TestCase):
     def test_load_empty(self):
         raw = {}
-        m = CredentialsMap.from_dict(raw)
+        m = CredentialsMap()
+        m.load_from_dict(raw)
         self.assertEqual(type(m), CredentialsMap)
         self.assertEqual(len(m), 0)
 
     def test_dtls(self):
         raw = {
                 '*': {'oscore': {'contextfile':'/dev/null'}},
-                'coaps://some-host/*': {'dtls': {'psk': b'secretPSK', 'client-identity': b'Client_identity'}}
+                'coaps://some-host/*': {'dtls': {'psk': {'hex': '73-65-63-72-65-74-50-53-4b'}, 'client-identity': b'Client_identity'}}
                 }
-        m = CredentialsMap.from_dict(raw)
+        m = CredentialsMap()
+        m.load_from_dict(raw)
         # note we can use the slash-free version here and still get the result
         # for //some-host/* due to the URI normalization rules
         message = Message(code=GET, uri='coaps://some-host')
