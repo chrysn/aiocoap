@@ -19,6 +19,7 @@ import asyncio
 
 from aiocoap import *
 from aiocoap import interfaces
+from aiocoap import credentials
 
 from plugtest_common import *
 
@@ -27,30 +28,23 @@ class ProtectedRequester(interfaces.RequestProvider):
     configured mapping between URIs and security contexts and sends it over the underlying_requester."""
     def __init__(self, underlying_requester):
         self._wire = underlying_requester
-        self._prefixes = {}
+
+        self.credentialsmap = credentials.CredentialsMap()
 
         import logging
         self.log = logging.getLogger('protected-requester')
         self.exchange_monitor_factory = lambda message: None
 
-    def set_uri_prefix_context(self, prefix, security_context):
-        """Use the given security context for all URIs starting with the
-        prefix"""
-        self._prefixes[prefix] = security_context
-
     def request(self, request_message, handle_blockwise=True, exchange_monitor_factory=lambda message:None):
         # "handle_blockwise" means inner blockwise here
-        uri = request_message.get_request_uri()
-        for (prefix, context) in sorted(self._prefixes.items(), reverse=True):
-            if uri.startswith(prefix):
-                security_context = context
-                break
-        else:
-            raise KeyError("No suitable security context found.")
 
         if handle_blockwise:
             return protocol.BlockwiseRequest(self, request_message)
         else:
+            # FIXME: this is not yet fully aligned with the relatively dumb
+            # credentials keeper object used for DTLS
+            security_context = self.credentialsmap.credentials_from_request(request_message)
+
             return self.Request(self._wire, security_context, request_message)
 
     class Request(interfaces.Request):
@@ -111,11 +105,11 @@ class PlugtestClientProgram:
 
         self.host = opts.host
 
-        self.regular_context = get_security_context(opts.testno, 'client', opts.contextdir)
+        security_context = get_security_context(opts.testno, 'client', opts.contextdir)
 
         self.ctx = await Context.create_client_context()
         self.protected_ctx = ProtectedRequester(self.ctx)
-        self.protected_ctx.set_uri_prefix_context("coap://%s" % self.host, self.regular_context)
+        self.protected_ctx.credentialsmap["coap://%s/*" % self.host] = security_context
 
         try:
             await self.run_test(opts.testno)
@@ -283,8 +277,8 @@ class PlugtestClientProgram:
             print("Failed: Request did not even pass before replay (%s)"%unprotected_response)
             return
 
-        self.regular_context = get_security_context(self.testno, 'client')
-        self.protected_ctx.set_uri_prefix_context("coap://%s" % self.host, self.regular_context)
+        security_context = get_security_context(self.testno, 'client')
+        self.protected_ctx.credentialsmap["coap://%s/*" % self.host] = security_context
 
         try:
             unprotected_response = await self.protected_ctx.request(request).response
