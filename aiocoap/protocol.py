@@ -122,6 +122,9 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
 
         self.credentialsmap = credentialsmap or CredentialsMap()
 
+    credentialsmap = None  # abstractmethods don't know this will be
+                           # unconditionally set in the constructor
+
     @asyncio.coroutine
     def shutdown(self):
         """Take down the listening socket and stop all related timers.

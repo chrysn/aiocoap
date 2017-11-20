@@ -133,12 +133,31 @@ class _Objectish:
 
         sig = inspect.signature(cls)
 
+        checked_items = {}
+
         for k, v in init_data.items():
             try:
                 annotation = sig.parameters[k].annotation
             except KeyError as e:
                 # let this raise later in binding
-                continue
+                checked_items[k] = object()
+
+            if isinstance(v, dict) and 'ascii' in v:
+                if len(v) != 1:
+                    raise CredentialsLoadError("ASCII objects can only have one elemnt.")
+                try:
+                    v = v['ascii'].encode('ascii')
+                except UnicodeEncodeError:
+                    raise CredentialsLoadError("Elements of the ASCII object can not be represented in ASCII, please use binary or hex representation.")
+
+
+            if isinstance(v, dict) and 'hex' in v:
+                if len(v) != 1:
+                    raise CredentialsLoadError("Hex objects can only have one elemnt.")
+                try:
+                    v = bytes.fromhex(v['hex'].replace('-', '').replace(' ', '').replace(':', ''))
+                except ValueError as e:
+                    raise CredentialsLoadError("Hex object can not be read: %s" % (e.args[0]))
 
             # Not using isinstance because I foundno way to extract the type
             # information from an Optional/Union again; this whole thing works
@@ -148,8 +167,10 @@ class _Objectish:
                 # need to be fully annotated
                 raise CredentialsLoadError("Type mismatch in attribute %s of %s: expected %s, got %r" % (k, cls.__name__, annotation, v))
 
+            checked_items[k] = v
+
         try:
-            bound = sig.bind(**init_data)
+            bound = sig.bind(**checked_items)
         except TypeError as e:
             raise CredentialsLoadError("%s: %s" % (cls.__name__, e.args[0]))
 
@@ -187,15 +208,19 @@ class CredentialsMap(dict):
     startup, and then uses the client credentials list to decide whether to
     serve the request."""
 
-    @classmethod
-    def from_dict(cls, d):
-        """Create a CredentialsMap from a dictionary, which would typically
-        have been loaded from a JSON/YAML file and needs to match the CDDL in
-        credentials.cddl."""
-        self = cls()
+    def load_from_dict(self, d):
+        """Populate the map from a dictionary, which would typically have been
+        loaded from a JSON/YAML file and needs to match the CDDL in
+        credentials.cddl.
+
+        Running this multiple times will overwriter individual entries in the
+        map."""
         for k, v in d.items():
-            self[k] = self._item_from_dict(v)
-        return self
+            if v is None:
+                if k in self:
+                    del self[k]
+            else:
+                self[k] = self._item_from_dict(v)
 
     def _item_from_dict(self, v):
         if isinstance(v, str):
