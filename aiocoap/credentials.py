@@ -104,11 +104,17 @@ class CredentialsMissingError(RuntimeError):
     mechanisms."""
 
 class CredentialReference:
-    def __init__(self, name, map):
-        if not name.startswith(':'):
+    def __init__(self, target, map):
+        if not target.startswith(':'):
             raise CredentialsLoadError("Credential references must start with a colon (':')")
-        self.name = name
+        self.target = target
         self.map = map
+
+    # FIXME either generalize this with getattr, or introduce a function to
+    # resolve any indirect credentials to a particular instance.
+
+    def as_dtls_psk(self):
+        return self.map[self.target].as_dtls_psk()
 
 class _Listish(list):
     @classmethod
@@ -224,7 +230,7 @@ class CredentialsMap(dict):
 
     def _item_from_dict(self, v):
         if isinstance(v, str):
-            return CredentialReference(v)
+            return CredentialReference(v, self)
         elif isinstance(v, dict):
             try:
                 (key, value), = v.items()
