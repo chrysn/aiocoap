@@ -38,8 +38,8 @@ author is unaware of any existing CDDL Python implementation. That might also
 ease porting to platforms that don't support inspect like micropython does.
 """
 
+import re
 import inspect
-from fnmatch import fnmatchcase
 
 try:
     from typing import Optional
@@ -197,6 +197,8 @@ class OSCORE(_Objectish):
                  ):
         pass
 
+_re_cache = {}
+
 class CredentialsMap(dict):
     """
     FIXME: outdated, rewrite when usable
@@ -255,6 +257,12 @@ class CredentialsMap(dict):
             'all-of': AllOf,
             }
 
+    @staticmethod
+    def _wildcard_match(searchterm, pattern):
+        if pattern not in _re_cache:
+            _re_cache[pattern] = re.compile(re.escape(pattern).replace('\\*', '.*'))
+        return _re_cache[pattern].fullmatch(searchterm) is not None
+
     def credentials_from_request(self, msg):
         """Return the most specific match to a request message. Matching is
         currently based on wildcards, but not yet very well thought out."""
@@ -262,7 +270,7 @@ class CredentialsMap(dict):
         uri = msg.get_request_uri()
 
         for (k, v) in sorted(self.items(), key=lambda x: len(x[0]), reverse=True):
-            if fnmatchcase(uri, k):
+            if self._wildcard_match(uri, k):
                 return v
         else:
             raise CredentialsMissingError("No suitable credentials for %s" % uri)
