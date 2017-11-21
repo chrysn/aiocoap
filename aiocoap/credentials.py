@@ -263,6 +263,8 @@ class CredentialsMap(dict):
             _re_cache[pattern] = re.compile(re.escape(pattern).replace('\\*', '.*'))
         return _re_cache[pattern].fullmatch(searchterm) is not None
 
+    # used by a client
+
     def credentials_from_request(self, msg):
         """Return the most specific match to a request message. Matching is
         currently based on wildcards, but not yet very well thought out."""
@@ -274,3 +276,15 @@ class CredentialsMap(dict):
                 return v
         else:
             raise CredentialsMissingError("No suitable credentials for %s" % uri)
+
+    # used by a server
+
+    def find_oscore(self, recipient_id):
+        # FIXME: this is not constant-time as it should be, but too much in
+        # flux to warrant optimization
+
+        for item in self.values():
+            # FIXME current use completely falls out of pattern by having the actual security object here
+            if getattr(item, "recipient_id", None) == recipient_id:
+                return item
+        raise KeyError()
