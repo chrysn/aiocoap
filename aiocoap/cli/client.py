@@ -78,7 +78,7 @@ def incoming_observation(options, response):
 def apply_credentials(context, credentials, errfn):
     if credentials.suffix == '.json':
         import json
-        context.credentialsmap.load_from_dict(json.load(credentials.open('rb')))
+        context.client_credentials.load_from_dict(json.load(credentials.open('rb')))
     else:
         raise errfn("Unknown suffix: %s (expected: .json)" % (credentials.suffix))
 

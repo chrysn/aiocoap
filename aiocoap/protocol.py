@@ -102,7 +102,7 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
 
     """
 
-    def __init__(self, loop=None, serversite=None, loggername="coap", credentialsmap=None):
+    def __init__(self, loop=None, serversite=None, loggername="coap", client_credentials=None):
         self.message_id = random.randint(0, 65535)
         self.token = random.randint(0, 65535)
         self.serversite = serversite
@@ -120,10 +120,10 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
 
         self.transport_endpoints = []
 
-        self.credentialsmap = credentialsmap or CredentialsMap()
+        self.client_credentials = client_credentials or CredentialsMap()
 
-    credentialsmap = None  # abstractmethods don't know this will be
-                           # unconditionally set in the constructor
+    client_credentials = None  # abstractmethods don't know this will be
+                               # unconditionally set in the constructor
 
     @asyncio.coroutine
     def shutdown(self):

@@ -105,7 +105,7 @@ class MessageManager(metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def credentialsmap(self):
+    def client_credentials(self):
         """A CredentialsMap that transports should consult when trying to
         establish a security context"""
 

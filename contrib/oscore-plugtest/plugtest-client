@@ -29,7 +29,7 @@ class ProtectedRequester(interfaces.RequestProvider):
     def __init__(self, underlying_requester):
         self._wire = underlying_requester
 
-        self.credentialsmap = credentials.CredentialsMap()
+        self.client_credentials = credentials.CredentialsMap()
 
         import logging
         self.log = logging.getLogger('protected-requester')
@@ -43,7 +43,7 @@ class ProtectedRequester(interfaces.RequestProvider):
         else:
             # FIXME: this is not yet fully aligned with the relatively dumb
             # credentials keeper object used for DTLS
-            security_context = self.credentialsmap.credentials_from_request(request_message)
+            security_context = self.client_credentials.credentials_from_request(request_message)
 
             return self.Request(self._wire, security_context, request_message)
 
@@ -109,7 +109,7 @@ class PlugtestClientProgram:
 
         self.ctx = await Context.create_client_context()
         self.protected_ctx = ProtectedRequester(self.ctx)
-        self.protected_ctx.credentialsmap["coap://%s/*" % self.host] = security_context
+        self.protected_ctx.client_credentials["coap://%s/*" % self.host] = security_context
 
         try:
             await self.run_test(opts.testno)
@@ -278,7 +278,7 @@ class PlugtestClientProgram:
             return
 
         security_context = get_security_context(self.testno, 'client')
-        self.protected_ctx.credentialsmap["coap://%s/*" % self.host] = security_context
+        self.protected_ctx.client_credentials["coap://%s/*" % self.host] = security_context
 
         try:
             unprotected_response = await self.protected_ctx.request(request).response

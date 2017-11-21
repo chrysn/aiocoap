@@ -303,7 +303,7 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-        dtlsparams = self.ctx.credentialsmap.credentials_from_request(request)
+        dtlsparams = self.ctx.client_credentials.credentials_from_request(request)
         try:
             pskId, psk = dtlsparams.as_dtls_psk()
         except AttributeError:
