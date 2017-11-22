@@ -18,9 +18,8 @@ class GenericTransportEndpoint(interfaces.TransportEndpoint):
     interface and a not yet fully specified interface of "bound UDP
     sockets"."""
 
-    def __init__(self, new_message_callback, new_error_callback, log, loop):
-        self._new_message_callback = new_message_callback
-        self._new_error_callback = new_error_callback
+    def __init__(self, ctx: interfaces.MessageManager, log, loop):
+        self._ctx = ctx
         self._log = log
         self._loop = loop
 
@@ -48,10 +47,10 @@ class GenericTransportEndpoint(interfaces.TransportEndpoint):
             self._log.warning("Ignoring unparsable message from %s"%(address,))
             return
 
-        self._new_message_callback(message)
+        self._ctx.dispatch_message(message)
 
     def _received_exception(self, address, exception):
-        self._new_error_callback(exception.errno, address)
+        self._ctx.dispatch_error(exception.errno, address)
 
     def send(self, message):
         message.remote.send(message.encode())
@@ -59,5 +58,4 @@ class GenericTransportEndpoint(interfaces.TransportEndpoint):
     @asyncio.coroutine
     def shutdown(self):
         yield from self._pool.shutdown()
-        self._new_message_callback = None
-        self._new_error_callback = None
+        self._ctx = None

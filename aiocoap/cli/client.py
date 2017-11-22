@@ -14,6 +14,7 @@ import argparse
 import logging
 import subprocess
 import socket
+from pathlib import Path
 
 import shlex
 # even though not used directly, this has side effects on the input() function
@@ -40,6 +41,7 @@ def build_parser():
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
     p.add_argument('--dump', help="Log network traffic to FILE", metavar="FILE")
     p.add_argument('--interactive', help="Enter interactive mode", action="store_true") # careful: picked before parsing
+    p.add_argument('--credentials', help="Load credentials to use from a given file", type=Path)
     p.add_argument('url', help="CoAP address to fetch")
 
     return p
@@ -73,6 +75,13 @@ def incoming_observation(options, response):
             if response.payload:
                 print(response.payload.decode('utf-8'), file=sys.stderr)
 
+def apply_credentials(context, credentials, errfn):
+    if credentials.suffix == '.json':
+        import json
+        context.client_credentials.load_from_dict(json.load(credentials.open('rb')))
+    else:
+        raise errfn("Unknown suffix: %s (expected: .json)" % (credentials.suffix))
+
 @asyncio.coroutine
 def single_request(args, context=None):
     parser = build_parser()
@@ -93,6 +102,9 @@ def single_request(args, context=None):
     else:
         if options.dump:
             print("The --dump option is not implemented in interactive mode.", file=sys.stderr)
+
+    if options.credentials is not None:
+        apply_credentials(context, options.credentials, parser.error)
 
     request = aiocoap.Message(code=code, mtype=aiocoap.NON if options.non else aiocoap.CON)
     try:

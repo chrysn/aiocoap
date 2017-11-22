@@ -32,6 +32,7 @@ from .util import hostportjoin
 from . import error
 from . import defaults
 from .optiontypes import BlockOption
+from .credentials import CredentialsMap
 
 import logging
 # log levels used:
@@ -49,7 +50,7 @@ from . import interfaces
 from .numbers import *
 from .message import Message, NoResponse
 
-class Context(interfaces.RequestProvider):
+class Context(interfaces.RequestProvider, interfaces.MessageManager):
     """Applications' entry point to the network
 
     A :class:`.Context` coordinates one or more network :mod:`.transports`
@@ -101,7 +102,7 @@ class Context(interfaces.RequestProvider):
 
     """
 
-    def __init__(self, loop=None, serversite=None, loggername="coap"):
+    def __init__(self, loop=None, serversite=None, loggername="coap", client_credentials=None):
         self.message_id = random.randint(0, 65535)
         self.token = random.randint(0, 65535)
         self.serversite = serversite
@@ -118,6 +119,11 @@ class Context(interfaces.RequestProvider):
         self.loop = loop or asyncio.get_event_loop()
 
         self.transport_endpoints = []
+
+        self.client_credentials = client_credentials or CredentialsMap()
+
+    client_credentials = None  # abstractmethods don't know this will be
+                               # unconditionally set in the constructor
 
     @asyncio.coroutine
     def shutdown(self):
@@ -144,7 +150,7 @@ class Context(interfaces.RequestProvider):
     # coap dispatch
     #
 
-    def _dispatch_message(self, message):
+    def dispatch_message(self, message):
         """Feed a message through the message-id, message-type and message-code
         sublayers of CoAP"""
 
@@ -179,7 +185,7 @@ class Context(interfaces.RequestProvider):
         else:
             self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it."%(message.code, message.mtype, message.remote))
 
-    def _dispatch_error(self, errno, remote):
+    def dispatch_error(self, errno, remote):
         self.log.debug("Incoming error %d from %r", errno, remote)
 
         # cancel requests first, and then exchanges: cancelling the pending
@@ -525,15 +531,15 @@ class Context(interfaces.RequestProvider):
         for transportname in defaults.get_default_clienttransports(loop=loop):
             if transportname == 'udp6':
                 from .transports.udp6 import TransportEndpointUDP6
-                self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
+                self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to)))
             elif transportname == 'simple6':
                 from .transports.simple6 import TransportEndpointSimple6
-                self.transport_endpoints.append((yield from TransportEndpointSimple6.create_client_transport_endpoint(self._dispatch_message, self._dispatch_error, log=self.log, loop=loop)))
+                self.transport_endpoints.append((yield from TransportEndpointSimple6.create_client_transport_endpoint(self, log=self.log, loop=loop)))
                 # FIXME warn if dump_to is not None
             elif transportname == 'tinydtls':
                 from .transports.tinydtls import TransportEndpointTinyDTLS
 
-                self.transport_endpoints.append((yield from TransportEndpointTinyDTLS.create_client_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to)))
+                self.transport_endpoints.append((yield from TransportEndpointTinyDTLS.create_client_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to)))
             else:
                 raise RuntimeError("Transport %r not know for client context creation"%transportname)
 
@@ -557,23 +563,21 @@ class Context(interfaces.RequestProvider):
             if transportname == 'udp6':
                 from .transports.udp6 import TransportEndpointUDP6
 
-                self.transport_endpoints.append((yield from TransportEndpointUDP6.create_server_transport_endpoint(new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop, dump_to=dump_to, bind=bind)))
+                self.transport_endpoints.append((yield from TransportEndpointUDP6.create_server_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to, bind=bind)))
             # FIXME this is duplicated from the client version, as those are client-only anyway
             elif transportname == 'simple6':
                 from .transports.simple6 import TransportEndpointSimple6
-                self.transport_endpoints.append((yield from TransportEndpointSimple6.create_client_transport_endpoint(self._dispatch_message, self._dispatch_error, log=self.log, loop=loop)))
+                self.transport_endpoints.append((yield from TransportEndpointSimple6.create_client_transport_endpoint(self, log=self.log, loop=loop)))
                 # FIXME warn if dump_to is not None
-            # FIXME end duplication
             elif transportname == 'tinydtls':
-                pass
-#                 from .transports.tinydtls_server import TransportEndpointTinyDTLSServer
-# 
-#                 self.transport_endpoints.append((yield from TransportEndpointTinyDTLSServer.create_server(bind, new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop)))
-#                 # FIXME dump_to not implemented
+                from .transports.tinydtls import TransportEndpointTinyDTLS
+
+                self.transport_endpoints.append((yield from TransportEndpointTinyDTLS.create_client_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to)))
+            # FIXME end duplication
             elif transportname == 'simplesocketserver':
                 # FIXME dump_to not implemented
                 from .transports.simplesocketserver import TransportEndpointSimpleServer
-                self.transport_endpoints.append((yield from TransportEndpointSimpleServer.create_server(bind, new_message_callback=self._dispatch_message, new_error_callback=self._dispatch_error, log=self.log, loop=loop)))
+                self.transport_endpoints.append((yield from TransportEndpointSimpleServer.create_server(bind, self, log=self.log, loop=loop)))
             else:
                 raise RuntimeError("Transport %r not know for server context creation"%transportname)
 

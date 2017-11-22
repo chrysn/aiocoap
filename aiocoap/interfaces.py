@@ -86,6 +86,29 @@ class EndpointAddress(metaclass=abc.ABCMeta):
     def is_multicast_locally(self):
         """True if the local address is a multicast address, otherwise false."""
 
+class MessageManager(metaclass=abc.ABCMeta):
+    """The interface an entity that drives a TransportEndpoint provides towards
+    the TransportEndpoint for callbacks and object acquisition."""
+
+    @abc.abstractmethod
+    def dispatch_message(self, message):
+        """Callback to be invoked with an incoming message"""
+
+    @abc.abstractmethod
+    def dispatch_error(self, errno, remote):
+        """Callback to be invoked when the operating system indicated an error
+        condition from a particular remote.
+
+        This interface is likely to change soon to something that is not
+        limited to errno-style errors, and might allow transporting additional
+        data."""
+
+    @property
+    @abc.abstractmethod
+    def client_credentials(self):
+        """A CredentialsMap that transports should consult when trying to
+        establish a security context"""
+
 class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def request(self, request_message):

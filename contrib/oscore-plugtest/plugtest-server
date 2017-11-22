@@ -23,6 +23,7 @@ import aiocoap.oscore as oscore
 import aiocoap.error as error
 from aiocoap.util.cli import AsyncCLIDaemon
 import aiocoap.resource as resource
+from aiocoap.credentials import CredentialsMap
 
 from plugtest_common import *
 
@@ -146,12 +147,12 @@ class InnerBlockResource(InnerBlockMixin, BlockResource):
     pass
 
 class SeqnoManager(resource.ObservableResource):
-    def __init__(self, contexts):
+    def __init__(self, contextmap):
         super().__init__()
-        self.contexts = contexts
+        self.contextmap = contextmap
 
     def render_get(self, request):
-        the_context, = self.contexts.values()
+        the_context = self.contextmap[':plugtest']
 
         if not hasattr(the_context, "_SeqnoManager__patched"):
             the_context.__patched = True
@@ -173,7 +174,7 @@ class SeqnoManager(resource.ObservableResource):
             raise aiocoap.error.BadRequest("Only numeric values are accepted.")
 
         new_context = get_security_context(number, 'server')
-        self.contexts[new_context.recipient_id] = new_context
+        self.contextmap[':plugtest'] = new_context
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
@@ -183,11 +184,11 @@ class ProtectedSite(resource.Site):
 
     All resources will be shown in :meth:`get_resources_as_linkheader`."""
 
-    def __init__(self, *, contexts=[], loggername="oscore-site"):
+    def __init__(self, *, server_credentials=None, loggername="oscore-site"):
         super().__init__();
         self.log = logging.getLogger(loggername)
 
-        self.contexts = {c.recipient_id: c for c in contexts}
+        self.server_credentials = server_credentials
 
         self._inner_site = resource.Site()
 
@@ -302,7 +303,7 @@ class ProtectedSite(resource.Site):
                 raise PleaseUseOscore()
 
         try:
-            sc = self.contexts[recipient_id]
+            sc = self.server_credentials.find_oscore(recipient_id)
         except KeyError:
             if request.mtype == aiocoap.CON:
                 raise error.Unauthorized("Security context not found")
@@ -372,8 +373,8 @@ class ProtectedSite(resource.Site):
         return protected_response
 
 class PlugtestSite(ProtectedSite):
-    def __init__(self, regular_context):
-        super().__init__(contexts=[regular_context])
+    def __init__(self, server_credentials):
+        super().__init__(server_credentials=server_credentials)
 
         self.add_resource(('.well-known', 'core'), resource.WKCResource(self.get_resources_as_linkheader))
         self.add_resource(('hello', 'coap'), Hello())
@@ -388,7 +389,7 @@ class PlugtestSite(ProtectedSite):
         self.add_protected_resource(('block', 'outer'), BlockResource())
         self.add_protected_resource(('block', 'inner'), InnerBlockResource())
 
-        self.add_resource(('sequence-numbers',), SeqnoManager(self.contexts))
+        self.add_resource(('sequence-numbers',), SeqnoManager(server_credentials))
 
 class PlugtestServerProgram(AsyncCLIDaemon):
     async def start(self):
@@ -405,9 +406,10 @@ class PlugtestServerProgram(AsyncCLIDaemon):
             logging.root.setLevel(logging.WARNING)
 
 
-        regular_context = get_security_context(0, 'server', opts.contextdir)
+        server_credentials = CredentialsMap()
+        server_credentials[':plugtest'] = get_security_context(0, 'server', opts.contextdir)
 
-        self.context = await aiocoap.Context.create_server_context(PlugtestSite(regular_context), bind=(opts.server_address, opts.server_port))
+        self.context = await aiocoap.Context.create_server_context(PlugtestSite(server_credentials), bind=(opts.server_address, opts.server_port))
 
         print("Plugtest server ready.")
         sys.stdout.flush() # the unit tests might wait abundantly long for this otherwise

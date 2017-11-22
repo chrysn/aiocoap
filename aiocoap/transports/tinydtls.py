@@ -11,8 +11,8 @@ wrapped tinydtls library.
 
 This currently only implements the client side. To have a test server, run::
 
-    $ git clone https://github.com/obgm/libcoap.git
-    $ git submodule update --init
+    $ git clone https://github.com/obgm/libcoap.git --recursive
+    $ cd libcoap
     $ ./autogen.sh
     $ ./configure --with-tinydtls --disable-shared
     $ make
@@ -21,9 +21,25 @@ This currently only implements the client side. To have a test server, run::
 (Using TinyDTLS in libcoap is important; with the default OpenSSL build, I've
 seen DTLS1.0 responses to DTLS1.3 requests, which are hard to debug.)
 
-The test server can then be accessed with the currently built-in credentials using::
+The test server with its built-in credentials can then be accessed using::
 
-    $ ./aiocoap-client coaps://localhost/
+    $ echo '{"coaps://localhost/*": {"dtls": {"psk": {"ascii": "secretPSK"}, "client-identity": {"ascii": "client_Identity"}}}}' > testserver.json
+    $ ./aiocoap-client coaps://localhost --credentials testserver.json
+
+While it is planned to allow more programmatical construction of the
+credentials store, the currently recommended way of storing DTLS credentials is
+to load a structured data object into the client_credentials store of the context:
+
+>>> c = await aiocoap.Context.create_client_context()          # doctest: +SKIP
+>>> c.client_credentials.load_from_dict(
+...     {'coaps://localhost/*': {'dtls': {
+...         'psk': b'secretPSK',
+...         'client-identity': b'client_Identity',
+...         }}})                                               # doctest: +SKIP
+
+where, compared to the JSON example above, byte strings can be used directly
+rather than expressing them as 'ascii'/'hex' (`{'hex': '30383135'}` style works
+as well) to work around JSON's limitation of not having raw binary strings.
 
 Bear in mind that the aiocoap CoAPS support is highly experimental; for
 example, while requests to this server do complete, error messages are still
@@ -41,6 +57,7 @@ from ..util import hostportjoin
 from ..message import Message
 from .. import interfaces, error
 from ..numbers import COAPS_PORT
+from ..credentials import CredentialsMissingError
 
 # tinyDTLS passes address information around in its session data, but the way
 # it's used here that will be ignored; this is the data that is sent to / read
@@ -66,10 +83,6 @@ CODE_CLOSE_NOTIFY = 0
 # FIXME this should be exposed by the dtls wrapper
 DTLS_TICKS_PER_SECOND = 1000
 DTLS_CLOCK_OFFSET = time.time()
-
-class DTLSSecurityStore:
-    def _get_psk(self, host, port):
-        return b"", b"LzoiYMmZdKg4huCC"
 
 class DTLSClientConnection(interfaces.EndpointAddress):
     # for now i'd assyme the connection can double as an address. this means it
@@ -163,10 +176,10 @@ class DTLSClientConnection(interfaces.EndpointAddress):
                 self._retransmission_task = asyncio.Task(self._run_retransmissions())
         except OSError as e:
             self.log.debug("Expressing exception %r as errno %d.", e, e.errno)
-            self.coaptransport.new_error_callback(e.errno, self)
+            self.coaptransport.ctx.dispatch_error(e.errno, self)
         except Exception as e:
             self.log.error("Exception %r can not be represented as errno, setting -1.", e)
-            self.coaptransport.new_error_callback(-1, self)
+            self.coaptransport.ctx.dispatch_error(-1, self)
         finally:
             if self._connection is not None:
                 try:
@@ -207,7 +220,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return len(data)
 
-        self.coaptransport.new_message_callback(message)
+        self.coaptransport.ctx.dispatch_message(message)
 
         return len(data)
 
@@ -262,15 +275,13 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             self.parent._dtls_socket.handleMessage(self.parent._connection, data)
 
 class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
-    def __init__(self, new_message_callback, new_error_callback, log, loop):
+    def __init__(self, ctx: interfaces.MessageManager, log, loop):
         self._pool = weakref.WeakValueDictionary({}) # see _connection_for_address
 
-        self.new_message_callback = new_message_callback
-        self.new_error_callback = new_error_callback
+        self.ctx = ctx
+
         self.log = log
         self.loop = loop
-
-        self.security = DTLSSecurityStore()
 
     @asyncio.coroutine
     def _connection_for_address(self, host, port, pskId, psk):
@@ -288,10 +299,10 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
 
     @classmethod
     @asyncio.coroutine
-    def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to):
+    def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to):
         if dump_to is not None:
             log.error("Ignoring dump_to in tinyDTLS transport endpoint")
-        return cls(new_message_callback, new_error_callback, log, loop)
+        return cls(ctx, log, loop)
 
     @asyncio.coroutine
     def determine_remote(self, request):
@@ -308,7 +319,11 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-        pskId, psk = self.security._get_psk(host, port)
+        dtlsparams = self.ctx.client_credentials.credentials_from_request(request)
+        try:
+            pskId, psk = dtlsparams.as_dtls_psk()
+        except AttributeError:
+            raise CredentialsMissingError("Credentials for requested URI are not compatible with DTLS-PSK")
         result = yield from self._connection_for_address(host, port, pskId, psk)
         return result
 
