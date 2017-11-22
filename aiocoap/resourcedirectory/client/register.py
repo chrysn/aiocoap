@@ -247,8 +247,7 @@ class Registerer:
             self.log.error("Aborting RD discovery: %s", e.args[0])
         except Exception as e:
             self._set_state('failed')
-            self.log.error("An error occurred during RD registration, not pursuing registration any further:")
-            self.log.exception(e)
+            self.log.error("An error occurred during RD registration, not pursuing registration any further:", exc_info=e)
         finally:
             obtain.cancel()
 
@@ -330,5 +329,4 @@ class Registerer:
                     Message(code=DELETE, uri=self._registration_resource)
                     ).response_raising
         except Exception as e:
-            self.log.error("Error deregistering from the RD")
-            self.log.exception(e)
+            self.log.error("Error deregistering from the RD", exc_info=e)

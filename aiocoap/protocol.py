@@ -831,7 +831,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 obs.error(e)
             if not logged:
                 # should be unreachable
-                log.exception("Exception in BlockwiseRequest runner neither went to response nor to observation: %s", e)
+                log.error("Exception in BlockwiseRequest runner neither went to response nor to observation: %s", e, exc_info=e)
 
     # This is a class method because that allows self and self.observation to
     # be freed even when this task is running, and the task to stop itself --
@@ -1166,8 +1166,7 @@ class Responder(object):
             needs_blockwise = yield from self.protocol.serversite.needs_blockwise_assembly(initial_block)
         except Exception as e:
             self.respond_with_error(initial_block, INTERNAL_SERVER_ERROR, "")
-            self.log.error("An exception occurred while requesting needs_blockwise: %r"%e)
-            self.log.exception(e)
+            self.log.error("An exception occurred while requesting needs_blockwise: %r"%e, exc_info=e)
             return
 
         if needs_blockwise:
@@ -1191,8 +1190,7 @@ class Responder(object):
             self.respond_with_error(request, e.code, e.message)
         except Exception as e:
             self.respond_with_error(request, INTERNAL_SERVER_ERROR, "")
-            self.log.error("An exception occurred while rendering a resource: %r"%e)
-            self.log.exception(e)
+            self.log.error("An exception occurred while rendering a resource: %r"%e, exc_info=e)
         else:
             if response is NoResponse:
                 self.send_final_response(response, request)
