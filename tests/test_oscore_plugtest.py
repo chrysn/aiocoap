@@ -37,7 +37,6 @@ class WithAssertNofaillines(unittest.TestCase):
         errorlines = (l for l in lines if 'fail'in l)
         self.assertEqual([], list(errorlines), message)
 
-@unittest.skipIf(sys.version_info < (3, 5), "OSCORE plug test server uses Python 3.5 'async def' idioms")
 @unittest.skipIf(aiocoap.defaults.oscore_missing_modules(), "Mdules missing for running OSCORE tests: %s"%(aiocoap.defaults.oscore_missing_modules(),))
 class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
     def setUp(self):

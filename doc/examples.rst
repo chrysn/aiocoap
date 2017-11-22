@@ -10,11 +10,6 @@ with the library if you prefer reading code to reading tutorials. Otherwise,
 you might want to have a look at the :doc:`guidedtour`, where the relevant
 concepts are introduced and explained step by step.
 
-Unlike the library and its tools, these examples use the modern (Python 3.5 and
-later) ``async`` idiom instead of the original asyncio ``await``. This is
-to align them better with what novice users are expected to learn when
-introduced to asynchronous programming in Python.
-
 .. note:: These example programs are not shipped in library version of aiocoap.
     They are present if you followed the :ref:`installation-development`
     section of the installation instructions; otherwise, you can download them
