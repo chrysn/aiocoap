@@ -32,14 +32,6 @@ test:3.6:
 #   script:
 #     - ./setup.py test
 
-# Currently segfaults building tinydtls, and not supported any more anyway
-
-# test:3.4:
-#   image: "python:3.4"
-#   script:
-#     - pip3 install cython
-#     - ./setup.py test
-
 pages:
   image: "python:3.6-stretch"
   stage: deploy

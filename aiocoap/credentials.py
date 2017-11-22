@@ -40,17 +40,7 @@ ease porting to platforms that don't support inspect like micropython does.
 import re
 import inspect
 
-try:
-    from typing import Optional
-except ImportError:
-    # Python 3.4 workaround. This obviously doesn't preserve the full
-    # semantics, but the type checker in the parser will interpret Optional[x]
-    # as "must be x, the Optional is just to allow the default None" anyway.
-
-    class Optional:
-        @staticmethod
-        def __getitem__(x):
-            return x
+from typing import Optional
 
 
 '''

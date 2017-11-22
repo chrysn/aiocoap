@@ -91,7 +91,7 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
 
-    python_requires='>=3.4.4',
+    python_requires='>=3.5',
     extras_require=extras_require,
     tests_require=tests_require,
 

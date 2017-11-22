@@ -45,12 +45,6 @@ class PeekQueue:
         return first
 
 import asyncio
-try:
-    from asyncio import StopAsyncIteration
-except ImportError:
-    class StopAsyncIteration(Exception):
-        """Iteration stopper defined to make the asynchronous iterator
-        interface usable on Python 3.4"""
 
 class AsyncGenerator:
     """An object implementing the __aiter__ protocol until `async def / yield`
