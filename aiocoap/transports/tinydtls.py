@@ -11,8 +11,8 @@ wrapped tinydtls library.
 
 This currently only implements the client side. To have a test server, run::
 
-    $ git clone https://github.com/obgm/libcoap.git
-    $ git submodule update --init
+    $ git clone https://github.com/obgm/libcoap.git --recursive
+    $ cd libcoap
     $ ./autogen.sh
     $ ./configure --with-tinydtls --disable-shared
     $ make
@@ -21,9 +21,25 @@ This currently only implements the client side. To have a test server, run::
 (Using TinyDTLS in libcoap is important; with the default OpenSSL build, I've
 seen DTLS1.0 responses to DTLS1.3 requests, which are hard to debug.)
 
-The test server can then be accessed with the currently built-in credentials using::
+The test server with its built-in credentials can then be accessed using::
 
-    $ ./aiocoap-client coaps://localhost/
+    $ echo '{"coaps://localhost/*": {"dtls": {"psk": {"ascii": "secretPSK"}, "client-identity": {"ascii": "client_Identity"}}}}' > testserver.json
+    $ ./aiocoap-client coaps://localhost --credentials testserver.json
+
+While it is planned to allow more programmatical construction of the
+credentials store, the currently recommended way of storing DTLS credentials is
+to load a structured data object into the client_credentials store of the context:
+
+>>> c = await aiocoap.Context.create_client_context()          # doctest: +SKIP
+>>> c.client_credentials.load_from_dict(
+...     {'coaps://localhost/*': {'dtls': {
+...         'psk': b'secretPSK',
+...         'client-identity': b'client_Identity',
+...         }}})                                               # doctest: +SKIP
+
+where, compared to the JSON example above, byte strings can be used directly
+rather than expressing them as 'ascii'/'hex' (`{'hex': '30383135'}` style works
+as well) to work around JSON's limitation of not having raw binary strings.
 
 Bear in mind that the aiocoap CoAPS support is highly experimental; for
 example, while requests to this server do complete, error messages are still
