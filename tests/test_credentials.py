@@ -13,7 +13,6 @@ import unittest
 
 from aiocoap import Message, GET
 from aiocoap.credentials import CredentialsMap, DTLS
-from aiocoap.oscore import FilesystemSecurityContext
 import aiocoap.defaults
 
 class TestCredentialsLoad(unittest.TestCase):
@@ -41,6 +40,8 @@ class TestCredentialsLoad(unittest.TestCase):
 
     @unittest.skipIf(aiocoap.defaults.oscore_missing_modules(), "Modules missing for loading OSCORE contexts: %s"%(aiocoap.defaults.oscore_missing_modules(),))
     def test_oscore_filebased(self):
+        from aiocoap.oscore import FilesystemSecurityContext
+
         raw = {
             'coap://some-oscore-host/*': {'oscore': {'contextfile': __file__.replace('test_credentials.py', 'test_credentials_oscore_context/'), 'role': 'client'}},
             'coaps://some-dtls-host/*': {'dtls': {'psk': {'hex': '73-65-63-72-65-74-50-53-4b'}, 'client-identity': b'Client_identity'}}
