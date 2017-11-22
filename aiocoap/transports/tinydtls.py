@@ -137,19 +137,18 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
     log = property(lambda self: self.coaptransport.log)
 
-    @asyncio.coroutine
-    def _run(self, connect_immediately):
+    async def _run(self, connect_immediately):
         from DTLSSocket import dtls
 
         self._dtls_socket = None
 
         if not connect_immediately:
-            yield from self._queue.peek()
+            await self._queue.peek()
 
         self._connection = None
 
         try:
-            self._transport, singleconnection = yield from self.coaptransport.loop.create_datagram_endpoint(
+            self._transport, singleconnection = await self.coaptransport.loop.create_datagram_endpoint(
                     self.SingleConnection.factory(self),
                     remote_addr=(self._host, self._port),
                     )
@@ -167,10 +166,10 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
             self._connecting = asyncio.Future()
 
-            yield from self._connecting
+            await self._connecting
 
             while True:
-                message = yield from self._queue.get()
+                message = await self._queue.get()
                 self._retransmission_task.cancel()
                 self._dtls_socket.write(self._connection, message)
                 self._retransmission_task = asyncio.Task(self._run_retransmissions())
@@ -192,14 +191,13 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             # delayed ICMP errors that might still wind up in the old socket
             self._transport.close()
 
-    @asyncio.coroutine
-    def _run_retransmissions(self):
+    async def _run_retransmissions(self):
         while True:
             when = self._dtls_socket.checkRetransmit() / DTLS_TICKS_PER_SECOND
             if when == 0:
                 return
             now = time.time() - DTLS_CLOCK_OFFSET
-            yield from asyncio.sleep(when - now)
+            await asyncio.sleep(when - now)
 
 
     def shutdown(self):
@@ -283,8 +281,7 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
         self.log = log
         self.loop = loop
 
-    @asyncio.coroutine
-    def _connection_for_address(self, host, port, pskId, psk):
+    async def _connection_for_address(self, host, port, pskId, psk):
         """Return a DTLSConnection to a given address. This will always give
         the same result for the same host/port combination, at least for as
         long as that result is kept alive (eg. by messages referring to it in
@@ -298,14 +295,12 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
             return connection
 
     @classmethod
-    @asyncio.coroutine
-    def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to):
+    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to):
         if dump_to is not None:
             log.error("Ignoring dump_to in tinyDTLS transport endpoint")
         return cls(ctx, log, loop)
 
-    @asyncio.coroutine
-    def determine_remote(self, request):
+    async def determine_remote(self, request):
         if request.requested_scheme != 'coaps':
             return None
 
@@ -324,14 +319,13 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
             pskId, psk = dtlsparams.as_dtls_psk()
         except AttributeError:
             raise CredentialsMissingError("Credentials for requested URI are not compatible with DTLS-PSK")
-        result = yield from self._connection_for_address(host, port, pskId, psk)
+        result = await self._connection_for_address(host, port, pskId, psk)
         return result
 
     def send(self, message):
         message.remote.send(message.encode())
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         remaining_connections = list(self._pool.values())
         for c in remaining_connections:
             c.shutdown()

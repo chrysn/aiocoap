@@ -39,7 +39,7 @@ def get_default_clienttransports(*, loop=None):
     """
 
     if 'AIOCOAP_CLIENT_TRANSPORT' in os.environ:
-        yield from os.environ['AIOCOAP_CLIENT_TRANSPORT'].split(':')
+        await os.environ['AIOCOAP_CLIENT_TRANSPORT'].split(':')
         return
 
     try:
@@ -84,7 +84,7 @@ def get_default_servertransports(*, loop=None):
     """
 
     if 'AIOCOAP_SERVER_TRANSPORT' in os.environ:
-        yield from os.environ['AIOCOAP_SERVER_TRANSPORT'].split(':')
+        await os.environ['AIOCOAP_SERVER_TRANSPORT'].split(':')
         return
 
     # no server support yet, but doesn't hurt either

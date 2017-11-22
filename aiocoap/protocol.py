@@ -125,8 +125,7 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
     client_credentials = None  # abstractmethods don't know this will be
                                # unconditionally set in the constructor
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         """Take down the listening socket and stop all related timers.
 
         After this coroutine terminates, and once all external references to
@@ -144,7 +143,7 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
             observation.deregister("Server going down")
         self._active_exchanges = None
 
-        yield from asyncio.wait([te.shutdown() for te in self.transport_endpoints], timeout=3, loop=self.loop)
+        await asyncio.wait([te.shutdown() for te in self.transport_endpoints], timeout=3, loop=self.loop)
 
     #
     # coap dispatch
@@ -420,12 +419,11 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
     # outgoing messages
     #
 
-    @asyncio.coroutine
-    def fill_remote(self, message):
+    async def fill_remote(self, message):
         if message.remote is not None:
             return
         for te in self.transport_endpoints:
-            remote = yield from te.determine_remote(message)
+            remote = await te.determine_remote(message)
             if remote is not None:
                 message.remote = remote
                 return
@@ -514,8 +512,7 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
     #
 
     @classmethod
-    @asyncio.coroutine
-    def create_client_context(cls, *, dump_to=None, loggername="coap", loop=None):
+    async def create_client_context(cls, *, dump_to=None, loggername="coap", loop=None):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get an context suitable for sending client
@@ -531,23 +528,22 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
         for transportname in defaults.get_default_clienttransports(loop=loop):
             if transportname == 'udp6':
                 from .transports.udp6 import TransportEndpointUDP6
-                self.transport_endpoints.append((yield from TransportEndpointUDP6.create_client_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to)))
+                self.transport_endpoints.append(await TransportEndpointUDP6.create_client_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to))
             elif transportname == 'simple6':
                 from .transports.simple6 import TransportEndpointSimple6
-                self.transport_endpoints.append((yield from TransportEndpointSimple6.create_client_transport_endpoint(self, log=self.log, loop=loop)))
+                self.transport_endpoints.append(await TransportEndpointSimple6.create_client_transport_endpoint(self, log=self.log, loop=loop))
                 # FIXME warn if dump_to is not None
             elif transportname == 'tinydtls':
                 from .transports.tinydtls import TransportEndpointTinyDTLS
 
-                self.transport_endpoints.append((yield from TransportEndpointTinyDTLS.create_client_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to)))
+                self.transport_endpoints.append(await TransportEndpointTinyDTLS.create_client_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to))
             else:
                 raise RuntimeError("Transport %r not know for client context creation"%transportname)
 
         return self
 
     @classmethod
-    @asyncio.coroutine
-    def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None, loggername="coap-server", loop=None):
+    async def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None, loggername="coap-server", loop=None):
         """Create an context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -563,21 +559,21 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
             if transportname == 'udp6':
                 from .transports.udp6 import TransportEndpointUDP6
 
-                self.transport_endpoints.append((yield from TransportEndpointUDP6.create_server_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to, bind=bind)))
+                self.transport_endpoints.append(await TransportEndpointUDP6.create_server_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to, bind=bind))
             # FIXME this is duplicated from the client version, as those are client-only anyway
             elif transportname == 'simple6':
                 from .transports.simple6 import TransportEndpointSimple6
-                self.transport_endpoints.append((yield from TransportEndpointSimple6.create_client_transport_endpoint(self, log=self.log, loop=loop)))
+                self.transport_endpoints.append(await TransportEndpointSimple6.create_client_transport_endpoint(self, log=self.log, loop=loop))
                 # FIXME warn if dump_to is not None
             elif transportname == 'tinydtls':
                 from .transports.tinydtls import TransportEndpointTinyDTLS
 
-                self.transport_endpoints.append((yield from TransportEndpointTinyDTLS.create_client_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to)))
+                self.transport_endpoints.append(await TransportEndpointTinyDTLS.create_client_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to))
             # FIXME end duplication
             elif transportname == 'simplesocketserver':
                 # FIXME dump_to not implemented
                 from .transports.simplesocketserver import TransportEndpointSimpleServer
-                self.transport_endpoints.append((yield from TransportEndpointSimpleServer.create_server(bind, self, log=self.log, loop=loop)))
+                self.transport_endpoints.append(await TransportEndpointSimpleServer.create_server(bind, self, log=self.log, loop=loop))
             else:
                 raise RuntimeError("Transport %r not know for server context creation"%transportname)
 
@@ -634,30 +630,28 @@ class BaseUnicastRequest(BaseRequest):
     :attr:`response` future and an :attr:`observation`"""
 
     @property
-    @asyncio.coroutine
-    def response_raising(self):
+    async def response_raising(self):
         """An awaitable that returns if a response comes in and is successful,
         otherwise raises generic network exception or a
         :class:`.error.ResponseWrappingError` for unsuccessful responses.
 
         Experimental Interface."""
 
-        response = yield from self.response
+        response = await self.response
         if not response.code.is_successful():
             raise error.ResponseWrappingError(response)
 
         return response
 
     @property
-    @asyncio.coroutine
-    def response_nonraising(self):
+    async def response_nonraising(self):
         """An awaitable that rather returns a 500ish fabricated message (as a
         proxy would return) instead of raising an exception.
 
         Experimental Interface."""
 
         try:
-            return (yield from self.response)
+            return await self.response
         except error.RenderableError:
             return e.to_message()
         except Exception as e:
@@ -687,8 +681,7 @@ class Request(BaseUnicastRequest, interfaces.Request):
 
         asyncio.Task(self._init_phase2())
 
-    @asyncio.coroutine
-    def _init_phase2(self):
+    async def _init_phase2(self):
         """Later aspects of initialization that deal more with sending the
         message than with the setup of the requester
 
@@ -696,7 +689,7 @@ class Request(BaseUnicastRequest, interfaces.Request):
         depend on async results."""
 
         try:
-            yield from self.protocol.fill_remote(self.app_request)
+            await self.protocol.fill_remote(self.app_request)
 
             self.send_request(self.app_request)
         except Exception as e:
@@ -814,10 +807,9 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             self._runner.cancel()
 
     @classmethod
-    @asyncio.coroutine
-    def _run_outer(cls, app_request, response, weak_observation, protocol, log, exchange_monitor_factory):
+    async def _run_outer(cls, app_request, response, weak_observation, protocol, log, exchange_monitor_factory):
         try:
-            yield from cls._run(app_request, response, weak_observation, protocol, log, exchange_monitor_factory)
+            await cls._run(app_request, response, weak_observation, protocol, log, exchange_monitor_factory)
         except asyncio.CancelledError:
             pass # results already set
         except Exception as e:
@@ -839,8 +831,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
     # object after using its response (esp. in observe cases) and leave this
     # task running.
     @classmethod
-    @asyncio.coroutine
-    def _run(cls, app_request, response, weak_observation, protocol, log, exchange_monitor_factory):
+    async def _run(cls, app_request, response, weak_observation, protocol, log, exchange_monitor_factory):
         size_exp = DEFAULT_BLOCK_SIZE_EXP
 
         if app_request.opt.block1 is not None:
@@ -866,7 +857,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 current_block1 = current_block1.copy(remote=remote)
 
             blockrequest = protocol.request(current_block1, exchange_monitor_factory=exchange_monitor_factory, handle_blockwise=False)
-            blockresponse = yield from blockrequest.response
+            blockresponse = await blockrequest.response
 
             # store for future blocks: don't resolve the address again
             remote = blockresponse.remote
@@ -935,7 +926,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         # block1 as a reference for now, especially because in the
         # only-one-request-block case, that's the original request we must send
         # again and again anyway
-        assembled_response = yield from cls._complete_by_requesting_block2(protocol, current_block1, blockresponse, log, exchange_monitor_factory)
+        assembled_response = await cls._complete_by_requesting_block2(protocol, current_block1, blockresponse, log, exchange_monitor_factory)
 
         response.set_result(assembled_response)
         # finally set the result
@@ -950,20 +941,19 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             future_weak_observation.set_result(weakref.ref(obs, lambda obs: subtask.cancel()))
             obs._register(subtask.cancel)
             del obs
-            yield from subtask
+            await subtask
 
     @classmethod
-    @asyncio.coroutine
-    def _run_observation(cls, lower_observation, future_weak_observation, protocol, log, exchange_monitor_factory):
-        weak_observation = yield from future_weak_observation
+    async def _run_observation(cls, lower_observation, future_weak_observation, protocol, log, exchange_monitor_factory):
+        weak_observation = await future_weak_observation
         # we can use weak_observation() here at any time, because whenever that
         # becomes None, this task gets cancelled
         try:
             aiter = lower_observation.__aiter__()
             while True:
-                block1_notification = yield from aiter.__anext__()
+                block1_notification = await aiter.__anext__()
                 log.debug("Notification received")
-                full_notification = yield from cls._complete_by_requesting_block2(protocol, weak_observation().original_request, block1_notification, log, exchange_monitor_factory)
+                full_notification = await cls._complete_by_requesting_block2(protocol, weak_observation().original_request, block1_notification, log, exchange_monitor_factory)
                 log.debug("Reporting completed notification")
                 weak_observation().callback(full_notification)
         except asyncio.CancelledError:
@@ -977,8 +967,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             weak_observation().error(e)
 
     @classmethod
-    @asyncio.coroutine
-    def _complete_by_requesting_block2(cls, protocol, request_to_repeat, initial_response, log, exchange_monitor_factory):
+    async def _complete_by_requesting_block2(cls, protocol, request_to_repeat, initial_response, log, exchange_monitor_factory):
         if initial_response.opt.block2 is None or initial_response.opt.block2.more is False:
             initial_response.opt.block2 = None
             return initial_response
@@ -995,7 +984,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             current_block2 = current_block2.copy(remote=initial_response.remote)
 
             blockrequest = protocol.request(current_block2, exchange_monitor_factory=exchange_monitor_factory, handle_blockwise=False)
-            last_response = yield from blockrequest.response
+            last_response = await blockrequest.response
 
             if last_response.opt.block2 is None:
                 log.warning("Server sent non-blockwise response after having started a blockwise transfer. Blockwise transfer cancelled, accepting single response.")
@@ -1027,13 +1016,12 @@ class MulticastRequest(BaseRequest):
 
         asyncio.Task(self._init_phase2())
 
-    @asyncio.coroutine
-    def _init_phase2(self):
+    async def _init_phase2(self):
         """See :meth:`Request._init_phase2`"""
         try:
-            yield from self.protocol.fill_remote(self.request)
+            await self.protocol.fill_remote(self.request)
 
-            yield from self._send_request(self.request)
+            await self._send_request(self.request)
         except Exception as e:
             self.responses.throw(e)
 
@@ -1053,7 +1041,7 @@ class MulticastRequest(BaseRequest):
 
         for i in range(5):
             # FIXME that's not what the spec says. what does the spec say?
-            yield from asyncio.sleep(i/2)
+            await asyncio.sleep(i/2)
             self.protocol.send_message(request)
 
     def handle_response(self, response):
@@ -1153,8 +1141,7 @@ class Responder(object):
                 self.log.warning("Non-blockwise request received during blockwise transfer. Blockwise transfer cancelled, responding to single request.")
             self.app_request.set_result(request)
 
-    @asyncio.coroutine
-    def dispatch_request(self, initial_block):
+    async def dispatch_request(self, initial_block):
         """Dispatch incoming request - search context resource tree for
         resource in Uri Path and call proper CoAP Method on it."""
 
@@ -1163,7 +1150,7 @@ class Responder(object):
             return
 
         try:
-            needs_blockwise = yield from self.protocol.serversite.needs_blockwise_assembly(initial_block)
+            needs_blockwise = await self.protocol.serversite.needs_blockwise_assembly(initial_block)
         except Exception as e:
             self.respond_with_error(initial_block, INTERNAL_SERVER_ERROR, "")
             self.log.error("An exception occurred while requesting needs_blockwise: %r"%e, exc_info=e)
@@ -1173,7 +1160,7 @@ class Responder(object):
             self.handle_next_request(initial_block)
 
             try:
-                request = yield from self.app_request
+                request = await self.app_request
             except asyncio.CancelledError:
                 # error has been handled somewhere else
                 return
@@ -1182,10 +1169,10 @@ class Responder(object):
 
         delayed_ack = self.protocol.loop.call_later(EMPTY_ACK_DELAY, self.send_empty_ack, request)
 
-        yield from self.handle_observe_request(request)
+        await self.handle_observe_request(request)
 
         try:
-            response = yield from self.protocol.serversite.render(request)
+            response = await self.protocol.serversite.render(request)
         except error.RenderableError as e:
             self.respond_with_error(request, e.code, e.message)
         except Exception as e:
@@ -1340,8 +1327,7 @@ class Responder(object):
         self.protocol.send_message(ack)
         self._sent_empty_ack = True
 
-    @asyncio.coroutine
-    def handle_observe_request(self, request):
+    async def handle_observe_request(self, request):
         key = ServerObservation.request_key(request)
 
         if key in self.protocol.incoming_observations:
@@ -1365,7 +1351,7 @@ class Responder(object):
 
         if request.code in (GET, FETCH) and request.opt.observe == 0 and hasattr(self.protocol.serversite, "add_observation"):
             sobs = ServerObservation(self.protocol, request, self.log)
-            yield from self.protocol.serversite.add_observation(request, sobs)
+            await self.protocol.serversite.add_observation(request, sobs)
             if sobs.accepted:
                 self._serverobservation = sobs
             else:
@@ -1600,11 +1586,10 @@ class _BaseClientObservation(object):
                 self._future = asyncio.Future()
             self._future.set_exception(e)
 
-        @asyncio.coroutine
-        def __anext__(self):
+        async def __anext__(self):
             f = self._future
             try:
-                result = (yield from self._future)
+                result = await self._future
                 if f is self._future:
                     self._future = asyncio.Future()
                 return result

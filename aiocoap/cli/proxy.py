@@ -43,15 +43,14 @@ def build_parser():
     return p
 
 class Main(AsyncCLIDaemon):
-    @asyncio.coroutine
-    def start(self, args=None):
+    async def start(self, args=None):
         parser = build_parser()
         options = parser.parse_args(args if args is not None else sys.argv[1:])
 
         if options.direction is None:
             raise parser.error("Either --forward or --reverse must be given.")
 
-        self.outgoing_context = yield from aiocoap.Context.create_client_context(dump_to=options.dump_server)
+        self.outgoing_context = await aiocoap.Context.create_client_context(dump_to=options.dump_server)
         proxy = options.direction(self.outgoing_context)
         for kind, data in options.r or ():
             if kind == '--namebased':
@@ -72,12 +71,11 @@ class Main(AsyncCLIDaemon):
                 raise AssertionError('Unknown redirectory kind')
             proxy.add_redirector(r)
 
-        self.proxy_context = yield from aiocoap.Context.create_server_context(proxy, dump_to=options.dump_client, bind=(options.server_address, options.server_port))
+        self.proxy_context = await aiocoap.Context.create_server_context(proxy, dump_to=options.dump_client, bind=(options.server_address, options.server_port))
 
-    @asyncio.coroutine
-    def shutdown(self):
-        yield from self.outgoing_context.shutdown()
-        yield from self.proxy_context.shutdown()
+    async def shutdown(self):
+        await self.outgoing_context.shutdown()
+        await self.proxy_context.shutdown()
 
 sync_main = Main.sync_main
 

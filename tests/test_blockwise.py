@@ -32,8 +32,7 @@ class TestBlockwise(WithTestServer, WithClient):
         """Test whether the client serializes simultaneous block requests"""
         self.loop.run_until_complete(self._test_sequential())
 
-    @asyncio.coroutine
-    def _test_sequential(self):
+    async def _test_sequential(self):
         pattern1 = b"01234 first pattern" + b"01" * 1024
         pattern2 = b"01234 second pattern" + b"02" * 1024
 
@@ -50,7 +49,7 @@ class TestBlockwise(WithTestServer, WithClient):
 
         responses = []
         for response in asyncio.as_completed([self.client.request(r).response for r in [request1, request2]]):
-            response = yield from response
+            response = await response
             self.assertTrue(response.code.is_successful(), "Simultaneous blockwise requests caused error.")
             responses.append(response.payload)
 

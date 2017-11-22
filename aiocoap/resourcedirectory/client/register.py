@@ -95,8 +95,7 @@ class Registerer:
         self.log.debug("Entering state %s", newstate)
         self.state = newstate
 
-    @asyncio.coroutine
-    def _fill_directory_resource(self, blacklist=set()):
+    async def _fill_directory_resource(self, blacklist=set()):
         # FIXME: this should at some point catch network errors (short of
         # falling back to "RD discovery failed, backing off"), but that needs
         # falling back to other discovery methods here, and i don't know how
@@ -109,7 +108,7 @@ class Registerer:
             # FIXME: can't access DHCP options generically, dunno about SLAAC.
             # It seems to be a sane assumption that the best thing to do is to
             # assume we're on a big host and multicast is cheap here.
-            self._directory_resource = yield from self._discovery_directory_uri('coap://[ff05::fd]]', blacklist=blacklist)
+            self._directory_resource = await self._discovery_directory_uri('coap://[ff05::fd]]', blacklist=blacklist)
 
         components = urlparse(self._initial_rd)
         if components.path:
@@ -118,16 +117,15 @@ class Registerer:
             else:
                 self._directory_resource = self._initial_rd
         else:
-            self._directory_resource = yield from self._discovery_directory_uri(self._initial_rd, blacklist=blacklist)
+            self._directory_resource = await self._discovery_directory_uri(self._initial_rd, blacklist=blacklist)
 
-    @asyncio.coroutine
-    def _discovery_directory_uri(self, host, blacklist=set()):
+    async def _discovery_directory_uri(self, host, blacklist=set()):
         lookup_uri = urljoin(host,
                 '/.well-known/core?rt=core.rd')
 
         try:
             # FIXME: this should be able to deal with multicasts
-            response = yield from self._context.request(
+            response = await self._context.request(
                     Message(code=GET, uri=lookup_uri, accept=40)
                 ).response_raising
             links = link_header.parse(response.payload.decode('utf8'))
@@ -152,8 +150,7 @@ class Registerer:
 
         return addresses[0]
 
-    @asyncio.coroutine
-    def _obtain_link_data(self):
+    async def _obtain_link_data(self):
         """Store a message describing the data to be POSTed to the
         registration interface.
 
@@ -163,12 +160,12 @@ class Registerer:
         """
 
         if self._link_source is None:
-            self._link_data = yield from self._context.serversite.render(
+            self._link_data = await self._context.serversite.render(
                 Message(code=GET, uri_path=('.well-known', 'core'))
                 )
 
         else:
-            self._link_data = yield from self._context.request(
+            self._link_data = await self._context.request(
                     Message(code=GET, uri=urljoin(self._link_source, '/.well-known/core'))
                     ).response_raising
 
@@ -180,25 +177,23 @@ class Registerer:
         """Raised when the RD registration process runs out of options
         (typically with a descriptive message)"""
 
-    @asyncio.coroutine
-    def _request_with_retries(self, message):
+    async def _request_with_retries(self, message):
         # FIXME: response_nonraising gives 5.00 now, but for debugging we might
         # want to show something better, and for URI discovery, we should not
         # consider this a final error
-        response = yield from self._context.request(message).response_nonraising
+        response = await self._context.request(message).response_nonraising
 
         unavailable_retries = 0
         while response.code == SERVICE_UNAVAILABLE and response.opt.max_age is not None:
             if unavailable_retries > 6:
                 raise self._RetryableError("RD responded with Service Unavailable too often")
             self.log.info("RD asked to retry the operation later")
-            yield from asyncio.sleep(max(response.opt.max_age, 2**(unavailable_retries)))
-            response = yield from self._context.request(message).response_nonraising
+            await asyncio.sleep(max(response.opt.max_age, 2**(unavailable_retries)))
+            response = await self._context.request(message).response_nonraising
 
         return response
 
-    @asyncio.coroutine
-    def _register(self):
+    async def _register(self):
         initial_message = self._link_data.copy(code=POST, uri=self._directory_resource)
         base_query = {}
         if self._lt != 86400:
@@ -210,7 +205,7 @@ class Registerer:
         initial_message.opt.uri_query = initial_message.opt.uri_query + \
                 tuple("%s=%s"%(k, v) for (k,v) in query.items())
 
-        response = yield from self._request_with_retries(initial_message)
+        response = await self._request_with_retries(initial_message)
 
         if not response.code.is_successful():
             raise self._RetryableError("RD responded with odd error: %s / %r"%(response.code, response.payload))
@@ -221,11 +216,10 @@ class Registerer:
         # FIXME this should probably be available from the API, and consider location_query etc
         self._registration_resource = urljoin(response.get_request_uri(), "/" + "/".join(response.opt.location_path))
 
-    @asyncio.coroutine
-    def _renew_registration(self):
+    async def _renew_registration(self):
         update_message = Message(code=POST, uri=self._registration_resource)
 
-        response = yield from self._request_with_retries(update_message)
+        response = await self._request_with_retries(update_message)
 
         if response.code == NOT_FOUND:
             raise self._RetryableError("RD forgot about the registration")
@@ -233,12 +227,11 @@ class Registerer:
         if not response.code.is_successful():
             raise self._RetryableError("RD responded with odd error: %s / %r"%(response.code, response.payload))
 
-    @asyncio.coroutine
-    def _run(self):
+    async def _run(self):
         obtain = asyncio.Task(self._obtain_link_data())
 
         try:
-            registration = yield from self._run_inner(obtain)
+            registration = await self._run_inner(obtain)
         except asyncio.CancelledError:
             self._set_state('cancelled')
             pass
@@ -266,19 +259,19 @@ class Registerer:
                 for i in range(4):
                     if i:
                         self.log.info("Waiting to retry RD discovery")
-                        yield from asyncio.sleep(2 * 3 ** (i - 1)) # arbitrary fall-off
-                    yield from self._fill_directory_resource(blacklist=failed_initialization)
+                        await asyncio.sleep(2 * 3 ** (i - 1)) # arbitrary fall-off
+                    await self._fill_directory_resource(blacklist=failed_initialization)
                     break
                 else:
                     self.log.error("Giving up RD discovery")
                     break
 
-            link_data = yield from obtain
+            link_data = await obtain
 
             self._set_state("registering")
 
             try:
-                yield from self._register()
+                await self._register()
             except self._RetryableError as e:
                 errors += 1
                 if errors < errors_max:
@@ -304,18 +297,17 @@ class Registerer:
                 self._set_state("registered")
 
                 # renew 60 seconds before timeout, unless that's before the 75% mark (then wait for that)
-                yield from asyncio.sleep(self._lt - 60 if self._lt > 240 else self._lt * 3 // 4)
+                await asyncio.sleep(self._lt - 60 if self._lt > 240 else self._lt * 3 // 4)
 
                 self._set_state("renewing")
 
                 try:
-                    yield from self._renew_registration()
+                    await self._renew_registration()
                 except self._RetryableError as e:
                     self.log.warning("Registration update failed (%s), retrying with new registration", e)
                     break
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         """Delete the registration. This will not raise any resulting error
         messages but just log them, same as any errors occurring during the
         registration will only be logged."""
@@ -325,7 +317,7 @@ class Registerer:
             return
 
         try:
-            yield from self._context.request(
+            await self._context.request(
                     Message(code=DELETE, uri=self._registration_resource)
                     ).response_raising
         except Exception as e:

@@ -22,22 +22,19 @@ class PeekQueue:
     def __init__(self, *args, **kwargs):
         self._inner = asyncio.PriorityQueue(*args, **kwargs)
 
-    @asyncio.coroutine
-    def put(self, item):
-        yield from self._inner.put((1, item))
+    async def put(self, item):
+        await self._inner.put((1, item))
 
     def put_nowait(self, item):
         self._inner.put_nowait((1, item))
 
-    @asyncio.coroutine
-    def peek(self):
-        oldprio, first = yield from self._inner.get()
+    async def peek(self):
+        oldprio, first = await self._inner.get()
         self._inner.put_nowait((0, first))
         return first
 
-    @asyncio.coroutine
-    def get(self):
-        priority, first = yield from self._inner.get()
+    async def get(self):
+        priority, first = await self._inner.get()
         return first
 
     def get_nowait(self):
@@ -56,9 +53,8 @@ class AsyncGenerator:
     def __aiter__(self):
         return self
 
-    @asyncio.coroutine
-    def __anext__(self):
-        data, exception = yield from self._queue.get()
+    async def __anext__(self):
+        data, exception = await self._queue.get()
         if exception is None:
             return data
         else:
