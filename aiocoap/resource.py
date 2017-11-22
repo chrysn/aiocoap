@@ -102,7 +102,7 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
         m = getattr(self, 'render_%s' % str(request.code).lower(), None)
         if not m:
             raise error.UnallowedMethod()
-        return m(request)
+        return await m(request)
 
 class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):
@@ -148,7 +148,7 @@ class WKCResource(Resource):
     def __init__(self, listgenerator):
         self.listgenerator = listgenerator
 
-    def render_get(self, request):
+    async def render_get(self, request):
         links = self.listgenerator()
 
         filters = []
@@ -240,7 +240,7 @@ class Site(interfaces.ObservableResource, PathCapable):
         except KeyError:
             return True
         else:
-            return child.needs_blockwise_assembly(subrequest)
+            return await child.needs_blockwise_assembly(subrequest)
 
     def _find_child_and_pathstripped_message(self, request):
         """Given a request, find the child that will handle it, and strip all
@@ -274,7 +274,7 @@ class Site(interfaces.ObservableResource, PathCapable):
         except KeyError:
             raise error.NotFound()
         else:
-            return child.render(subrequest)
+            return await child.render(subrequest)
 
     async def add_observation(self, request, serverobservation):
         try:

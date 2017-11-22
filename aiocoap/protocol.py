@@ -1025,7 +1025,7 @@ class MulticastRequest(BaseRequest):
         except Exception as e:
             self.responses.throw(e)
 
-    def _send_request(self, request):
+    async def _send_request(self, request):
         request.token = self.protocol.next_token()
 
         try:
