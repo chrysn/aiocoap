@@ -41,6 +41,8 @@ ease porting to platforms that don't support inspect like micropython does.
 import re
 import inspect
 
+from .oscore import FilesystemSecurityContext
+
 try:
     from typing import Optional
 except ImportError:
@@ -129,58 +131,61 @@ class AnyOf(_Listish):
 class AllOf(_Listish):
     pass
 
+def _call_from_structureddata(constructor, name, init_data):
+    if not isinstance(init_data, dict):
+        raise CredentialsLoadError("%s goes with an object" % name)
+
+    init_data = {k.replace('-', '_'): v for (k, v) in init_data.items()}
+
+    sig = inspect.signature(constructor)
+
+    checked_items = {}
+
+    for k, v in init_data.items():
+        try:
+            annotation = sig.parameters[k].annotation
+        except KeyError as e:
+            # let this raise later in binding
+            checked_items[k] = object()
+
+        if isinstance(v, dict) and 'ascii' in v:
+            if len(v) != 1:
+                raise CredentialsLoadError("ASCII objects can only have one elemnt.")
+            try:
+                v = v['ascii'].encode('ascii')
+            except UnicodeEncodeError:
+                raise CredentialsLoadError("Elements of the ASCII object can not be represented in ASCII, please use binary or hex representation.")
+
+
+        if isinstance(v, dict) and 'hex' in v:
+            if len(v) != 1:
+                raise CredentialsLoadError("Hex objects can only have one elemnt.")
+            try:
+                v = bytes.fromhex(v['hex'].replace('-', '').replace(' ', '').replace(':', ''))
+            except ValueError as e:
+                raise CredentialsLoadError("Hex object can not be read: %s" % (e.args[0]))
+
+        # Not using isinstance because I foundno way to extract the type
+        # information from an Optional/Union again; this whole thing works
+        # only for strings and ints anyway, so why not.
+        if type(v) != annotation and Optional[type(v)] != annotation:
+            # explicitly not excluding inspect._empty here: constructors
+            # need to be fully annotated
+            raise CredentialsLoadError("Type mismatch in attribute %s of %s: expected %s, got %r" % (k, name, annotation, v))
+
+        checked_items[k] = v
+
+    try:
+        bound = sig.bind(**checked_items)
+    except TypeError as e:
+        raise CredentialsLoadError("%s: %s" % (name, e.args[0]))
+
+    return constructor(*bound.args, **bound.kwargs)
+
 class _Objectish:
     @classmethod
     def from_item(cls, init_data):
-        if not isinstance(init_data, dict):
-            raise CredentialsLoadError("%s goes with an object" % cls.__name__)
-
-        init_data = {k.replace('-', '_'): v for (k, v) in init_data.items()}
-
-        sig = inspect.signature(cls)
-
-        checked_items = {}
-
-        for k, v in init_data.items():
-            try:
-                annotation = sig.parameters[k].annotation
-            except KeyError as e:
-                # let this raise later in binding
-                checked_items[k] = object()
-
-            if isinstance(v, dict) and 'ascii' in v:
-                if len(v) != 1:
-                    raise CredentialsLoadError("ASCII objects can only have one elemnt.")
-                try:
-                    v = v['ascii'].encode('ascii')
-                except UnicodeEncodeError:
-                    raise CredentialsLoadError("Elements of the ASCII object can not be represented in ASCII, please use binary or hex representation.")
-
-
-            if isinstance(v, dict) and 'hex' in v:
-                if len(v) != 1:
-                    raise CredentialsLoadError("Hex objects can only have one elemnt.")
-                try:
-                    v = bytes.fromhex(v['hex'].replace('-', '').replace(' ', '').replace(':', ''))
-                except ValueError as e:
-                    raise CredentialsLoadError("Hex object can not be read: %s" % (e.args[0]))
-
-            # Not using isinstance because I foundno way to extract the type
-            # information from an Optional/Union again; this whole thing works
-            # only for strings and ints anyway, so why not.
-            if type(v) != annotation and Optional[type(v)] != annotation:
-                # explicitly not excluding inspect._empty here: constructors
-                # need to be fully annotated
-                raise CredentialsLoadError("Type mismatch in attribute %s of %s: expected %s, got %r" % (k, cls.__name__, annotation, v))
-
-            checked_items[k] = v
-
-        try:
-            bound = sig.bind(**checked_items)
-        except TypeError as e:
-            raise CredentialsLoadError("%s: %s" % (cls.__name__, e.args[0]))
-
-        return cls(*bound.args, **bound.kwargs)
+        return _call_from_structureddata(cls, cls.__name__, init_data)
 
 class DTLS(_Objectish):
     def __init__(self, psk: bytes, client_identity: bytes):
@@ -190,12 +195,21 @@ class DTLS(_Objectish):
     def as_dtls_psk(self):
         return (self.client_identity, self.psk)
 
-class OSCORE(_Objectish):
-    def __init__(self, contextfile: str,
+def construct_oscore(contextfile: str,
+                 role: str,
                  server_sender_id: Optional[bytes]=None,
                  client_sender_id: Optional[bytes]=None
                  ):
-        pass
+    if contextfile is not None:
+        if any(x is not None for x in (server_sender_id, client_sender_id)):
+            raise CredentialsLoadError("Arguments' contextfile' and sender IDs"
+                                       " are mutually exclusive")
+        if role is None:
+            raise CredentialsLoadError("Contextfile based OSCORE credentials require a role argument")
+
+        return FilesystemSecurityContext(contextfile, role)
+
+construct_oscore.from_item = lambda value: _call_from_structureddata(construct_oscore, 'OSCORE', value)
 
 _re_cache = {}
 
@@ -252,7 +266,7 @@ class CredentialsMap(dict):
 
     _class_map = {
             'dtls': DTLS,
-            'oscore': OSCORE,
+            'oscore': construct_oscore,
             'any-of': AnyOf,
             'all-of': AllOf,
             }

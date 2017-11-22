@@ -13,6 +13,7 @@ import unittest
 
 from aiocoap import Message, GET
 from aiocoap.credentials import CredentialsMap, DTLS
+from aiocoap.oscore import FilesystemSecurityContext
 
 class TestCredentialsLoad(unittest.TestCase):
     def test_load_empty(self):
@@ -22,17 +23,25 @@ class TestCredentialsLoad(unittest.TestCase):
         self.assertEqual(type(m), CredentialsMap)
         self.assertEqual(len(m), 0)
 
+    common_raw = {
+            'coap://some-oscore-host/*': {'oscore': {'contextfile': __file__.replace('test_credentials.py', 'test_credentials_oscore_context/'), 'role': 'client'}},
+            'coaps://some-dtls-host/*': {'dtls': {'psk': {'hex': '73-65-63-72-65-74-50-53-4b'}, 'client-identity': b'Client_identity'}}
+            }
+
     def test_dtls(self):
-        raw = {
-                '*': {'oscore': {'contextfile':'/dev/null'}},
-                'coaps://some-host/*': {'dtls': {'psk': {'hex': '73-65-63-72-65-74-50-53-4b'}, 'client-identity': b'Client_identity'}}
-                }
         m = CredentialsMap()
-        m.load_from_dict(raw)
+        m.load_from_dict(self.common_raw)
         # note we can use the slash-free version here and still get the result
         # for //some-host/* due to the URI normalization rules
-        message = Message(code=GET, uri='coaps://some-host')
+        message = Message(code=GET, uri='coaps://some-dtls-host')
         secmatch = m.credentials_from_request(message)
         self.assertEqual(type(secmatch), DTLS)
         self.assertEqual(secmatch.psk, b'secretPSK')
         self.assertEqual(secmatch.client_identity, b'Client_identity')
+
+    def test_oscore_filebased(self):
+        m = CredentialsMap()
+        m.load_from_dict(self.common_raw)
+        message = Message(code=GET, uri='coap://some-oscore-host/.well-known/core')
+        secmatch = m.credentials_from_request(message)
+        self.assertEqual(type(secmatch), FilesystemSecurityContext)
