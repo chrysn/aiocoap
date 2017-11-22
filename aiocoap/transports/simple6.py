@@ -181,8 +181,8 @@ class _DatagramClientSocketpoolSimple6:
 class TransportEndpointSimple6(GenericTransportEndpoint):
     @classmethod
     @asyncio.coroutine
-    def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop):
-        self = cls(new_message_callback, new_error_callback, log, loop)
+    def create_client_transport_endpoint(cls, ctx, log, loop):
+        self = cls(ctx, log, loop)
 
         self._pool = _DatagramClientSocketpoolSimple6(self._loop, self._received_datagram, self._received_exception)
         return self

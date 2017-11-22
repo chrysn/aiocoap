@@ -111,8 +111,8 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
 class TransportEndpointSimpleServer(GenericTransportEndpoint):
     @classmethod
     @asyncio.coroutine
-    def create_server(cls, server_address, new_message_callback, new_error_callback, log, loop):
-        self = cls(new_message_callback, new_error_callback, log, loop)
+    def create_server(cls, server_address, ctx: interfaces.MessageManager, log, loop):
+        self = cls(ctx, log, loop)
 
         self._pool = yield from _DatagramServerSocketSimple.create(server_address, log, self._loop, self._received_datagram, self._received_exception)
 

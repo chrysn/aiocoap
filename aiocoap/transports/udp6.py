@@ -134,9 +134,8 @@ class SockExtendedErr(namedtuple("_SockExtendedErr", "ee_errno ee_origin ee_type
         return cls(*cls._struct.unpack_from(data))
 
 class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoint):
-    def __init__(self, new_message_callback, new_error_callback, log, loop):
-        self.new_message_callback = new_message_callback
-        self.new_error_callback = new_error_callback
+    def __init__(self, ctx: interfaces.MessageManager, log, loop):
+        self._ctx = ctx
         self.log = log
         self.loop = loop
 
@@ -146,7 +145,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
 
     @classmethod
     @asyncio.coroutine
-    def _create_transport_endpoint(cls, sock, new_message_callback, new_error_callback, log, loop, dump_to, multicast=False):
+    def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, dump_to, multicast=False):
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
         sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1)
         # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
@@ -172,7 +171,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
                 except OSError:
                     log.warning("Could not join IPv6 multicast group; possibly, there is no network connection available.")
 
-        protofact = lambda: cls(new_message_callback=new_message_callback, new_error_callback=new_error_callback, log=log, loop=loop)
+        protofact = lambda: cls(ctx, log=log, loop=loop)
         if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
 
@@ -187,22 +186,22 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
 
     @classmethod
     @asyncio.coroutine
-    def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to):
+    def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to):
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
-        return (yield from cls._create_transport_endpoint(sock, new_message_callback, new_error_callback, log, loop, dump_to, multicast=False))
+        return (yield from cls._create_transport_endpoint(sock, ctx, log, loop, dump_to, multicast=False))
 
     @classmethod
     @asyncio.coroutine
-    def create_server_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to, bind):
+    def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to, bind):
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.bind(bind)
 
-        return (yield from cls._create_transport_endpoint(sock, new_message_callback, new_error_callback, log, loop, dump_to, multicast=True))
+        return (yield from cls._create_transport_endpoint(sock, ctx, log, loop, dump_to, multicast=True))
 
     @asyncio.coroutine
     def shutdown(self):
@@ -212,8 +211,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
 
         yield from self._shutting_down
 
-        del self.new_message_callback
-        del self.new_error_callback
+        del self._ctx
 
     def send(self, message):
         ancdata = []
@@ -282,7 +280,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return
 
-        self.new_message_callback(message)
+        self._ctx.dispatch_message(message)
 
     def datagram_errqueue_received(self, data, ancdata, flags, address):
         assert flags == socknumbers.MSG_ERRQUEUE
@@ -303,7 +301,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         # anyway, when an icmp error comes back, everything pending from that
         # port should err out.
 
-        self.new_error_callback(errno, remote)
+        self._ctx.dispatch_error(errno, remote)
 
     def error_received(self, exc):
         """Implementation of the DatagramProtocol interface, called by the transport."""
