@@ -41,8 +41,6 @@ ease porting to platforms that don't support inspect like micropython does.
 import re
 import inspect
 
-from .oscore import FilesystemSecurityContext
-
 try:
     from typing import Optional
 except ImportError:
@@ -200,6 +198,8 @@ def construct_oscore(contextfile: str,
                  server_sender_id: Optional[bytes]=None,
                  client_sender_id: Optional[bytes]=None
                  ):
+    from .oscore import FilesystemSecurityContext
+
     if contextfile is not None:
         if any(x is not None for x in (server_sender_id, client_sender_id)):
             raise CredentialsLoadError("Arguments' contextfile' and sender IDs"
