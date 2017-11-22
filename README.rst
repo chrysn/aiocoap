@@ -61,13 +61,11 @@ the list or in the excluded items, file a wishlist item at the same location).
 Dependencies
 ------------
 
-Basic aiocoap works out of the box on Python_ 3.4.4 or greater. Full
+Basic aiocoap works out of the box on Python_ 3.5 or greater. Full
 functionality is currently available only on Linux and possibly some BSDs (see
 `platform issues`_). For Windows, macOS and uvloop, limited transports for
 server_ and client_ operation are available and automatically enabled, but see
 their respective caveats.
-
-The examples_ require Python 3.5 as they use newer syntax.
 
 Some components (eg. servers that should auto-generate ``.well-known/core``
 resources, OSCORE, DTLS) require additional packages to be present; they are

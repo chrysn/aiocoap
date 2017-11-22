@@ -36,7 +36,7 @@ class PlugtestResource(resource.Resource):
     options = {}
     expected_options = {}
 
-    def render_get(self, request):
+    async def render_get(self, request):
         reference = aiocoap.Message(**self.expected_options)
         if request.opt.observe is not None and 'observe' not in self.expected_options:
             # workaround for test 4 hitting on Hello1
@@ -151,7 +151,7 @@ class SeqnoManager(resource.ObservableResource):
         super().__init__()
         self.contextmap = contextmap
 
-    def render_get(self, request):
+    async def render_get(self, request):
         the_context = self.contextmap[':plugtest']
 
         if not hasattr(the_context, "_SeqnoManager__patched"):
@@ -167,7 +167,7 @@ class SeqnoManager(resource.ObservableResource):
                 )
         return aiocoap.Message(payload=text.encode('utf-8'), content_format=0)
 
-    def render_put(self, request):
+    async def render_put(self, request):
         try:
             number = int(request.payload.decode('utf8'))
         except (ValueError, UnicodeDecodeError):
@@ -352,8 +352,7 @@ class ProtectedSite(resource.Site):
             response = err.to_message()
         except Exception as err:
             response = aiocoap.Message(code=aiocoap.INTERNAL_SERVER_ERROR)
-            self.log.error("An exception occurred while rendering a protected resource: %r"%err)
-            self.log.exception(err)
+            self.log.error("An exception occurred while rendering a protected resource: %r"%err, exc_info=err)
 
         if response.code is None:
             # FIXME: this duplicates the default setting in aiocoap.protocol

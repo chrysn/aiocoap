@@ -108,8 +108,7 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
     def send(self, data):
         self._transport.sendto(data, None)
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         self._stage = "shutting down"
         self._transport.abort()
         del self._new_message_callback
@@ -145,8 +144,7 @@ class _DatagramClientSocketpoolSimple6:
         self._new_message_callback = new_message_callback
         self._new_error_callback = new_error_callback
 
-    @asyncio.coroutine
-    def connect(self, sockaddr):
+    async def connect(self, sockaddr):
         """Create a new socket with a given remote socket address
 
         Note that the sockaddr does not need to be fully resolved or complete,
@@ -159,12 +157,12 @@ class _DatagramClientSocketpoolSimple6:
         fixed at all when this must return identical objects."""
 
         ready = asyncio.Future()
-        transport, protocol = yield from self._loop.create_datagram_endpoint(
+        transport, protocol = await self._loop.create_datagram_endpoint(
                 lambda: _Connection(lambda: ready.set_result(None), self._new_message_callback, self._new_error_callback, sockaddr),
                 family=socket.AF_INET6,
                 flags=socket.AI_V4MAPPED,
                 remote_addr=sockaddr)
-        yield from ready
+        await ready
 
         # FIXME twice: 1., those never get removed yet (should timeout or
         # remove themselves on error), and 2., this is racy against a shutdown right after a connect
@@ -172,16 +170,14 @@ class _DatagramClientSocketpoolSimple6:
 
         return protocol
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         if self._sockets:
-            yield from asyncio.wait([s.shutdown() for s in self._sockets])
+            await asyncio.wait([s.shutdown() for s in self._sockets])
         del self._sockets
 
 class TransportEndpointSimple6(GenericTransportEndpoint):
     @classmethod
-    @asyncio.coroutine
-    def create_client_transport_endpoint(cls, ctx, log, loop):
+    async def create_client_transport_endpoint(cls, ctx, log, loop):
         self = cls(ctx, log, loop)
 
         self._pool = _DatagramClientSocketpoolSimple6(self._loop, self._received_datagram, self._received_exception)

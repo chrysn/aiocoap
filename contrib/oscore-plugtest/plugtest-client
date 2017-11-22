@@ -55,8 +55,7 @@ class ProtectedRequester(interfaces.RequestProvider):
 
             self.response = self._initial(wire, request_message)
 
-        @asyncio.coroutine
-        def _initial(self, wire, request_message):
+        async def _initial(self, wire, request_message):
             protected, self._original_request_seqno = self._security_context.protect(request_message)
             # FIXME where should this be called from?
             self._security_context._store()
@@ -76,7 +75,7 @@ class ProtectedRequester(interfaces.RequestProvider):
                 # for removing one's callback again, but also to keep it alive)
                 self.observation._wire_observation = wire_request.observation
 
-            wire_response = yield from wire_request.response
+            wire_response = await wire_request.response
             unprotected_response, _ = self._security_context.unprotect(wire_response, self._original_request_seqno)
             self._security_context._store()
 

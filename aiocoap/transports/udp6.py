@@ -144,8 +144,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
 
     @classmethod
-    @asyncio.coroutine
-    def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, dump_to, multicast=False):
+    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, dump_to, multicast=False):
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
         sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1)
         # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
@@ -175,41 +174,38 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
 
-        transport, protocol = yield from loop.create_datagram_endpoint(protofact, sock=sock)
+        transport, protocol = await loop.create_datagram_endpoint(protofact, sock=sock)
 
         if dump_to is not None:
             protocol = protocol.protocol
 
-        yield from protocol.ready
+        await protocol.ready
 
         return protocol
 
     @classmethod
-    @asyncio.coroutine
-    def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to):
+    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to):
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
-        return (yield from cls._create_transport_endpoint(sock, ctx, log, loop, dump_to, multicast=False))
+        return await cls._create_transport_endpoint(sock, ctx, log, loop, dump_to, multicast=False)
 
     @classmethod
-    @asyncio.coroutine
-    def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to, bind):
+    async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to, bind):
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.bind(bind)
 
-        return (yield from cls._create_transport_endpoint(sock, ctx, log, loop, dump_to, multicast=True))
+        return (await cls._create_transport_endpoint(sock, ctx, log, loop, dump_to, multicast=True))
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         self._shutting_down = asyncio.Future()
 
         self.transport.close()
 
-        yield from self._shutting_down
+        await self._shutting_down
 
         del self._ctx
 
@@ -226,8 +222,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
                     message.remote.pktinfo))
         self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
 
-    @asyncio.coroutine
-    def determine_remote(self, request):
+    async def determine_remote(self, request):
         if request.requested_scheme not in ('coap', None):
             return None
 
@@ -244,7 +239,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-        addrinfo = yield from self.loop.getaddrinfo(
+        addrinfo = await self.loop.getaddrinfo(
             host,
             port,
             family=self.transport.get_extra_info('socket').family,

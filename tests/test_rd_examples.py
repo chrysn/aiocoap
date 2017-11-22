@@ -55,13 +55,12 @@ class TestDiscovery(WithResourceDirectory, WithClient):
         for rt in ('core.rd', 'core.rd-lookup-ep', 'core.rd-lookup-res', 'core.rd-lookup-gp', 'core.rd-group'):
             self.assertEqual(len([x for x in links.links if x.rt == [rt]]), 1, "Not exactly one entry of rt=%s found"%rt)
 
-    @asyncio.coroutine
-    def _get_endpoint(self, rt):
+    async def _get_endpoint(self, rt):
         """Return the URI for a given rt in the configured RD"""
 
         if not hasattr(self, '_endpoints'):
             request = aiocoap.Message(code=aiocoap.GET, uri='coap://%s/.well-known/core?rt=core.rd*'%self.rd_netloc)
-            response = yield from self.client.request(request).response
+            response = await self.client.request(request).response
 
             self._endpoints = {entry.rt[0]: entry.get_target(response.get_request_uri())
                     for entry

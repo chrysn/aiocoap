@@ -71,12 +71,10 @@ class Proxy(interfaces.Resource):
                 return result
         return None
 
-    @asyncio.coroutine
-    def needs_blockwise_assembly(self, request):
+    async def needs_blockwise_assembly(self, request):
         return self.interpret_block_options
 
-    @asyncio.coroutine
-    def render(self, request):
+    async def render(self, request):
         # FIXME i'd rather let the application do with the message whatever it
         # wants. everything the responder needs of the request should be
         # extracted beforehand.
@@ -88,7 +86,7 @@ class Proxy(interfaces.Resource):
             return message.Message(code=e.code, payload=e.explanation.encode('utf8'))
 
         try:
-            response = yield from self.outgoing_context.request(request, handle_blockwise=self.interpret_block_options).response
+            response = await self.outgoing_context.request(request, handle_blockwise=self.interpret_block_options).response
         except error.RequestTimedOut as e:
             return message.Message(code=numbers.codes.GATEWAY_TIMEOUT)
 
@@ -184,8 +182,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
             if not clientobservationrequest.observation.cancelled:
                 clientobservationrequest.observation.cancel()
 
-    @asyncio.coroutine
-    def add_observation(self, request, serverobservation):
+    async def add_observation(self, request, serverobservation):
         """As ProxiedResource is intended to be just the proxy's interface
         toward the Context, accepting observations is handled here, where the
         observations handling can be defined by the subclasses."""
@@ -198,8 +195,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
             self._add_observation_user(clientobservationrequest, serverobservation)
             serverobservation.accept(functools.partial(self._remove_observation_user, clientobservationrequest, serverobservation))
 
-    @asyncio.coroutine
-    def render(self, request):
+    async def render(self, request):
         # FIXME this is evaulated twice in the implementation (once here, but
         # unless it's an observation what matters is inside the super call),
         # maybe this needs to hook in differently than by subclassing and
@@ -216,10 +212,10 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
 
                 return message.Message(code=numbers.codes.BAD_OPTION, payload="Observe option can not be proxied without active observation.".encode('utf8'))
             self.log.debug("Request is not an observation or can't be proxied, passing it on to regular proxying mechanisms.")
-            return (yield from super(ProxyWithPooledObservations, self).render(request))
+            return await super(ProxyWithPooledObservations, self).render(request)
         else:
             self.log.info("Serving request using latest cached response of %r"%clientobservationrequest)
-            yield from clientobservationrequest.response
+            await clientobservationrequest.response
             cached_response = clientobservationrequest.__latest_response
             cached_response.mid = None
             cached_response.token = None

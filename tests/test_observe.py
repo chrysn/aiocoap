@@ -24,31 +24,26 @@ class ObservableCounter(ObservableResource):
         super(ObservableCounter, self).__init__()
         self.count = 0
 
-    @asyncio.coroutine
-    def render_delete(self, request):
+    async def render_delete(self, request):
         self.count = 0
         self.updated_state()
         return aiocoap.Message(code=aiocoap.CHANGED)
 
-    @asyncio.coroutine
-    def render_post(self, request):
+    async def render_post(self, request):
         self.count += 1
         self.updated_state()
         return aiocoap.Message(code=aiocoap.CHANGED)
 
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         return aiocoap.Message(code=aiocoap.CONTENT, payload=str(self.count).encode('ascii'))
 
-    @asyncio.coroutine
-    def render_fetch(self, request):
+    async def render_fetch(self, request):
         return aiocoap.Message(code=aiocoap.CONTENT,
                 payload=("%s; request had length %s"%(self.count, len(request.payload))).encode('ascii'))
 
 class ObservableReplacingResource(ReplacingResource, ObservableResource):
-    @asyncio.coroutine
-    def render_put(self, request):
-        result = yield from super(ObservableReplacingResource, self).render_put(request)
+    async def render_put(self, request):
+        result = await super(ObservableReplacingResource, self).render_put(request)
 
         self.updated_state()
 
@@ -61,20 +56,17 @@ class ObserveLateUnbloomer(ObservableResource):
         super().__init__()
         self._cancel_right_away = []
 
-    @asyncio.coroutine
-    def add_observation(self, request, serverobservation):
+    async def add_observation(self, request, serverobservation):
         self._cancel_right_away.append(lambda: serverobservation.deregister("Changed my mind at render time"))
         serverobservation.accept(lambda: None)
 
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         while self._cancel_right_away:
             self._cancel_right_away.pop(0)()
         return aiocoap.Message()
 
 class ObservableFailure(ObservableResource):
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         return aiocoap.Message(code=aiocoap.UNAUTHORIZED)
 
 class ObserveTestingSite(aiocoap.resource.Site):
@@ -154,11 +146,10 @@ class TestObserve(WithObserveTestServer, WithClient):
         yieldfrom(asyncio.sleep(0.1))
         self.assertEqual(str(observation_results), '[NotObservable()]')
 
-    @asyncio.coroutine
-    def _change_counter(self, method=aiocoap.POST):
+    async def _change_counter(self, method=aiocoap.POST):
         request = aiocoap.Message(code=method, uri_path=('deep', 'count'))
         request.unresolved_remote = self.servernetloc
-        yield from self.client.request(request).response_raising
+        await self.client.request(request).response_raising
 
     def _test_counter(self, baserequest, formatter):
         """Run a counter test with requests built from baserequest. Expect

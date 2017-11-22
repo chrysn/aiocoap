@@ -48,8 +48,7 @@ class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.E
 
 class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     @classmethod
-    @asyncio.coroutine
-    def create(cls, server_address, log, loop, new_message_callback, new_error_callback):
+    async def create(cls, server_address, log, loop, new_message_callback, new_error_callback):
         if server_address[0] in ('::', '0.0.0.0', ''):
             # If you feel tempted to remove this check, think about what
             # happens if two configured addresses can both route to a
@@ -61,13 +60,13 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
 
         ready = asyncio.Future()
 
-        transport, protocol = yield from loop.create_datagram_endpoint(
+        transport, protocol = await loop.create_datagram_endpoint(
                 lambda: cls(ready.set_result, new_message_callback, new_error_callback, log),
                 local_addr=server_address,
                 reuse_address=True,
                 )
 
-        return (yield from ready)
+        return await ready
 
     def __init__(self, ready_callback, new_message_callback, new_error_callback, log):
         self._ready_callback = ready_callback
@@ -75,14 +74,12 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         self._new_error_callback = new_error_callback
         self.log = log
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         self._transport.abort()
 
     # interface like _DatagramClientSocketpoolSimple6
 
-    @asyncio.coroutine
-    def connect(self, sockaddr):
+    async def connect(self, sockaddr):
         # FIXME it might be necessary to resolve the address now to get a
         # canonical form that can be recognized later when a package comes back
         self.log.warning("Sending initial messages via a server socket is not recommended")
@@ -110,10 +107,9 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
 
 class TransportEndpointSimpleServer(GenericTransportEndpoint):
     @classmethod
-    @asyncio.coroutine
-    def create_server(cls, server_address, ctx: interfaces.MessageManager, log, loop):
+    async def create_server(cls, server_address, ctx: interfaces.MessageManager, log, loop):
         self = cls(ctx, log, loop)
 
-        self._pool = yield from _DatagramServerSocketSimple.create(server_address, log, self._loop, self._received_datagram, self._received_exception)
+        self._pool = await _DatagramServerSocketSimple.create(server_address, log, self._loop, self._received_datagram, self._received_exception)
 
         return self

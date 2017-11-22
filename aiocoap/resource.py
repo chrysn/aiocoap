@@ -93,26 +93,23 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
     (alternative name for ``if`` as that's a Python keyword) attributes.
     """
 
-    @asyncio.coroutine
-    def needs_blockwise_assembly(self, request):
+    async def needs_blockwise_assembly(self, request):
         return True
 
-    @asyncio.coroutine
-    def render(self, request):
+    async def render(self, request):
         if not request.code.is_request():
             raise error.UnsupportedMethod()
         m = getattr(self, 'render_%s' % str(request.code).lower(), None)
         if not m:
             raise error.UnallowedMethod()
-        return m(request)
+        return await m(request)
 
 class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):
         super(ObservableResource, self).__init__()
         self._observations = set()
 
-    @asyncio.coroutine
-    def add_observation(self, request, serverobservation):
+    async def add_observation(self, request, serverobservation):
         self._observations.add(serverobservation)
         def _cancel(self=self, obs=serverobservation):
             self._observations.remove(serverobservation)
@@ -151,7 +148,7 @@ class WKCResource(Resource):
     def __init__(self, listgenerator):
         self.listgenerator = listgenerator
 
-    def render_get(self, request):
+    async def render_get(self, request):
         links = self.listgenerator()
 
         filters = []
@@ -237,14 +234,13 @@ class Site(interfaces.ObservableResource, PathCapable):
         self._resources = {}
         self._subsites = {}
 
-    @asyncio.coroutine
-    def needs_blockwise_assembly(self, request):
+    async def needs_blockwise_assembly(self, request):
         try:
             child, subrequest = self._find_child_and_pathstripped_message(request)
         except KeyError:
             return True
         else:
-            return child.needs_blockwise_assembly(subrequest)
+            return await child.needs_blockwise_assembly(subrequest)
 
     def _find_child_and_pathstripped_message(self, request):
         """Given a request, find the child that will handle it, and strip all
@@ -272,24 +268,22 @@ class Site(interfaces.ObservableResource, PathCapable):
             path = path[:-1]
         raise KeyError()
 
-    @asyncio.coroutine
-    def render(self, request):
+    async def render(self, request):
         try:
             child, subrequest = self._find_child_and_pathstripped_message(request)
         except KeyError:
             raise error.NotFound()
         else:
-            return child.render(subrequest)
+            return await child.render(subrequest)
 
-    @asyncio.coroutine
-    def add_observation(self, request, serverobservation):
+    async def add_observation(self, request, serverobservation):
         try:
             child, subrequest = self._find_child_and_pathstripped_message(request)
         except KeyError:
             return
 
         try:
-            yield from child.add_observation(subrequest, serverobservation)
+            await child.add_observation(subrequest, serverobservation)
         except AttributeError:
             pass
 
