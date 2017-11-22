@@ -13,9 +13,23 @@ import abc
 from asyncio import coroutine
 
 class TransportEndpoint(metaclass=abc.ABCMeta):
+    """A MessageEndpoint (renaming pending) is an object that can exchange addressed messages over
+    unreliable transports. Implementations send and receive messages with
+    message type and message ID, and are driven by a Context that deals with
+    retransmission.
+
+    Usually, an MessageEndpoint refers to something like a local socket, and
+    send messages to different remote endpoints depending on the message's
+    addresses. Just as well, a MessageEndpoint can be useful for one single
+    address only, or use various local addresses depending on the remote
+    address.
+
+    Next steps: Have it operated not by a Context, but by a
+    RequestResponseEndpoint that is controlled by a thinner Context.
+    """
+
     @abc.abstractmethod
-    @coroutine
-    def shutdown(self):
+    async def shutdown(self):
         """Deactivate the complete transport, usually irrevertably. When the
         coroutine returns, the object must have made sure that it can be
         destructed by means of ref-counting or a garbage collector run."""
@@ -25,8 +39,7 @@ class TransportEndpoint(metaclass=abc.ABCMeta):
         """Send a given :class:`Message` object"""
 
     @abc.abstractmethod
-    @coroutine
-    def determine_remote(self, message):
+    async def determine_remote(self, message):
         """Return a value suitable for the message's remote property based on
         its .opt.uri_host or .unresolved_remote.
 
@@ -128,8 +141,7 @@ class Resource(metaclass=abc.ABCMeta):
     on the serversite, which renders all requests to that context."""
 
     @abc.abstractmethod
-    @coroutine
-    def render(self, request):
+    async def render(self, request):
         """Return a message that can be sent back to the requester.
 
         This does not need to set any low-level message options like remote,
@@ -141,8 +153,7 @@ class Resource(metaclass=abc.ABCMeta):
         layer nevertheless.)"""
 
     @abc.abstractmethod
-    @coroutine
-    def needs_blockwise_assembly(self, request):
+    async def needs_blockwise_assembly(self, request):
         """Indicator to the :class:`.protocol.Responder` about whether it
         should assemble request blocks to a single request and extract the
         requested blocks from a complete-resource answer (True), or whether
@@ -157,8 +168,7 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
     regular :meth:`.render` method from crafted (fake) requests.
     """
     @abc.abstractmethod
-    @coroutine
-    def add_observation(self, request, serverobservation):
+    async def add_observation(self, request, serverobservation):
         """Before the incoming request is sent to :meth:`.render`, the
         :meth:`.add_observation` method is called. If the resource chooses to
         accept the observation, it has to call the

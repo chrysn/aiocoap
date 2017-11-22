@@ -82,8 +82,7 @@ def apply_credentials(context, credentials, errfn):
     else:
         raise errfn("Unknown suffix: %s (expected: .json)" % (credentials.suffix))
 
-@asyncio.coroutine
-def single_request(args, context=None):
+async def single_request(args, context=None):
     parser = build_parser()
     options = parser.parse_args(args)
 
@@ -98,7 +97,7 @@ def single_request(args, context=None):
             raise parser.error("Unknown method")
 
     if context is None:
-        context = yield from aiocoap.Context.create_client_context(dump_to=options.dump)
+        context = await aiocoap.Context.create_client_context(dump_to=options.dump)
     else:
         if options.dump:
             print("The --dump option is not implemented in interactive mode.", file=sys.stderr)
@@ -160,7 +159,7 @@ def single_request(args, context=None):
             requester.observation.register_callback(lambda data, options=options: incoming_observation(options, data))
 
         try:
-            response_data = yield from requester.response
+            response_data = await requester.response
         except socket.gaierror as  e:
             print("Name resolution error:", e, file=sys.stderr)
             sys.exit(1)
@@ -180,7 +179,7 @@ def single_request(args, context=None):
             sys.exit(1)
 
         if options.observe:
-            exit_reason = yield from observation_is_over
+            exit_reason = await observation_is_over
             print("Observation is over: %r"%(exit_reason,), file=sys.stderr)
     finally:
         if not requester.response.done():
@@ -190,16 +189,15 @@ def single_request(args, context=None):
 
 interactive_expecting_keyboard_interrupt = asyncio.Future()
 
-@asyncio.coroutine
-def interactive():
+async def interactive():
     global interactive_expecting_keyboard_interrupt
 
-    context = yield from aiocoap.Context.create_client_context()
+    context = await aiocoap.Context.create_client_context()
 
     while True:
         try:
             # when http://bugs.python.org/issue22412 is resolved, use that instead
-            line = yield from asyncio.get_event_loop().run_in_executor(None, lambda: input("aiocoap> "))
+            line = await asyncio.get_event_loop().run_in_executor(None, lambda: input("aiocoap> "))
         except EOFError:
             line = "exit"
         line = shlex.split(line)
@@ -213,13 +211,13 @@ def interactive():
         current_task = asyncio.Task(single_request(line, context=context))
         interactive_expecting_keyboard_interrupt = asyncio.Future()
 
-        done, pending = yield from asyncio.wait([current_task, interactive_expecting_keyboard_interrupt], return_when=asyncio.FIRST_COMPLETED)
+        done, pending = await asyncio.wait([current_task, interactive_expecting_keyboard_interrupt], return_when=asyncio.FIRST_COMPLETED)
 
         if current_task not in done:
             current_task.cancel()
         else:
             try:
-                yield from current_task
+                await current_task
             except SystemExit as e:
                 if e.code != 0:
                     print("Exit code: %d"%e.code, file=sys.stderr)

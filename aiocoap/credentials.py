@@ -10,8 +10,6 @@
 how security protocols (TLS, DTLS, OSCOAP) can store and access their key
 material, and for which URIs they are used.
 
-(this text goes to a class later)
-
 For consistency, mappings between accessible resources and their credentials
 are always centered around URIs. This is slightly atypical, because a client
 will typically use a particular set of credentials for all operations on one
@@ -22,11 +20,12 @@ more similar structures both on the server and the client, and works smoothly
 for virtual hosting, firewalling and clients accessing resources with varying
 credentials.
 
-(different note for different place)
-
-Should this support loading CBOR Web Tokens (CWT)?
-
-(and probably stays here)
+Still, client and server credentials are kept apart, lest a server open up (and
+potentially reveal) to a PSK set it is only configured to use as a client.
+While client credentials already have their place in
+:attr:`aiocoap.protocol.Context.client_credentials`, server credentials are not
+in use at a standardized location yet because there is only code in the OSCORE
+plug tests that can use it so far.
 
 Library developer notes
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -41,25 +40,13 @@ ease porting to platforms that don't support inspect like micropython does.
 import re
 import inspect
 
-from .oscore import FilesystemSecurityContext
-
-try:
-    from typing import Optional
-except ImportError:
-    # Python 3.4 workaround. This obviously doesn't preserve the full
-    # semantics, but the type checker in the parser will interpret Optional[x]
-    # as "must be x, the Optional is just to allow the default None" anyway.
-
-    class Optional:
-        @staticmethod
-        def __getitem__(x):
-            return x
+from typing import Optional
 
 
 '''
 server: {
-            'coaps://mysite*': { 'dtls-psk' (or other granularity): { 'psk': 'abcd' }},
-            'coap://mysite*': { 'oscore': { 'contextfile': 'my-contextfile/' (implied: 'role': 'server') } },
+            'coaps://mysite/*': { 'dtls-psk' (or other granularity): { 'psk': 'abcd' }},
+            'coap://mysite/*': { 'oscore': { 'contextfile': 'my-contextfile/' (implied: 'role': 'server') } },
             'coap://myothersite/firmware': ':myotherkey',
             'coap://myothersite/reset': ':myotherkey',
             'coap://othersite*': { 'unprotected': true },
@@ -74,14 +61,14 @@ individual resources decide whether they return 4.01 or something else.
 client can be the same with different implied role, or have something like
 
 client: {
-            'coap://myothersite*': ':myotherkey',
+            'coap://myothersite/*': ':myotherkey',
             ...
         }
 
 in future also
 
 server: {
-        'coaps://mysite*': { 'dtls-cert': {'key': '...pem', 'cert': '...crt'} }
+        'coaps://mysite/*': { 'dtls-cert': {'key': '...pem', 'cert': '...crt'} }
         }
 
 client: {
@@ -200,6 +187,8 @@ def construct_oscore(contextfile: str,
                  server_sender_id: Optional[bytes]=None,
                  client_sender_id: Optional[bytes]=None
                  ):
+    from .oscore import FilesystemSecurityContext
+
     if contextfile is not None:
         if any(x is not None for x in (server_sender_id, client_sender_id)):
             raise CredentialsLoadError("Arguments' contextfile' and sender IDs"

@@ -32,7 +32,7 @@ class ExtensibleEnumMeta(type):
         return self._value2member_map_[value]
 
 class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
-    """Similar to Python3.4's enum.IntEnum, this type can be used for named
+    """Similar to Python's enum.IntEnum, this type can be used for named
     numbers which are not comprehensively known, like CoAP option numbers."""
 
     def __add__(self, delta):

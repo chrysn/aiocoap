@@ -37,7 +37,6 @@ class WithAssertNofaillines(unittest.TestCase):
         errorlines = (l for l in lines if 'fail'in l)
         self.assertEqual([], list(errorlines), message)
 
-@unittest.skipIf(sys.version_info < (3, 5), "OSCORE plug test server uses Python 3.5 'async def' idioms")
 @unittest.skipIf(aiocoap.defaults.oscore_missing_modules(), "Mdules missing for running OSCORE tests: %s"%(aiocoap.defaults.oscore_missing_modules(),))
 class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
     def setUp(self):
@@ -47,18 +46,17 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         self.__task = asyncio.Task(self.run_server(ready, self.__done))
         self.loop.run_until_complete(ready)
 
-    @asyncio.coroutine
-    def run_server(self, readiness, done):
-        self.process = yield from asyncio.create_subprocess_exec(
+    async def run_server(self, readiness, done):
+        self.process = await asyncio.create_subprocess_exec(
                 *SERVER,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
                 )
         while True:
-            l = yield from self.process.stdout.readline()
+            l = await self.process.stdout.readline()
             if l == b"":
                 try:
-                    _, err = yield from self.process.communicate()
+                    _, err = await self.process.communicate()
                     message = err.decode('utf8')
                 except BaseException as e:
                     message = str(e)
@@ -69,7 +67,7 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
                 break
         readiness.set_result(True)
 
-        out, err = yield from self.process.communicate()
+        out, err = await self.process.communicate()
 
         done.set_result((out, err))
 
@@ -83,13 +81,12 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
 
 class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
-    @asyncio.coroutine
-    def _test_plugtestclient(self, x):
+    async def _test_plugtestclient(self, x):
         set_seqno = aiocoap.Message(code=aiocoap.PUT, uri='coap://%s/sequence-numbers'%(common.loopbackname_v6 or common.loopbackname_v46), payload=b'0')
-        yield from self.client.request(set_seqno).response_raising
+        await self.client.request(set_seqno).response_raising
 
-        proc = yield from asyncio.create_subprocess_exec(*(CLIENT + ['[' + SERVER_ADDRESS + ']', str(x)]), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        out, err = yield from proc.communicate()
+        proc = await asyncio.create_subprocess_exec(*(CLIENT + ['[' + SERVER_ADDRESS + ']', str(x)]), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        out, err = await proc.communicate()
 
         self.assertNoFaillines(out, '"failed" showed up in plugtest client stdout')
         self.assertNoFaillines(err, '"failed" showed up in plugtest client stderr')

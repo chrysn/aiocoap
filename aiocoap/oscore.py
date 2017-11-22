@@ -400,6 +400,8 @@ class ReplayWindow:
     # FIXME: interface, abc
     pass
 
+# FIXME: This is not a default DTLS replay window, and it should not be
+# expected that this can be used in any security context.
 class SimpleReplayWindow(ReplayWindow):
     """A ReplayWindow that keeps its seen sequence numbers in a sorted list;
     all entries of the list and all numbers smaller than the first entry are

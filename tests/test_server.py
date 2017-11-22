@@ -26,8 +26,7 @@ from . import common
 CLEANUPTIME = 0.01
 
 class MultiRepresentationResource(aiocoap.resource.Resource):
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         ct = request.opt.accept or aiocoap.numbers.media_types_rev['text/plain']
 
         if ct == aiocoap.numbers.media_types_rev['application/json']:
@@ -42,14 +41,12 @@ class MultiRepresentationResource(aiocoap.resource.Resource):
         return aiocoap.Message(code=aiocoap.CONTENT, payload=response)
 
 class SlowResource(aiocoap.resource.Resource):
-    @asyncio.coroutine
-    def render_get(self, request):
-        yield from asyncio.sleep(0.2)
+    async def render_get(self, request):
+        await asyncio.sleep(0.2)
         return aiocoap.Message()
 
 class BigResource(aiocoap.resource.Resource):
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         # 10kb
         payload = b"0123456789----------" * 512
         response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
@@ -58,31 +55,26 @@ class BigResource(aiocoap.resource.Resource):
         return response
 
 class SlowBigResource(aiocoap.resource.Resource):
-    @asyncio.coroutine
-    def render_get(self, request):
-        yield from asyncio.sleep(0.2)
+    async def render_get(self, request):
+        await asyncio.sleep(0.2)
         # 1.6kb
         payload = b"0123456789----------" * 80
         return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
 
 class ReplacingResource(aiocoap.resource.Resource):
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         return aiocoap.Message(code=aiocoap.CONTENT, payload=self.value)
 
-    @asyncio.coroutine
-    def render_put(self, request):
+    async def render_put(self, request):
         self.value = request.payload.replace(b'0', b'O')
         return aiocoap.Message(code=aiocoap.CHANGED)
 
-    @asyncio.coroutine
-    def render_post(self, request):
+    async def render_post(self, request):
         response = request.payload.replace(b'0', b'O')
         return aiocoap.Message(code=aiocoap.CONTENT, payload=response)
 
 class RootResource(aiocoap.resource.Resource):
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         return aiocoap.Message(code=aiocoap.CONTENT, payload=b"Welcome to the test server")
 
 class TestingSite(aiocoap.resource.Site):

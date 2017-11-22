@@ -130,13 +130,12 @@ class CommonRD:
             delay = self.lt + self.grace_period
             # workaround for python issue20493
 
-            @asyncio.coroutine
-            def longwait(delay, callback):
+            async def longwait(delay, callback):
                 almostday = 24*60*60 - 10
                 while delay > almostday:
-                    yield from asyncio.sleep(almostday)
+                    await asyncio.sleep(almostday)
                     delay -= almostday
-                yield from asyncio.sleep(delay)
+                await asyncio.sleep(delay)
                 callback()
             self.timeout = asyncio.Task(longwait(delay, self.delete))
 
@@ -166,8 +165,7 @@ class CommonRD:
                 result.append(Link(l.href, data))
             return LinkHeader(result)
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         pass
 
     def register_change_callback(self, callback):
@@ -251,8 +249,7 @@ class RegistrationInterface(ThingWithCommonRD, Resource):
     ct = 40
     rt = "core.rd"
 
-    @asyncio.coroutine
-    def render_post(self, request):
+    async def render_post(self, request):
         links = link_format_from_message(request)
 
         registration_parameters = query_split(request)
@@ -271,16 +268,14 @@ class RegistrationResource(Resource):
     def __init__(self, registration):
         self.reg = registration
 
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         return aiocoap.Message(payload=str(self.reg.links).encode('utf8'), content_format=aiocoap.numbers.media_types_rev['application/link-format'])
 
     def _update_params(self, msg):
         query = query_split(msg)
         self.reg.update_params(msg.remote.uri, query)
 
-    @asyncio.coroutine
-    def render_post(self, request):
+    async def render_post(self, request):
         self._update_params(request)
 
         if request.opt.content_format is not None or request.payload:
@@ -288,8 +283,7 @@ class RegistrationResource(Resource):
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
-    @asyncio.coroutine
-    def render_put(self, request):
+    async def render_put(self, request):
         # this is not mentioned in the current spec, but seems to make sense
         links = link_format_from_message(request)
 
@@ -304,8 +298,7 @@ class RegistrationResource(Resource):
         return aiocoap.Message(code=aiocoap.DELETED)
 
 class EntityDispatchSite(ThingWithCommonRD, Resource, PathCapable):
-    @asyncio.coroutine
-    def render(self, request):
+    async def render(self, request):
         try:
             entity = self.common_rd._entities_by_pathtail[request.opt.uri_path]
         except KeyError:
@@ -341,8 +334,7 @@ class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
     ct = 40
     rt = "core.rd-lookup-ep"
 
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         query = query_split(request)
 
         candidates = self.common_rd.get_endpoints()
@@ -382,8 +374,7 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
     ct = 40
     rt = "core.rd-lookup-res"
 
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         query = query_split(request)
 
         eps = self.common_rd.get_endpoints()
@@ -433,8 +424,7 @@ class SimpleRegistrationWKC(WKCResource):
         super().__init__(listgenerator)
         self.common_rd = common_rd
 
-    @asyncio.coroutine
-    def render_post(self, request):
+    async def render_post(self, request):
         query = query_split(request)
 
         # this is not deduplicated with update_params in full because that code
@@ -456,8 +446,7 @@ class SimpleRegistrationWKC(WKCResource):
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
-    @asyncio.coroutine
-    def process_request(self, network_con, registration_parameters):
+    async def process_request(self, network_con, registration_parameters):
         con = network_con
         if 'con' in registration_parameters:
             con = registration_parameters['con']
@@ -465,7 +454,7 @@ class SimpleRegistrationWKC(WKCResource):
         fetch_address = (con + '/.well-known/core')
 
         try:
-            response = yield from self.context.request(aiocoap.Message(code=aiocoap.GET, uri=fetch_address)).response_raising
+            response = await self.context.request(aiocoap.Message(code=aiocoap.GET, uri=fetch_address)).response_raising
             links = link_format_from_message(response)
         except Exception as e:
             logging.error("The request triggered for simple registration of %s failed.", con)
@@ -506,9 +495,8 @@ class StandaloneResourceDirectory(Site):
 
         self.common_rd = common_rd
 
-    @asyncio.coroutine
-    def shutdown(self):
-        yield from self.common_rd.shutdown()
+    async def shutdown(self):
+        await self.common_rd.shutdown()
 
     # the need to pass this around crudely demonstrates that the setup of sites
     # and contexts direly needs improvement, and thread locals are giggling
@@ -525,20 +513,18 @@ def build_parser():
     return p
 
 class Main(AsyncCLIDaemon):
-    @asyncio.coroutine
-    def start(self, args=None):
+    async def start(self, args=None):
         parser = build_parser()
         options = parser.parse_args(args if args is not None else sys.argv[1:])
 
         self.site = StandaloneResourceDirectory()
 
-        self.context = yield from aiocoap.Context.create_server_context(self.site, bind=(options.server_address, options.server_port))
+        self.context = await aiocoap.Context.create_server_context(self.site, bind=(options.server_address, options.server_port))
         self.site.set_context(self.context)
 
-    @asyncio.coroutine
-    def shutdown(self):
-        yield from self.site.shutdown()
-        yield from self.context.shutdown()
+    async def shutdown(self):
+        await self.site.shutdown()
+        await self.context.shutdown()
 
 sync_main = Main.sync_main
 

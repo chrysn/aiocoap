@@ -23,8 +23,7 @@ class GenericTransportEndpoint(interfaces.TransportEndpoint):
         self._log = log
         self._loop = loop
 
-    @asyncio.coroutine
-    def determine_remote(self, request):
+    async def determine_remote(self, request):
         if request.requested_scheme not in ('coap', None):
             return None
 
@@ -38,7 +37,7 @@ class GenericTransportEndpoint(interfaces.TransportEndpoint):
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-        return (yield from self._pool.connect((host, port)))
+        return await self._pool.connect((host, port))
 
     def _received_datagram(self, address, datagram):
         try:
@@ -55,7 +54,6 @@ class GenericTransportEndpoint(interfaces.TransportEndpoint):
     def send(self, message):
         message.remote.send(message.encode())
 
-    @asyncio.coroutine
-    def shutdown(self):
-        yield from self._pool.shutdown()
+    async def shutdown(self):
+        await self._pool.shutdown()
         self._ctx = None
