@@ -9,7 +9,6 @@ test:3.6:
     - echo Using cache:; ls .eggs/ || echo No cached .eggs found
     - rm -f .coverage* collected-coverage/3.6/
     - pip3 install coverage
-    - pip3 install cython
     - AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test
     - python3 -m coverage run --parallel ./setup.py test
     - pip3 install uvloop
@@ -22,15 +21,28 @@ test:3.6:
     paths:
       - collected-coverage
   cache:
+    key: python3.6
     paths:
       - .eggs/
 
-# Currently, none of the images provide a recent OpenSSL; waiting for python:3.5-stretch or for python:3.5 to become stretch
-
-# test:3.5:
-#   image: "python:3.5"
-#   script:
-#     - ./setup.py test
+test:3.5:
+  # plain python:3.5 (which is based on jessie) has too old OpenSSL to support
+  # cryptography's AEAD, and python:3.5-stretch is not available from the
+  # official docker hub python containers.
+  image: "python:3.5-jessie"
+  script:
+    - echo deb http://ftp.debian.org/debian jessie-backports main >> /etc/apt/sources.list
+    - apt-get update
+    - apt-get -y -t jessie-backports install libssl-dev
+    - echo Using cache:; ls .eggs/ || echo No cached .eggs found
+    - AIOCOAP_TEST_EXTRAS= ./setup.py test
+    - ./setup.py test
+    - pip3 install uvloop
+    - AIOCOAP_TESTS_LOOP=uvloop ./setup.py test
+  cache:
+    key: python3.5
+    paths:
+      - .eggs/
 
 pages:
   image: "python:3.6-stretch"
