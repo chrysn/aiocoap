@@ -13,14 +13,14 @@ import abc
 from asyncio import coroutine
 
 class TransportEndpoint(metaclass=abc.ABCMeta):
-    """A MessageEndpoint (renaming pending) is an object that can exchange addressed messages over
+    """A MessageInterface is an object that can exchange addressed messages over
     unreliable transports. Implementations send and receive messages with
     message type and message ID, and are driven by a Context that deals with
     retransmission.
 
-    Usually, an MessageEndpoint refers to something like a local socket, and
+    Usually, an MessageInterface refers to something like a local socket, and
     send messages to different remote endpoints depending on the message's
-    addresses. Just as well, a MessageEndpoint can be useful for one single
+    addresses. Just as well, a MessageInterface can be useful for one single
     address only, or use various local addresses depending on the remote
     address.
 

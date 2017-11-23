@@ -50,7 +50,22 @@ from . import interfaces
 from .numbers import *
 from .message import Message, NoResponse
 
-class Context(interfaces.RequestProvider, interfaces.MessageManager):
+class WrappedRemote:
+    def __init__(self, manager, inner_address):
+        self._manager = weakref.ref(manager)
+        self.inner_address = inner_address
+
+    @property
+    def manager(self):
+        m = self._manager()
+        if m is None:
+            raise AttributeError("The remote's manager ceased to exist")
+        return m
+
+    def __repr__(self):
+        return "<%s: %s via %s>" % (self.inner_address, self._manager())
+
+class MessageManager(interfaces.RequestProvider, interfaces.MessageManager):
     """Applications' entry point to the network
 
     A :class:`.Context` coordinates one or more network :mod:`.transports`
@@ -102,28 +117,29 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
 
     """
 
-    def __init__(self, loop=None, serversite=None, loggername="coap", client_credentials=None):
-        self.message_id = random.randint(0, 65535)
+    def __init__(self, context):
+        self.context = context
+
         self.token = random.randint(0, 65535)
-        self.serversite = serversite
-        self._recent_messages = {}  #: recently received messages (remote, message-id): None or result-message
-        self._active_exchanges = {}  #: active exchanges i.e. sent CON messages (remote, message-id): (exchange monitor, cancellable timeout)
-        self._backlogs = {} #: per-remote list of (backlogged package, exchange-monitor) tupless (keys exist iff there is an active_exchange with that node)
         self.outgoing_requests = {}  #: Unfinished outgoing requests (identified by token and remote)
         self.incoming_requests = {}  #: Unfinished incoming requests. ``(path-tuple, remote): Request``
         self.outgoing_observations = {} #: Observations where this context acts as client. ``(token, remote) -> weak(ClientObservation)``
         self.incoming_observations = {} #: Observation where this context acts as server. ``(token, remote) -> ServerObservation``. This is managed by :cls:ServerObservation and :meth:`.Responder.handle_observe_request`.
 
-        self.log = logging.getLogger(loggername)
 
-        self.loop = loop or asyncio.get_event_loop()
+        self.message_id = random.randint(0, 65535)
+        self._recent_messages = {}  #: recently received messages (remote, message-id): None or result-message
+        self._active_exchanges = {}  #: active exchanges i.e. sent CON messages (remote, message-id): (exchange monitor, cancellable timeout)
+        self._backlogs = {} #: per-remote list of (backlogged package, exchange-monitor) tupless (keys exist iff there is an active_exchange with that node)
 
-        self.transport_endpoints = []
+        self.log = self.context.log
+        self.loop = self.context.loop
 
-        self.client_credentials = client_credentials or CredentialsMap()
+        #self.message_interface = … -- needs to be set post-construction, because the message_interface in its constructor already needs to get its manager
 
-    client_credentials = None  # abstractmethods don't know this will be
-                               # unconditionally set in the constructor
+    @property
+    def client_credentials(self):
+        return self.context.client_credentials
 
     async def shutdown(self):
         """Take down the listening socket and stop all related timers.
@@ -143,7 +159,7 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
             observation.deregister("Server going down")
         self._active_exchanges = None
 
-        await asyncio.wait([te.shutdown() for te in self.transport_endpoints], timeout=3, loop=self.loop)
+        await self.message_interface.shutdown()
 
     #
     # coap dispatch
@@ -422,12 +438,10 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
     async def fill_remote(self, message):
         if message.remote is not None:
             return
-        for te in self.transport_endpoints:
-            remote = await te.determine_remote(message)
-            if remote is not None:
-                message.remote = remote
-                return
-        raise RuntimeError("No transport could route message")
+        remote = await self.message_interface.determine_remote(message)
+        if remote is not None:
+            message.remote = remote
+            return
 
     def send_message(self, message, exchange_monitor=None):
         """Encode and send message. This takes care of retransmissions (if
@@ -471,13 +485,7 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
     def _send_via_transport(self, message):
         """Put the message on the wire"""
 
-        for te in self.transport_endpoints:
-            # FIXME how is this data best propagated? bind all address objects to their transports?
-            if type(message.remote).__module__ == type(te).__module__:
-                te.send(message)
-                break
-        else:
-            raise NotImplementedError("No transport could route message")
+        self.message_interface.send(message)
 
     def _next_message_id(self):
         """Reserve and return a new message ID."""
@@ -506,78 +514,6 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
 
     def multicast_request(self, request):
         return MulticastRequest(self, request).responses
-
-    #
-    # convenience methods for class instanciation
-    #
-
-    @classmethod
-    async def create_client_context(cls, *, dump_to=None, loggername="coap", loop=None):
-        """Create a context bound to all addresses on a random listening port.
-
-        This is the easiest way to get an context suitable for sending client
-        requests.
-        """
-
-        if loop is None:
-            loop = asyncio.get_event_loop()
-
-        self = cls(loop=loop, serversite=None, loggername=loggername)
-
-        # FIXME make defaults overridable (postponed until they become configurable too)
-        for transportname in defaults.get_default_clienttransports(loop=loop):
-            if transportname == 'udp6':
-                from .transports.udp6 import TransportEndpointUDP6
-                self.transport_endpoints.append(await TransportEndpointUDP6.create_client_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to))
-            elif transportname == 'simple6':
-                from .transports.simple6 import TransportEndpointSimple6
-                self.transport_endpoints.append(await TransportEndpointSimple6.create_client_transport_endpoint(self, log=self.log, loop=loop))
-                # FIXME warn if dump_to is not None
-            elif transportname == 'tinydtls':
-                from .transports.tinydtls import TransportEndpointTinyDTLS
-
-                self.transport_endpoints.append(await TransportEndpointTinyDTLS.create_client_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to))
-            else:
-                raise RuntimeError("Transport %r not know for client context creation"%transportname)
-
-        return self
-
-    @classmethod
-    async def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None, loggername="coap-server", loop=None):
-        """Create an context, bound to all addresses on the CoAP port (unless
-        otherwise specified in the ``bind`` argument).
-
-        This is the easiest way to get a context suitable both for sending
-        client and accepting server requests."""
-
-        if loop is None:
-            loop = asyncio.get_event_loop()
-
-        self = cls(loop=loop, serversite=site, loggername=loggername)
-
-        for transportname in defaults.get_default_servertransports(loop=loop):
-            if transportname == 'udp6':
-                from .transports.udp6 import TransportEndpointUDP6
-
-                self.transport_endpoints.append(await TransportEndpointUDP6.create_server_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to, bind=bind))
-            # FIXME this is duplicated from the client version, as those are client-only anyway
-            elif transportname == 'simple6':
-                from .transports.simple6 import TransportEndpointSimple6
-                self.transport_endpoints.append(await TransportEndpointSimple6.create_client_transport_endpoint(self, log=self.log, loop=loop))
-                # FIXME warn if dump_to is not None
-            elif transportname == 'tinydtls':
-                from .transports.tinydtls import TransportEndpointTinyDTLS
-
-                self.transport_endpoints.append(await TransportEndpointTinyDTLS.create_client_transport_endpoint(self, log=self.log, loop=loop, dump_to=dump_to))
-            # FIXME end duplication
-            elif transportname == 'simplesocketserver':
-                # FIXME dump_to not implemented
-                from .transports.simplesocketserver import TransportEndpointSimpleServer
-                self.transport_endpoints.append(await TransportEndpointSimpleServer.create_server(bind, self, log=self.log, loop=loop))
-            else:
-                raise RuntimeError("Transport %r not know for server context creation"%transportname)
-
-        return self
 
     def kill_transactions(self, remote, exception=error.CommunicationKilled):
         """Abort all pending exchanges and observations to a given remote.
@@ -616,6 +552,127 @@ class Context(interfaces.RequestProvider, interfaces.MessageManager):
                 continue
             ## FIXME this is not tested either
             serverobservation.deregister("Dropping due to kill_transactions")
+
+class Context(interfaces.RequestProvider):
+    def __init__(self, loop=None, serversite=None, loggername="coap", client_credentials=None):
+        self.log = logging.getLogger(loggername)
+
+        self.loop = loop or asyncio.get_event_loop()
+
+        self.serversite = serversite
+
+        self.request_interfaces = []
+
+        self.client_credentials = client_credentials or CredentialsMap()
+
+    #
+    # convenience methods for class instanciation
+    #
+
+    @classmethod
+    async def create_client_context(cls, *, dump_to=None, loggername="coap", loop=None):
+        """Create a context bound to all addresses on a random listening port.
+
+        This is the easiest way to get an context suitable for sending client
+        requests.
+        """
+
+        if loop is None:
+            loop = asyncio.get_event_loop()
+
+        self = cls(loop=loop, serversite=None, loggername=loggername)
+
+        # FIXME make defaults overridable (postponed until they become configurable too)
+        for transportname in defaults.get_default_clienttransports(loop=loop):
+            mman = MessageManager(self)
+            if transportname == 'udp6':
+                from .transports.udp6 import TransportEndpointUDP6
+                mman.message_interface = await TransportEndpointUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to)
+            elif transportname == 'simple6':
+                from .transports.simple6 import TransportEndpointSimple6
+                mman.message_interface = await TransportEndpointSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop)
+                # FIXME warn if dump_to is not None
+            elif transportname == 'tinydtls':
+                from .transports.tinydtls import TransportEndpointTinyDTLS
+
+                mman.message_interface = await TransportEndpointTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to)
+            else:
+                raise RuntimeError("Transport %r not know for client context creation"%transportname)
+            self.request_interfaces.append(mman)
+
+        return self
+
+    @classmethod
+    async def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None, loggername="coap-server", loop=None):
+        """Create an context, bound to all addresses on the CoAP port (unless
+        otherwise specified in the ``bind`` argument).
+
+        This is the easiest way to get a context suitable both for sending
+        client and accepting server requests."""
+
+        if loop is None:
+            loop = asyncio.get_event_loop()
+
+        self = cls(loop=loop, serversite=site, loggername=loggername)
+
+        for transportname in defaults.get_default_servertransports(loop=loop):
+            mman = MessageManager(self)
+            if transportname == 'udp6':
+                from .transports.udp6 import TransportEndpointUDP6
+
+                mman.message_interface = await TransportEndpointUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to, bind=bind)
+            # FIXME this is duplicated from the client version, as those are client-only anyway
+            elif transportname == 'simple6':
+                from .transports.simple6 import TransportEndpointSimple6
+                mman.message_interface = await TransportEndpointSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop)
+                # FIXME warn if dump_to is not None
+            elif transportname == 'tinydtls':
+                from .transports.tinydtls import TransportEndpointTinyDTLS
+
+                mman.message_interface = await TransportEndpointTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to)
+            # FIXME end duplication
+            elif transportname == 'simplesocketserver':
+                # FIXME dump_to not implemented
+                from .transports.simplesocketserver import TransportEndpointSimpleServer
+                mman.message_interface = await TransportEndpointSimpleServer.create_server(bind, mman, log=self.log, loop=loop)
+            else:
+                raise RuntimeError("Transport %r not know for server context creation"%transportname)
+            self.request_interfaces.append(mman)
+
+        return self
+
+    async def shutdown(self):
+        await asyncio.wait([ri.shutdown() for ri in self.request_interfaces], timeout=3, loop=self.loop)
+
+    async def fill_remote(self, message):
+        if message.remote is not None:
+            return
+        for ri in self.request_interfaces:
+            await ri.fill_remote(message)
+            if message.remote is not None:
+                message.remote = WrappedRemote(ri, message.remote)
+                break
+        else:
+            raise RuntimeError("No request interface could route message")
+
+    def request(self, request_message, **kwargs):
+        immediate_result = RequestProxy()
+        async def request():
+            try:
+                await self.fill_remote(request_message)
+                # FIXME: maybe check whether request_interface is
+                # actually one of ours
+                request_interface = request_message.remote.manager
+                request_message.remote = request_message.remote.inner_address
+            except Exception as e:
+                immediate_result.response.set_exception(e)
+                for eb in immediate_result.observation.eb_queue:
+                    eb(e)
+            else:
+                immediate_result.late_init(request_interface.request(request_message, **kwargs))
+        self.loop.create_task(request())
+        return immediate_result
+
 
 class BaseRequest(object):
     """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
@@ -1056,6 +1113,43 @@ class MulticastRequest(BaseRequest):
         self.protocol.outgoing_requests.pop(self.request.token, None)
         self.responses.finish()
 
+class RequestProxy(interfaces.Request, BaseUnicastRequest):
+    """A helper object created when the result of a request is so unclear that
+    the response can not even be created yet. It creates all the futures of a
+    request, and forwards results to them from the :meth:`late_init()` call its
+    creator promises.
+
+    This helper should go away again in the course of the restructuring towards
+    a more protocol-driven response mechanism (possibly something like 'there
+    is always only a thin Result, and it is driven however the RequestProvider
+    seems fit')."""
+
+    def __init__(self):
+        self.response = asyncio.Future()
+
+        self.observation = self.ObservationProxy()
+
+    def late_init(self, real_response):
+        real_response.response.add_done_callback(lambda f: self.response.set_exception(f.exception()) if f.exception() else self.response.set_result(f.result()))
+
+        if getattr(real_response, 'observation', None) is not None:
+            for cb in self.observation.cb_queue:
+                real_response.observation.register_callback(cb)
+            for eb in self.observation.eb_queue:
+                real_response.observation.register_errback(eb)
+            self.observation = real_response.observation
+
+    class ObservationProxy:
+        def __init__(self):
+            self.cb_queue = []
+            self.eb_queue = []
+
+        def register_callback(self, cb):
+            self.cb_queue.append(cb)
+
+        def register_errback(self, eb):
+            self.eb_queue.append(eb)
+
 class Responder(object):
     """Handler for an incoming request or (in blockwise) a group thereof
 
@@ -1145,12 +1239,12 @@ class Responder(object):
         """Dispatch incoming request - search context resource tree for
         resource in Uri Path and call proper CoAP Method on it."""
 
-        if self.protocol.serversite is None:
+        if self.protocol.context.serversite is None:
             self.respond_with_error(initial_block, NOT_FOUND, "Context is not a server")
             return
 
         try:
-            needs_blockwise = await self.protocol.serversite.needs_blockwise_assembly(initial_block)
+            needs_blockwise = await self.protocol.context.serversite.needs_blockwise_assembly(initial_block)
         except Exception as e:
             self.respond_with_error(initial_block, INTERNAL_SERVER_ERROR, "")
             self.log.error("An exception occurred while requesting needs_blockwise: %r"%e, exc_info=e)
@@ -1172,7 +1266,7 @@ class Responder(object):
         await self.handle_observe_request(request)
 
         try:
-            response = await self.protocol.serversite.render(request)
+            response = await self.protocol.context.serversite.render(request)
         except error.RenderableError as e:
             self.respond_with_error(request, e.code, e.message)
         except Exception as e:
@@ -1349,9 +1443,9 @@ class Responder(object):
             self._serverobservation = old_observation
             return
 
-        if request.code in (GET, FETCH) and request.opt.observe == 0 and hasattr(self.protocol.serversite, "add_observation"):
+        if request.code in (GET, FETCH) and request.opt.observe == 0 and hasattr(self.protocol.context.serversite, "add_observation"):
             sobs = ServerObservation(self.protocol, request, self.log)
-            await self.protocol.serversite.add_observation(request, sobs)
+            await self.protocol.context.serversite.add_observation(request, sobs)
             if sobs.accepted:
                 self._serverobservation = sobs
             else:
