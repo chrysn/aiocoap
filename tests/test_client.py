@@ -97,7 +97,7 @@ class TestClientOther(WithTestServer, WithClient):
                 self.client.request(request).response_raising)
 
     @no_warnings
-    def test_raising(self):
+    def test_nonraising(self):
         """This test obtains results via the response_nonraising property of a
         Request."""
         yieldfrom = lambda f: self.loop.run_until_complete(f)
