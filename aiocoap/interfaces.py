@@ -12,6 +12,8 @@ especially with respect to request and response handling."""
 import abc
 from asyncio import coroutine
 
+from typing import Optional, Callable
+
 class TransportEndpoint(metaclass=abc.ABCMeta):
     """A MessageInterface is an object that can exchange addressed messages over
     unreliable transports. Implementations send and receive messages with
@@ -121,6 +123,21 @@ class MessageManager(metaclass=abc.ABCMeta):
     def client_credentials(self):
         """A CredentialsMap that transports should consult when trying to
         establish a security context"""
+
+class TokenInterface(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def send_message(self, message) -> Optional[Callable[[], None]]:
+        """Send a message. If it returns a a callable, the caller is asked to
+        call in case it no longer needs the message sent, and to dispose of if
+        it doesn't intend to any more."""
+
+class TokenManager(metaclass=abc.ABCMeta):
+    pass
+
+class RequestInterface(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def request(self, request: "PlumbingRequest"):
+        pass
 
 class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod

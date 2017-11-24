@@ -24,9 +24,10 @@ import weakref
 
 from . import defaults
 from .credentials import CredentialsMap
-from .messagemanager import MessageManager, BaseUnicastRequest
+from .messagemanager import MessageManager
+from .tokenmanager import TokenManager, PlumbingRequest
 from . import interfaces
-from .numbers import COAP_PORT
+from .numbers import COAP_PORT, DEFAULT_BLOCK_SIZE_EXP
 
 import logging
 # log levels used:
@@ -40,24 +41,59 @@ import logging
 #   changed between blocks).
 
 # only for compatibility, to be removed during refactoring
-from .messagemanager import ClientObservation, ExchangeMonitor, BlockwiseRequest
-
-class WrappedRemote:
-    def __init__(self, manager, inner_address):
-        self._manager = weakref.ref(manager)
-        self.inner_address = inner_address
-
-    @property
-    def manager(self):
-        m = self._manager()
-        if m is None:
-            raise AttributeError("The remote's manager ceased to exist")
-        return m
-
-    def __repr__(self):
-        return "<%s: %s via %s>" % (self.inner_address, self._manager())
+from .tokenmanager import ClientObservation, ExchangeMonitor
 
 class Context(interfaces.RequestProvider):
+    """Applications' entry point to the network
+
+    A :class:`.Context` coordinates one or more network :mod:`.transports`
+    implementations and dispatches data between them and the application.
+
+    The application can start requests using the message dispatch methods, and
+    set a :class:`resources.Site` that will answer requests directed to the
+    application as a server.
+
+    On the library-internals side, it is the prime implementation of the
+    :class:`interfaces.RequestProvider` interface, creates :class:`Request` and
+    :class:`Response` classes on demand, and decides which transport
+    implementations to start and which are to handle which messages.
+
+    Currently, only one network transport is created, and the details of the
+    messaging layer of CoAP are managed in this class. It is expected that much
+    of the functionality will be moved into transports at latest when CoAP over
+    TCP and websockets is implemented.
+
+    **Context creation and destruction**
+
+    The following functions are provided for creating and stopping a context:
+
+    .. automethod:: create_client_context
+    .. automethod:: create_server_context
+
+    .. automethod:: shutdown
+
+    **Dispatching messages**
+
+    CoAP requests can be sent using the following functions:
+
+    .. automethod:: request
+
+    .. automethod:: multicast_request
+
+    If more control is needed, you can create a :class:`Request` yourself and
+    pass the context to it.
+
+
+    **Other methods and properties**
+
+    The remaining methods and properties are to be considered unstable even
+    when the project reaches a stable version number; please file a feature
+    request for stabilization if you want to reliably access any of them.
+
+    (Sorry for the duplicates, still looking for a way to make autodoc list
+    everything not already mentioned).
+
+    """
     def __init__(self, loop=None, serversite=None, loggername="coap", client_credentials=None):
         self.log = logging.getLogger(loggername)
 
@@ -72,6 +108,16 @@ class Context(interfaces.RequestProvider):
     #
     # convenience methods for class instanciation
     #
+
+    async def _append_tokenmanaged_messagemanaged_transport(self, message_interface_constructor):
+        tman = TokenManager(self)
+        mman = MessageManager(tman)
+        transport = await message_interface_constructor(mman)
+
+        mman.message_interface = transport
+        tman.token_interface = mman
+
+        self.request_interfaces.append(tman)
 
     @classmethod
     async def create_client_context(cls, *, dump_to=None, loggername="coap", loop=None):
@@ -88,21 +134,22 @@ class Context(interfaces.RequestProvider):
 
         # FIXME make defaults overridable (postponed until they become configurable too)
         for transportname in defaults.get_default_clienttransports(loop=loop):
-            mman = MessageManager(self)
             if transportname == 'udp6':
                 from .transports.udp6 import TransportEndpointUDP6
-                mman.message_interface = await TransportEndpointUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to)
+                await self._append_tokenmanaged_messagemanaged_transport(
+                    lambda mman: TransportEndpointUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
             elif transportname == 'simple6':
                 from .transports.simple6 import TransportEndpointSimple6
-                mman.message_interface = await TransportEndpointSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop)
+                await self._append_tokenmanaged_messagemanaged_transport(
+                    lambda mman: TransportEndpointSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
                 # FIXME warn if dump_to is not None
             elif transportname == 'tinydtls':
                 from .transports.tinydtls import TransportEndpointTinyDTLS
+                await self._append_tokenmanaged_messagemanaged_transport(
 
-                mman.message_interface = await TransportEndpointTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to)
+                    lambda mman: TransportEndpointTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
             else:
                 raise RuntimeError("Transport %r not know for client context creation"%transportname)
-            self.request_interfaces.append(mman)
 
         return self
 
@@ -120,98 +167,349 @@ class Context(interfaces.RequestProvider):
         self = cls(loop=loop, serversite=site, loggername=loggername)
 
         for transportname in defaults.get_default_servertransports(loop=loop):
-            mman = MessageManager(self)
             if transportname == 'udp6':
                 from .transports.udp6 import TransportEndpointUDP6
 
-                mman.message_interface = await TransportEndpointUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to, bind=bind)
+                await self._append_tokenmanaged_messagemanaged_transport(
+                    lambda mman: TransportEndpointUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to, bind=bind))
             # FIXME this is duplicated from the client version, as those are client-only anyway
             elif transportname == 'simple6':
                 from .transports.simple6 import TransportEndpointSimple6
-                mman.message_interface = await TransportEndpointSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop)
+                await self._append_tokenmanaged_messagemanaged_transport(
+                    lambda mman: TransportEndpointSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
                 # FIXME warn if dump_to is not None
             elif transportname == 'tinydtls':
                 from .transports.tinydtls import TransportEndpointTinyDTLS
 
-                mman.message_interface = await TransportEndpointTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to)
+                await self._append_tokenmanaged_messagemanaged_transport(
+                    lambda mman: TransportEndpointTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
             # FIXME end duplication
             elif transportname == 'simplesocketserver':
                 # FIXME dump_to not implemented
                 from .transports.simplesocketserver import TransportEndpointSimpleServer
-                mman.message_interface = await TransportEndpointSimpleServer.create_server(bind, mman, log=self.log, loop=loop)
+                await self._append_tokenmanaged_messagemanaged_transport(
+                    lambda mman: TransportEndpointSimpleServer.create_server(bind, mman, log=self.log, loop=loop))
             else:
                 raise RuntimeError("Transport %r not know for server context creation"%transportname)
-            self.request_interfaces.append(mman)
 
         return self
 
     async def shutdown(self):
         await asyncio.wait([ri.shutdown() for ri in self.request_interfaces], timeout=3, loop=self.loop)
 
-    async def fill_remote(self, message):
-        if message.remote is not None:
-            return
+    async def find_remote_and_interface(self, message):
         for ri in self.request_interfaces:
-            await ri.fill_remote(message)
-            if message.remote is not None:
-                message.remote = WrappedRemote(ri, message.remote)
-                break
-        else:
-            raise RuntimeError("No request interface could route message")
+            if await ri.fill_or_recognize_remote(message):
+                return ri
+        raise RuntimeError("No request interface could route message")
 
-    def request(self, request_message, **kwargs):
-        immediate_result = RequestProxy()
-        async def request():
+    def request(self, request_message, handle_blockwise=True):
+        if handle_blockwise:
+            return BlockwiseRequest(self, request_message)
+
+        plumbing_request = PlumbingRequest(request_message)
+        result = Request(plumbing_request, self.loop)
+
+        async def send():
             try:
-                await self.fill_remote(request_message)
-                # FIXME: maybe check whether request_interface is
-                # actually one of ours
-                request_interface = request_message.remote.manager
-                request_message.remote = request_message.remote.inner_address
+                request_interface = await self.find_remote_and_interface(request_message)
             except Exception as e:
-                immediate_result.response.set_exception(e)
-                for eb in immediate_result.observation.eb_queue:
-                    eb(e)
-            else:
-                immediate_result.late_init(request_interface.request(request_message, **kwargs))
-        self.loop.create_task(request())
-        return immediate_result
+                plumbing_request.no_more_responses(e)
+                return
+            request_interface.request(plumbing_request)
+        self.loop.create_task(send())
+        return result
 
 
 
-class RequestProxy(interfaces.Request, BaseUnicastRequest):
-    """A helper object created when the result of a request is so unclear that
-    the response can not even be created yet. It creates all the futures of a
-    request, and forwards results to them from the :meth:`late_init()` call its
-    creator promises.
+class BaseRequest(object):
+    """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
 
-    This helper should go away again in the course of the restructuring towards
-    a more protocol-driven response mechanism (possibly something like 'there
-    is always only a thin Result, and it is driven however the RequestProvider
-    seems fit')."""
+class BaseUnicastRequest(BaseRequest):
+    """A utility class that offers the :attr:`response_raising` and
+    :attr:`response_nonraising` alternatives to waiting for the
+    :attr:`response` future whose error states can be presented either as an
+    unsuccessful response (eg. 4.04) or an exception.
 
-    def __init__(self):
+    It also provides some internal tools for handling anything that has a
+    :attr:`response` future and an :attr:`observation`"""
+
+    @property
+    async def response_raising(self):
+        """An awaitable that returns if a response comes in and is successful,
+        otherwise raises generic network exception or a
+        :class:`.error.ResponseWrappingError` for unsuccessful responses.
+
+        Experimental Interface."""
+
+        response = await self.response
+        if not response.code.is_successful():
+            raise error.ResponseWrappingError(response)
+
+        return response
+
+    @property
+    async def response_nonraising(self):
+        """An awaitable that rather returns a 500ish fabricated message (as a
+        proxy would return) instead of raising an exception.
+
+        Experimental Interface."""
+
+        try:
+            return await self.response
+        except error.RenderableError:
+            return e.to_message()
+        except Exception as e:
+            return Message(code=INTERNAL_SERVER_ERROR)
+
+class Request(interfaces.Request, BaseUnicastRequest):
+    # FIXME documentation: This doesn't need .response to be awaited for
+    # observations to trigger; and if you constructed this yourself, you're
+    # again out of lock with an API change.
+
+    # FIXME: Implement timing out with REQUEST_TIMEOUT here
+
+    def __init__(self, plumbing_request, loop):
+        self._plumbing_request = plumbing_request
+
         self.response = asyncio.Future()
 
-        self.observation = self.ObservationProxy()
+        self.observation = None # FIXME
 
-    def late_init(self, real_response):
-        real_response.response.add_done_callback(lambda f: self.response.set_exception(f.exception()) if f.exception() else self.response.set_result(f.result()))
+        loop.create_task(self._run())
 
-        if getattr(real_response, 'observation', None) is not None:
-            for cb in self.observation.cb_queue:
-                real_response.observation.register_callback(cb)
-            for eb in self.observation.eb_queue:
-                real_response.observation.register_errback(eb)
-            self.observation = real_response.observation
+    async def _run(self):
+        first_event = await self._plumbing_request._events.get()
 
-    class ObservationProxy:
-        def __init__(self):
-            self.cb_queue = []
-            self.eb_queue = []
+        if not first_event.is_last:
+            self.response.set_exception(RuntimeError("Unexpectedly received multiple responses"))
+            self._plumbing_request.stop_interest()
+            return
 
-        def register_callback(self, cb):
-            self.cb_queue.append(cb)
+        if first_event.message is not None:
+            self.response.set_result(first_event.message)
+        else:
+            self.response.set_exception(first_event.exception)
 
-        def register_errback(self, eb):
-            self.eb_queue.append(eb)
+
+class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
+    def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None)):
+        self.protocol = protocol
+        self.log = self.protocol.log.getChild("blockwise-requester")
+        self.exchange_monitor_factory = exchange_monitor_factory
+
+        self.response = asyncio.Future()
+
+        if app_request.opt.observe is not None:
+            self.observation = BlockwiseClientObservation(app_request)
+        else:
+            self.observation = None
+
+        self._runner = asyncio.Task(self._run_outer(
+            app_request,
+            self.response,
+            weakref.ref(self.observation) if self.observation is not None else lambda: None,
+            self.protocol,
+            self.log,
+            self.exchange_monitor_factory,
+            ))
+        self.response.add_done_callback(self._response_cancellation_handler)
+
+    def _response_cancellation_handler(self, response_future):
+        if self.response.cancelled() and not self._runner.cancelled():
+            self._runner.cancel()
+
+    @classmethod
+    async def _run_outer(cls, app_request, response, weak_observation, protocol, log, exchange_monitor_factory):
+        try:
+            await cls._run(app_request, response, weak_observation, protocol, log, exchange_monitor_factory)
+        except asyncio.CancelledError:
+            pass # results already set
+        except Exception as e:
+            logged = False
+            if not response.done():
+                logged = True
+                response.set_exception(e)
+            obs = weak_observation()
+            if app_request.opt.observe is not None and obs is not None:
+                logged = True
+                obs.error(e)
+            if not logged:
+                # should be unreachable
+                log.error("Exception in BlockwiseRequest runner neither went to response nor to observation: %s", e, exc_info=e)
+
+    # This is a class method because that allows self and self.observation to
+    # be freed even when this task is running, and the task to stop itself --
+    # otherwise we couldn't know when users just "forget" about a request
+    # object after using its response (esp. in observe cases) and leave this
+    # task running.
+    @classmethod
+    async def _run(cls, app_request, response, weak_observation, protocol, log, exchange_monitor_factory):
+        size_exp = DEFAULT_BLOCK_SIZE_EXP
+
+        if app_request.opt.block1 is not None:
+            assert app_request.opt.block1.block_number == 0, "Unexpected block number in app_request"
+            assert app_request.opt.block1.more == False, "Unexpected more-flag in app_request"
+            size_exp = app_request.opt.block1.size_exponent
+
+        # Offset in the message in blocks of size_exp. Whoever changes size_exp
+        # is responsible for updating this number.
+        block_cursor = 0
+
+        remote = None
+
+        while True:
+            # ... send a chunk
+
+            if len(app_request.payload) > (2 ** (size_exp + 4)):
+                current_block1 = app_request._extract_block(block_cursor, size_exp)
+            else:
+                current_block1 = app_request
+
+            if remote is not None:
+                current_block1 = current_block1.copy(remote=remote)
+
+            blockrequest = protocol.request(current_block1, handle_blockwise=False)
+            blockresponse = await blockrequest.response
+
+            # store for future blocks: don't resolve the address again
+            remote = blockresponse.remote
+
+            if blockresponse.opt.block1 is None:
+                if blockresponse.code.is_successful() and current_block1.opt.block1:
+                    log.warning("Block1 option completely ignored by server, assuming it knows what it is doing.")
+                # FIXME: handle 4.13 and retry with the indicated size option
+                break
+
+            block1 = blockresponse.opt.block1
+            log.debug("Response with Block1 option received, number = %d, more = %d, size_exp = %d.", block1.block_number, block1.more, block1.size_exponent)
+
+            if block1.block_number != current_block1.opt.block1.block_number:
+                raise error.UnexpectedBlock1Option("Block number mismatch")
+
+            block_cursor += 1
+            while block1.size_exponent < size_exp:
+                block_cursor *= 2
+                size_exp -= 1
+
+            if not current_block1.opt.block1.more:
+                if block1.more or blockresponse.code == CONTINUE:
+                    # treating this as a protocol error -- letting it slip
+                    # through would misrepresent the whole operation as an
+                    # over-all 2.xx (successful) one.
+                    raise error.UnexpectedBlock1Option("Server asked for more data at end of body")
+                break
+
+            # checks before preparing the next round:
+
+            if blockresponse.opt.observe:
+                # we're not *really* interested in that block, we just sent an
+                # observe option to indicate that we'll want to observe the
+                # resulting representation as a whole
+                log.warning("Server answered Observe in early Block1 phase, cancelling the erroneous observation.")
+                blockrequest.observe.cancel()
+
+            if block1.more:
+                # FIXME i think my own server is dowing this wrong
+                #if response.code != CONTINUE:
+                #    raise error.UnexpectedBlock1Option("more-flag set but no Continue")
+                pass
+            else:
+                if not blockresponse.code.is_successful():
+                    break
+                else:
+                    # ignoring (discarding) the successul intermediate result, waiting for a final one
+                    continue
+
+        lower_observation = None
+        if app_request.opt.observe is not None:
+            if blockresponse.opt.observe is not None:
+                lower_observation = blockrequest.observation
+            else:
+                obs = weak_observation()
+                if obs:
+                    obs.error(error.NotObservable())
+                del obs
+
+        assert blockresponse is not None, "Block1 loop broke without setting a response"
+        blockresponse.opt.block1 = None
+
+        # FIXME check with RFC7959: it just says "send requests similar to the
+        # requests in the Block1 phase", what does that mean? using the last
+        # block1 as a reference for now, especially because in the
+        # only-one-request-block case, that's the original request we must send
+        # again and again anyway
+        assembled_response = await cls._complete_by_requesting_block2(protocol, current_block1, blockresponse, log, exchange_monitor_factory)
+
+        response.set_result(assembled_response)
+        # finally set the result
+
+        if lower_observation is not None:
+            obs = weak_observation()
+            del weak_observation
+            if obs is None:
+                return
+            future_weak_observation = asyncio.Future() # packing this up because its destroy callback needs to reference the subtask
+            subtask = asyncio.Task(cls._run_observation(lower_observation, future_weak_observation, protocol, log, exchange_monitor_factory))
+            future_weak_observation.set_result(weakref.ref(obs, lambda obs: subtask.cancel()))
+            obs._register(subtask.cancel)
+            del obs
+            await subtask
+
+    @classmethod
+    async def _run_observation(cls, lower_observation, future_weak_observation, protocol, log, exchange_monitor_factory):
+        weak_observation = await future_weak_observation
+        # we can use weak_observation() here at any time, because whenever that
+        # becomes None, this task gets cancelled
+        try:
+            aiter = lower_observation.__aiter__()
+            while True:
+                block1_notification = await aiter.__anext__()
+                log.debug("Notification received")
+                full_notification = await cls._complete_by_requesting_block2(protocol, weak_observation().original_request, block1_notification, log, exchange_monitor_factory)
+                log.debug("Reporting completed notification")
+                weak_observation().callback(full_notification)
+        except asyncio.CancelledError:
+            return
+        except StopAsyncIteration:
+            # FIXME verify that this loop actually ends iff the observation
+            # was cancelled -- otherwise find out the cause(s) or make it not
+            # cancel under indistinguishable circumstances
+            weak_observation().error(error.ObservationCancelled())
+        except Exception as e:
+            weak_observation().error(e)
+
+    @classmethod
+    async def _complete_by_requesting_block2(cls, protocol, request_to_repeat, initial_response, log, exchange_monitor_factory):
+        if initial_response.opt.block2 is None or initial_response.opt.block2.more is False:
+            initial_response.opt.block2 = None
+            return initial_response
+
+        if initial_response.opt.block2.block_number != 0:
+            log.error("Error assembling blockwise response (expected first block)")
+            raise UnexpectedBlock2()
+
+        assembled_response = initial_response
+        last_response = initial_response
+        while True:
+            current_block2 = request_to_repeat._generate_next_block2_request(last_response)
+
+            current_block2 = current_block2.copy(remote=initial_response.remote)
+
+            blockrequest = protocol.request(current_block2, handle_blockwise=False)
+            last_response = await blockrequest.response
+
+            if last_response.opt.block2 is None:
+                log.warning("Server sent non-blockwise response after having started a blockwise transfer. Blockwise transfer cancelled, accepting single response.")
+                return last_response
+
+            block2 = last_response.opt.block2
+            log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d.", block2.block_number, block2.more, block2.size_exponent)
+            try:
+                assembled_response._append_response_block(last_response)
+            except error.Error as e:
+                log.error("Error assembling blockwise response, passing on error %r"%e)
+                raise
+
+            if block2.more is False:
+                return assembled_response
