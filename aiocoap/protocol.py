@@ -21,12 +21,14 @@ messages:
 
 import asyncio
 import weakref
+import time
 
 from . import defaults
 from .credentials import CredentialsMap
 from .messagemanager import MessageManager
 from .tokenmanager import TokenManager, PlumbingRequest
 from . import interfaces
+from . import error
 from .numbers import COAP_PORT, DEFAULT_BLOCK_SIZE_EXP
 
 import logging
@@ -39,9 +41,6 @@ import logging
 #   necessarily indicate a client bug, though; things like requesting a
 #   nonexistent block can just as well happen when a resource's content has
 #   changed between blocks).
-
-# only for compatibility, to be removed during refactoring
-from .tokenmanager import ClientObservation, ExchangeMonitor
 
 class Context(interfaces.RequestProvider):
     """Applications' entry point to the network
@@ -214,7 +213,7 @@ class Context(interfaces.RequestProvider):
             try:
                 request_interface = await self.find_remote_and_interface(request_message)
             except Exception as e:
-                plumbing_request.no_more_responses(e)
+                plumbing_request.add_exception(e)
                 return
             request_interface.request(plumbing_request)
         self.loop.create_task(send())
@@ -263,9 +262,6 @@ class BaseUnicastRequest(BaseRequest):
             return Message(code=INTERNAL_SERVER_ERROR)
 
 class Request(interfaces.Request, BaseUnicastRequest):
-    # FIXME documentation: This doesn't need .response to be awaited for
-    # observations to trigger; and if you constructed this yourself, you're
-    # again out of lock with an API change.
 
     # FIXME: Implement timing out with REQUEST_TIMEOUT here
 
@@ -274,34 +270,106 @@ class Request(interfaces.Request, BaseUnicastRequest):
 
         self.response = asyncio.Future()
 
-        self.observation = None # FIXME
+        if plumbing_request.request.opt.observe == 0:
+            self.observation = ClientObservation()
+        else:
+            self.observation = None
 
         loop.create_task(self._run())
 
     async def _run(self):
-        first_event = await self._plumbing_request._events.get()
+        # FIXME: check that responses come from the same remmote as long as we're assuming unicast
 
-        if not first_event.is_last:
-            self.response.set_exception(RuntimeError("Unexpectedly received multiple responses"))
-            self._plumbing_request.stop_interest()
-            return
+        first_event = await self._plumbing_request._events.get()
 
         if first_event.message is not None:
             self.response.set_result(first_event.message)
         else:
             self.response.set_exception(first_event.exception)
 
+        if self.observation is None:
+            if not first_event.is_last:
+                self.log.error("PlumbingRequest indicated more possible responses"
+                               " while the Request handler would not know what to"
+                               " do with them, stopping any further request.")
+                self._plumbing_request.stop_interest()
+            return
+
+        if first_event.is_last:
+            self.observation.error(error.NotObservable())
+            return
+
+        if first_event.message.opt.observe is None:
+            self.log.error("PlumbingRequest indicated more possible responses"
+                           " while the Request handler would not know what to"
+                           " do with them, stopping any further request.")
+            self._plumbing_request.stop_interest()
+            return
+
+        # variable names from RFC7641 Section 3.4
+        v1 = first_event.message.opt.observe
+        t1 = time.time()
+
+        while True:
+            # We don't really support cancellation of observations yet (see
+            # https://github.com/chrysn/aiocoap/issues/92), but at least
+            # stopping the interest is a way to free the local resources after
+            # the first observation update, and to make the MID handler RST the
+            # observation on the next.
+            # FIXME: there *is* now a .on_cancel callback, we should at least
+            # hook into that, and possibly even send a proper cancellation
+            # then.
+            next_event = await self._plumbing_request._events.get()
+            if self.observation.cancelled:
+                self._plumbing_request.stop_interest()
+                return
+
+            if next_event.exception is not None:
+                self.observation.error(next_event.exception)
+                if not next_event.is_last:
+                    self._plumbing_request.stop_interest()
+                return
+
+            if next_event.message.opt.observe is not None:
+                # check for reordering
+                v2 = next_event.message.opt.observe
+                t2 = time.time()
+
+                is_recent = (v1 < v2 and v2 - v1 < 2**23) or \
+                        (v1 > v2 and v1 - v2 > 2**23) or \
+                        (t2 > t1 + 128)
+                if is_recent:
+                    t1 = t2
+                    v1 = v2
+            else:
+                # the terminal message is always the last
+                is_recent = True
+
+            if is_recent:
+                self.observation.callback(next_event.message)
+
+            if next_event.is_last:
+                self.observation.error(ObservationCancelled())
+                return
+
+            if next_event.message.opt.observe is None:
+                self.observation.error(ObservationCancelled())
+                self.log.error("PlumbingRequest indicated more possible responses"
+                               " while the Request handler would not know what to"
+                               " do with them, stopping any further request.")
+                self._plumbing_request.stop_interest()
+                return
+
 
 class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
-    def __init__(self, protocol, app_request, exchange_monitor_factory=(lambda message: None)):
+    def __init__(self, protocol, app_request):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("blockwise-requester")
-        self.exchange_monitor_factory = exchange_monitor_factory
 
         self.response = asyncio.Future()
 
         if app_request.opt.observe is not None:
-            self.observation = BlockwiseClientObservation(app_request)
+            self.observation = ClientObservation()
         else:
             self.observation = None
 
@@ -311,7 +379,6 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             weakref.ref(self.observation) if self.observation is not None else lambda: None,
             self.protocol,
             self.log,
-            self.exchange_monitor_factory,
             ))
         self.response.add_done_callback(self._response_cancellation_handler)
 
@@ -320,9 +387,9 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             self._runner.cancel()
 
     @classmethod
-    async def _run_outer(cls, app_request, response, weak_observation, protocol, log, exchange_monitor_factory):
+    async def _run_outer(cls, app_request, response, weak_observation, protocol, log):
         try:
-            await cls._run(app_request, response, weak_observation, protocol, log, exchange_monitor_factory)
+            await cls._run(app_request, response, weak_observation, protocol, log)
         except asyncio.CancelledError:
             pass # results already set
         except Exception as e:
@@ -344,7 +411,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
     # object after using its response (esp. in observe cases) and leave this
     # task running.
     @classmethod
-    async def _run(cls, app_request, response, weak_observation, protocol, log, exchange_monitor_factory):
+    async def _run(cls, app_request, response, weak_observation, protocol, log):
         size_exp = DEFAULT_BLOCK_SIZE_EXP
 
         if app_request.opt.block1 is not None:
@@ -439,34 +506,35 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         # block1 as a reference for now, especially because in the
         # only-one-request-block case, that's the original request we must send
         # again and again anyway
-        assembled_response = await cls._complete_by_requesting_block2(protocol, current_block1, blockresponse, log, exchange_monitor_factory)
+        assembled_response = await cls._complete_by_requesting_block2(protocol, current_block1, blockresponse, log)
 
         response.set_result(assembled_response)
         # finally set the result
 
         if lower_observation is not None:
+            # FIXME this can all be simplified a lot since it's no more
+            # expected that observations shut themselves down when GC'd.
             obs = weak_observation()
             del weak_observation
             if obs is None:
+                lower_observation.cancel()
                 return
             future_weak_observation = asyncio.Future() # packing this up because its destroy callback needs to reference the subtask
-            subtask = asyncio.Task(cls._run_observation(lower_observation, future_weak_observation, protocol, log, exchange_monitor_factory))
+            subtask = asyncio.Task(cls._run_observation(app_request, lower_observation, future_weak_observation, protocol, log))
             future_weak_observation.set_result(weakref.ref(obs, lambda obs: subtask.cancel()))
-            obs._register(subtask.cancel)
+            obs.on_cancel(subtask.cancel)
             del obs
             await subtask
 
     @classmethod
-    async def _run_observation(cls, lower_observation, future_weak_observation, protocol, log, exchange_monitor_factory):
+    async def _run_observation(cls, original_request, lower_observation, future_weak_observation, protocol, log):
         weak_observation = await future_weak_observation
         # we can use weak_observation() here at any time, because whenever that
         # becomes None, this task gets cancelled
         try:
-            aiter = lower_observation.__aiter__()
-            while True:
-                block1_notification = await aiter.__anext__()
+            async for block1_notification in lower_observation:
                 log.debug("Notification received")
-                full_notification = await cls._complete_by_requesting_block2(protocol, weak_observation().original_request, block1_notification, log, exchange_monitor_factory)
+                full_notification = await cls._complete_by_requesting_block2(protocol, original_request, block1_notification, log)
                 log.debug("Reporting completed notification")
                 weak_observation().callback(full_notification)
         except asyncio.CancelledError:
@@ -480,7 +548,9 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             weak_observation().error(e)
 
     @classmethod
-    async def _complete_by_requesting_block2(cls, protocol, request_to_repeat, initial_response, log, exchange_monitor_factory):
+    async def _complete_by_requesting_block2(cls, protocol, request_to_repeat, initial_response, log):
+        # FIXME this can probably be deduplicated against BlockwiseRequest
+
         if initial_response.opt.block2 is None or initial_response.opt.block2.more is False:
             initial_response.opt.block2 = None
             return initial_response
@@ -513,3 +583,116 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
 
             if block2.more is False:
                 return assembled_response
+
+class ClientObservation:
+    """An interface to observe notification updates arriving on a request.
+
+    This class does not actually provide any of the observe functionality, it
+    is purely a container for dispatching the messages via callbacks or
+    asynchronous iteration. It gets driven (ie. populated with responses or
+    errors including observation termination) by a Request object.
+    """
+    def __init__(self):
+        self.callbacks = []
+        self.errbacks = []
+
+        self.cancelled = False
+        self._on_cancel = []
+
+    def __aiter__(self):
+        """`async for` interface to observations. Currently, this still loses
+        information to the application (the reason for the termination is
+        unclear).
+
+        Experimental Interface."""
+        it = self._Iterator()
+        self.register_callback(it.push)
+        self.register_errback(it.push_err)
+        return it
+
+    class _Iterator:
+        def __init__(self):
+            self._future = asyncio.Future()
+
+        def push(self, item):
+            if self._future.done():
+                # we don't care whether we overwrite anything, this is a lossy queue as observe is lossy
+                self._future = asyncio.Future()
+            self._future.set_result(item)
+
+        def push_err(self, e):
+            if self._future.done():
+                self._future = asyncio.Future()
+            self._future.set_exception(e)
+
+        async def __anext__(self):
+            f = self._future
+            try:
+                result = await self._future
+                if f is self._future:
+                    self._future = asyncio.Future()
+                return result
+            except (error.NotObservable, error.ObservationCancelled):
+                # only exit cleanly when the server -- right away or later --
+                # states that the resource is not observable any more
+                # FIXME: check whether an unsuccessful message is still passed
+                # as an observation result (or whether it should be)
+                raise StopAsyncIteration
+
+    def register_callback(self, callback):
+        """Call the callback whenever a response to the message comes in, and
+        pass the response to it."""
+        if self.cancelled:
+            return
+        self.callbacks.append(callback)
+
+    def register_errback(self, callback):
+        """Call the callback whenever something goes wrong with the
+        observation, and pass an exception to the callback. After such a
+        callback is called, no more callbacks will be issued."""
+        if self.cancelled:
+            callback(self._cancellation_reason)
+            return
+        self.errbacks.append(callback)
+
+    def callback(self, response):
+        """Notify all listeners of an incoming response"""
+
+        for c in self.callbacks:
+            c(response)
+
+    def error(self, exception):
+        """Notify registered listeners that the observation went wrong. This
+        can only be called once."""
+
+        for c in self.errbacks:
+            c(exception)
+
+        self.cancel()
+        self._cancellation_reason = exception
+
+    def cancel(self):
+        # FIXME determine whether this is called by anything other than error,
+        # and make it private so there is always a _cancellation_reason
+        """Cease to generate observation or error events. This will not
+        generate an error by itself."""
+
+        assert self.cancelled == False
+
+        # make sure things go wrong when someone tries to continue this
+        self.errbacks = None
+        self.callbacks = None
+
+        self.cancelled = True
+        while self._on_cancel:
+            self._on_cancel.pop()()
+
+        self._cancellation_reason = None
+
+    def on_cancel(self, callback):
+        if self.cancelled:
+            callback()
+        self._on_cancel.append(callback)
+
+    def __repr__(self):
+        return '<%s %s at %#x>'%(type(self).__name__, "(cancelled)" if self.cancelled else "(%s call-, %s errback(s))"%(len(self.callbacks), len(self.errbacks)), id(self))

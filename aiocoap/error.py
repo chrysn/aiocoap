@@ -178,3 +178,7 @@ class CommunicationKilled(ConstructionRenderableError):
     The communication process has been aborted by request of the application.
     """
     code = codes.SERVICE_UNAVAILABLE
+
+class LibraryShutdown(Error):
+    """The library or a transport registered with it was requested to shut
+    down; this error is raised in all outstanding requests."""

@@ -8,6 +8,7 @@
 
 import asyncio
 from collections import namedtuple
+import functools
 import logging
 import os
 import random
@@ -39,8 +40,9 @@ class TokenManager(interfaces.RequestProvider, interfaces.TokenManager):
         return self.context.client_credentials
 
     async def shutdown(self):
-        for observation in list(self.incoming_observations.values()):
-            observation.deregister("Server going down")
+        for request in self.outoging_requests:
+            request.add_exception(error.LibraryShutdown())
+        self.outgoing_requests = None
 
         await self.token_interface.shutdown()
 
@@ -86,7 +88,7 @@ class TokenManager(interfaces.RequestProvider, interfaces.TokenManager):
         for key, request in self.outgoing_requests.items():
             (token, request_remote) = key
             if request_remote == remote:
-                request.response.set_exception(OSError(errno, os.strerror(errno)))
+                request.add_exception(OSError(errno, os.strerror(errno)))
                 keys_for_removal.append(key)
         for k in keys_for_removal:
             self.outgoing_requests.pop(key)
@@ -116,7 +118,19 @@ class TokenManager(interfaces.RequestProvider, interfaces.TokenManager):
         except KeyError:
             return False
 
+        # FIXME: there's a multicast aspect to that as well
+        #
+        # Is it necessary to look into .opt.observe here, wouldn't that better
+        # be done by the higher-level code that knows about CoAP options?
+        # Maybe, but at some point in TokenManager we *have* to look into the
+        # options to see whether to expect a short- or long-running token.
+        # Still, it would be an option not to send an is_last here and *always*
+        # have the higher-level code indicate loss of interest in that exchange
+        # when it detects that no more observations will follow.
         final = not (request.request.opt.observe == 0 and response.opt.observe is not None)
+
+        if is_final:
+            self.outgoing_requests.pop(key)
 
         request.add_response(response, is_last=final)
         return True
@@ -158,19 +172,25 @@ class TokenManager(interfaces.RequestProvider, interfaces.TokenManager):
             # FIXME: This might need a little sharper conditions: A fresh CON
             # should be sufficient to stop retransmits of a CON in a first
             # request, but when refreshing an observation, only an ACK tells us
-            # that the updated observation got through.
-            request.on_any_activity(send_canceller)
+            # that the updated observation got through. Also, multicast needs
+            # to be an exception, but that generally needs handling here.
+            #
+            # It may be that it'd be wise to reduce the use of send_canceller
+            # to situations when the request is actualy cancelled, and pass
+            # some information to the token_interface about whether it should
+            # keep an eye out for responses on that token and cancel
+            # transmission accordingly.
+            request.once_on_message(send_canceller)
+            request.on_interest_end(send_canceller)
 
-        self.outgoing_requests[(msg.token, msg.remote)] = request
+        key = (msg.token, msg.remote)
+        self.outgoing_requests[key] = request
+        request.on_interest_end(functools.partial(self.outgoing_requests.pop, key, None))
 
-
-
-#     def request(self, request, **kwargs):
-#         """TODO: create a proper interface to implement and deprecate direct instanciation again"""
-#         return Request(self, request, **kwargs)
-# 
-#     def multicast_request(self, request):
-#         return MulticastRequest(self, request).responses
+'''
+    def multicast_request(self, request):
+        return MulticastRequest(self, request).responses
+'''
 
 
 class PlumbingRequest:
@@ -183,13 +203,14 @@ class PlumbingRequest:
         self._interest = asyncio.Future()
         self._events = asyncio.Queue()
 
-        self._on_any_activity = []
+        self._once_on_message = []
+        self._on_interest_end = []
         # The default-argument closure makes sure no cyclic references are
         # formed here
-        def final_activity(cblist=self._on_any_activity):
-            while cblist:
-                cblist.pop()()
-        self._interest.add_done_callback(final_activity)
+        def handle_interest_end(future, *, interest_end=self._on_interest_end):
+            while interest_end:
+                interest_end.pop()()
+        self._interest.add_done_callback(handle_interest_end)
 
     def stop_interest(self):
         self._interest.set_result(None)
@@ -206,26 +227,23 @@ class PlumbingRequest:
         message as a response."""
         raise NotImplementedError()
 
+    # called by side
+
+    def once_on_message(self, callback):
+        self._once_on_message.append(callback)
+
+    def on_interest_end(self, callback):
+        self._on_interest_end.append(callback)
+
     # called by the responding side
-
-    def on_any_activity(self, callback):
-        """Call the given callback once when either any event arrives, or the
-        requester loses interest.
-
-        This should only be used for callbacks that can legitimately happen in
-        either case and the callback doesn't care which; the caller of on_end
-        should have a comment on why this is the case."""
-        self._on_any_activity.append(callback)
 
     def add_response(self, response, is_last=False):
         self._events.put_nowait(self.Event(response, None, is_last))
-        while self._on_any_activity:
-            self._on_any_activity.pop()()
+        while self._once_on_message:
+            self._once_on_message.pop()()
 
     def add_exception(self, exception, is_last=True):
         self._events.put_nowait(self.Event(None, exception, is_last))
-        while self._on_any_activity:
-            self._on_any_activity.pop()()
 
     def revoke_responses(self, filterexpression):
         """Remove all pending responses from the response queue where
@@ -235,44 +253,14 @@ class PlumbingRequest:
 
 
 
-    '''
-        obsref = self.outgoing_observations.get((response.token, response.remote), None)
-        if obsref is not None:
-            observation = obsref()
-            ## @TODO: deduplication based on observe option value, collecting
-            # the rest of the resource if blockwise
-            observation.callback(response)
-
-            if response.opt.observe is None:
-                observation.error(error.ObservationCancelled())
-
-            return True
-
-        return False
-    '''
-
-
 '''
 class Request(BaseUnicastRequest, interfaces.Request):
     """Class used to handle single outgoing request (without any blockwise handling)"""
-
-    def _set_response_and_observation_error(self, e):
-        self.response.set_exception(e)
-        if self.app_request.opt.observe is not None:
-            self._observation_handled = True
-            self.observation.error(e)
-
     def cancel(self):
         # TODO cancel ongoing exchanges
         if self._requesttimeout:
             self._requesttimeout.cancel()
         self.response.cancel()
-
-    def _response_cancellation_handler(self, response_future):
-        if self._requesttimeout:
-            self._requesttimeout.cancel()
-        if self.response.cancelled():
-            self.cancel()
 
     def handle_final_response(self, response):
         if self.app_request.opt.uri_host:
@@ -284,16 +272,6 @@ class Request(BaseUnicastRequest, interfaces.Request):
         response.requested_scheme = self.app_request.requested_scheme
 
         self.response.set_result(response)
-
-    def register_observation(self, response):
-        assert self._observation_handled == False
-        self._observation_handled = True
-
-        if not response.code.is_successful() or response.opt.observe is None:
-            if not self.observation.cancelled:
-                self.observation.error(error.NotObservable())
-        else:
-            self.observation._register(self.protocol.outgoing_observations, (response.token, response.remote))
 
 class MulticastRequest(BaseRequest):
     def __init__(self, protocol, request):
@@ -351,7 +329,7 @@ class MulticastRequest(BaseRequest):
         self.responses.finish()
 '''
 
-class Responder(object):
+class Responder:
     """Handler for an incoming request or (in blockwise) a group thereof
 
     Class includes methods that handle receiving incoming blockwise requests
@@ -686,23 +664,6 @@ class Responder(object):
 
         response.opt.observe = self._serverobservation.observe_index
 
-class ExchangeMonitor(object):
-    """Callback collection interface to keep track of what happens to an
-    exchange.
-
-    Callbacks will be called in sequence: ``enqueued{0,1} sent
-    retransmitted{0,MAX_RETRANSMIT} (timeout | rst | cancelled | response)``; everything
-    after ``sent`` only gets called if the messae that initiated the exchange
-    was a CON."""
-
-    def enqueued(self): pass
-    def sent(self): pass
-    def retransmitted(self): pass
-    def timeout(self): pass
-    def rst(self): pass
-    def cancelled(self): pass
-    def response(self, message): pass
-
 class ServerObservation(object):
     """An active CoAP observation inside a server is described as a
     ServerObservation object.
@@ -817,191 +778,3 @@ class ServerObservation(object):
                 response.opt.observe = self.observe_index
 
             self.original_protocol.send_message(response, self.ObservationExchangeMonitor(self))
-
-    class ObservationExchangeMonitor(ExchangeMonitor):
-        """These objects feed information about the success or failure of a
-        response back to the observation.
-
-        Note that no information flows to the exchange monitor from the
-        observation, so they may outlive the observation and need to check if
-        it's not already cancelled before cancelling it.
-        """
-        def __init__(self, observation):
-            self.observation = observation
-            self.observation.log.info("creating exchange observation monitor")
-
-        # TODO: this should pause/resume furter notifications
-        def enqueued(self): pass
-        def sent(self): pass
-
-        def rst(self):
-            self.observation.log.debug("Observation received RST, cancelling")
-            if not self.observation.cancelled:
-                self.observation._cancel()
-
-        def timeout(self):
-            self.observation.log.debug("Observation received timeout, cancelling")
-            if not self.observation.cancelled:
-                self.observation._cancel()
-
-class _BaseClientObservation(object):
-    def __init__(self, original_request):
-        self.original_request = original_request
-        self.callbacks = []
-        self.errbacks = []
-
-        # the _register and _unregister pair take care that no responses come
-        # in after cancellation, but they only start after the initial response
-        # (to take care of "resource not observable" errors). while we have
-        # those early errors, we need an explicit cancellation indication.
-        self.cancelled = False
-
-        # precise content depends on implementation, but it being None indicats
-        # that there is no event source, and any present content is used in
-        # case of a cancellation to let the event source know that there is no
-        # further interest in events.
-        self._registry_data = None
-
-    def __aiter__(self):
-        """`async for` interface to observations. Currently, this still loses
-        information to the application (the reason for the termination is
-        unclear).
-
-        Experimental Interface."""
-        it = self._Iterator()
-        self.register_callback(it.push)
-        self.register_errback(it.push_err)
-        return it
-
-    class _Iterator:
-        def __init__(self):
-            self._future = asyncio.Future()
-
-        def push(self, item):
-            if self._future.done():
-                # we don't care whether we overwrite anything, this is a lossy queue as observe is lossy
-                self._future = asyncio.Future()
-            self._future.set_result(item)
-
-        def push_err(self, e):
-            if self._future.done():
-                self._future = asyncio.Future()
-            self._future.set_exception(e)
-
-        async def __anext__(self):
-            f = self._future
-            try:
-                result = await self._future
-                if f is self._future:
-                    self._future = asyncio.Future()
-                return result
-            except (error.NotObservable, error.ObservationCancelled):
-                # only exit cleanly when the server -- right away or later --
-                # states that the resource is not observable any more
-                # FIXME: check whether an unsuccessful message is still passed
-                # as an observation result (or whether it should be)
-                raise StopAsyncIteration
-
-    def register_callback(self, callback):
-        """Call the callback whenever a response to the message comes in, and
-        pass the response to it."""
-        if self.cancelled:
-            return
-        self.callbacks.append(callback)
-        self._set_nonweak()
-
-    def register_errback(self, callback):
-        """Call the callback whenever something goes wrong with the
-        observation, and pass an exception to the callback. After such a
-        callback is called, no more callbacks will be issued."""
-        if self.cancelled:
-            callback(self._cancellation_reason)
-            return
-        self.errbacks.append(callback)
-        self._set_nonweak()
-
-    def callback(self, response):
-        """Notify all listeners of an incoming response"""
-
-        for c in self.callbacks:
-            c(response)
-
-    def error(self, exception):
-        """Notify registered listeners that the observation went wrong. This
-        can only be called once."""
-
-        for c in self.errbacks:
-            c(exception)
-
-        self.cancel()
-        self._cancellation_reason = exception
-
-    def cancel(self):
-        # FIXME determine whether this is called by anything other than error,
-        # and make it private so there is always a _cancellation_reason
-        """Cease to generate observation or error events. This will not
-        generate an error by itself."""
-
-        assert self.cancelled == False
-
-        # make sure things go wrong when someone tries to continue this
-        self.errbacks = None
-        self.callbacks = None
-
-        self.cancelled = True
-
-        self._unregister()
-
-        self._cancellation_reason = None
-
-    def __del__(self):
-        if self._registry_data is not None:
-            # if we want to go fully gc-driven later, the warning can be
-            # dropped -- but for observations it's probably better to
-            # explicitly state disinterest.
-            logging.warning("Observation deleted without explicit cancellation")
-            self._unregister()
-
-class BlockwiseClientObservation(_BaseClientObservation):
-    def _register(self, cancellation_callback):
-        self._registry_data = cancellation_callback
-
-    def _unregister(self):
-        if self._registry_data is not None:
-            self._registry_data()
-        self._registry_data = None
-
-    def _set_nonweak(self):
-        pass
-
-class ClientObservation(_BaseClientObservation):
-    def _register(self, observation_dict, key):
-        """Insert the observation into a dict (observation_dict) at the given
-        key, and store those details for use during cancellation."""
-
-        if key in observation_dict:
-            raise ValueError("Observation conflicts with a registered observation.")
-
-        if self._registry_data is not None:
-            raise ValueError("Already registered.")
-
-        self._registry_data = (observation_dict, key)
-
-        observation_dict[key] = weakref.ref(self)
-
-    def _set_nonweak(self):
-        """Prevent the observation from being garbage collected (because it has
-        actual callbacks). Not reversible right now because callbacks can't be
-        deregistered anyway."""
-        if self._registry_data and isinstance(self._registry_data[0][self._registry_data[1]], weakref.ref):
-            self._registry_data[0][self._registry_data[1]] = lambda self=self: self
-
-    def _unregister(self):
-        """Undo the registration done in _register if it was ever done."""
-
-        if self._registry_data is not None:
-            del self._registry_data[0][self._registry_data[1]]
-            self._registry_data = None
-
-    def __repr__(self):
-        return '<%s %s at %#x>'%(type(self).__name__, "(cancelled)" if self.cancelled else "(%s call-, %s errback(s))"%(len(self.callbacks), len(self.errbacks)), id(self))
