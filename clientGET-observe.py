@@ -26,7 +26,6 @@ async def main():
 
     pr = protocol.request(request)
 
-    # Note that it is necessary to start sending
     r = await pr.response
     print("First response: %s\n%r"%(r, r.payload))
 
