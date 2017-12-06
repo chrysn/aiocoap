@@ -25,11 +25,13 @@ import time
 
 from . import defaults
 from .credentials import CredentialsMap
+from .message import Message
 from .messagemanager import MessageManager
 from .tokenmanager import TokenManager, PlumbingRequest
 from . import interfaces
 from . import error
-from .numbers import COAP_PORT, DEFAULT_BLOCK_SIZE_EXP
+from .numbers import (COAP_PORT, DEFAULT_BLOCK_SIZE_EXP, INTERNAL_SERVER_ERROR,
+    CONTENT)
 
 import logging
 # log levels used:
@@ -219,6 +221,51 @@ class Context(interfaces.RequestProvider):
         self.loop.create_task(send())
         return result
 
+    def render_to_plumbing_request(self, plumbing_request):
+        """Satisfy a plumbing request from the full :meth:`render` /
+        :meth:`needs_blockwise_assembly` / :meth:`add_observation` interfaces
+        provided by the site."""
+
+        self.loop.create_task(self._render_to_plumbing_request(plumbing_request))
+
+    async def _render_to_plumbing_request(self, plumbing_request):
+        try:
+            await self._render_to_plumbing_request_inner(plumbing_request)
+        except error.RenderableError as e:
+            self.log.info("Render request raised a renderable error (%r), responding accordingly.", e)
+            plumbing_request.add_response(e.to_message(), is_last=True)
+        except Exception as e:
+            plumbing_request.add_response(Message(code=INTERNAL_SERVER_ERROR), is_last=True)
+            self.log.error("An exception occurred while rendering a resource: %r" % e, exc_info=e)
+
+    async def _render_to_plumbing_request_inner(self, plumbing_request):
+        # this is effectively a NoResponse right now.
+        #
+        # as it doesn't return a NoResponse, the library will never notice, and
+        # probably will never time out the active token.
+
+        request = plumbing_request.request
+        blockwise = await self.serversite.needs_blockwise_assembly(request)
+        if blockwise:
+            # FIXME
+            self.log.warning(
+                "Resource requests blockwise reassembly, but context can't"
+                " serve that yet")
+
+        # FIXME: this is just ignoring that there could be an observation
+#         observe_requested = request.opt.observe == 0
+#         servobs = ...
+#         await self.serversite.add_observation(request, servobs)
+
+        response = await self.serversite.render(request)
+        if response.code is None:
+            response.code = CONTENT
+        if not response.code.is_response():
+            self.log.warning("Response does not carry response code (%r),"
+                             " application probably violates protocol.",
+                             response.code)
+
+        plumbing_request.add_response(response, is_last=True)
 
 
 class BaseRequest(object):

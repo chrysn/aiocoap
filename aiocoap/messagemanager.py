@@ -44,6 +44,10 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         self._active_exchanges = {}  #: active exchanges i.e. sent CON messages (remote, message-id): (exchange monitor, cancellable timeout)
         self._backlogs = {} #: per-remote list of (backlogged package, exchange-monitor) tupless (keys exist iff there is an active_exchange with that node)
 
+        #: Maps pending remote/token combinations to the MID a response can be
+        #: piggybacked on, and the timeout that should be cancelled if it is.
+        self._piggyback_opportunities = {} # type: Dict[Tuple[Remote, bytes], (int, Cancleable)]
+
         self.log = token_manager.log
         self.loop = token_manager.loop
 
@@ -98,10 +102,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             success = self._process_response(message)
             if success:
                 if message.mtype is CON:
-                    #TODO: Some variation of send_empty_ack should be used
-                    ack = Message(mtype=ACK, mid=message.mid, code=EMPTY, payload=b"")
-                    ack.remote = message.remote
-                    self.send_message(ack)
+                    self._send_empty_ack(message.remote, message.mid, reason="acknowledging incoming response")
             else:
                 self.log.info("Response not recognized - sending RST.")
                 rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload='')
@@ -286,6 +287,24 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         """Spawn a Responder for an incoming request, or feed a long-running
         responder if one exists."""
 
+        if request.mtype == CON:
+            def on_timeout(self, remote, token):
+                mid, own_timeout = self._piggyback_opportunities.pop(
+                        (remote, token))
+                self._send_empty_ack(request.remote, mid,
+                    "Response took too long to prepare")
+            handle = self.loop.call_later(EMPTY_ACK_DELAY,
+                    on_timeout, self, request.remote, request.token)
+            key = (request.remote, request.token)
+            if key in self._piggyback_opportunities:
+                self.log.warning("New request came in while old request not"
+                      " ACKed yet. Possible mismatch between EMPTY_ACK_DELAY"
+                      " and EXCHANGE_LIFETIME. Cancelling ACK to ward off any"
+                      " further confusion.")
+                mid, old_handle = self._piggyback_opportunities.pop(key)
+                old_handle.cancel()
+            self._piggyback_opportunities[key] = (request.mid, handle)
+
         self.token_manager.process_request(request)
 
     def _process_response(self, response):
@@ -325,6 +344,25 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         ExchangeMonitor can be passed in, which will receive the appropriate
         callbacks."""
 
+        if message.mid is not None:
+            # if you can give any reason why the application should provide a
+            # fixed mid, lower the log level on demand and provide the reason
+            # in a comment.
+            self.log.warn("Message ID set on to-be-sent message, this is"
+                  " probably unintended; clearing it.")
+            message.mid = None
+
+        if message.code.is_response():
+            piggyback_key = (message.remote, message.token)
+            if piggyback_key in self._piggyback_opportunities:
+                mid, handle = self._piggyback_opportunities.pop(piggyback_key)
+                handle.cancel()
+
+                message.mtype = ACK
+                message.mid = mid
+
+        # FIXME: on responses, this should take the request into consideration
+        # (cf. RFC7252 Section 5.2.3, answer to NON SHOULD be NON)
         if message.mtype is None:
             message.mtype = CON
 
@@ -367,6 +405,25 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         message_id = self.message_id
         self.message_id = 0xFFFF & (1 + self.message_id)
         return message_id
+
+    def _send_empty_ack(self, remote, mid, reason):
+        """Send separate empty ACK for any reason.
+
+        Currently, this can happen only once per Responder, that is, when the
+        last block1 has been transferred and the first block2 is not ready
+        yet."""
+
+        self.log.debug("Sending empty ACK: %s" % reason)
+        ack = Message(
+                mtype=ACK,
+                code=EMPTY,
+                payload=b"",
+                )
+        ack.remote = remote
+        ack.mid = mid
+        # not going via send_message because that would strip the mid, and we
+        # already know that it can go straight to the wire
+        self._send_initially(ack)
 
     def kill_transactions(self, remote, exception=error.CommunicationKilled):
         for ((exchange_remote, messageid), (exchangemonitor, cancellabletimeout)) in self._active_exchanges.items():

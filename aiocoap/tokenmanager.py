@@ -99,13 +99,44 @@ class TokenManager(interfaces.RequestProvider, interfaces.TokenManager):
         # from that, they'll need to timeout by themselves.
 
     def process_request(self, request):
-        key = tuple(request.opt.uri_path), request.remote
+        key = (request.token, request.remote)
 
         if key in self.incoming_requests:
-            self.log.debug("Delivering request to existing responder.")
-            self.incoming_requests.pop(key).handle_next_request(request)
-        else:
-            responder = Responder(self, request)
+            # This is either a "I consider that token invalid, probably forgot
+            # about it, but here's a new request" or renewed interest in an
+            # observation, which gets modelled as a new request at thislevel
+            self.log.debug("Incoming request overrides existing request")
+            self.incoming_requests.pop(key).stop_interest()
+
+        pr = PlumbingRequest(request)
+        self.incoming_requests[key] = pr
+
+        # FIXME: what can we pass down to the token_interface?  certainly not
+        # the request, but maybe the request with a response filter applied?
+        #
+        # for now, starting a task just to serice the queues, add a token and
+        # push on the messages -- should be more callback-driven at this level,
+        # though.
+        async def run():
+            while True:
+                ev = await pr._events.get()
+                if ev.message is not None:
+                    m = ev.message
+                    # FIXME: should this code warn if token or remote are set?
+                    m.token = request.token
+                    m.remote = request.remote
+                    self.token_interface.send_message(m)
+                else:
+                    self.log.error("Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s", ev.exception)
+                if ev.is_last:
+                    break
+            # no cleanup to do here: any piggybackable ack was already flushed
+            # out by the first response, and if there was not even a
+            # NoResponse, something went wrong above (and we can't tell easily
+            # here).
+        self.loop.create_task(run())
+
+        self.context.render_to_plumbing_request(pr)
 
     def process_response(self, response):
         key = (response.token, response.remote)
@@ -129,7 +160,7 @@ class TokenManager(interfaces.RequestProvider, interfaces.TokenManager):
         # when it detects that no more observations will follow.
         final = not (request.request.opt.observe == 0 and response.opt.observe is not None)
 
-        if is_final:
+        if final:
             self.outgoing_requests.pop(key)
 
         request.add_response(response, is_last=final)
@@ -194,6 +225,11 @@ class TokenManager(interfaces.RequestProvider, interfaces.TokenManager):
 
 
 class PlumbingRequest:
+    # it is expected that this will change into something that's more a
+    # callback dispatcher and less something that's keeping buffered state;
+    # leaving it as it is for now until it can be more comfortably be
+    # refactored when the test suite can be run again
+
     Event = namedtuple("Event", ("message", "exception", "is_last"))
 
     # called by the initiator of the request
@@ -591,21 +627,6 @@ class Responder:
                 response.mid = request.mid
         self.log.debug("Sending response, type = %s (request type = %s)" % (response.mtype, request.mtype))
         self.protocol.send_message(response, self._exchange_monitor_factory(request))
-
-    def send_empty_ack(self, request, _reason="takes too long"):
-        """Send separate empty ACK when response preparation takes too long.
-
-        Currently, this can happen only once per Responder, that is, when the
-        last block1 has been transferred and the first block2 is not ready
-        yet."""
-
-        self.log.debug("Response preparation %s - sending empty ACK."%_reason)
-        ack = Message(mtype=ACK, code=EMPTY, payload=b"")
-        # not going via send_response because it's all only about the message id
-        ack.remote = request.remote
-        ack.mid = request.mid
-        self.protocol.send_message(ack)
-        self._sent_empty_ack = True
 
     async def handle_observe_request(self, request):
         key = ServerObservation.request_key(request)
