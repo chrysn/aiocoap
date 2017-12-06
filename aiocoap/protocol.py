@@ -232,11 +232,12 @@ class Context(interfaces.RequestProvider):
         try:
             await self._render_to_plumbing_request_inner(plumbing_request)
         except error.RenderableError as e:
-            self.log.info("Render request raised a renderable error (%r), responding accordingly.", e)
+            # the repr() here is quite imporant for garbage collection
+            self.log.info("Render request raised a renderable error (%s), responding accordingly.", repr(e))
             plumbing_request.add_response(e.to_message(), is_last=True)
         except Exception as e:
             plumbing_request.add_response(Message(code=INTERNAL_SERVER_ERROR), is_last=True)
-            self.log.error("An exception occurred while rendering a resource: %r" % e, exc_info=e)
+            self.log.error("An exception occurred while rendering a resource: %r", e, exc_info=e)
 
     async def _render_to_plumbing_request_inner(self, plumbing_request):
         # this is effectively a NoResponse right now.
