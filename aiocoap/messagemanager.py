@@ -348,7 +348,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             # if you can give any reason why the application should provide a
             # fixed mid, lower the log level on demand and provide the reason
             # in a comment.
-            self.log.warn("Message ID set on to-be-sent message, this is"
+            self.log.warning("Message ID set on to-be-sent message, this is"
                   " probably unintended; clearing it.")
             message.mid = None
 

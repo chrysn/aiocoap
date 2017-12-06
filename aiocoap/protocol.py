@@ -325,12 +325,25 @@ class Request(interfaces.Request, BaseUnicastRequest):
 
         loop.create_task(self._run())
 
+    @staticmethod
+    def _add_response_properties(response, request):
+        # whether it's suitable here to use unresolved_remote is doubtful -- it
+        # was the *intention* of the user to get that URL, but the server would
+        # be none the wiser. (if it's not set, the client gets the ip literal
+        # when inspecting the response's uri, which would have worked as well.
+        # for dtls, even though not implemented yet, that information would be
+        # filled from the SNI host name.)
+        response.requested_hostinfo = request.opt.uri_host or request.unresolved_remote
+        response.requested_path = request.opt.uri_path
+        response.requested_query = request.opt.uri_query
+
     async def _run(self):
         # FIXME: check that responses come from the same remmote as long as we're assuming unicast
 
         first_event = await self._plumbing_request._events.get()
 
         if first_event.message is not None:
+            self._add_response_properties(first_event.message, self._plumbing_request.request)
             self.response.set_result(first_event.message)
         else:
             self.response.set_exception(first_event.exception)
@@ -377,6 +390,8 @@ class Request(interfaces.Request, BaseUnicastRequest):
                 if not next_event.is_last:
                     self._plumbing_request.stop_interest()
                 return
+
+            self._add_response_properties(next_event.message, self._plumbing_request.request)
 
             if next_event.message.opt.observe is not None:
                 # check for reordering
