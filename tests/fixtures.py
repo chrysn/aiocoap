@@ -95,10 +95,42 @@ class Destructing(WithLogMonitoring):
         # let everything that gets async-triggered by close() happen
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
         gc.collect()
-        survivor = weaksurvivor()
-        if survivor is not None:
-            snapshot = lambda: "Referrers: %s\n\nProperties: %s"%(pprint.pformat(gc.get_referrers(survivor)), pprint.pformat(vars(survivor)))
-            snapshot1 = snapshot()
+
+        def snapshot():
+            canary = object()
+            survivor = weaksurvivor()
+            if survivor is None:
+                return None
+
+            all_referrers = gc.get_referrers(survivor)
+            canary_referrers = gc.get_referrers(canary)
+            referrers = [r for r in all_referrers if r not in canary_referrers]
+            assert len(all_referrers) == len(referrers) + 1, "Canary to filter out the debugging tool's reference did not work"
+
+            def _format_frame(frame, survivor_id):
+                return "%s as %s in %s" % (
+                    frame,
+                    " / ".join(k for (k, v) in frame.f_locals.items() if id(v) == survivor_id),
+                    frame.f_code)
+
+            # can't use survivor in list comprehension, or it would be moved
+            # into a builtins.cell rather than a frame, and that won't spew out
+            # the details _format_frame can extract
+            survivor_id = id(survivor)
+            referrer_strings = [
+                    _format_frame(x, survivor_id) if str(type(x)) == "<class 'frame'>" else pprint.pformat(x) for x in
+                    referrers]
+            formatted_survivor = pprint.pformat(vars(survivor))
+            return "Survivor found: %r\nReferrers of the survivor:\n*"\
+                   " %s\n\nSurvivor properties: %s" % (
+                       survivor,
+                       "\n* ".join(referrer_strings),
+                        formatted_survivor)
+
+        s = snapshot()
+
+        if s is not None:
+            original_s = s
             if False: # enable this if you think that a longer timeout would help
                 # this helped finding that timer cancellations don't free the
                 # callback, but in general, expect to modify this code if you
@@ -107,16 +139,14 @@ class Destructing(WithLogMonitoring):
                 logging.root.info("Starting extended grace period")
                 for i in range(10):
                     self.loop.run_until_complete(asyncio.sleep(1))
-                    del survivor
                     gc.collect()
-                    survivor = weaksurvivor()
-                    logging.root.info("Now %ds into grace period, survivor is %r"%((i+1)/1, survivor))
-                    if survivor is None:
+                    s = snapshot()
+                    if s is None:
+                        logging.root.info("Survivor vanished after %r iterations" % i+1)
                         break
-                snapshot2 = snapshot() if survivor else "no survivor"
-                snapshotsmessage = "Before extended grace period:\n" + snapshot1 + "\n\nAfter extended grace period:\n" + snapshot2
+                snapshotsmessage = "Before extended grace period:\n" + original_s + "\n\nAfter extended grace period:\n" + ("the same" if s == original_s else s)
             else:
-                snapshotsmessage = snapshot1
+                snapshotsmessage = s
             formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
             errormessage = "Protocol %s was not garbage collected.\n\n"%attribute + snapshotsmessage + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
             self.fail(errormessage)
