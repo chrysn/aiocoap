@@ -7,6 +7,7 @@
 # described in the accompanying LICENSE file.
 
 import asyncio
+import re
 import aiocoap
 import aiocoap.resource
 
@@ -87,25 +88,6 @@ class TestingSite(aiocoap.resource.Site):
             super().__init__()
             self.add_resource(('one',), ReplacingResource())
 
-# helpers
-
-class TypeCounter(object):
-    """This is an ExchangeMonitor factory and counts the outcomes of all
-    exchanges"""
-    def __init__(self):
-        self.empty_ack_count = 0
-
-    def __call__(self, message):
-        return self.BoundCounter(self)
-
-    class BoundCounter(aiocoap.protocol.ExchangeMonitor):
-        def __init__(self, counter):
-            self.counter = counter
-
-        def response(self, message):
-            if message.mtype == aiocoap.ACK and message.code == aiocoap.EMPTY:
-                self.counter.empty_ack_count += 1
-
 
 class WithTestServer(WithAsyncLoop, Destructing):
     def create_testing_site(self):
@@ -151,8 +133,8 @@ class TestServer(WithTestServer, WithClient):
         return request
 
     @no_warnings
-    def fetch_response(self, request, exchange_monitor_factory=lambda x:None):
-        return self.loop.run_until_complete(self.client.request(request, exchange_monitor_factory=exchange_monitor_factory).response)
+    def fetch_response(self, request):
+        return self.loop.run_until_complete(self.client.request(request).response)
 
     @no_warnings
     def test_empty_accept(self):
@@ -199,24 +181,20 @@ class TestServer(WithTestServer, WithClient):
         request = self.build_request()
         request.opt.uri_path = ['empty']
 
-        counter = TypeCounter()
-
-        response = self.fetch_response(request, counter)
+        response = self.fetch_response(request)
 
         self.assertEqual(response.code, aiocoap.CONTENT, "Fast request did not succede")
-        self.assertEqual(counter.empty_ack_count, 0, "Fast resource had an empty ack")
+        self.assertEqual(self._count_empty_acks(), 0, "Fast resource had an empty ack")
 
     @no_warnings
     def test_slow_resource(self):
         request = self.build_request()
         request.opt.uri_path = ['slow']
 
-        counter = TypeCounter()
-
-        response = self.fetch_response(request, counter)
+        response = self.fetch_response(request)
 
         self.assertEqual(response.code, aiocoap.CONTENT, "Slow request did not succede")
-        self.assertEqual(counter.empty_ack_count, 1, "Slow resource was not handled in two exchanges")
+        self.assertEqual(self._count_empty_acks(), 1, "Slow resource was not handled in two exchanges")
 
     @no_warnings
     def test_big_resource(self):
@@ -239,11 +217,10 @@ class TestServer(WithTestServer, WithClient):
     def test_slowbig_resource(self):
         request = self.build_request()
         request.opt.uri_path = ['slowbig']
-        counter = TypeCounter()
-        response = self.fetch_response(request, counter)
+        response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "SlowBig resource request did not succede")
         self.assertEqual(len(response.payload), 1600, "SlowBig resource is not as big as expected")
-        self.assertEqual(counter.empty_ack_count, 1, "SlowBig resource was not handled in two exchanges")
+        self.assertEqual(self._count_empty_acks(), 1, "SlowBig resource was not handled in two exchanges")
 
     @no_warnings
     def test_replacing_resource(self):
@@ -278,6 +255,17 @@ class TestServer(WithTestServer, WithClient):
         request.opt.uri_path = []
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Root resource was not found")
+
+
+    _empty_ack_logmsg = re.compile("^Incoming message <aiocoap.Message at"
+                                   " 0x[0-9a-f]+: Type.ACK EMPTY ([^)]+)")
+    def _count_empty_acks(self):
+        # only client-side received empty-acks are counted; they typically
+        # generate an empty ack back when the separate response is ack'd.
+        return sum(self._empty_ack_logmsg.match(x.msg) is not None
+                for x in
+                self.handler
+                if x.name != 'coap-server')
 
 def run_fixture_as_standalone_server(fixture):
     import sys
