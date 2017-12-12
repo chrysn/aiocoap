@@ -20,6 +20,7 @@ messages:
 """
 
 import asyncio
+import functools
 import weakref
 import time
 
@@ -31,7 +32,7 @@ from .tokenmanager import TokenManager, PlumbingRequest
 from . import interfaces
 from . import error
 from .numbers import (COAP_PORT, DEFAULT_BLOCK_SIZE_EXP, INTERNAL_SERVER_ERROR,
-    CONTENT, OBSERVATION_RESET_TIME)
+        SERVICE_UNAVAILABLE, CONTENT, OBSERVATION_RESET_TIME)
 
 import warnings
 import logging
@@ -104,6 +105,8 @@ class Context(interfaces.RequestProvider):
         self.serversite = serversite
 
         self.request_interfaces = []
+
+        self._running_renderings = set()
 
         self.client_credentials = client_credentials or CredentialsMap()
 
@@ -197,6 +200,9 @@ class Context(interfaces.RequestProvider):
         return self
 
     async def shutdown(self):
+        for r in self._running_renderings:
+            r.cancel()
+
         await asyncio.wait([ri.shutdown() for ri in self.request_interfaces], timeout=3, loop=self.loop)
 
     async def find_remote_and_interface(self, message):
@@ -227,7 +233,11 @@ class Context(interfaces.RequestProvider):
         :meth:`needs_blockwise_assembly` / :meth:`add_observation` interfaces
         provided by the site."""
 
-        self.loop.create_task(self._render_to_plumbing_request(plumbing_request))
+        task = self.loop.create_task(
+                self._render_to_plumbing_request(plumbing_request))
+        self._running_renderings.add(task)
+        remove_task = functools.partial(self._running_renderings.remove, task)
+        task.add_done_callback(lambda result, cb=remove_task: cb())
 
     async def _render_to_plumbing_request(self, plumbing_request):
         # will receive a result in the finally, so the observation's
@@ -242,6 +252,10 @@ class Context(interfaces.RequestProvider):
             # the repr() here is quite imporant for garbage collection
             self.log.info("Render request raised a renderable error (%s), responding accordingly.", repr(e))
             plumbing_request.add_response(e.to_message(), is_last=True)
+        except asyncio.CancelledError:
+            self.log.info("Rendering was interrupted, informing client")
+            plumbing_request.add_response(Message(code=SERVICE_UNAVAILABLE), is_last=True)
+            raise
         except Exception as e:
             plumbing_request.add_response(Message(code=INTERNAL_SERVER_ERROR), is_last=True)
             self.log.error("An exception occurred while rendering a resource: %r", e, exc_info=e)
