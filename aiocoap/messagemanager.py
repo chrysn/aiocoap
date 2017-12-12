@@ -146,7 +146,9 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             if message.mtype is CON:
                 if self._recent_messages[key] is not None:
                     self.log.info('Duplicate CON received, sending old response again')
-                    self.send_message(self._recent_messages[key])
+                    # not going via send_message because that would strip the
+                    # mid and might do all other sorts of checks
+                    self._send_initially(self._recent_messages[key])
                 else:
                     self.log.info('Duplicate CON received, no response to send yet')
             else:
@@ -281,7 +283,9 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         self.log.info('Received CoAP Ping from %s, replying with RST.'%(message.remote,))
         rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b'')
         rst.remote = message.remote
-        self.send_message(rst)
+        # not going via send_message because that would strip the mid, and we
+        # already know that it can go straight to the wire
+        self._send_initially(rst)
 
     def _process_request(self, request):
         """Spawn a Responder for an incoming request, or feed a long-running
