@@ -31,7 +31,7 @@ from .tokenmanager import TokenManager, PlumbingRequest
 from . import interfaces
 from . import error
 from .numbers import (COAP_PORT, DEFAULT_BLOCK_SIZE_EXP, INTERNAL_SERVER_ERROR,
-    CONTENT)
+    CONTENT, OBSERVATION_RESET_TIME)
 
 import logging
 # log levels used:
@@ -400,7 +400,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
 
                 is_recent = (v1 < v2 and v2 - v1 < 2**23) or \
                         (v1 > v2 and v1 - v2 > 2**23) or \
-                        (t2 > t1 + 128)
+                        (t2 > t1 + OBSERVATION_RESET_TIME)
                 if is_recent:
                     t1 = t2
                     v1 = v2
