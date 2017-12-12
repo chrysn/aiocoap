@@ -289,6 +289,7 @@ class PlumbingRequest:
 
 
 
+# this block contains remnants of the old code that still need to be incorporated somewhere
 '''
 class Request(BaseUnicastRequest, interfaces.Request):
     """Class used to handle single outgoing request (without any blockwise handling)"""
@@ -363,7 +364,6 @@ class MulticastRequest(BaseRequest):
     def _timeout(self):
         self.protocol.outgoing_requests.pop(self.request.token, None)
         self.responses.finish()
-'''
 
 class Responder:
     """Handler for an incoming request or (in blockwise) a group thereof
@@ -758,9 +758,6 @@ class ServerObservation(object):
         # this implements the second implementation suggestion from
         # draft-ietf-coap-observe-11 section 4.4
         #
-        ## @TODO handle situations in which this gets called more often than
-        #        2^32 times in 256 seconds (or document why we can be sure that
-        #        that will not happen)
         self.observe_index = (self.observe_index + 1) % (2**24)
 
         request = self._create_new_request()
@@ -799,3 +796,4 @@ class ServerObservation(object):
                 response.opt.observe = self.observe_index
 
             self.original_protocol.send_message(response, self.ObservationExchangeMonitor(self))
+'''

@@ -33,6 +33,7 @@ from . import error
 from .numbers import (COAP_PORT, DEFAULT_BLOCK_SIZE_EXP, INTERNAL_SERVER_ERROR,
     CONTENT, OBSERVATION_RESET_TIME)
 
+import warnings
 import logging
 # log levels used:
 # * debug is for things that occur even under perfect conditions.
@@ -229,8 +230,14 @@ class Context(interfaces.RequestProvider):
         self.loop.create_task(self._render_to_plumbing_request(plumbing_request))
 
     async def _render_to_plumbing_request(self, plumbing_request):
+        # will receive a result in the finally, so the observation's
+        # cancellation callback can just be hooked into that rather than
+        # catching CancellationError here
+        cancellation_future = asyncio.Future()
+
         try:
-            await self._render_to_plumbing_request_inner(plumbing_request)
+            await self._render_to_plumbing_request_inner(plumbing_request,
+                    cancellation_future)
         except error.RenderableError as e:
             # the repr() here is quite imporant for garbage collection
             self.log.info("Render request raised a renderable error (%s), responding accordingly.", repr(e))
@@ -238,13 +245,11 @@ class Context(interfaces.RequestProvider):
         except Exception as e:
             plumbing_request.add_response(Message(code=INTERNAL_SERVER_ERROR), is_last=True)
             self.log.error("An exception occurred while rendering a resource: %r", e, exc_info=e)
+        finally:
+            cancellation_future.set_result(None)
 
-    async def _render_to_plumbing_request_inner(self, plumbing_request):
-        # this is effectively a NoResponse right now.
-        #
-        # as it doesn't return a NoResponse, the library will never notice, and
-        # probably will never time out the active token.
 
+    async def _render_to_plumbing_request_inner(self, plumbing_request, cancellation_future):
         request = plumbing_request.request
         blockwise = await self.serversite.needs_blockwise_assembly(request)
         if blockwise:
@@ -253,10 +258,14 @@ class Context(interfaces.RequestProvider):
                 "Resource requests blockwise reassembly, but context can't"
                 " serve that yet")
 
-        # FIXME: this is just ignoring that there could be an observation
-#         observe_requested = request.opt.observe == 0
-#         servobs = ...
-#         await self.serversite.add_observation(request, servobs)
+        observe_requested = request.opt.observe == 0
+        if observe_requested:
+            servobs = ServerObservation()
+            await self.serversite.add_observation(request, servobs)
+
+            if servobs._accepted:
+                cancellation_future.add_done_callback(
+                        lambda f, cb=servobs._cancellation_callback: cb())
 
         response = await self.serversite.render(request)
         if response.code is None:
@@ -266,8 +275,35 @@ class Context(interfaces.RequestProvider):
                              " application probably violates protocol.",
                              response.code)
 
-        plumbing_request.add_response(response, is_last=True)
+        can_continue = observe_requested and servobs._accepted and \
+                response.code.is_successful()
+        if can_continue:
+            response.opt.observe = next_observation_number =0
+        plumbing_request.add_response(response, is_last=not can_continue)
 
+        while can_continue:
+            await servobs._trigger
+            # fetched in a separate step: i'm not sure whether the future
+            # switching in .trigger() might not make the first result appear
+            # here
+            response = servobs._trigger.result()
+            servobs._trigger = asyncio.Future()
+
+            if response is None:
+                response = await self.serversite.render(request)
+            if response.code is None:
+                response.code = CONTENT
+
+            can_continue = response.code.is_successful()
+
+            if can_continue:
+                ## @TODO handle situations in which this gets called more often than
+                #        2^32 times in 256 seconds (or document why we can be sure that
+                #        that will not happen)
+                next_observation_number = next_observation_number + 1
+                response.opt.observe = next_observation_number
+
+            plumbing_request.add_response(response, is_last=not can_continue)
 
 class BaseRequest(object):
     """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
@@ -412,11 +448,11 @@ class Request(interfaces.Request, BaseUnicastRequest):
                 self.observation.callback(next_event.message)
 
             if next_event.is_last:
-                self.observation.error(ObservationCancelled())
+                self.observation.error(error.ObservationCancelled())
                 return
 
             if next_event.message.opt.observe is None:
-                self.observation.error(ObservationCancelled())
+                self.observation.error(error.ObservationCancelled())
                 self.log.error("PlumbingRequest indicated more possible responses"
                                " while the Request handler would not know what to"
                                " do with them, stopping any further request.")
@@ -692,6 +728,9 @@ class ClientObservation:
             f = self._future
             try:
                 result = await self._future
+                # FIXME see `await servobs._trigger` comment: might waiting for
+                # the original future not yield the first future's result when
+                # a quick second future comes in in a push?
                 if f is self._future:
                     self._future = asyncio.Future()
                 return result
@@ -759,3 +798,24 @@ class ClientObservation:
 
     def __repr__(self):
         return '<%s %s at %#x>'%(type(self).__name__, "(cancelled)" if self.cancelled else "(%s call-, %s errback(s))"%(len(self.callbacks), len(self.errbacks)), id(self))
+
+class ServerObservation:
+    def __init__(self):
+        self._accepted = False
+        self._trigger = asyncio.Future()
+
+    def accept(self, cancellation_callback):
+        self._accepted = True
+        self._cancellation_callback = cancellation_callback
+
+    def deregister(self):
+        warnings.warn("ServerObservation.deregister() is deprecated, use"
+                      " .trigger with an unsuccessful value instead",
+                      warnings.DeprecationWarning)
+        self.trigger(Message(code=INTERNAL_SERVER_ERROR, payload=b"Resource became unobservable"))
+
+    def trigger(self, response=None):
+        if self._trigger.done():
+            # we don't care whether we overwrite anything, this is a lossy queue as observe is lossy
+            self._trigger = asyncio.Future()
+        self._trigger.set_result(response)
