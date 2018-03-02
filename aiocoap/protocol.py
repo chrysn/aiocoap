@@ -292,7 +292,13 @@ class Context(interfaces.RequestProvider):
         can_continue = observe_requested and servobs._accepted and \
                 response.code.is_successful()
         if can_continue:
-            response.opt.observe = next_observation_number =0
+            # FIXME: observation numbers should actually not be per
+            # asyncio.task, but per (remote, token). if a client renews an
+            # observation (possibly with a new ETag or whatever is deemed
+            # legal), the new observation events should still carry larger
+            # numbers. (if they did not, the client might be tempted to discard
+            # them).
+            response.opt.observe = next_observation_number = 0
         plumbing_request.add_response(response, is_last=not can_continue)
 
         while can_continue:
