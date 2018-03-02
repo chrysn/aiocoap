@@ -303,9 +303,10 @@ class Context(interfaces.RequestProvider):
 
         while can_continue:
             await servobs._trigger
-            # fetched in a separate step: i'm not sure whether the future
-            # switching in .trigger() might not make the first result appear
-            # here
+            # if you wonder why the lines around this are not just `response =
+            # await servobs._trigger`, have a look at the 'double' tests in
+            # test_observe.py: A later triggering could have replaced
+            # servobs._trigger in the meantime.
             response = servobs._trigger.result()
             servobs._trigger = asyncio.Future()
 
