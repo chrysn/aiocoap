@@ -27,12 +27,15 @@ import time
 from . import defaults
 from .credentials import CredentialsMap
 from .message import Message
+from .optiontypes import BlockOption
 from .messagemanager import MessageManager
 from .tokenmanager import TokenManager, PlumbingRequest
 from . import interfaces
 from . import error
 from .numbers import (COAP_PORT, DEFAULT_BLOCK_SIZE_EXP, INTERNAL_SERVER_ERROR,
-        SERVICE_UNAVAILABLE, CONTENT, OBSERVATION_RESET_TIME)
+        SERVICE_UNAVAILABLE, CONTENT, CONTINUE, REQUEST_ENTITY_INCOMPLETE,
+        OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT)
+from .numbers.optionnumbers import OptionNumber
 
 import warnings
 import logging
@@ -45,6 +48,16 @@ import logging
 #   necessarily indicate a client bug, though; things like requesting a
 #   nonexistent block can just as well happen when a resource's content has
 #   changed between blocks).
+
+def _extract_block_key(message):
+    """Extract a key that hashes equally for all blocks of a blockwise
+    operation from a request message.
+
+    See discussion at <https://mailarchive.ietf.org/arch/msg/core/I-6LzAL6lIUVDA6_g9YM3Zjhg8E>.
+    """
+
+    return (message.remote, message.get_cache_key([OptionNumber.BLOCK1]))
+
 
 class Context(interfaces.RequestProvider):
     """Applications' entry point to the network
@@ -109,6 +122,11 @@ class Context(interfaces.RequestProvider):
         self._running_renderings = set()
 
         self.client_credentials = client_credentials or CredentialsMap()
+
+        # FIXME: consider introducing a TimeoutDict
+        self._block1_assemblies = {} # mapping block-key to (partial request, timeout handle)
+        self._block2_assemblies = () # mapping block-key to (complete response, timeout handle)
+                                     # (for both, block-key is as extracted by _extract_block_key)
 
     #
     # convenience methods for class instanciation
@@ -200,6 +218,11 @@ class Context(interfaces.RequestProvider):
         return self
 
     async def shutdown(self):
+        for _, canceler in self._block1_assemblies:
+            canceler()
+        for _, canceler in self._block2_assemblies:
+            canceler()
+
         for r in self._running_renderings:
             r.cancel()
 
@@ -227,6 +250,9 @@ class Context(interfaces.RequestProvider):
             request_interface.request(plumbing_request)
         self.loop.create_task(send())
         return result
+
+    # the following are under consideration for moving into Site or something
+    # mixed into it
 
     def render_to_plumbing_request(self, plumbing_request):
         """Satisfy a plumbing request from the full :meth:`render` /
@@ -270,12 +296,54 @@ class Context(interfaces.RequestProvider):
             plumbing_request.add_response(Message(code=NOT_FOUND, payload=b"not a server"), is_last=True)
             return
 
-        blockwise = await self.serversite.needs_blockwise_assembly(request)
-        if blockwise:
-            # FIXME
-            self.log.warning(
-                "Resource requests blockwise reassembly, but context can't"
-                " serve that yet")
+        needs_blockwise = await self.serversite.needs_blockwise_assembly(request)
+        if needs_blockwise and request.opt.block1:
+            key = _extract_block_key(request)
+
+            if request.opt.block1.block_number == 0:
+                if key in self._block1_assemblies:
+                    _, canceler = self._block1_assemblies.pop(key)
+                    canceler()
+                    self.log.info("Aborting incomplete Block1 operation at"
+                            " arrival of new start block")
+                new_aggregate = request
+            else:
+                try:
+                    previous, canceler = self._block1_assemblies.pop(key)
+                except KeyError:
+                    plumbing_request.add_response(Message(
+                            code=REQUEST_ENTITY_INCOMPLETE),
+                        is_last=True)
+                    self.log.info("Received unmatched blockwise request"
+                            " operation message")
+                    return
+                canceler()
+
+                previous._append_request_block(request)
+                new_aggregate = previous
+
+            if request.opt.block1.more:
+                canceler = self.loop.call_later(
+                        MAX_TRANSMIT_WAIT, # FIXME: introduce an actual parameter here
+                        functools.partial(self._block1_assemblies.pop, key)
+                        ).cancel
+
+                self._block1_assemblies[key] = (new_aggregate, canceler)
+
+                plumbing_request.add_response(Message(
+                        code=CONTINUE,
+                        block1=BlockOption.BlockwiseTuple(
+                            request.opt.block1.block_number,
+                            True,
+                            request.opt.block1.size_exponent),
+                        ),
+                    is_last=True)
+                return
+            else:
+                immediate_response_block1 = request.opt.block1
+                request = new_aggregate
+        else:
+            immediate_response_block1 = None
 
         observe_requested = request.opt.observe == 0
         if observe_requested:
@@ -293,6 +361,12 @@ class Context(interfaces.RequestProvider):
             self.log.warning("Response does not carry response code (%r),"
                              " application probably violates protocol.",
                              response.code)
+
+        # CONTINUE HERE: if blockwise requested and payload is large, store the
+        # response body.
+
+        if needs_blockwise:
+            response.opt.block1 = immediate_response_block1
 
         can_continue = observe_requested and servobs._accepted and \
                 response.code.is_successful()
