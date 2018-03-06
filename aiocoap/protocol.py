@@ -265,6 +265,11 @@ class Context(interfaces.RequestProvider):
 
     async def _render_to_plumbing_request_inner(self, plumbing_request, cancellation_future):
         request = plumbing_request.request
+
+        if self.serversite is None:
+            plumbing_request.add_response(Message(code=NOT_FOUND, payload=b"not a server"), is_last=True)
+            return
+
         blockwise = await self.serversite.needs_blockwise_assembly(request)
         if blockwise:
             # FIXME

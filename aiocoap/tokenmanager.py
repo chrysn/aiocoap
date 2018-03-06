@@ -461,10 +461,6 @@ class Responder:
         """Dispatch incoming request - search context resource tree for
         resource in Uri Path and call proper CoAP Method on it."""
 
-        if self.protocol.context.serversite is None:
-            self.respond_with_error(initial_block, NOT_FOUND, "Context is not a server")
-            return
-
         try:
             needs_blockwise = await self.protocol.context.serversite.needs_blockwise_assembly(initial_block)
         except Exception as e:
