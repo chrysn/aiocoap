@@ -273,7 +273,11 @@ class Message(object):
             self.token = next_block.token
             self.mid = next_block.mid
         else:
-            raise error.NotImplemented()
+            # possible extension point: allow messages with "gaps"; then
+            # ValueError would only be raised when trying to overwrite an
+            # existing part; it is doubtful though that the blockwise
+            # specification even condones such behavior.
+            raise ValueError()
 
     def _append_response_block(self, next_block):
         """Append next block to current response message.

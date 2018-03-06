@@ -56,7 +56,10 @@ def _extract_block_key(message):
     See discussion at <https://mailarchive.ietf.org/arch/msg/core/I-6LzAL6lIUVDA6_g9YM3Zjhg8E>.
     """
 
-    return (message.remote, message.get_cache_key([OptionNumber.BLOCK1]))
+    return (message.remote, message.get_cache_key([
+        OptionNumber.BLOCK1,
+        OptionNumber.BLOCK2,
+        ]))
 
 
 class Context(interfaces.RequestProvider):
@@ -125,7 +128,7 @@ class Context(interfaces.RequestProvider):
 
         # FIXME: consider introducing a TimeoutDict
         self._block1_assemblies = {} # mapping block-key to (partial request, timeout handle)
-        self._block2_assemblies = () # mapping block-key to (complete response, timeout handle)
+        self._block2_assemblies = {} # mapping block-key to (complete response, timeout handle)
                                      # (for both, block-key is as extracted by _extract_block_key)
 
     #
@@ -218,9 +221,9 @@ class Context(interfaces.RequestProvider):
         return self
 
     async def shutdown(self):
-        for _, canceler in self._block1_assemblies:
+        for _, canceler in self._block1_assemblies.values():
             canceler()
-        for _, canceler in self._block2_assemblies:
+        for _, canceler in self._block2_assemblies.values():
             canceler()
 
         for r in self._running_renderings:
@@ -297,19 +300,46 @@ class Context(interfaces.RequestProvider):
             return
 
         needs_blockwise = await self.serversite.needs_blockwise_assembly(request)
-        if needs_blockwise and request.opt.block1:
-            key = _extract_block_key(request)
+        if needs_blockwise:
+            block_key = _extract_block_key(request)
 
+        if needs_blockwise and request.opt.block2 and \
+                request.opt.block2.block_number != 0:
+            if request.opt.block1 is not None:
+                raise error.BadOption("Block1 conflicts with non-initial Block2")
+
+            try:
+                response, _ = self._block2_assemblies[block_key]
+            except KeyError:
+                    plumbing_request.add_response(Message(
+                            code=REQUEST_ENTITY_INCOMPLETE),
+                        is_last=True)
+                    self.log.info("Received unmatched blockwise response"
+                            " operation message")
+                    return
+
+            # FIXME: update the timeout? maybe remove item when last is
+            # requested in a confirmable message?
+
+            response = response._extract_block(
+                    request.opt.block2.block_number,
+                    request.opt.block2.size_exponent)
+            plumbing_request.add_response(
+                    response,
+                    is_last=True)
+            return
+
+        if needs_blockwise and request.opt.block1:
             if request.opt.block1.block_number == 0:
-                if key in self._block1_assemblies:
-                    _, canceler = self._block1_assemblies.pop(key)
+                if block_key in self._block1_assemblies:
+                    _, canceler = self._block1_assemblies.pop(block_key)
                     canceler()
                     self.log.info("Aborting incomplete Block1 operation at"
                             " arrival of new start block")
                 new_aggregate = request
             else:
                 try:
-                    previous, canceler = self._block1_assemblies.pop(key)
+                    previous, canceler = self._block1_assemblies.pop(block_key)
                 except KeyError:
                     plumbing_request.add_response(Message(
                             code=REQUEST_ENTITY_INCOMPLETE),
@@ -319,16 +349,23 @@ class Context(interfaces.RequestProvider):
                     return
                 canceler()
 
-                previous._append_request_block(request)
+                try:
+                    previous._append_request_block(request)
+                except ValueError:
+                    plumbing_request.add_response(Message(
+                            code=REQUEST_ENTITY_INCOMPLETE),
+                        is_last=True)
+                    self.log.info("Failed to assemble blockwise request (gaps or overlaps)")
+                    return
                 new_aggregate = previous
 
             if request.opt.block1.more:
                 canceler = self.loop.call_later(
                         MAX_TRANSMIT_WAIT, # FIXME: introduce an actual parameter here
-                        functools.partial(self._block1_assemblies.pop, key)
+                        functools.partial(self._block1_assemblies.pop, block_key)
                         ).cancel
 
-                self._block1_assemblies[key] = (new_aggregate, canceler)
+                self._block1_assemblies[block_key] = (new_aggregate, canceler)
 
                 plumbing_request.add_response(Message(
                         code=CONTINUE,
@@ -362,8 +399,28 @@ class Context(interfaces.RequestProvider):
                              " application probably violates protocol.",
                              response.code)
 
-        # CONTINUE HERE: if blockwise requested and payload is large, store the
-        # response body.
+        if needs_blockwise and (
+                len(response.payload) > (
+                    1024
+                    if response.opt.block2 is None
+                    else response.opt.block2.size)):
+
+            if block_key in self._block2_assemblies:
+                _, canceler = self._block2_assemblies.pop(block_key)
+                canceler()
+
+            canceler = self.loop.call_later(
+                    MAX_TRANSMIT_WAIT, # FIXME: introduce an actual parameter here
+                    functools.partial(self._block2_assemblies.pop, block_key)
+                    ).cancel
+
+            self._block2_assemblies[block_key] = (response, canceler)
+
+            szx = request.opt.block2 if request.opt.block2 is not None \
+                    else DEFAULT_BLOCK_SIZE_EXP
+            # if a requested block2 number were not 0, the code would have
+            # diverted earlier to serve from active operations
+            response = response._extract_block(0, szx)
 
         if needs_blockwise:
             response.opt.block1 = immediate_response_block1
