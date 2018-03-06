@@ -965,10 +965,10 @@ class ServerObservation:
         self._accepted = True
         self._cancellation_callback = cancellation_callback
 
-    def deregister(self):
+    def deregister(self, reason=None):
         warnings.warn("ServerObservation.deregister() is deprecated, use"
                       " .trigger with an unsuccessful value instead",
-                      warnings.DeprecationWarning)
+                      DeprecationWarning)
         self.trigger(Message(code=INTERNAL_SERVER_ERROR, payload=b"Resource became unobservable"))
 
     def trigger(self, response=None):
