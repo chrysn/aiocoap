@@ -1,3 +1,15 @@
+Version next
+------------
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+* Client observations that have been requested by sending the Observe option
+  must now be taken up by the client. The warning that was previously shown
+  when an observation was shut down due to garbage collection can not be
+  produced easily in this version, and will result in a useless persisting
+  observation in the background. (See <https://github.com/chrysn/aiocoap/issues/104>)
+
 Version 0.4a1
 -------------
 

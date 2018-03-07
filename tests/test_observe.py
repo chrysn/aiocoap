@@ -15,6 +15,7 @@ needs to be updated."""
 import asyncio
 import aiocoap
 import gc
+import unittest
 
 from aiocoap.resource import ObservableResource, WKCResource
 from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource, run_fixture_as_standalone_server
@@ -232,7 +233,8 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         notinterested()
 
-    @no_warnings
+    @unittest.expectedFailure # regression since 82b35c1f8f, tracked as
+    @no_warnings              # https://github.com/chrysn/aiocoap/issues/104
     def test_lingering(self):
         """Simulate what happens when a request is sent with an observe option,
         but the code only waits for the response and does not subscribe to the
