@@ -275,6 +275,41 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         self.assertEqual(events, ["Errback"])
 
+    @no_warnings
+    def test_late_subscription_eventual_consistency(self):
+        yieldfrom = self.loop.run_until_complete
+
+        yieldfrom(self._change_counter(aiocoap.DELETE, b""))
+
+        request = aiocoap.Message(code=aiocoap.GET)
+        request.unresolved_remote = self.servernetloc
+        request.opt.uri_path = ('deep', 'count')
+        request.opt.observe = 0
+
+        requester = self.client.request(request)
+
+        first_response = yieldfrom(requester.response)
+        self.assertEqual(first_response.payload, b"0", "Observe base request gave unexpected result")
+
+        yieldfrom(self._change_counter(aiocoap.POST, b""))
+        yieldfrom(self._change_counter(aiocoap.POST, b""))
+
+        observation_results = []
+        requester.observation.register_callback(lambda message: observation_results.append(message.payload))
+        requester.observation.register_errback(lambda reason: observation_results.append(reason))
+
+        # this is not required in the current implementation as it calls back
+        # right from the registration, but i don't want to prescribe that.
+        wait_a_moment = asyncio.Future()
+        self.loop.call_soon(lambda: wait_a_moment.set_result(None))
+        yieldfrom(wait_a_moment)
+
+        self.assertEqual(observation_results[-1:], [b"2"])
+        # only testing the last element because both [b"1", b"2"] and [b"2"]
+        # are correct eventually consistent results.
+
+        requester.observation.cancel()
+
     def _test_no_observe(self, path):
         yieldfrom = self.loop.run_until_complete
 

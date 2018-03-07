@@ -855,6 +855,9 @@ class ClientObservation:
         self.cancelled = False
         self._on_cancel = []
 
+        self._latest_response = None
+        # the analogous error is stored in _cancellation_reason when cancelled.
+
     def __aiter__(self):
         """`async for` interface to observations. Currently, this still loses
         information to the application (the reason for the termination is
@@ -903,7 +906,10 @@ class ClientObservation:
         pass the response to it."""
         if self.cancelled:
             return
+
         self.callbacks.append(callback)
+        if self._latest_response is not None:
+            callback(self._latest_response)
 
     def register_errback(self, callback):
         """Call the callback whenever something goes wrong with the
@@ -916,6 +922,8 @@ class ClientObservation:
 
     def callback(self, response):
         """Notify all listeners of an incoming response"""
+
+        self._latest_response = response
 
         for c in self.callbacks:
             c(response)
