@@ -10,6 +10,10 @@ test:3.6:
     - rm -f .coverage* collected-coverage/3.6/
     - pip3 install coverage
     - AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test
+    # this should be done locally by setup.py, but while pip installation
+    # works, inside setup.py in doesn't -- still looking for all the details
+    # for a bug report.
+    - pip3 install DTLSSocket
     - python3 -m coverage run --parallel ./setup.py test
     - pip3 install uvloop
     - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
@@ -36,6 +40,8 @@ test:3.5:
     - apt-get -y -t jessie-backports install libssl-dev
     - echo Using cache:; ls .eggs/ || echo No cached .eggs found
     - AIOCOAP_TEST_EXTRAS= ./setup.py test
+    # see above
+    - pip3 install DTLSSocket
     - ./setup.py test
     - pip3 install uvloop
     - AIOCOAP_TESTS_LOOP=uvloop ./setup.py test
