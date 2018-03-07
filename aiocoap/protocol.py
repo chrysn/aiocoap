@@ -793,13 +793,12 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 full_notification = await cls._complete_by_requesting_block2(protocol, original_request, block1_notification, log)
                 log.debug("Reporting completed notification")
                 weak_observation().callback(full_notification)
-        except asyncio.CancelledError:
-            return
-        except StopAsyncIteration:
             # FIXME verify that this loop actually ends iff the observation
             # was cancelled -- otherwise find out the cause(s) or make it not
             # cancel under indistinguishable circumstances
             weak_observation().error(error.ObservationCancelled())
+        except asyncio.CancelledError:
+            return
         except Exception as e:
             weak_observation().error(e)
 
