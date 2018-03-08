@@ -67,7 +67,7 @@ The response should have arrived immediately: The client sent a message to the
 server in which it requested the resource at ``/time``, and the server could
 right away send a message back. In contrast, ``/other/separate`` is slower::
 
-    $ ./aiocoap-client coap://localhost/others/separate
+    $ ./aiocoap-client coap://localhost/other/separate
     Three rings for the elven kings [abbreviated]
 
 The response to this message comes back with a delay. Here, it is simulated by
