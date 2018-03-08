@@ -40,7 +40,7 @@ class TokenManager(interfaces.RequestProvider, interfaces.TokenManager):
         return self.context.client_credentials
 
     async def shutdown(self):
-        for request in self.outgoing_requests:
+        for request in self.outgoing_requests.values():
             request.add_exception(error.LibraryShutdown())
         self.outgoing_requests = None
 
