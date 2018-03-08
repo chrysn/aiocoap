@@ -222,6 +222,10 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
                     message.remote.pktinfo))
         self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
 
+    async def recognize_remote(self, remote):
+        # FIXME: this does not really cater for multiple udp6 instances
+        return isinstance(remote, UDP6EndpointAddress)
+
     async def determine_remote(self, request):
         if request.requested_scheme not in ('coap', None):
             return None

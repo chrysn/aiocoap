@@ -18,8 +18,8 @@ import aiocoap.defaults
 from .test_server import WithTestServer, WithClient, no_warnings
 
 class TestBlockwise(WithTestServer, WithClient):
-    # tracked as https://github.com/chrysn/aiocoap/issues/58
-    @unittest.expectedFailure
+    # tracked as https://github.com/chrysn/aiocoap/issues/58; behavior can be successful more or less by chance
+    @unittest.skip
     @no_warnings
     def test_sequential(self):
         """Test whether the client serializes simultaneous block requests"""

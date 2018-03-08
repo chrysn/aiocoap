@@ -327,12 +327,10 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     #
 
     async def fill_or_recognize_remote(self, message):
-        # FIXME: This needless copying around with remote=None only serves to
-        # satisfy the new fill_or_recognize_remote functionality -- after
-        # refactoring, the message_interface should just have a
-        # fill_or_recognize_remote function that returns True if it's "one of
-        # its own" remotes, but let's change one module at a time...
-        remote = await self.message_interface.determine_remote(message.copy(remote=None))
+        if message.remote is not None:
+            if await self.message_interface.recognize_remote(message.remote):
+                return True
+        remote = await self.message_interface.determine_remote(message)
         if remote is not None:
             message.remote = remote
             return True
