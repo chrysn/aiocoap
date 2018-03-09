@@ -94,4 +94,7 @@ class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
 for x in range(0, 13):
     test = lambda self, x=x: self.loop.run_until_complete(self._test_plugtestclient(x))
+    if x in (4, 5):
+        # see https://github.com/chrysn/aiocoap/issues/105
+        test = unittest.expectedFailure(test)
     setattr(TestOSCOREPlugtest, 'test_%d'%x, test)

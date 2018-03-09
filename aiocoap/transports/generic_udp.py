@@ -52,7 +52,10 @@ class GenericTransportEndpoint(interfaces.TransportEndpoint):
         self._ctx.dispatch_error(exception.errno, address)
 
     def send(self, message):
-        message.remote.send(message.encode())
+        if self._ctx is None:
+            self._log.info("Not sending message %r: transport is already shutting down.", message)
+        else:
+            message.remote.send(message.encode())
 
     async def shutdown(self):
         await self._pool.shutdown()

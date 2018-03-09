@@ -17,16 +17,9 @@ import aiocoap.defaults
 
 from .test_server import WithTestServer, WithClient, no_warnings
 
-if 'simple6' in aiocoap.defaults.get_default_clienttransports():
-    # simple6 has the (comparatively) odd property that whenever it resolves an
-    # address it creates a new client port. Two blockwise requests thus can
-    # proceed without error even when they are simultaneous.
-    expectedFailure_unless_simple6 = lambda x:x
-else:
-    expectedFailure_unless_simple6 = unittest.expectedFailure
-
 class TestBlockwise(WithTestServer, WithClient):
-    @expectedFailure_unless_simple6
+    # tracked as https://github.com/chrysn/aiocoap/issues/58; behavior can be successful more or less by chance
+    @unittest.skip
     @no_warnings
     def test_sequential(self):
         """Test whether the client serializes simultaneous block requests"""

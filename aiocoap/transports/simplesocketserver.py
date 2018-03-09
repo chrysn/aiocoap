@@ -113,3 +113,6 @@ class TransportEndpointSimpleServer(GenericTransportEndpoint):
         self._pool = await _DatagramServerSocketSimple.create(server_address, log, self._loop, self._received_datagram, self._received_exception)
 
         return self
+
+    async def recognize_remote(self, remote):
+        return isinstance(remote, _Address) and remote in remote.serversocket is self._pool

@@ -182,3 +182,6 @@ class TransportEndpointSimple6(GenericTransportEndpoint):
 
         self._pool = _DatagramClientSocketpoolSimple6(self._loop, self._received_datagram, self._received_exception)
         return self
+
+    async def recognize_remote(self, remote):
+        return isinstance(remote, _Connection) and remote in self._pool._sockets

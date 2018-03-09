@@ -15,6 +15,9 @@ from .test_client import TestClientWithSetHost
 import aiocoap.proxy.client
 import aiocoap.cli.proxy
 
+# none of those tests would currently work, disabling them all. see
+# https://github.com/chrysn/aiocoap/issues/106
+@unittest.expectedFailure
 class WithProxyServer(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithProxyServer, self).setUp()

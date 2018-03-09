@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 async def main():
     protocol = await Context.create_client_context()
 
-    request = Message(code=GET, uri='coap://localhost/time', observe=0)
+    request = Message(code=GET, uri='coap://vs0.inf.ethz.ch/obs', observe=0)
 
     pr = protocol.request(request)
 
@@ -31,6 +31,11 @@ async def main():
 
     async for r in pr.observation:
         print("Next result: %s\n%r"%(r, r.payload))
+
+        pr.observation.cancel()
+        break
+    print("Loop ended, sticking around")
+    await asyncio.sleep(50)
 
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(main())

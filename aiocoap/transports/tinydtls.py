@@ -300,6 +300,9 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
             log.error("Ignoring dump_to in tinyDTLS transport endpoint")
         return cls(ctx, log, loop)
 
+    async def recognize_remote(self, remote):
+        return isinstance(remote, DTLSClientConnection) and remote in self._pool.values()
+
     async def determine_remote(self, request):
         if request.requested_scheme != 'coaps':
             return None

@@ -1,3 +1,26 @@
+Version next
+------------
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+* Client observations that have been requested by sending the Observe option
+  must now be taken up by the client. The warning that was previously shown
+  when an observation was shut down due to garbage collection can not be
+  produced easily in this version, and will result in a useless persisting
+  observation in the background. (See <https://github.com/chrysn/aiocoap/issues/104>)
+
+* Server resources that expect the library to do handle blockwise by returning
+  true to `needs_blockwise_assembly` do not allow random initial access any
+  more; this this is especially problematic with clients that use a different
+  source port for every package.
+
+  The old behavior was prone to triggering an action twice on non-safe methods,
+  and generating wrong results in block1+block2 scenarios when a later `FETCH
+  block2:2/x/x` request would be treated as a new operation and return the
+  result of an empty request body rather than being aligned with an earlier
+  `FETCH block1:x/x/x` operation.
+
 Version 0.4a1
 -------------
 
