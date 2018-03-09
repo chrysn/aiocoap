@@ -15,7 +15,7 @@ import unittest
 
 import aiocoap
 
-from .test_server import WithAsyncLoop, Destructing, WithClient
+from .test_server import WithAsyncLoop, Destructing, WithClient, asynctest
 
 linkheader_modules = aiocoap.defaults.linkheader_missing_modules()
 _skip_unless_linkheader = unittest.skipIf(linkheader_modules, "Modules missing for running RD tests: %s"%(linkheader_modules,))
@@ -31,10 +31,8 @@ class WithResourceDirectory(WithAsyncLoop, Destructing):
     def setUp(self):
         super().setUp()
 
-        yieldfrom = lambda f: self.loop.run_until_complete(f)
-
         self.rd = aiocoap.cli.rd.Main(['--server-address', '::1', '--server-port', str(self.rd_port)])
-        yieldfrom(self.rd.initializing)
+        self.loop.run_until_complete(self.rd.initializing)
 
     def tearDown(self):
         self.loop.run_until_complete(self.rd.shutdown())
@@ -44,11 +42,10 @@ class WithResourceDirectory(WithAsyncLoop, Destructing):
 
 class TestDiscovery(WithResourceDirectory, WithClient):
     @_skip_unless_linkheader
-    def test_discovery(self):
-        yieldfrom = lambda f: self.loop.run_until_complete(f)
-
+    @asynctest
+    async def test_discovery(self):
         request = aiocoap.Message(code=aiocoap.GET, uri='coap://%s/.well-known/core?rt=core.rd*'%self.rd_netloc)
-        response = yieldfrom(self.client.request(request).response)
+        response = await self.client.request(request).response
 
         self.assertEqual(response.code, aiocoap.CONTENT, "RD discovery did not give content")
         links = link_header.parse(response.payload.decode('utf8'))
@@ -70,16 +67,15 @@ class TestDiscovery(WithResourceDirectory, WithClient):
         return self._endpoints[rt]
 
     @_skip_unless_linkheader
-    def test_registration(self):
-        yieldfrom = lambda f: self.loop.run_until_complete(f)
-
+    @asynctest
+    async def test_registration(self):
         request = aiocoap.Message(
                 code=aiocoap.POST,
-                uri=yieldfrom(self._get_endpoint('core.rd')) + '?ep=node1',
+                uri=(await self._get_endpoint('core.rd')) + '?ep=node1',
                 content_format=40,
                 payload=b'</sensors/temp>;ct=41;rt="temperature-c";if="sensor",</sensors/light>;ct=41;rt="light-lux";if="sensor"',
                 )
-        response = yieldfrom(self.client.request(request).response)
+        response = await self.client.request(request).response
 
         self.assertEqual(response.code, aiocoap.CREATED, "Registration did not result in Created")
         self.assertTrue(len(response.opt.location_path) > 0, "Registration did not result in non-empty registration resource")

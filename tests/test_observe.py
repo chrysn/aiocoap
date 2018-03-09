@@ -18,7 +18,7 @@ import gc
 import unittest
 
 from aiocoap.resource import ObservableResource, WKCResource
-from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource, run_fixture_as_standalone_server
+from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource, run_fixture_as_standalone_server, asynctest
 
 class ObservableCounter(ObservableResource):
     def __init__(self):
@@ -115,12 +115,13 @@ class WithObserveTestServer(WithTestServer):
 
 class TestObserve(WithObserveTestServer, WithClient):
     @no_warnings
-    def test_normal_get(self):
+    @asynctest
+    async def test_normal_get(self):
         request = aiocoap.Message(code=aiocoap.GET)
         request.opt.uri_path = ['deep', 'count']
         request.unresolved_remote = self.servernetloc
 
-        response = self.loop.run_until_complete(self.client.request(request).response)
+        response = await self.client.request(request).response
         self.assertEqual(response.code, aiocoap.CONTENT, "Normal request did not succede")
         self.assertEqual(response.payload, b'0', "Normal request gave unexpected result")
 
@@ -143,16 +144,15 @@ class TestObserve(WithObserveTestServer, WithClient):
         return requester, observation_results, notinterested
 
     @no_warnings
-    def test_unobservable(self):
-        yieldfrom = self.loop.run_until_complete
-
+    @asynctest
+    async def test_unobservable(self):
         requester, observation_results, notinterested = self.build_observer(['deep', 'unobservable'])
 
-        response = self.loop.run_until_complete(requester.response)
+        response = await requester.response
         self.assertEqual(response.code, aiocoap.CONTENT, "Unobservable base request did not succede")
         self.assertEqual(response.payload, b'', "Unobservable base request gave unexpected result")
 
-        yieldfrom(asyncio.sleep(0.1))
+        await asyncio.sleep(0.1)
         self.assertEqual(str(observation_results), '[NotObservable()]')
 
     async def _change_counter(self, method, payload):
@@ -160,26 +160,25 @@ class TestObserve(WithObserveTestServer, WithClient):
         request.unresolved_remote = self.servernetloc
         await self.client.request(request).response_raising
 
-    def _test_counter(self, baserequest, formatter, postpayload=b""):
+    @asynctest
+    async def _test_counter(self, baserequest, formatter, postpayload=b""):
         """Run a counter test with requests built from baserequest. Expect
         response payloads to be equal to the formatter(n) for n being the
         counter value"""
-        yieldfrom = self.loop.run_until_complete
-
-        yieldfrom(self._change_counter(aiocoap.DELETE, b""))
+        await self._change_counter(aiocoap.DELETE, b"")
 
         requester, observation_results, notinterested = self.build_observer(['deep', 'count'], baserequest=baserequest)
 
-        response = self.loop.run_until_complete(requester.response)
+        response = await requester.response
         self.assertEqual(response.code, aiocoap.CONTENT, "Observe base request did not succede")
         self.assertEqual(response.payload, formatter(0), "Observe base request gave unexpected result")
 
-        yieldfrom(self._change_counter(aiocoap.POST, postpayload))
-        yieldfrom(asyncio.sleep(0.1))
+        await self._change_counter(aiocoap.POST, postpayload)
+        await asyncio.sleep(0.1)
         self.assertEqual(observation_results, [formatter(1)])
 
-        yieldfrom(self._change_counter(aiocoap.POST, postpayload))
-        yieldfrom(asyncio.sleep(0.1))
+        await self._change_counter(aiocoap.POST, postpayload)
+        await asyncio.sleep(0.1)
         self.assertEqual(observation_results, [formatter(1), formatter(2)])
 
         notinterested()
@@ -209,38 +208,36 @@ class TestObserve(WithObserveTestServer, WithClient):
         self._test_counter(None, lambda x: str(x * 2).encode('ascii'), b"double")
 
     @no_warnings
-    def test_echo(self):
-        yieldfrom = self.loop.run_until_complete
-
-        def put(b):
+    @asynctest
+    async def test_echo(self):
+        async def put(b):
             m = aiocoap.Message(code=aiocoap.PUT, payload=b)
             m.unresolved_remote = self.servernetloc
             m.opt.uri_path = ['deep', 'echo']
-            response = yieldfrom(self.client.request(m).response)
+            response = await self.client.request(m).response
             self.assertEqual(response.code, aiocoap.CHANGED)
 
-        put(b'test data 1')
+        await put(b'test data 1')
 
         requester, observation_results, notinterested = self.build_observer(['deep', 'echo'])
-        response = self.loop.run_until_complete(requester.response)
+        response = await requester.response
         self.assertEqual(response.code, aiocoap.CONTENT, "Observe base request did not succede")
         self.assertEqual(response.payload, b'test data 1', "Observe base request gave unexpected result")
 
-        put(b'test data 2')
+        await put(b'test data 2')
 
-        yieldfrom(asyncio.sleep(0.1))
+        await asyncio.sleep(0.1)
         self.assertEqual(observation_results, [b'test data 2'])
 
         notinterested()
 
     @unittest.expectedFailure # regression since 82b35c1f8f, tracked as
     @no_warnings              # https://github.com/chrysn/aiocoap/issues/104
-    def test_lingering(self):
+    @asynctest
+    async def test_lingering(self):
         """Simulate what happens when a request is sent with an observe option,
         but the code only waits for the response and does not subscribe to the
         observation."""
-        yieldfrom = self.loop.run_until_complete
-
         request = aiocoap.Message(code=aiocoap.GET)
         request.unresolved_remote = self.servernetloc
         request.opt.uri_path = ['deep', 'count']
@@ -248,7 +245,7 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         requester = self.client.request(request)
 
-        response = self.loop.run_until_complete(requester.response)
+        response = await requester.response
         del requester, response
         gc.collect()
 
@@ -258,9 +255,8 @@ class TestObserve(WithObserveTestServer, WithClient):
         self.assertWarned("Observation deleted without explicit cancellation")
 
     @no_warnings
-    def test_unknownhost(self):
-        yieldfrom = self.loop.run_until_complete
-
+    @asynctest
+    async def test_unknownhost(self):
         request = aiocoap.Message(code=aiocoap.GET, uri="coap://cant.resolve.this.example./empty", observe=0)
         requester = self.client.request(request)
 
@@ -273,15 +269,14 @@ class TestObserve(WithObserveTestServer, WithClient):
         requester.observation.register_callback(cb)
         requester.observation.register_errback(eb)
 
-        response = yieldfrom(requester.response_nonraising)
+        response = await requester.response_nonraising
 
         self.assertEqual(events, ["Errback"])
 
     @no_warnings
-    def test_late_subscription_eventual_consistency(self):
-        yieldfrom = self.loop.run_until_complete
-
-        yieldfrom(self._change_counter(aiocoap.DELETE, b""))
+    @asynctest
+    async def test_late_subscription_eventual_consistency(self):
+        await self._change_counter(aiocoap.DELETE, b"")
 
         request = aiocoap.Message(code=aiocoap.GET)
         request.unresolved_remote = self.servernetloc
@@ -290,11 +285,11 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         requester = self.client.request(request)
 
-        first_response = yieldfrom(requester.response)
+        first_response = await requester.response
         self.assertEqual(first_response.payload, b"0", "Observe base request gave unexpected result")
 
-        yieldfrom(self._change_counter(aiocoap.POST, b""))
-        yieldfrom(self._change_counter(aiocoap.POST, b""))
+        await self._change_counter(aiocoap.POST, b"")
+        await self._change_counter(aiocoap.POST, b"")
 
         observation_results = []
         requester.observation.register_callback(lambda message: observation_results.append(message.payload))
@@ -304,7 +299,7 @@ class TestObserve(WithObserveTestServer, WithClient):
         # right from the registration, but i don't want to prescribe that.
         wait_a_moment = asyncio.Future()
         self.loop.call_soon(lambda: wait_a_moment.set_result(None))
-        yieldfrom(wait_a_moment)
+        await wait_a_moment
 
         self.assertEqual(observation_results[-1:], [b"2"])
         # only testing the last element because both [b"1", b"2"] and [b"2"]
@@ -312,31 +307,29 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         requester.observation.cancel()
 
-    def _test_no_observe(self, path):
-        yieldfrom = self.loop.run_until_complete
-
+    @asynctest
+    async def _test_no_observe(self, path):
         m = aiocoap.Message(code=aiocoap.GET, observe=0)
         m.unresolved_remote = self.servernetloc
         m.opt.uri_path = path
 
         request = self.client.request(m)
 
-        response = yieldfrom(request.response)
+        response = await request.response
 
         self.assertEqual(response.opt.observe, None)
 
         return request
 
     @no_warnings
-    def test_notreally(self):
+    @asynctest
+    async def test_notreally(self):
         # This is a relic test for a deprecated .deregister() method of a
         # ServerObservation. Up until 0.4a1, calling that early enough caused
         # the server not to even send an observe option at all. This behavior
         # is not supported any more; the test stays in place for as long as the
         # deprecated interface is around to ensure its code coverage, but the
         # test objectives have changed.
-
-        yieldfrom = self.loop.run_until_complete
 
         m = aiocoap.Message(code=aiocoap.GET, observe=0)
         m.unresolved_remote = self.servernetloc
@@ -347,11 +340,11 @@ class TestObserve(WithObserveTestServer, WithClient):
         request.observation.register_callback(nextresponse.set_result)
         request.observation.register_errback(nextresponse.set_result)
 
-        response = yieldfrom(request.response)
+        response = await request.response
 
         self.assertEqual(response.opt.observe, 0)
 
-        nextresponse = yieldfrom(nextresponse)
+        nextresponse = await nextresponse
 
         # not suer yet what correct behavior should be -- a callback with no
         # observe opt, or an exception?
