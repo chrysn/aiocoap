@@ -294,6 +294,16 @@ class Context(interfaces.RequestProvider):
         # catching CancellationError here
         cancellation_future = asyncio.Future()
 
+        def cleanup(cancellation_future=cancellation_future):
+            if not cancellation_future.done():
+                cancellation_future.set_result(None)
+
+        # not trying to cancel the whole rendering right now, as that would
+        # mean that we'll need to cancel the task in a way that won't cause a
+        # message sent back -- but reacting to an end of interest is very
+        # relevant when network errors arrive from observers.
+        plumbing_request.on_interest_end(cleanup)
+
         try:
             await self._render_to_plumbing_request_inner(plumbing_request,
                     cancellation_future)
@@ -309,7 +319,7 @@ class Context(interfaces.RequestProvider):
             plumbing_request.add_response(Message(code=INTERNAL_SERVER_ERROR), is_last=True)
             self.log.error("An exception occurred while rendering a resource: %r", e, exc_info=e)
         finally:
-            cancellation_future.set_result(None)
+            cleanup()
 
 
     async def _render_to_plumbing_request_inner(self, plumbing_request, cancellation_future):

@@ -167,7 +167,8 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
         #   requests on the same remote
         # * mark the address as erroneous so it won't be recognized by
         #   fill_or_recognize_remote
-        pass
+
+        self._ctx._dispatch_error(self, exc)
 
     def data_received(self, data):
         # A rope would be more efficient here, but the expected case is that
@@ -256,12 +257,19 @@ class _TCPPooling:
         else:
             self._tokenmanager.process_request(msg)
 
+    def _dispatch_error(self, connection, exc):
+        if isinstance(exc, OSError):
+            self._tokenmanager.dispatch_error(exc.errno, connection)
+        else:
+            self.log.info("Expressing incoming exception %r as errno 0", exc)
+            self._tokenmanager.dispatch_error(0, connection)
+
 class TCPServer(_TCPPooling, interfaces.TokenInterface):
     @classmethod
     async def create_server(cls, bind, tman: interfaces.TokenManager, log, loop):
         self = cls()
         self._tokenmanager = tman
-        #self.log = log
+        self.log = log
         #self.loop = loop
 
         server = await loop.create_server(lambda: TcpConnection(self, log, loop), bind[0], bind[1])
