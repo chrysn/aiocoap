@@ -128,6 +128,13 @@ class TokenInterface(metaclass=abc.ABCMeta):
         call in case it no longer needs the message sent, and to dispose of if
         it doesn't intend to any more."""
 
+    @abc.abstractmethod
+    async def fill_or_recognize_remote(self, message):
+        """Return True if the message is recognized to already have a .remote
+        managedy by this TokenInterface, or return True and set a .remote on
+        message if it should (by its unresolved remote or Uri-* options) be
+        routed through this TokenInterface, or return False otherwise."""
+
 class TokenManager(metaclass=abc.ABCMeta):
     pass
 
