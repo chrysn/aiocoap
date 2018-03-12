@@ -145,6 +145,14 @@ class Context(interfaces.RequestProvider):
 
         self.request_interfaces.append(tman)
 
+    async def _append_tokenmanaged_transport(self, token_interface_constructor):
+        tman = TokenManager(self)
+        transport = await token_interface_constructor(tman)
+
+        tman.token_interface = transport
+
+        self.request_interfaces.append(tman)
+
     @classmethod
     async def create_client_context(cls, *, dump_to=None, loggername="coap", loop=None):
         """Create a context bound to all addresses on a random listening port.
@@ -174,6 +182,10 @@ class Context(interfaces.RequestProvider):
                 await self._append_tokenmanaged_messagemanaged_transport(
 
                     lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
+            elif transportname == 'tcpclient':
+                from .transports.tcp import TCPClient
+                await self._append_tokenmanaged_transport(
+                    lambda tman: TCPClient.create_client_transport(tman, self.log, loop))
             else:
                 raise RuntimeError("Transport %r not know for client context creation"%transportname)
 
@@ -215,6 +227,14 @@ class Context(interfaces.RequestProvider):
                 from .transports.simplesocketserver import MessageInterfaceSimpleServer
                 await self._append_tokenmanaged_messagemanaged_transport(
                     lambda mman: MessageInterfaceSimpleServer.create_server(bind, mman, log=self.log, loop=loop))
+            elif transportname == 'tcpserver':
+                from .transports.tcp import TCPServer
+                await self._append_tokenmanaged_transport(
+                    lambda tman: TCPServer.create_server(bind, tman, self.log, loop))
+            elif transportname == 'tcpclient':
+                from .transports.tcp import TCPClient
+                await self._append_tokenmanaged_transport(
+                    lambda tman: TCPClient.create_client_transport(tman, self.log, loop))
             else:
                 raise RuntimeError("Transport %r not know for server context creation"%transportname)
 
