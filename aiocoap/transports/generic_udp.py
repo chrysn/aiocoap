@@ -12,11 +12,10 @@ import urllib
 from aiocoap import interfaces, error
 from aiocoap import COAP_PORT, Message
 
-class GenericTransportEndpoint(interfaces.TransportEndpoint):
-    """GenericTransportEndpoint is not a standalone implementation of a
-    transport. It does implement everything between the TransportEndpoint
-    interface and a not yet fully specified interface of "bound UDP
-    sockets"."""
+class GenericMessageInterface(interfaces.MessageInterface):
+    """GenericMessageInterface is not a standalone implementation of a
+    message inteface. It does implement everything between the MessageInterface
+    and a not yet fully specified interface of "bound UDP sockets"."""
 
     def __init__(self, ctx: interfaces.MessageManager, log, loop):
         self._ctx = ctx

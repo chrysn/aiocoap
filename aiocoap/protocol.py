@@ -161,19 +161,19 @@ class Context(interfaces.RequestProvider):
         # FIXME make defaults overridable (postponed until they become configurable too)
         for transportname in defaults.get_default_clienttransports(loop=loop):
             if transportname == 'udp6':
-                from .transports.udp6 import TransportEndpointUDP6
+                from .transports.udp6 import MessageInterfaceUDP6
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: TransportEndpointUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
+                    lambda mman: MessageInterfaceUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
             elif transportname == 'simple6':
-                from .transports.simple6 import TransportEndpointSimple6
+                from .transports.simple6 import MessageInterfaceSimple6
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: TransportEndpointSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
+                    lambda mman: MessageInterfaceSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
                 # FIXME warn if dump_to is not None
             elif transportname == 'tinydtls':
-                from .transports.tinydtls import TransportEndpointTinyDTLS
+                from .transports.tinydtls import MessageInterfaceTinyDTLS
                 await self._append_tokenmanaged_messagemanaged_transport(
 
-                    lambda mman: TransportEndpointTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
+                    lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
             else:
                 raise RuntimeError("Transport %r not know for client context creation"%transportname)
 
@@ -194,27 +194,27 @@ class Context(interfaces.RequestProvider):
 
         for transportname in defaults.get_default_servertransports(loop=loop):
             if transportname == 'udp6':
-                from .transports.udp6 import TransportEndpointUDP6
+                from .transports.udp6 import MessageInterfaceUDP6
 
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: TransportEndpointUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to, bind=bind))
+                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to, bind=bind))
             # FIXME this is duplicated from the client version, as those are client-only anyway
             elif transportname == 'simple6':
-                from .transports.simple6 import TransportEndpointSimple6
+                from .transports.simple6 import MessageInterfaceSimple6
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: TransportEndpointSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
+                    lambda mman: MessageInterfaceSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
                 # FIXME warn if dump_to is not None
             elif transportname == 'tinydtls':
-                from .transports.tinydtls import TransportEndpointTinyDTLS
+                from .transports.tinydtls import MessageInterfaceTinyDTLS
 
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: TransportEndpointTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
+                    lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
             # FIXME end duplication
             elif transportname == 'simplesocketserver':
                 # FIXME dump_to not implemented
-                from .transports.simplesocketserver import TransportEndpointSimpleServer
+                from .transports.simplesocketserver import MessageInterfaceSimpleServer
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: TransportEndpointSimpleServer.create_server(bind, mman, log=self.log, loop=loop))
+                    lambda mman: MessageInterfaceSimpleServer.create_server(bind, mman, log=self.log, loop=loop))
             else:
                 raise RuntimeError("Transport %r not know for server context creation"%transportname)
 

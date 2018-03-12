@@ -14,7 +14,7 @@ from asyncio import coroutine
 
 from typing import Optional, Callable
 
-class TransportEndpoint(metaclass=abc.ABCMeta):
+class MessageInterface(metaclass=abc.ABCMeta):
     """A MessageInterface is an object that can exchange addressed messages over
     unreliable transports. Implementations send and receive messages with
     message type and message ID, and are driven by a Context that deals with
@@ -25,9 +25,6 @@ class TransportEndpoint(metaclass=abc.ABCMeta):
     addresses. Just as well, a MessageInterface can be useful for one single
     address only, or use various local addresses depending on the remote
     address.
-
-    Next steps: Have it operated not by a Context, but by a
-    RequestResponseEndpoint that is controlled by a thinner Context.
     """
 
     @abc.abstractmethod
@@ -45,14 +42,14 @@ class TransportEndpoint(metaclass=abc.ABCMeta):
         """Return a value suitable for the message's remote property based on
         its .opt.uri_host or .unresolved_remote.
 
-        May return None, which indicates that the TransportEndpoint can not
+        May return None, which indicates that the MessageInterface can not
         transport the message (typically because it is of the wrong scheme)."""
 
 class EndpointAddress(metaclass=abc.ABCMeta):
     """An address that is suitable for routing through the application to a
     remote endpoint.
 
-    Depending on the TransportEndpoint implementation used, an EndpointAddress
+    Depending on the MessageInterface implementation used, an EndpointAddress
     property of a message can mean the message is exchanged "with
     [2001:db8::2:1]:5683, while my local address was [2001:db8:1::1]:5683"
     (typical of UDP6), "over the connected <Socket at
@@ -60,9 +57,9 @@ class EndpointAddress(metaclass=abc.ABCMeta):
     participant 0x01 of the OSCAP key 0x..., routed over <another
     EndpointAddress>".
 
-    EndpointAddresses are only concstructed by TransportEndpoint objects,
+    EndpointAddresses are only concstructed by MessageInterface objects,
     either for incoming messages or when populating a message's .remote in
-    :meth:`TransportEndpoint.determine_remote`.
+    :meth:`MessageInterface.determine_remote`.
 
     There is no requirement that those address are always identical for a given
     address. However, incoming addresses must be hashable and hash-compare
@@ -102,8 +99,8 @@ class EndpointAddress(metaclass=abc.ABCMeta):
         """True if the local address is a multicast address, otherwise false."""
 
 class MessageManager(metaclass=abc.ABCMeta):
-    """The interface an entity that drives a TransportEndpoint provides towards
-    the TransportEndpoint for callbacks and object acquisition."""
+    """The interface an entity that drives a MessageInterface provides towards
+    the MessageInterface for callbacks and object acquisition."""
 
     @abc.abstractmethod
     def dispatch_message(self, message):
