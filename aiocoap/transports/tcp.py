@@ -154,6 +154,16 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
     def _send_message(self, msg: Message):
         self._transport.write(_serialize(msg))
 
+    def abort(self, errormessage=None, bad_csm_option=None):
+        abort_msg = Message(code=ABORT)
+        if errormessage is not None:
+            abort_msg.payload = errormessage.encode('utf8')
+        if bad_csm_option is not None:
+            bad_csm_option_option = optiontypes.UintOption(2, bad_csm_option)
+            abort_msg.opt.add_option(block_length)
+        self._send_message(abort_msg)
+        self._transport.close()
+
     # implementing asyncio.Protocol
 
     def connection_made(self, transport):
@@ -186,7 +196,7 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
                 break
             msglen = sum(msglen)
             if msglen > self._my_max_message_size:
-                self.abort("")
+                self.abort()
                 return
 
             if msglen > len(self._spool):
@@ -258,6 +268,8 @@ class _TCPPooling:
             self._tokenmanager.process_request(msg)
 
     def _dispatch_error(self, connection, exc):
+        self._evict_from_pool(connection)
+
         if isinstance(exc, OSError):
             self._tokenmanager.dispatch_error(exc.errno, connection)
         else:
@@ -265,6 +277,9 @@ class _TCPPooling:
             self._tokenmanager.dispatch_error(0, connection)
 
 class TCPServer(_TCPPooling, interfaces.TokenInterface):
+    def __init__(self):
+        self._pool = set()
+
     @classmethod
     async def create_server(cls, bind, tman: interfaces.TokenManager, log, loop):
         self = cls()
@@ -272,11 +287,18 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         self.log = log
         #self.loop = loop
 
-        server = await loop.create_server(lambda: TcpConnection(self, log, loop), bind[0], bind[1])
+        def new_connection():
+            c = TcpConnection(self, log, loop)
+            self._pool.add(c)
+            return c
+
+        server = await loop.create_server(new_connection, bind[0], bind[1])
         self.server = server
-        print(self, self.server)
 
         return self
+
+    def _evict_from_pool(self, connection):
+        self._pool.remove(connection)
 
     # implementing TokenInterface
 
@@ -288,7 +310,21 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
 
         return False
 
+    async def shutdown(self):
+        self.server.close()
+        for c in self._pool:
+            # FIXME: it would be nicer to release them
+            c.abort("Server shutdown")
+        await self.server.wait_closed()
+        del self._tokenmanager
+
 class TCPClient(_TCPPooling, interfaces.TokenInterface):
+    def __init__(self):
+        self._pool = {} # (host, port) -> connection
+        # note that connections are filed by host name, so different names for
+        # the same address might end up with different connections, which is
+        # probably okay for TCP, and crucial for later work with TLS.
+
     async def _spawn_protocol(self, message):
         if message.unresolved_remote is None:
             host = message.opt.uri_host
@@ -300,13 +336,25 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
             host = pseudoparsed.hostname
             port = pseudoparsed.port or COAP_PORT
 
+        if (host, port) in self._pool:
+            return self._pool[(host, port)]
+
         _, protocol = await self.loop.create_connection(
                 lambda: TcpConnection(self, self.log, self.loop),
                 host, port)
 
-        # FIXME: store protocol somewhere too
+        self._pool[(host, port)] = protocol
 
         return protocol
+
+    def _evict_from_pool(self, connection):
+        keys = []
+        for k, p in self._pool.items():
+            if p is connection:
+                keys.append(k)
+        # should really be zero or one
+        for k in keys:
+            self._pool.pop(k)
 
     @classmethod
     async def create_client_transport(cls, tman: interfaces.TokenManager, log, loop):
@@ -338,3 +386,9 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
             return True
 
         return False
+
+    async def shutdown(self):
+        for c in self._pool.values():
+            # FIXME: it would be nicer to release them
+            c.abort("Server shutdown")
+        del self._tokenmanager
