@@ -15,17 +15,16 @@ import unittest
 import aiocoap
 import aiocoap.defaults
 
-from .test_server import WithTestServer, WithClient, no_warnings
+from .test_server import WithTestServer, WithClient, no_warnings, asynctest
 
 class TestBlockwise(WithTestServer, WithClient):
     # tracked as https://github.com/chrysn/aiocoap/issues/58; behavior can be successful more or less by chance
     @unittest.skip
     @no_warnings
-    def test_sequential(self):
+    @asynctest
+    async def test_sequential(self):
         """Test whether the client serializes simultaneous block requests"""
-        self.loop.run_until_complete(self._test_sequential())
 
-    async def _test_sequential(self):
         pattern1 = b"01234 first pattern" + b"01" * 1024
         pattern2 = b"01234 second pattern" + b"02" * 1024
 

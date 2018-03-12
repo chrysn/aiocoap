@@ -6,7 +6,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module implements a TransportEndpoint for UDP based on the asyncio
+"""This module implements a MessageInterface for UDP based on the asyncio
 DatagramProtocol.
 
 This is a simple version that works only for servers bound to a single unicast
@@ -29,9 +29,9 @@ Shortcomings
 import asyncio
 from collections import namedtuple
 
-from .simple6 import TransportEndpointSimple6 as _TransportEndpointSimple6
+from .simple6 import MessageInterfaceSimple6 as _MessageInterfaceSimple6
 from .. import interfaces
-from .generic_udp import GenericTransportEndpoint
+from .generic_udp import GenericMessageInterface
 
 class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.EndpointAddress):
     # hashability and equality follow from being a namedtuple
@@ -105,7 +105,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         else:
             self.log.error("Received unexpected connection loss: %s", exception)
 
-class TransportEndpointSimpleServer(GenericTransportEndpoint):
+class MessageInterfaceSimpleServer(GenericMessageInterface):
     @classmethod
     async def create_server(cls, server_address, ctx: interfaces.MessageManager, log, loop):
         self = cls(ctx, log, loop)

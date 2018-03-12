@@ -6,7 +6,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module implements a TransportEndpoint for UDP based on a variation of
+"""This module implements a MessageInterface for UDP based on a variation of
 the asyncio DatagramProtocol.
 
 This implementation strives to be correct and complete behavior while still
@@ -51,7 +51,7 @@ from ..util import hostportjoin
 from ..util import socknumbers
 
 class UDP6EndpointAddress(interfaces.EndpointAddress):
-    """Remote address type for :cls:`TransportEndpointUDP6`. Remote address is
+    """Remote address type for :cls:`MessageInterfaceUDP6`. Remote address is
     stored in form of a socket address; local address can be roundtripped by
     opaque pktinfo data.
 
@@ -133,7 +133,7 @@ class SockExtendedErr(namedtuple("_SockExtendedErr", "ee_errno ee_origin ee_type
         # unpack_from: recvmsg(2) says that more data may follow
         return cls(*cls._struct.unpack_from(data))
 
-class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoint):
+class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface):
     def __init__(self, ctx: interfaces.MessageManager, log, loop):
         self._ctx = ctx
         self.log = log

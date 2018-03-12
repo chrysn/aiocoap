@@ -6,7 +6,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module implements a TransportEndpoint for UDP based on the asyncio
+"""This module implements a MessageInterface for UDP based on the asyncio
 DatagramProtocol.
 
 This is a simple version that works only for clients (by creating a dedicated
@@ -30,7 +30,7 @@ import socket
 from aiocoap import interfaces, error
 from aiocoap import Message, COAP_PORT
 from ..util import hostportjoin
-from .generic_udp import GenericTransportEndpoint
+from .generic_udp import GenericMessageInterface
 
 class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
     def __init__(self, ready_callback, new_message_callback, new_error_callback, stored_sockaddr):
@@ -132,9 +132,9 @@ class _DatagramClientSocketpoolSimple6:
 
     # FIXME (new_message_callback, new_error_callback) should probably rather
     # be one object with a defined interface; either that's the
-    # TransportEndpointSimple6 and stored accessibly (so the Protocol can know
-    # which TransportEndpoint to talk to for sending), or we move the
-    # TransportEndpoint out completely and have that object be the Protocol,
+    # MessageInterfaceSimple6 and stored accessibly (so the Protocol can know
+    # which MessageInterface to talk to for sending), or we move the
+    # MessageInterface out completely and have that object be the Protocol,
     # and the Protocol can even send new packages via the address
     def __init__(self, loop, new_message_callback, new_error_callback):
         # currently tracked only for shutdown
@@ -175,7 +175,7 @@ class _DatagramClientSocketpoolSimple6:
             await asyncio.wait([s.shutdown() for s in self._sockets])
         del self._sockets
 
-class TransportEndpointSimple6(GenericTransportEndpoint):
+class MessageInterfaceSimple6(GenericMessageInterface):
     @classmethod
     async def create_client_transport_endpoint(cls, ctx, log, loop):
         self = cls(ctx, log, loop)

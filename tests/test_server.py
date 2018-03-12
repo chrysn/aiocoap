@@ -15,7 +15,7 @@ import logging
 
 from . import common
 from .fixtures import (WithLogMonitoring, no_warnings, precise_warnings,
-    WithAsyncLoop, Destructing, CLEANUPTIME)
+    WithAsyncLoop, Destructing, CLEANUPTIME, asynctest)
 
 class MultiRepresentationResource(aiocoap.resource.Resource):
     async def render_get(self, request):
@@ -132,9 +132,9 @@ class TestServer(WithTestServer, WithClient):
         request.unresolved_remote = self.servernetloc
         return request
 
-    @no_warnings
-    def fetch_response(self, request):
-        return self.loop.run_until_complete(self.client.request(request).response)
+    @asynctest
+    async def fetch_response(self, request):
+        return await self.client.request(request).response
 
     @no_warnings
     def test_empty_accept(self):

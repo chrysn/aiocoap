@@ -21,6 +21,27 @@ import weakref
 # causes per-fixture delays.
 CLEANUPTIME = 0.01
 
+# This is chosen quite losely to avoid false positives -- but having a timeout
+# prevents any test runnier engine (like gitlab runners) from triggering its
+# timeout. Thus, the rest of the suite has a chance of running, and we get the
+# debug log from the fixture rather than losing the logs to a brutal
+# termination.
+ASYNCTEST_TIMEOUT = 15
+
+def asynctest(method):
+    """Decorator for async WithAsyncLoop fixtures methods that runs them from
+    the fixture's loop with a static timeout"""
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        task = asyncio.ensure_future(
+                method(self, *args, **kwargs),
+                loop=self.loop
+            )
+        for f in asyncio.as_completed([task], loop=self.loop,
+                timeout=ASYNCTEST_TIMEOUT):
+            return self.loop.run_until_complete(f)
+    return wrapper
+
 def no_warnings(function, expected_warnings=None):
     expected_warnings = expected_warnings or []
     def wrapped(self, *args, function=function):

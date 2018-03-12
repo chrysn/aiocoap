@@ -15,7 +15,7 @@ import unittest
 import aiocoap
 import aiocoap.defaults
 
-from .test_server import WithAsyncLoop, WithClient
+from .test_server import WithAsyncLoop, WithClient, asynctest
 from . import common
 
 from .common import PYTHON_PREFIX
@@ -81,6 +81,7 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
 
 class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
+    @asynctest
     async def _test_plugtestclient(self, x):
         set_seqno = aiocoap.Message(code=aiocoap.PUT, uri='coap://%s/sequence-numbers'%(common.loopbackname_v6 or common.loopbackname_v46), payload=b'0')
         await self.client.request(set_seqno).response_raising
@@ -93,8 +94,10 @@ class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
         self.assertEqual(proc.returncode, 0, 'Plugtest client return non-zero exit state\nOutput was:\n' + out.decode('utf8') + '\nErrorr output was:\n' + err.decode('utf8'))
 
 for x in range(0, 13):
-    test = lambda self, x=x: self.loop.run_until_complete(self._test_plugtestclient(x))
+    test = lambda self, x=x: self._test_plugtestclient(x)
     if x in (4, 5):
         # see https://github.com/chrysn/aiocoap/issues/105
         test = unittest.expectedFailure(test)
-    setattr(TestOSCOREPlugtest, 'test_%d'%x, test)
+    # enforcing them to sort properly is purely a readability thing, they
+    # execute correctly out-of-order too.
+    setattr(TestOSCOREPlugtest, 'test_%03d'%x, test)

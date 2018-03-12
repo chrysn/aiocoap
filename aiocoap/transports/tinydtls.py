@@ -6,7 +6,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module implements a TransportEndpoint that handles coaps:// using a
+"""This module implements a MessageInterface that handles coaps:// using a
 wrapped tinydtls library.
 
 This currently only implements the client side. To have a test server, run::
@@ -272,7 +272,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         def datagram_received(self, data, addr):
             self.parent._dtls_socket.handleMessage(self.parent._connection, data)
 
-class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
+class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
     def __init__(self, ctx: interfaces.MessageManager, log, loop):
         self._pool = weakref.WeakValueDictionary({}) # see _connection_for_address
 
