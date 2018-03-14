@@ -128,14 +128,14 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
                 elif opt.number == 4:
                     self._remote_settings['block-wise-transfer'] = True
                 elif opt.number.is_critical():
-                    self.abort(bad_csm_option=opt.number)
+                    self.abort("Option not supported", bad_csm_option=opt.number)
                 else:
                     pass # ignoring elective CSM options
         elif msg.code in (PING, PONG, RELEASE, ABORT):
             # not expecting data in any of them as long as Custody is not implemented
             for opt in msg.opt.option_list():
                 if opt.number.is_critical():
-                    self.abort(bad_csm_option=opt.number)
+                    self.abort("Unknown critical option")
                 else:
                     pass
 
@@ -161,7 +161,7 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
             abort_msg.payload = errormessage.encode('utf8')
         if bad_csm_option is not None:
             bad_csm_option_option = optiontypes.UintOption(2, bad_csm_option)
-            abort_msg.opt.add_option(block_length)
+            abort_msg.opt.add_option(bad_csm_option_option)
         self._send_message(abort_msg)
         self._transport.close()
 
