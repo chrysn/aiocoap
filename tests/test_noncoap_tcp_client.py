@@ -85,7 +85,16 @@ class TestNoncoapTCPClient(WithTestServer):
             # don't discard the CSM unconditionallly: the server might have
             # read the request data before sending its own initial CSM.
             parsed.pop(0)
+
         return parsed
+
+    async def should_idle_quietly(self, request: bytes, timeout=0.1):
+        """should_idle, but assert that no messages were returned"""
+
+        messages = await self.should_idle(request, timeout)
+
+        # it's not a per-spec wrong thing to do, but highly unusual
+        self.assertEqual(messages, [], "Server sent messages on its own")
 
     @precise_warnings(["Aborting connection: No CSM received"])
     @asynctest
@@ -100,17 +109,13 @@ class TestNoncoapTCPClient(WithTestServer):
     @no_warnings
     @asynctest
     async def test_incomplete_small(self):
-        messages = await self.should_idle(b'\0')
-
-        # it's not a per-spec wrong thing to do, but highly unusual
-        self.assertEqual(messages, [], "Server sent messages on its own")
+        await self.should_idle_quietly(b'\0')
 
     @no_warnings
     @asynctest
     async def test_incomplete_large1(self):
         # announcing but not sending 1 bytes extlen
-        messages = await self.should_idle(b'\xd0')
-        self.assertEqual(messages, [], "Server sent messages on its own")
+        await self.should_idle_quietly(b'\xd0')
 
     @no_warnings
     @asynctest
@@ -118,15 +123,13 @@ class TestNoncoapTCPClient(WithTestServer):
         # sending one out of four bytes extlen
         # a server could in theory reject this on grounds of "no matter what
         # you say next, my buffer ain't large enough"
-        messages = await self.should_idle(b'\xf0\0')
-        self.assertEqual(messages, [], "Server sent messages on its own")
+        await self.should_idle_quietly(b'\xf0\0')
 
     @no_warnings
     @asynctest
     async def test_incomplete_large3(self):
         # announcing a 269 byte long message, but not even sendin the code
-        messages = await self.should_idle(b'\xe0\0\0')
-        self.assertEqual(messages, [], "Server sent messages on its own")
+        await self.should_idle_quietly(b'\xe0\0\0')
 
     @precise_warnings(['Aborting connection: Overly large message announced'])
     @asynctest
@@ -144,3 +147,23 @@ class TestNoncoapTCPClient(WithTestServer):
         # the rest of the message is an empty CSM, so if the server were to
         # extrapolate from the meaning of tkl 0..8, it'd read it as OK.
         await self.should_abort_early(b'\x0fxxxxxxxxxxxxxxx\xe1')
+
+    # Fun inside the CSM
+
+    @no_warnings
+    @asynctest
+    async def test_exotic_elective_csm_option(self):
+        # send option number something-even (something-odd plus 269) as an empty option
+        await self.should_idle_quietly(b'\x30\xe1\xe0\xf1\xf1')
+
+    @precise_warnings(['Aborting connection: Option not supported'])
+    @asynctest
+    async def test_exotic_compulsory_csm_option(self):
+        # send option number something-odd (something-even plus 269) as an empty option
+        await self.should_abort_early(b'\x30\xe1\xe0\xf2\xf2')
+
+    @precise_warnings(['Aborting connection: Option not supported'])
+    @asynctest
+    async def test_exotic_compulsory_csm_option_late(self):
+        # send an empty CSM, and after that the one from compulsory_csm_option
+        await self.should_abort_early(b'\0\xe1\x30\xe1\xe0\xf2\xf2')
