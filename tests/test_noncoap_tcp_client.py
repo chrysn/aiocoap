@@ -87,12 +87,12 @@ class TestNoncoapTCPClient(WithTestServer):
             parsed.pop(0)
         return parsed
 
-    @no_warnings
+    @precise_warnings(["Aborting connection: No CSM received"])
     @asynctest
     async def test_http_get(self):
         await self.should_abort_early(b'GET /.well-known/core HTTP/1.0')
 
-    @no_warnings
+    @precise_warnings(["Aborting connection: No CSM received"])
     @asynctest
     async def test_early_get(self):
         await self.should_abort_early(b'\0\x01')
@@ -125,10 +125,19 @@ class TestNoncoapTCPClient(WithTestServer):
     @asynctest
     async def test_incomplete_large3(self):
         # announcing a 269 byte long message, but not even sendin the code
-        messages = await self.should_idle(b'\xe0\0\0\0\0')
+        messages = await self.should_idle(b'\xe0\0\0')
         self.assertEqual(messages, [], "Server sent messages on its own")
 
-    @precise_warnings(['Received unparsable stream, aborting'])
+    @precise_warnings(['Aborting connection: Overly large message announced'])
+    @asynctest
+    async def test_incomplete_large4(self):
+        # announcing the longest possible message, this should excede
+        # everyone's max-message-size.
+        #
+        # blocking to read more would be acceptable behavior as well.
+        await self.should_abort_early(b'\xf0\xff\xff\xff\xff')
+
+    @precise_warnings(['Aborting connection: Failed to parse message'])
     @asynctest
     async def test_wrong_tkl(self):
         # send an unspecified token length of 15.
