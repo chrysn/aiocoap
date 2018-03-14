@@ -556,6 +556,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
         # when inspecting the response's uri, which would have worked as well.
         # for dtls, even though not implemented yet, that information would be
         # filled from the SNI host name.)
+        response.requested_scheme = request.requested_scheme
         response.requested_hostinfo = request.opt.uri_host or request.unresolved_remote
         response.requested_path = request.opt.uri_path
         response.requested_query = request.opt.uri_query
