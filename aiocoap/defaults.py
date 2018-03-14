@@ -50,6 +50,7 @@ def get_default_clienttransports(*, loop=None):
         yield 'tinydtls'
 
     yield 'tcpclient'
+    yield 'tlsclient'
 
     if sys.platform != 'linux':
         # udp6 was never reported to work on anything but linux; would happily
@@ -99,6 +100,8 @@ def get_default_servertransports(*, loop=None):
 
     yield 'tcpserver'
     yield 'tcpclient'
+    yield 'tlsserver'
+    yield 'tlsclient'
 
     if sys.platform != 'linux':
         # udp6 was never reported to work on anything but linux; would happily

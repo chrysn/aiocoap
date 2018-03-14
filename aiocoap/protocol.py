@@ -186,6 +186,10 @@ class Context(interfaces.RequestProvider):
                 from .transports.tcp import TCPClient
                 await self._append_tokenmanaged_transport(
                     lambda tman: TCPClient.create_client_transport(tman, self.log, loop))
+            elif transportname == 'tlsclient':
+                from .transports.tls import TLSClient
+                await self._append_tokenmanaged_transport(
+                    lambda tman: TLSClient.create_client_transport(tman, self.log, loop))
             else:
                 raise RuntimeError("Transport %r not know for client context creation"%transportname)
 
@@ -235,6 +239,14 @@ class Context(interfaces.RequestProvider):
                 from .transports.tcp import TCPClient
                 await self._append_tokenmanaged_transport(
                     lambda tman: TCPClient.create_client_transport(tman, self.log, loop))
+            elif transportname == 'tlsserver':
+                from .transports.tls import TLSServer
+                await self._append_tokenmanaged_transport(
+                    lambda tman: TLSServer.create_server(bind, tman, self.log, loop))
+            elif transportname == 'tlsclient':
+                from .transports.tls import TLSClient
+                await self._append_tokenmanaged_transport(
+                    lambda tman: TLSClient.create_client_transport(tman, self.log, loop))
             else:
                 raise RuntimeError("Transport %r not know for server context creation"%transportname)
 
