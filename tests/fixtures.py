@@ -11,6 +11,7 @@
 import asyncio
 import functools
 import gc
+import inspect
 import logging
 import pprint
 import unittest
@@ -43,6 +44,8 @@ def asynctest(method):
     return wrapper
 
 def no_warnings(function, expected_warnings=None):
+    if inspect.iscoroutinefunction(function):
+        raise Exception("no_warnings decorates functions, not coroutines. Put it over @asynctest.")
     expected_warnings = expected_warnings or []
     def wrapped(self, *args, function=function):
         # assertLogs does not work as assertDoesntLog anyway without major

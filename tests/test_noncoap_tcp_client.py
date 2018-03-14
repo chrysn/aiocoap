@@ -87,33 +87,33 @@ class TestNoncoapTCPClient(WithTestServer):
             parsed.pop(0)
         return parsed
 
-    @asynctest
     @no_warnings
+    @asynctest
     async def test_http_get(self):
         await self.should_abort_early(b'GET /.well-known/core HTTP/1.0')
 
-    @asynctest
     @no_warnings
+    @asynctest
     async def test_early_get(self):
         await self.should_abort_early(b'\0\x01')
 
-    @asynctest
     @no_warnings
+    @asynctest
     async def test_incomplete_small(self):
         messages = await self.should_idle(b'\0')
 
         # it's not a per-spec wrong thing to do, but highly unusual
         self.assertEqual(messages, [], "Server sent messages on its own")
 
-    @asynctest
     @no_warnings
+    @asynctest
     async def test_incomplete_large1(self):
         # announcing but not sending 1 bytes extlen
         messages = await self.should_idle(b'\xd0')
         self.assertEqual(messages, [], "Server sent messages on its own")
 
-    @asynctest
     @no_warnings
+    @asynctest
     async def test_incomplete_large2(self):
         # sending one out of four bytes extlen
         # a server could in theory reject this on grounds of "no matter what
@@ -121,13 +121,14 @@ class TestNoncoapTCPClient(WithTestServer):
         messages = await self.should_idle(b'\xf0\0')
         self.assertEqual(messages, [], "Server sent messages on its own")
 
-    @asynctest
     @no_warnings
+    @asynctest
     async def test_incomplete_large3(self):
         # announcing a 269 byte long message, but not even sendin the code
         messages = await self.should_idle(b'\xe0\0\0\0\0')
         self.assertEqual(messages, [], "Server sent messages on its own")
 
+    @precise_warnings(['Received unparsable stream, aborting'])
     @asynctest
     async def test_wrong_tkl(self):
         # send an unspecified token length of 15.
