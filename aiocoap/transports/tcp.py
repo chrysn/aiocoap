@@ -277,6 +277,12 @@ class _TCPPooling:
             self.log.info("Expressing incoming exception %r as errno 0", exc)
             self._tokenmanager.dispatch_error(0, connection)
 
+    # for diverting behavior of _TLSMixIn
+    _scheme = 'coap+tcp'
+    _default_port = COAP_PORT
+    def _ssl_context_factory(self):
+        return None
+
 class TCPServer(_TCPPooling, interfaces.TokenInterface):
     def __init__(self):
         self._pool = set()
@@ -293,7 +299,13 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
             self._pool.add(c)
             return c
 
-        server = await loop.create_server(new_connection, bind[0], bind[1])
+        if bind[1] == COAP_PORT:
+            # FIXME: crude workaround against explicit values being set earlier
+            # in the chain
+            bind = (bind[0], self._default_port)
+
+        server = await loop.create_server(new_connection, bind[0], bind[1],
+                ssl=self._ssl_context_factory())
         self.server = server
 
         return self
@@ -329,20 +341,21 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
     async def _spawn_protocol(self, message):
         if message.unresolved_remote is None:
             host = message.opt.uri_host
-            port = message.opt.uri_port or COAP_PORT
+            port = message.opt.uri_port or self._default_port
             if host is None:
                 raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
         else:
             pseudoparsed = urllib.parse.SplitResult(None, message.unresolved_remote, None, None, None)
             host = pseudoparsed.hostname
-            port = pseudoparsed.port or COAP_PORT
+            port = pseudoparsed.port or self._default_port
 
         if (host, port) in self._pool:
             return self._pool[(host, port)]
 
         _, protocol = await self.loop.create_connection(
                 lambda: TcpConnection(self, self.log, self.loop),
-                host, port)
+                host, port,
+                ssl=self._ssl_context_factory())
 
         self._pool[(host, port)] = protocol
 
@@ -377,7 +390,7 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
                 and message.remote._ctx is self:
             return True
 
-        if message.requested_scheme == 'coap+tcp':
+        if message.requested_scheme == self._scheme:
             # FIXME: This could pool outgoing connections.
             # (Checking if an incoming connection is a pool candidate is
             # probably overkill because even if a URI can be constructed from a
