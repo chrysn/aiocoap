@@ -304,8 +304,8 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
 
     async def fill_or_recognize_remote(self, message):
         if message.remote is not None \
-                and isinstance(message.remote, TCPEndpointAddress) \
-                and message.remote.interface is self:
+                and isinstance(message.remote, TcpConnection) \
+                and message.remote._ctx is self:
             return True
 
         return False
@@ -332,7 +332,7 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
             if host is None:
                 raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
         else:
-            pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
+            pseudoparsed = urllib.parse.SplitResult(None, message.unresolved_remote, None, None, None)
             host = pseudoparsed.hostname
             port = pseudoparsed.port or COAP_PORT
 
@@ -372,8 +372,8 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
 
     async def fill_or_recognize_remote(self, message):
         if message.remote is not None \
-                and isinstance(message.remote, TCPEndpointAddress) \
-                and message.remote.interface is self:
+                and isinstance(message.remote, TcpConnection) \
+                and message.remote._ctx is self:
             return True
 
         if message.requested_scheme == 'coap+tcp':
