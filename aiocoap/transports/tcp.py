@@ -155,6 +155,7 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
         self._transport.write(_serialize(msg))
 
     def abort(self, errormessage=None, bad_csm_option=None):
+        self.log.warning("Aborting connection: %s", errormessage)
         abort_msg = Message(code=ABORT)
         if errormessage is not None:
             abort_msg.payload = errormessage.encode('utf8')
@@ -196,7 +197,7 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
                 break
             msglen = sum(msglen)
             if msglen > self._my_max_message_size:
-                self.abort()
+                self.abort("Overly large message announced")
                 return
 
             if msglen > len(self._spool):
@@ -206,7 +207,6 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
             try:
                 msg = _decode_message(msg)
             except error.UnparsableMessage:
-                self.log.warning("Received unparsable stream, aborting")
                 self.abort("Failed to parse message")
                 return
             msg.remote = self
