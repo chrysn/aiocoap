@@ -10,7 +10,7 @@ import asyncio
 import weakref
 import urllib.parse
 
-from aiocoap import interfaces, optiontypes
+from aiocoap import interfaces, optiontypes, error
 from aiocoap import COAP_PORT, Message
 from aiocoap.numbers.codes import CSM, PING, PONG, RELEASE, ABORT
 
@@ -49,7 +49,7 @@ def _extract_message_size(data: bytes):
 def _decode_message(data: bytes) -> Message:
     tokenoffset, tkl, _ = _extract_message_size(data)
     if tkl > 8:
-        raise UnparsableMessage("Overly long token")
+        raise error.UnparsableMessage("Overly long token")
     code = data[tokenoffset - 1]
     token = data[tokenoffset:tokenoffset + tkl]
 
@@ -206,6 +206,7 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
             try:
                 msg = _decode_message(msg)
             except error.UnparsableMessage:
+                self.log.warning("Received unparsable stream, aborting")
                 self.abort("Failed to parse message")
                 return
             msg.remote = self
