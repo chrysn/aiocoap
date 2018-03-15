@@ -860,7 +860,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         assembled_response = initial_response
         last_response = initial_response
         while True:
-            current_block2 = request_to_repeat._generate_next_block2_request(last_response)
+            current_block2 = request_to_repeat._generate_next_block2_request(assembled_response)
 
             current_block2 = current_block2.copy(remote=initial_response.remote)
 

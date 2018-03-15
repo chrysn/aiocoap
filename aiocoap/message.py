@@ -11,7 +11,7 @@ import struct
 import copy
 import string
 
-from . import error
+from . import error, optiontypes
 from .numbers import *
 from .options import Options
 from .util import hostportjoin, Sentinel
@@ -286,9 +286,11 @@ class Message(object):
             raise ValueError("_append_response_block only works on responses.")
 
         block2 = next_block.opt.block2
-        if block2.more and len(next_block.payload) != block2.size:
+        if not block2.is_valid_for_payload_size(len(next_block.payload)):
             raise error.UnexpectedBlock2("Payload size does not match Block2")
         if block2.start != len(self.payload):
+            # Does not need to be implemented as long as the requesting code
+            # sequentially clocks out data
             raise error.NotImplemented()
 
         if next_block.opt.etag != self.opt.etag:
@@ -300,20 +302,31 @@ class Message(object):
         self.mid = next_block.mid
 
     def _generate_next_block2_request(self, response):
-        """Generate a request for next response block.
+        """Generate a sub-request for next response block.
 
         This method is used by client after receiving blockwise response from
         server with "more" flag set."""
-        if response.opt.block2.block_number == 0 and response.opt.block2.size_exponent > DEFAULT_BLOCK_SIZE_EXP:
-            new_size_exponent = DEFAULT_BLOCK_SIZE_EXP
-            new_block_number = 2 ** (response.opt.block2.size_exponent - new_size_exponent)
-            blockopt = (new_block_number, False, new_size_exponent)
-        else:
-            blockopt = (response.opt.block2.block_number + 1, False, response.opt.block2.size_exponent)
+
+        # Note: response here is the assembled response, but (due to
+        # _append_response_block's workings) it carries the Block2 option of
+        # the last received block.
+
+        next_after_received = len(response.payload) // response.opt.block2.size
+        blockopt = optiontypes.BlockOption.BlockwiseTuple(
+                next_after_received, False, response.opt.block2.size_exponent)
+
+        # has been checked in assembly, just making sure
+        assert blockopt.start == len(response.payload)
+
+        # FIXME: Until there is a per-connection DEFAULT_BLOCK_SIZE_EXP,
+        # this will trigger when receiving and negotiate the transfer down
+        # to 1k blocks.
+        blockopt = blockopt.reduced_to(DEFAULT_BLOCK_SIZE_EXP)
 
         return self.copy(
                 payload=b"",
                 mid=None,
+                token=None,
                 block2=blockopt,
                 block1=None,
                 observe=None
