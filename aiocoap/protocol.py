@@ -736,7 +736,10 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             # ... send a chunk
 
             if len(app_request.payload) > (2 ** (size_exp + 4)):
-                current_block1 = app_request._extract_block(block_cursor, size_exp)
+                current_block1 = app_request._extract_block(
+                        block_cursor,
+                        size_exp,
+                        app_request.remote.maximum_payload_size)
             else:
                 current_block1 = app_request
 

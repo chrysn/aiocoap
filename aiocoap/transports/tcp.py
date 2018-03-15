@@ -254,6 +254,16 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
 
     @property
     def maximum_block_size_exp(self):
+        if self._remote_settings is None:
+            # This is assuming that we can do BERT, so a first Block1 would be
+            # exponent 7 but still only 1k -- because by the time we send this,
+            # we typically haven't seen a CSM yet, so we'd be stuck with 6
+            # because 7959 says we can't increase the exponent...
+            #
+            # FIXME: test whether we're properly using lower block sizes if
+            # server says that szx=7 is not OK.
+            return 7
+
         max_message_size = (self._remote_settings or {}).get('max-message-size', 1152)
         has_blockwise = (self._remote_settings or {}).get('block-wise-transfer', False)
         if max_message_size > 1152 and has_blockwise:

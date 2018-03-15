@@ -235,11 +235,10 @@ class Message(object):
     # splitting and merging messages into and from message blocks
     #
 
-    def _extract_block(self, number, size_exp, max_bert_size=None):
+    def _extract_block(self, number, size_exp, max_bert_size):
         """Extract block from current message."""
         if size_exp == 7:
             start = number * 1024
-            assert max_bert_size is not None
             size = max_bert_size
         else:
             size = 2 ** (size_exp + 4)
