@@ -152,6 +152,7 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
             self.abort("Unknown signalling code")
 
     def _send_message(self, msg: Message):
+        self.log.debug("Sending message: %r", msg)
         self._transport.write(_serialize(msg))
 
     def abort(self, errormessage=None, bad_csm_option=None):
@@ -210,6 +211,8 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
                 self.abort("Failed to parse message")
                 return
             msg.remote = self
+
+            self.log.debug("Received message: %r", msg)
 
             self._spool = self._spool[msglen:]
 
