@@ -11,6 +11,7 @@ especially with respect to request and response handling."""
 
 import abc
 from asyncio import coroutine
+from aiocoap.numbers.constants import DEFAULT_BLOCK_SIZE_EXP
 
 from typing import Optional, Callable
 
@@ -97,6 +98,15 @@ class EndpointAddress(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def is_multicast_locally(self):
         """True if the local address is a multicast address, otherwise false."""
+
+    maximum_block_size_exp = DEFAULT_BLOCK_SIZE_EXP
+    """The maximum negotiated block size that can be sent to this remote."""
+
+    maximum_payload_size = 1024
+    """The maximum payload size that can be sent to this remote. Only relevant
+    if maximum_block_size_exp is 7. This will be removed in favor of a maximum
+    message size when the block handlers can get serialization length
+    predictions from the remote. Must be divisible by 1024."""
 
 class MessageManager(metaclass=abc.ABCMeta):
     """The interface an entity that drives a MessageInterface provides towards

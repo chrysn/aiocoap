@@ -239,9 +239,8 @@ class Message(object):
         """Extract block from current message."""
         if size_exp == 7:
             start = number * 1024
-            assert max_bert_size is None
-            # FIXME: wild guess: 16k blocks
-            size = 1024 * 16
+            assert max_bert_size is not None
+            size = max_bert_size
         else:
             size = 2 ** (size_exp + 4)
             start = number * size
@@ -327,10 +326,7 @@ class Message(object):
         # has been checked in assembly, just making sure
         assert blockopt.start == len(response.payload)
 
-        # FIXME: Until there is a per-connection DEFAULT_BLOCK_SIZE_EXP,
-        # this will trigger when receiving and negotiate the transfer down
-        # to 1k blocks.
-        blockopt = blockopt.reduced_to(DEFAULT_BLOCK_SIZE_EXP)
+        blockopt = blockopt.reduced_to(response.remote.maximum_block_size_exp)
 
         return self.copy(
                 payload=b"",

@@ -365,7 +365,9 @@ class Context(interfaces.RequestProvider):
 
             response = response._extract_block(
                     request.opt.block2.block_number,
-                    request.opt.block2.size_exponent)
+                    request.opt.block2.size_exponent,
+                    request.remote.maximum_payload_size
+                    )
             plumbing_request.add_response(
                     response,
                     is_last=True)
@@ -443,9 +445,9 @@ class Context(interfaces.RequestProvider):
 
         if needs_blockwise and (
                 len(response.payload) > (
-                    1024
-                    if response.opt.block2 is None
-                    else response.opt.block2.size)):
+                    request.remote.maximum_payload_size
+                    if request.opt.block2 is None
+                    else request.opt.block2.size)):
 
             if block_key in self._block2_assemblies:
                 _, canceler = self._block2_assemblies.pop(block_key)
@@ -462,7 +464,7 @@ class Context(interfaces.RequestProvider):
                     else DEFAULT_BLOCK_SIZE_EXP
             # if a requested block2 number were not 0, the code would have
             # diverted earlier to serve from active operations
-            response = response._extract_block(0, szx)
+            response = response._extract_block(0, szx, request.remote.maximum_payload_size)
 
         if needs_blockwise:
             response.opt.block1 = immediate_response_block1
