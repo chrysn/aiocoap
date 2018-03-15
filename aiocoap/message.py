@@ -235,10 +235,16 @@ class Message(object):
     # splitting and merging messages into and from message blocks
     #
 
-    def _extract_block(self, number, size_exp):
+    def _extract_block(self, number, size_exp, max_bert_size=None):
         """Extract block from current message."""
-        size = 2 ** (size_exp + 4)
-        start = number * size
+        if size_exp == 7:
+            start = number * 1024
+            assert max_bert_size is None
+            # FIXME: wild guess: 16k blocks
+            size = 1024 * 16
+        else:
+            size = 2 ** (size_exp + 4)
+            start = number * size
 
         if start >= len(self.payload):
             raise error.BadRequest("Block request out of bounds")
