@@ -64,7 +64,7 @@ def _encode_length(l: int):
         return (l, b"")
     elif l < 269:
         return (13, (l - 13).to_bytes(1, 'big'))
-    elif l < 65535:
+    elif l < 65805:
         return (14, (l - 269).to_bytes(2, 'big'))
     else:
         return (15, (l - 65805).to_bytes(4, 'big'))
