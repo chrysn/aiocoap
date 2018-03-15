@@ -239,25 +239,28 @@ class Message(object):
         """Extract block from current message."""
         size = 2 ** (size_exp + 4)
         start = number * size
-        if start < len(self.payload):
-            end = start + size if start + size < len(self.payload) else len(self.payload)
-            more = True if end < len(self.payload) else False
 
-            payload = self.payload[start:end]
-            blockopt = (number, more, size_exp)
+        if start >= len(self.payload):
+            raise error.BadRequest("Block request out of bounds")
 
-            if self.code.is_request():
-                return self.copy(
-                        payload=payload,
-                        mid=None,
-                        block1=blockopt
-                        )
-            else:
-                return self.copy(
-                        payload=payload,
-                        mid=None,
-                        block2=blockopt
-                        )
+        end = start + size if start + size < len(self.payload) else len(self.payload)
+        more = True if end < len(self.payload) else False
+
+        payload = self.payload[start:end]
+        blockopt = (number, more, size_exp)
+
+        if self.code.is_request():
+            return self.copy(
+                    payload=payload,
+                    mid=None,
+                    block1=blockopt
+                    )
+        else:
+            return self.copy(
+                    payload=payload,
+                    mid=None,
+                    block2=blockopt
+                    )
 
     def _append_request_block(self, next_block):
         """Modify message by appending another block"""
