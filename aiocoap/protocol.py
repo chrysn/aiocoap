@@ -32,7 +32,7 @@ from .messagemanager import MessageManager
 from .tokenmanager import TokenManager, PlumbingRequest
 from . import interfaces
 from . import error
-from .numbers import (COAP_PORT, DEFAULT_BLOCK_SIZE_EXP, INTERNAL_SERVER_ERROR,
+from .numbers import (COAP_PORT, INTERNAL_SERVER_ERROR,
         SERVICE_UNAVAILABLE, CONTENT, CONTINUE, REQUEST_ENTITY_INCOMPLETE,
         OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT)
 from .numbers.optionnumbers import OptionNumber
@@ -263,6 +263,8 @@ class Context(interfaces.RequestProvider):
 
         await asyncio.wait([ri.shutdown() for ri in self.request_interfaces], timeout=3, loop=self.loop)
 
+    # FIXME: determine how official this should be, or which part of it is
+    # public -- now that BlockwiseRequest uses it.
     async def find_remote_and_interface(self, message):
         for ri in self.request_interfaces:
             if await ri.fill_or_recognize_remote(message):
@@ -461,7 +463,7 @@ class Context(interfaces.RequestProvider):
             self._block2_assemblies[block_key] = (response, canceler)
 
             szx = request.opt.block2 if request.opt.block2 is not None \
-                    else DEFAULT_BLOCK_SIZE_EXP
+                    else request.remote.maximum_block_size_exp
             # if a requested block2 number were not 0, the code would have
             # diverted earlier to serve from active operations
             response = response._extract_block(0, szx, request.remote.maximum_payload_size)
@@ -713,18 +715,22 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
     # task running.
     @classmethod
     async def _run(cls, app_request, response, weak_observation, protocol, log):
-        size_exp = DEFAULT_BLOCK_SIZE_EXP
+        # we need to populate the remote right away, because the choice of
+        # blocks depends on it.
+        await protocol.find_remote_and_interface(app_request)
+
+        size_exp = app_request.remote.maximum_block_size_exp
 
         if app_request.opt.block1 is not None:
             assert app_request.opt.block1.block_number == 0, "Unexpected block number in app_request"
             assert app_request.opt.block1.more == False, "Unexpected more-flag in app_request"
+            # this is where the library user can traditionally pass in size
+            # exponent hints into the library.
             size_exp = app_request.opt.block1.size_exponent
 
         # Offset in the message in blocks of size_exp. Whoever changes size_exp
         # is responsible for updating this number.
         block_cursor = 0
-
-        remote = None
 
         while True:
             # ... send a chunk
@@ -734,14 +740,13 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             else:
                 current_block1 = app_request
 
-            if remote is not None:
-                current_block1 = current_block1.copy(remote=remote)
-
             blockrequest = protocol.request(current_block1, handle_blockwise=False)
             blockresponse = await blockrequest.response
 
-            # store for future blocks: don't resolve the address again
-            remote = blockresponse.remote
+            # store for future blocks to ensure that the next blocks will be
+            # sent from the same source address (in the UDP case; for many
+            # other transports it won't matter).
+            app_request.remote = blockresponse.remote
 
             if blockresponse.opt.block1 is None:
                 if blockresponse.code.is_successful() and current_block1.opt.block1:
