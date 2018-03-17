@@ -396,7 +396,7 @@ class PlugtestServerProgram(AsyncCLIDaemon):
         p.add_argument("contextdir", nargs="?", help="Directory name where to persist sequence numbers")
         p.add_argument('--verbose', help="Increase log level", action='store_true')
         p.add_argument('--server-address', help="Address to bind to", metavar="HOST", default="::")
-        p.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=aiocoap.COAP_PORT, type=int)
+        p.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=None, type=int)
         opts = p.parse_args()
 
         if opts.verbose:

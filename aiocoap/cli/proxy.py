@@ -25,7 +25,7 @@ def build_parser():
 
     details = p.add_argument_group("details", "Options that govern how requests go in and out")
     details.add_argument('--server-address', help="Address to bind the server context to", metavar="HOST", default="::")
-    details.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=aiocoap.COAP_PORT, type=int)
+    details.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=None, type=int)
     details.add_argument('--proxy', help="Relay outgoing requests through yet another proxy", metavar="HOST[:PORT]")
     details.add_argument('--dump-client', help="Log network traffic from clients to FILE", metavar="FILE")
     details.add_argument('--dump-server', help="Log network traffic to servers to FILE", metavar="FILE")

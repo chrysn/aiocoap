@@ -192,6 +192,9 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
     @classmethod
     async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to, bind):
+        bind = bind or ('::', None)
+        bind = (bind[0], bind[1] or COAP_PORT)
+
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

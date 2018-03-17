@@ -508,7 +508,7 @@ def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
 
     p.add_argument('--server-address', help="Address to bind the server context to", metavar="HOST", default="::")
-    p.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=aiocoap.COAP_PORT, type=int)
+    p.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=None, type=int)
 
     return p
 

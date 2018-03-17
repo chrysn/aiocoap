@@ -323,15 +323,13 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         self.log = log
         #self.loop = loop
 
+        bind = bind or ('::', None)
+        bind = (bind[0], bind[1] or self._default_port)
+
         def new_connection():
             c = TcpConnection(self, log, loop)
             self._pool.add(c)
             return c
-
-        if bind[1] == COAP_PORT:
-            # FIXME: crude workaround against explicit values being set earlier
-            # in the chain
-            bind = (bind[0], self._default_port)
 
         server = await loop.create_server(new_connection, bind[0], bind[1],
                 ssl=self._ssl_context_factory())
