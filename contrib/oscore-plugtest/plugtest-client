@@ -35,6 +35,15 @@ class ProtectedRequester(interfaces.RequestProvider):
         self.log = logging.getLogger('protected-requester')
         self.exchange_monitor_factory = lambda message: None
 
+    async def find_remote_and_interface(self, message):
+        # An OSCORE protected requester does not need no remotes, it just
+        # answers. This satisfies the interface requirements brought about by
+        # BERT.
+        class PseudoRemote:
+            maximum_payload_size = 1024
+            maximum_block_size_exp = 6
+        message.remote = PseudoRemote()
+
     def request(self, request_message, handle_blockwise=True, exchange_monitor_factory=lambda message:None):
         # "handle_blockwise" means inner blockwise here
 
