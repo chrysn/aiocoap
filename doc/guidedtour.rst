@@ -83,7 +83,7 @@ message::
     >>> from aiocoap import *
     >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
     >>> print(msg)
-    <aiocoap.Message at 0x0123deadbeef: None GET (ID None, token b'') remote None, 2 option(s)>
+    <aiocoap.Message at 0x0123deadbeef: no mtype, GET (no MID, empty token) remote None, 2 option(s)>
 
 The message consists of several parts. The non-optional ones are largely
 handled by aiocoap (message type, ID, token and remote are all None or empty
@@ -115,7 +115,7 @@ processing in the meantime. For now, all we want is to wait until the response
 is ready::
 
     >>> await protocol.request(msg).response
-    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (ID 51187, token b'\x00\x00\x81\x99') remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
+    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
 
 Here, we have a successful message ("2.05 Content" is the rough equivalent of
 HTTP's "200 OK", and the 186 bytes of payload look promising). Until we can
@@ -144,7 +144,7 @@ accordingly. Now we can run what did not work before::
     ...     response = await protocol.request(msg).response
     ...     print(response)
     >>> run(main())
-    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (ID 51187, token b'\x00\x00\x81\x99') remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
+    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
 
 That's better!
 
@@ -161,7 +161,7 @@ To dissect the response, let's make sure we have it available::
     >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
     >>> response = run(protocol.request(msg).response)
     >>> print(response)
-    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (ID 51187, token b'\x00\x00\x81\x99') remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
+    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
 
 The response obtained in the main function is a message like the request
 message, just that it has a different code (2.05 is of the successful 2.00
