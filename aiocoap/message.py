@@ -127,12 +127,12 @@ class Message(object):
             setattr(self.opt, k, v)
 
     def __repr__(self):
-        return "<aiocoap.Message at %#x: %s %s (ID %r, token %r) remote %s%s%s>"%(
+        return "<aiocoap.Message at %#x: %s %s (%s, %s) remote %s%s%s>"%(
                 id(self),
-                self.mtype,
+                self.mtype if self.mtype is not None else "no mtype,",
                 self.code,
-                self.mid,
-                self.token,
+                "MID %s" % self.mid if self.mid is not None else "no MID",
+                "token %s" % self.token.hex() if self.token else "empty token",
                 self.remote,
                 ", %s option(s)"%len(self.opt._options) if self.opt._options else "",
                 ", %s byte(s) payload"%len(self.payload) if self.payload else ""

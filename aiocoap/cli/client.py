@@ -164,7 +164,13 @@ async def single_request(args, context=None):
             print("Name resolution error:", e, file=sys.stderr)
             sys.exit(1)
         except OSError as e:
-            print("Error:", e, file=sys.stderr)
+            text = str(e)
+            if not text:
+                text = repr(e)
+            if not text:
+                # eg ConnectionResetError flying out of a misconfigured SSL server
+                text = type(e)
+            print("Error:", text, file=sys.stderr)
             sys.exit(1)
 
         if response_data.code.is_successful():
