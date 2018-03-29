@@ -96,7 +96,7 @@ class TestNoncoapTCPClient(WithTestServer):
         # it's not a per-spec wrong thing to do, but highly unusual
         self.assertEqual(messages, [], "Server sent messages on its own")
 
-    @precise_warnings(["Aborting connection: No CSM received"])
+    @precise_warnings(["Aborting connection: Failed to parse message"])
     @asynctest
     async def test_http_get(self):
         await self.should_abort_early(b'GET /.well-known/core HTTP/1.0')
