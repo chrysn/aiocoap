@@ -15,7 +15,7 @@ import argparse
 import aiocoap
 from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ReverseProxyWithPooledObservations, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector
 from aiocoap.util.cli import AsyncCLIDaemon
-from aiocoap.cli.common import add_server_arguments
+from aiocoap.cli.common import add_server_arguments, server_context_from_arguments
 
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
@@ -71,7 +71,7 @@ class Main(AsyncCLIDaemon):
                 raise AssertionError('Unknown redirectory kind')
             proxy.add_redirector(r)
 
-        self.proxy_context = await aiocoap.Context.create_server_context(proxy, dump_to=options.dump_client, bind=options.bind)
+        self.proxy_context = await server_context_from_arguments(proxy, options, dump_to=options.dump_client)
 
     async def shutdown(self):
         await self.outgoing_context.shutdown()

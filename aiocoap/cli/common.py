@@ -17,6 +17,7 @@ import sys
 import argparse
 
 from ..util import hostportsplit
+from ..protocol import Context
 
 class _HelpBind(argparse.Action):
     def __init__(self, *args, **kwargs):
@@ -39,3 +40,12 @@ def add_server_arguments(parser):
     parser.add_argument('--bind', help="Host and/or port to bind to (see --help-bind for details)", type=hostportsplit, default=None)
 
     parser.add_argument('--help-bind', help=argparse.SUPPRESS, action=_HelpBind)
+
+async def server_context_from_arguments(site, namespace, **kwargs):
+    """Create a bound context like
+    :meth:`.aiocoap.Context.create_server_context`, but take the bind and TLS
+    settings from a namespace returned from an argparse parser that has had
+    :func:`add_server_arguments` run on it.
+    """
+
+    return await Context.create_server_context(site, namespace.bind, **kwargs)

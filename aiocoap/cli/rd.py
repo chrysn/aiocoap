@@ -32,7 +32,7 @@ import aiocoap
 from aiocoap.resource import Site, Resource, ObservableResource, PathCapable, WKCResource
 from aiocoap.util.cli import AsyncCLIDaemon
 from aiocoap import error
-from aiocoap.cli.common import add_server_arguments
+from aiocoap.cli.common import add_server_arguments, server_context_from_arguments
 
 import link_header
 from link_header import Link, LinkHeader
@@ -519,7 +519,7 @@ class Main(AsyncCLIDaemon):
 
         self.site = StandaloneResourceDirectory()
 
-        self.context = await aiocoap.Context.create_server_context(self.site, bind=options.bind)
+        self.context = await server_context_from_arguments(self.site, options)
         self.site.set_context(self.context)
 
     async def shutdown(self):

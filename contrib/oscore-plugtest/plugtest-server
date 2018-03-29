@@ -24,7 +24,7 @@ import aiocoap.error as error
 from aiocoap.util.cli import AsyncCLIDaemon
 import aiocoap.resource as resource
 from aiocoap.credentials import CredentialsMap
-from aiocoap.cli.common import add_server_arguments
+from aiocoap.cli.common import add_server_arguments, server_context_from_arguments
 
 from plugtest_common import *
 
@@ -408,7 +408,7 @@ class PlugtestServerProgram(AsyncCLIDaemon):
         server_credentials = CredentialsMap()
         server_credentials[':plugtest'] = get_security_context(0, 'server', opts.contextdir)
 
-        self.context = await aiocoap.Context.create_server_context(PlugtestSite(server_credentials), bind=opts.bind)
+        self.context = await server_context_from_arguments(PlugtestSite(server_credentials), opts)
 
         print("Plugtest server ready.")
         sys.stdout.flush() # the unit tests might wait abundantly long for this otherwise
