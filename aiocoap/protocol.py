@@ -196,7 +196,7 @@ class Context(interfaces.RequestProvider):
         return self
 
     @classmethod
-    async def create_server_context(cls, site, bind=None, *, dump_to=None, loggername="coap-server", loop=None):
+    async def create_server_context(cls, site, bind=None, *, dump_to=None, loggername="coap-server", loop=None, _ssl_context=None):
         """Create an context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -240,9 +240,10 @@ class Context(interfaces.RequestProvider):
                 await self._append_tokenmanaged_transport(
                     lambda tman: TCPClient.create_client_transport(tman, self.log, loop))
             elif transportname == 'tlsserver':
-                from .transports.tls import TLSServer
-                await self._append_tokenmanaged_transport(
-                    lambda tman: TLSServer.create_server(bind, tman, self.log, loop))
+                if _ssl_context is not None:
+                    from .transports.tls import TLSServer
+                    await self._append_tokenmanaged_transport(
+                        lambda tman: TLSServer.create_server(bind, tman, self.log, loop, _ssl_context))
             elif transportname == 'tlsclient':
                 from .transports.tls import TLSClient
                 await self._append_tokenmanaged_transport(

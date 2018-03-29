@@ -309,15 +309,13 @@ class _TCPPooling:
     # for diverting behavior of _TLSMixIn
     _scheme = 'coap+tcp'
     _default_port = COAP_PORT
-    def _ssl_context_factory(self):
-        return None
 
 class TCPServer(_TCPPooling, interfaces.TokenInterface):
     def __init__(self):
         self._pool = set()
 
     @classmethod
-    async def create_server(cls, bind, tman: interfaces.TokenManager, log, loop):
+    async def create_server(cls, bind, tman: interfaces.TokenManager, log, loop, *, _server_context=None):
         self = cls()
         self._tokenmanager = tman
         self.log = log
@@ -332,7 +330,7 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
             return c
 
         server = await loop.create_server(new_connection, bind[0], bind[1],
-                ssl=self._ssl_context_factory())
+                ssl=_server_context)
         self.server = server
 
         return self
@@ -386,6 +384,10 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
         self._pool[(host, port)] = protocol
 
         return protocol
+
+    # for diverting behavior of TLSClient
+    def _ssl_context_factory(self):
+        return None
 
     def _evict_from_pool(self, connection):
         keys = []

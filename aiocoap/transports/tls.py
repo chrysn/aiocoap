@@ -30,11 +30,9 @@ class _TLSMixIn:
     _default_port = COAPS_PORT
 
 class TLSServer(_TLSMixIn, TCPServer):
-    def _ssl_context_factory(self):
-        c = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        c.load_cert_chain(certfile="/tmp/cert.pem", keyfile="/tmp/key.pem")
-        c.set_alpn_protocols(["coap"])
-        return c
+    @classmethod
+    async def create_server(cls, bind, tman, log, loop, server_context):
+        return await super().create_server(bind, tman, log, loop, _server_context=server_context)
 
 class TLSClient(_TLSMixIn, TCPClient):
     def _ssl_context_factory(self):

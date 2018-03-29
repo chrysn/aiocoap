@@ -39,6 +39,9 @@ def add_server_arguments(parser):
 
     parser.add_argument('--bind', help="Host and/or port to bind to (see --help-bind for details)", type=hostportsplit, default=None)
 
+    parser.add_argument('--tls-server-certificate', help="TLS certificate (chain) to present to connecting clients (in PEM format)", metavar="CRT")
+    parser.add_argument('--tls-server-key', help="TLS key to load that supports the server certificate", metavar="KEY")
+
     parser.add_argument('--help-bind', help=argparse.SUPPRESS, action=_HelpBind)
 
 async def server_context_from_arguments(site, namespace, **kwargs):
@@ -48,4 +51,13 @@ async def server_context_from_arguments(site, namespace, **kwargs):
     :func:`add_server_arguments` run on it.
     """
 
-    return await Context.create_server_context(site, namespace.bind, **kwargs)
+    if namespace.tls_server_certificate:
+        import ssl
+
+        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ssl_context.load_cert_chain(certfile=namespace.tls_server_certificate, keyfile=namespace.tls_server_key)
+        ssl_context.set_alpn_protocols(["coap"])
+    else:
+        ssl_context = None
+
+    return await Context.create_server_context(site, namespace.bind, _ssl_context=ssl_context, **kwargs)
