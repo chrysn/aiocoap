@@ -14,12 +14,13 @@ from .test_server import WithAsyncLoop, Destructing, WithClient, TestServer, CLE
 from .test_client import TestClientWithSetHost
 import aiocoap.proxy.client
 import aiocoap.cli.proxy
+from aiocoap.util import hostportjoin
 
 class WithProxyServer(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithProxyServer, self).setUp()
 
-        self.forwardproxy = aiocoap.cli.proxy.Main(["--forward", "--server-port", str(self.proxyport), "--server-address", self.proxyhost])
+        self.forwardproxy = aiocoap.cli.proxy.Main(["--forward", "--bind", hostportjoin(self.proxyhost, self.proxyport)])
         self.loop.run_until_complete(self.forwardproxy.initializing)
 
     def tearDown(self):

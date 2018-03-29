@@ -14,6 +14,7 @@ import asyncio
 import unittest
 
 import aiocoap
+from aiocoap.util import hostportjoin
 
 from .test_server import WithAsyncLoop, Destructing, WithClient, asynctest
 
@@ -31,7 +32,7 @@ class WithResourceDirectory(WithAsyncLoop, Destructing):
     def setUp(self):
         super().setUp()
 
-        self.rd = aiocoap.cli.rd.Main(['--server-address', '::1', '--server-port', str(self.rd_port)])
+        self.rd = aiocoap.cli.rd.Main(['--bind', hostportjoin('::1', self.rd_port)])
         self.loop.run_until_complete(self.rd.initializing)
 
     def tearDown(self):

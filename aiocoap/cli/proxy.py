@@ -15,6 +15,7 @@ import argparse
 import aiocoap
 from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ReverseProxyWithPooledObservations, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector
 from aiocoap.util.cli import AsyncCLIDaemon
+from aiocoap.cli.common import add_server_arguments
 
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
@@ -24,8 +25,7 @@ def build_parser():
     mode.add_argument('--reverse', help="Run as reverse proxy", action='store_const', const=ReverseProxyWithPooledObservations, dest='direction')
 
     details = p.add_argument_group("details", "Options that govern how requests go in and out")
-    details.add_argument('--server-address', help="Address to bind the server context to", metavar="HOST", default="::")
-    details.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=None, type=int)
+    add_server_arguments(details)
     details.add_argument('--proxy', help="Relay outgoing requests through yet another proxy", metavar="HOST[:PORT]")
     details.add_argument('--dump-client', help="Log network traffic from clients to FILE", metavar="FILE")
     details.add_argument('--dump-server', help="Log network traffic to servers to FILE", metavar="FILE")
@@ -71,7 +71,7 @@ class Main(AsyncCLIDaemon):
                 raise AssertionError('Unknown redirectory kind')
             proxy.add_redirector(r)
 
-        self.proxy_context = await aiocoap.Context.create_server_context(proxy, dump_to=options.dump_client, bind=(options.server_address, options.server_port))
+        self.proxy_context = await aiocoap.Context.create_server_context(proxy, dump_to=options.dump_client, bind=options.bind)
 
     async def shutdown(self):
         await self.outgoing_context.shutdown()
