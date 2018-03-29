@@ -265,7 +265,9 @@ class Context(interfaces.RequestProvider):
         await asyncio.wait([ri.shutdown() for ri in self.request_interfaces], timeout=3, loop=self.loop)
 
     # FIXME: determine how official this should be, or which part of it is
-    # public -- now that BlockwiseRequest uses it.
+    # public -- now that BlockwiseRequest uses it. (And formalize what can
+    # change about messages and what can't after the remote has been thusly
+    # populated).
     async def find_remote_and_interface(self, message):
         for ri in self.request_interfaces:
             if await ri.fill_or_recognize_remote(message):
