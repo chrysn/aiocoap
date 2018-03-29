@@ -324,7 +324,7 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         #self.loop = loop
 
         bind = bind or ('::', None)
-        bind = (bind[0], bind[1] or self._default_port)
+        bind = (bind[0], bind[1] + (self._default_port - COAP_PORT) if bind[1] else self._default_port)
 
         def new_connection():
             c = TcpConnection(self, log, loop)

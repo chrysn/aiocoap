@@ -29,7 +29,7 @@ class _HelpBind(argparse.Action):
                 "\n    host -- bind to default ports on a given host name (can also be an IP address; IPv6 addresses need to be in square brackets)"
                 "\n    host:port -- bind only to a specific port on a given host"
                 "\n\nBy default, the server will bind to all available addressess and protocols on the respective default ports."
-                "\nIf a port is specified, and (D)TLS support is available, starting a server is likely to fail."
+                "\nIf a port is specified, and (D)TLS support is available, those protocols will be bound to one port higher (as are the default ports, 5683 for CoAP and 5684 for CoAP over (D)TLS)."
                 "\n", file=sys.stderr)
         parser.exit()
 
