@@ -104,6 +104,8 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
         self._my_max_message_size = 1024 * 1024
         self._remote_settings = None
 
+        self._transport = None
+
     def _send_initial_csm(self):
         my_csm = Message(code=CSM)
         # this is a tad awkward in construction because the options objects
@@ -163,8 +165,15 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
         if bad_csm_option is not None:
             bad_csm_option_option = optiontypes.UintOption(2, bad_csm_option)
             abort_msg.opt.add_option(bad_csm_option_option)
-        self._send_message(abort_msg)
-        self._transport.close()
+        if self._transport is not None:
+            self._send_message(abort_msg)
+            self._transport.close()
+        else:
+            # FIXME: find out how this happens; i've only seen it after nmap
+            # runs against an aiocoap server and then shutting it down.
+            # "poisoning" the object to make sure this can not be exploited to
+            # bypass the server shutdown.
+            self._ctx = None
 
     # implementing asyncio.Protocol
 
@@ -300,6 +309,14 @@ class _TCPPooling:
     def _dispatch_error(self, connection, exc):
         self._evict_from_pool(connection)
 
+        if self._tokenmanager is None:
+            if exc is not None:
+                self.log.warning("Ignoring late error during shutdown: %s", exc)
+            else:
+                # it's just a regular connection loss, that's to be expected during shutdown
+                pass
+            return
+
         if isinstance(exc, OSError):
             self._tokenmanager.dispatch_error(exc.errno, connection)
         else:
@@ -354,7 +371,7 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
             # FIXME: it would be nicer to release them
             c.abort("Server shutdown")
         await self.server.wait_closed()
-        del self._tokenmanager
+        self._tokenmanager = None
 
 class TCPClient(_TCPPooling, interfaces.TokenInterface):
     def __init__(self):
