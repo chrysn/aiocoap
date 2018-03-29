@@ -32,6 +32,7 @@ import aiocoap
 from aiocoap.resource import Site, Resource, ObservableResource, PathCapable, WKCResource
 from aiocoap.util.cli import AsyncCLIDaemon
 from aiocoap import error
+from aiocoap.cli.common import add_server_arguments
 
 import link_header
 from link_header import Link, LinkHeader
@@ -507,8 +508,7 @@ class StandaloneResourceDirectory(Site):
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
 
-    p.add_argument('--server-address', help="Address to bind the server context to", metavar="HOST", default="::")
-    p.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=aiocoap.COAP_PORT, type=int)
+    add_server_arguments(p)
 
     return p
 
@@ -519,7 +519,7 @@ class Main(AsyncCLIDaemon):
 
         self.site = StandaloneResourceDirectory()
 
-        self.context = await aiocoap.Context.create_server_context(self.site, bind=(options.server_address, options.server_port))
+        self.context = await aiocoap.Context.create_server_context(self.site, bind=options.bind)
         self.site.set_context(self.context)
 
     async def shutdown(self):

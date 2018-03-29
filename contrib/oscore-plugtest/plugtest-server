@@ -24,6 +24,7 @@ import aiocoap.error as error
 from aiocoap.util.cli import AsyncCLIDaemon
 import aiocoap.resource as resource
 from aiocoap.credentials import CredentialsMap
+from aiocoap.cli.common import add_server_arguments
 
 from plugtest_common import *
 
@@ -395,8 +396,7 @@ class PlugtestServerProgram(AsyncCLIDaemon):
         p = argparse.ArgumentParser(description="Server for the OSCORE plug test. Requires a test number to be present.")
         p.add_argument("contextdir", nargs="?", help="Directory name where to persist sequence numbers")
         p.add_argument('--verbose', help="Increase log level", action='store_true')
-        p.add_argument('--server-address', help="Address to bind to", metavar="HOST", default="::")
-        p.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=aiocoap.COAP_PORT, type=int)
+        add_server_arguments(p)
         opts = p.parse_args()
 
         if opts.verbose:
@@ -408,7 +408,7 @@ class PlugtestServerProgram(AsyncCLIDaemon):
         server_credentials = CredentialsMap()
         server_credentials[':plugtest'] = get_security_context(0, 'server', opts.contextdir)
 
-        self.context = await aiocoap.Context.create_server_context(PlugtestSite(server_credentials), bind=(opts.server_address, opts.server_port))
+        self.context = await aiocoap.Context.create_server_context(PlugtestSite(server_credentials), bind=opts.bind)
 
         print("Plugtest server ready.")
         sys.stdout.flush() # the unit tests might wait abundantly long for this otherwise

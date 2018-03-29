@@ -96,7 +96,7 @@ class WithTestServer(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithTestServer, self).setUp()
 
-        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site(), bind=(self.serveraddress, aiocoap.COAP_PORT)))
+        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site(), bind=(self.serveraddress, None)))
 
     def tearDown(self):
         # let the server receive the acks we just sent

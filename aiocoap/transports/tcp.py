@@ -10,7 +10,7 @@ import asyncio
 import weakref
 import urllib.parse
 
-from aiocoap import interfaces, optiontypes, error
+from aiocoap import interfaces, optiontypes, error, util
 from aiocoap import COAP_PORT, Message
 from aiocoap.numbers.codes import CSM, PING, PONG, RELEASE, ABORT
 
@@ -323,15 +323,13 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         self.log = log
         #self.loop = loop
 
+        bind = bind or ('::', None)
+        bind = (bind[0], bind[1] + (self._default_port - COAP_PORT) if bind[1] else self._default_port)
+
         def new_connection():
             c = TcpConnection(self, log, loop)
             self._pool.add(c)
             return c
-
-        if bind[1] == COAP_PORT:
-            # FIXME: crude workaround against explicit values being set earlier
-            # in the chain
-            bind = (bind[0], self._default_port)
 
         server = await loop.create_server(new_connection, bind[0], bind[1],
                 ssl=self._ssl_context_factory())
@@ -374,9 +372,8 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
             if host is None:
                 raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
         else:
-            pseudoparsed = urllib.parse.SplitResult(None, message.unresolved_remote, None, None, None)
-            host = pseudoparsed.hostname
-            port = pseudoparsed.port or self._default_port
+            host, port = util.hostportsplit(message.unresolved_remote)
+            port = port or self._default_port
 
         if (host, port) in self._pool:
             return self._pool[(host, port)]
