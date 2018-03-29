@@ -10,7 +10,7 @@ import asyncio
 import weakref
 import urllib.parse
 
-from aiocoap import interfaces, optiontypes, error
+from aiocoap import interfaces, optiontypes, error, util
 from aiocoap import COAP_PORT, Message
 from aiocoap.numbers.codes import CSM, PING, PONG, RELEASE, ABORT
 
@@ -372,9 +372,8 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
             if host is None:
                 raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
         else:
-            pseudoparsed = urllib.parse.SplitResult(None, message.unresolved_remote, None, None, None)
-            host = pseudoparsed.hostname
-            port = pseudoparsed.port or self._default_port
+            host, port = util.hostportsplit(message.unresolved_remote)
+            port = port or self._default_port
 
         if (host, port) in self._pool:
             return self._pool[(host, port)]

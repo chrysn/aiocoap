@@ -9,7 +9,7 @@
 import asyncio
 import urllib
 
-from aiocoap import interfaces, error
+from aiocoap import interfaces, error, util
 from aiocoap import COAP_PORT, Message
 
 class GenericMessageInterface(interfaces.MessageInterface):
@@ -27,9 +27,8 @@ class GenericMessageInterface(interfaces.MessageInterface):
             return None
 
         if request.unresolved_remote is not None:
-            pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
-            host = pseudoparsed.hostname
-            port = pseudoparsed.port or COAP_PORT
+            host, port = util.hostportsplit(request.unresolved_remote)
+            port = port or COAP_PORT
         elif request.opt.uri_host:
             host = request.opt.uri_host
             port = request.opt.uri_port or COAP_PORT
