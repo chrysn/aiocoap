@@ -22,7 +22,7 @@ from .optiontypes import BlockOption
 from .util.asyncio import AsyncGenerator
 from .util import hostportjoin
 
-class TokenManager(interfaces.RequestProvider, interfaces.TokenManager):
+class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
     def __init__(self, context):
         self.context = context
 
