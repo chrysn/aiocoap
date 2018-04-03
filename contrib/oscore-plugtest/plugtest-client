@@ -16,6 +16,7 @@ description."""
 
 import argparse
 import asyncio
+import logging
 
 from aiocoap import *
 from aiocoap import interfaces
@@ -33,6 +34,13 @@ class PlugtestClientProgram:
         opts = p.parse_args()
 
         self.host = opts.host
+
+        # this needs to be called explicitly as only the
+        # 'logging.warning()'-style functions will call it; creating a
+        # sub-logger and logging from there makes the whole logging system not
+        # emit the 'WARNING' prefixes that set apart log messages from regular
+        # prints and also help the test suite catch warnings and errors
+        logging.basicConfig()
 
         security_context = get_security_context(opts.testno, 'client', opts.contextdir)
 

@@ -400,9 +400,9 @@ class PlugtestServerProgram(AsyncCLIDaemon):
         opts = p.parse_args()
 
         if opts.verbose:
-            logging.root.setLevel(logging.DEBUG)
+            logging.basicConfig(level=logging.DEBUG)
         else:
-            logging.root.setLevel(logging.WARNING)
+            logging.basicConfig(level=logging.WARNING)
 
 
         server_credentials = CredentialsMap()

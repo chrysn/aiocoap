@@ -26,8 +26,8 @@ CLIENT = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-client']
 
 class WithAssertNofaillines(unittest.TestCase):
     def assertNoFaillines(self, text_to_check, message):
-        """Assert that there are no lines that contain the phrase 'fail' in the
-        output, unless they are a 'Check passed' line.
+        """Assert that there are no lines that contain the phrase 'fail' or
+        'WARNING'/'ERROR' in the output, unless they are a 'Check passed' line.
 
         This is to check the output of the plugtest client, which may
         successfully report: 'Check passed: The validation failed. (Tag
@@ -35,7 +35,7 @@ class WithAssertNofaillines(unittest.TestCase):
 
         lines = text_to_check.decode('utf8').split('\n')
         lines = (l for l in lines if not l.startswith('Check passed:'))
-        errorlines = (l for l in lines if 'fail'in l)
+        errorlines = (l for l in lines if 'fail'in l or 'WARNING' in l or 'ERROR' in l)
         self.assertEqual([], list(errorlines), message)
 
 @unittest.skipIf(aiocoap.defaults.oscore_missing_modules(), "Mdules missing for running OSCORE tests: %s"%(aiocoap.defaults.oscore_missing_modules(),))
