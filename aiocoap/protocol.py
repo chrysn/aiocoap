@@ -190,6 +190,10 @@ class Context(interfaces.RequestProvider):
                 from .transports.tls import TLSClient
                 await self._append_tokenmanaged_transport(
                     lambda tman: TLSClient.create_client_transport(tman, self.log, loop))
+            elif transportname == 'oscore':
+                from .transports.oscore import TransportOSCORE
+                oscoretransport = TransportOSCORE(self, self)
+                self.request_interfaces.append(oscoretransport)
             else:
                 raise RuntimeError("Transport %r not know for client context creation"%transportname)
 
@@ -248,6 +252,9 @@ class Context(interfaces.RequestProvider):
                 from .transports.tls import TLSClient
                 await self._append_tokenmanaged_transport(
                     lambda tman: TLSClient.create_client_transport(tman, self.log, loop))
+            elif transportname == 'oscore':
+                from .transports.oscore import TransportOSCORE
+                oscoretransport = TransportOSCORE(self, self)
             else:
                 raise RuntimeError("Transport %r not know for server context creation"%transportname)
 
@@ -279,7 +286,7 @@ class Context(interfaces.RequestProvider):
             return BlockwiseRequest(self, request_message)
 
         plumbing_request = PlumbingRequest(request_message)
-        result = Request(plumbing_request, self.loop)
+        result = Request(plumbing_request, self.loop, self.log)
 
         async def send():
             try:
@@ -555,7 +562,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
 
     # FIXME: Implement timing out with REQUEST_TIMEOUT here
 
-    def __init__(self, plumbing_request, loop):
+    def __init__(self, plumbing_request, loop, log):
         self._plumbing_request = plumbing_request
 
         self.response = asyncio.Future()
@@ -566,6 +573,8 @@ class Request(interfaces.Request, BaseUnicastRequest):
             self.observation = None
 
         loop.create_task(self._run())
+
+        self.log = log
 
     @staticmethod
     def _add_response_properties(response, request):
