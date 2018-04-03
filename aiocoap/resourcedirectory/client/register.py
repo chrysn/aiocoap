@@ -244,7 +244,7 @@ class Registerer:
         finally:
             obtain.cancel()
 
-    def _run_inner(self, obtain):
+    async def _run_inner(self, obtain):
         errors = 0
         errors_max = 5
         failed_initialization = set()
