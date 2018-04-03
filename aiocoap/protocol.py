@@ -261,6 +261,15 @@ class Context(interfaces.RequestProvider):
         return self
 
     async def shutdown(self):
+        """Take down any listening sockets and stop all related timers.
+
+        After this coroutine terminates, and once all external references to
+        the object are dropped, it should be garbage-collectable.
+
+        This method may take the time to inform communications partners of
+        stopped observations (but currently does not)."""
+
+        self.log.debug("Shutting down context")
         for _, canceler in self._block1_assemblies.values():
             canceler()
         for _, canceler in self._block2_assemblies.values():
