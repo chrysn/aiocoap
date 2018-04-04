@@ -153,6 +153,13 @@ class Destructing(WithLogMonitoring):
 
         s = snapshot()
 
+        if self._outcome.errors:
+            # An error was already logged, and that error's backtrace usually
+            # creates references that make any attempt to detect lingering
+            # references fuitile. It'll show an error anyway, no use in
+            # polluting the logs.
+            return
+
         if s is not None:
             original_s = s
             if False: # enable this if you think that a longer timeout would help
