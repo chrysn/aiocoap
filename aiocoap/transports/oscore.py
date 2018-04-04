@@ -55,6 +55,7 @@ class TransportOSCORE(interfaces.RequestProvider):
             raise ValueError("Wire and context need to share an asyncio loop")
 
         self.loop = self._context.loop
+        self.log = self._context.log
 
     #
     # implement RequestInterface
@@ -101,14 +102,23 @@ class TransportOSCORE(interfaces.RequestProvider):
         # (Might be a good idea to model those after PlumbingRequest too,
         # though).
 
+        def _check(more, unprotected_response):
+            if more and not unprotected_response.code.is_successful():
+                self.log.warning("OSCORE protected message contained observe, but unprotected code is unsuccessful. Ignoring the observation.")
+                return False
+            return more
+
         try:
             protected_response = await wire_request.response
             unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)
             secctx._store()
 
             unprotected_response.remote = OSCOREAddress(self, secctx, protected_response.remote)
-            # FIXME: if i could tap into the underlying PlumbingRequest, that'd be a lot easier
+            # FIXME: if i could tap into the underlying PlumbingRequest, that'd
+            # be a lot easier -- and also get rid of the awkward _check
+            # code moved into its own function just to avoid duplication.
             more = protected_response.opt.observe is not None
+            more = _check(more, unprotected_response)
             request.add_response(unprotected_response, is_last=not more)
 
             if not more:
@@ -119,6 +129,7 @@ class TransportOSCORE(interfaces.RequestProvider):
                 secctx._store()
 
                 more = protected_response.opt.observe is not None
+                more = _check(more, unprotected_response)
 
                 unprotected_response.remote = OSCOREAddress(self, secctx, protected_response.remote)
                 # FIXME: discover is_last from the underlying response
