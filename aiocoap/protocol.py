@@ -492,6 +492,11 @@ class Context(interfaces.RequestProvider):
 
         can_continue = observe_requested and servobs._accepted and \
                 response.code.is_successful()
+        if observe_requested:
+            # see comment on _early_deregister in ServerObservation
+            if servobs._early_deregister:
+                can_continue = False
+            servobs._early_deregister = None
         if can_continue:
             # FIXME: observation numbers should actually not be per
             # asyncio.task, but per (remote, token). if a client renews an
@@ -516,7 +521,8 @@ class Context(interfaces.RequestProvider):
             if response.code is None:
                 response.code = CONTENT
 
-            can_continue = response.code.is_successful()
+            can_continue = response.code.is_successful() and \
+                    not servobs._late_deregister
 
             if can_continue:
                 ## @TODO handle situations in which this gets called more often than
@@ -974,6 +980,15 @@ class ClientObservation:
                 # as an observation result (or whether it should be)
                 raise StopAsyncIteration
 
+        def __del__(self):
+            if self._future.done():
+                try:
+                    self._future.result()
+                except error.ObservationCancelled:
+                    # This is the case at the end of an observation cancelled
+                    # by the server.
+                    pass
+
     def register_callback(self, callback):
         """Call the callback whenever a response to the message comes in, and
         pass the response to it."""
@@ -1041,18 +1056,41 @@ class ServerObservation:
     def __init__(self):
         self._accepted = False
         self._trigger = asyncio.Future()
+        # A deregistration is "early" if it happens before the response message
+        # is actually sent; calling deregister() in that time (typically during
+        # `render()`) will not send an unsuccessful response message but just
+        # sent this flag which is set to None as soon as it is too late for an
+        # early deregistration.
+        # This mechanism is temporary until more of aiocoap behaves like
+        # PlumbingRequest which does not suffer from this limitation.
+        self._early_deregister = False
+        self._late_deregister = False
 
     def accept(self, cancellation_callback):
         self._accepted = True
         self._cancellation_callback = cancellation_callback
 
     def deregister(self, reason=None):
-        warnings.warn("ServerObservation.deregister() is deprecated, use"
-                      " .trigger with an unsuccessful value instead",
+        if self._early_deregister is False:
+            self._early_deregister = True
+            return
+
+        warnings.warn("Late use of ServerObservation.deregister() is"
+                      " deprecated, use .trigger with an unsuccessful value"
+                      " instead",
                       DeprecationWarning)
         self.trigger(Message(code=INTERNAL_SERVER_ERROR, payload=b"Resource became unobservable"))
 
-    def trigger(self, response=None):
+    def trigger(self, response=None, *, is_last=False):
+        """Send an updated response; if None is given, the observed resource's
+        rendering will be invoked to produce one.
+
+        `is_last` can be set to True to indicate that no more responses will be
+        sent. Note that an unsuccessful response will be the last no matter
+        what is_last says, as such a message always terminates a CoAP
+        observation."""
+        if is_last:
+            self._late_deregister = True
         if self._trigger.done():
             # we don't care whether we overwrite anything, this is a lossy queue as observe is lossy
             self._trigger = asyncio.Future()
