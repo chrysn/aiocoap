@@ -322,36 +322,8 @@ class TestObserve(WithObserveTestServer, WithClient):
         return request
 
     @no_warnings
-    @asynctest
-    async def test_notreally(self):
-        # This is a relic test for a deprecated .deregister() method of a
-        # ServerObservation. Up until 0.4a1, calling that early enough caused
-        # the server not to even send an observe option at all. This behavior
-        # is not supported any more; the test stays in place for as long as the
-        # deprecated interface is around to ensure its code coverage, but the
-        # test objectives have changed.
-
-        m = aiocoap.Message(code=aiocoap.GET, observe=0)
-        m.unresolved_remote = self.servernetloc
-        m.opt.uri_path = ('deep', 'notreally')
-
-        request = self.client.request(m)
-        nextresponse = asyncio.Future()
-        request.observation.register_callback(nextresponse.set_result)
-        request.observation.register_errback(nextresponse.set_result)
-
-        response = await request.response
-
-        self.assertEqual(response.opt.observe, 0)
-
-        nextresponse = await nextresponse
-
-        # not suer yet what correct behavior should be -- a callback with no
-        # observe opt, or an exception?
-        if isinstance(nextresponse, Exception):
-            pass
-        else:
-            self.assertEqual(nextresponse.opt.observe, None)
+    def test_notreally(self):
+        self._test_no_observe(['deep', 'notreally'])
 
     @no_warnings
     def test_failure(self):
