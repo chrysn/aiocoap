@@ -96,7 +96,7 @@ class WithTestServer(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithTestServer, self).setUp()
 
-        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site(), bind=(self.serveraddress, aiocoap.COAP_PORT)))
+        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site(), bind=(self.serveraddress, None)))
 
     def tearDown(self):
         # let the server receive the acks we just sent
@@ -194,7 +194,8 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
 
         self.assertEqual(response.code, aiocoap.CONTENT, "Slow request did not succede")
-        self.assertEqual(self._count_empty_acks(), 1, "Slow resource was not handled in two exchanges")
+        if response.requested_scheme in (None, 'coap'):
+            self.assertEqual(self._count_empty_acks(), 1, "Slow resource was not handled in two exchanges")
 
     @no_warnings
     def test_big_resource(self):
@@ -220,7 +221,8 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "SlowBig resource request did not succede")
         self.assertEqual(len(response.payload), 1600, "SlowBig resource is not as big as expected")
-        self.assertEqual(self._count_empty_acks(), 1, "SlowBig resource was not handled in two exchanges")
+        if response.requested_scheme in (None, 'coap'):
+            self.assertEqual(self._count_empty_acks(), 1, "SlowBig resource was not handled in two exchanges")
 
     @no_warnings
     def test_replacing_resource(self):
@@ -266,6 +268,15 @@ class TestServer(WithTestServer, WithClient):
                 for x in
                 self.handler
                 if x.name != 'coap-server')
+
+class TestServerTCP(TestServer):
+    # no modification in server setup necessary, as by default, all transports
+    # are enabled on servers.
+
+    def build_request(self):
+        request = super().build_request()
+        request.requested_scheme = 'coap+tcp'
+        return request
 
 def run_fixture_as_standalone_server(fixture):
     import sys

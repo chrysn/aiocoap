@@ -14,13 +14,14 @@ import unittest
 
 import aiocoap
 import aiocoap.defaults
+from aiocoap.util import hostportjoin
 
 from .test_server import WithAsyncLoop, WithClient, asynctest
 from . import common
 
 from .common import PYTHON_PREFIX
 SERVER_ADDRESS = '::1'
-SERVER = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-server', '--server-address', SERVER_ADDRESS]
+SERVER = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-server', '--bind', hostportjoin(SERVER_ADDRESS, None)]
 CLIENT = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-client']
 
 class WithAssertNofaillines(unittest.TestCase):

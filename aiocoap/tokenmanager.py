@@ -93,10 +93,14 @@ class TokenManager(interfaces.RequestProvider, interfaces.TokenManager):
         for k in keys_for_removal:
             self.outgoing_requests.pop(key)
 
-        # not cancelling incoming requests, as they have even less an API for
-        # that than the outgoing ones; clearing the exchange monitors (in
-        # message_manager) at least spares them retransmission hell, and apart
-        # from that, they'll need to timeout by themselves.
+        keys_for_removal = [
+                (_p, _r)
+                for (_p, _r)
+                in self.incoming_requests
+                if _r == remote
+                ]
+        for key in keys_for_removal:
+            self.incoming_requests.pop(key).stop_interest()
 
     def process_request(self, request):
         key = (request.token, request.remote)
@@ -134,7 +138,7 @@ class TokenManager(interfaces.RequestProvider, interfaces.TokenManager):
             # out by the first response, and if there was not even a
             # NoResponse, something went wrong above (and we can't tell easily
             # here).
-        self.loop.create_task(run())
+        task = self.loop.create_task(run())
 
         self.context.render_to_plumbing_request(pr)
 

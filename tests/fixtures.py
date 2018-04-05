@@ -11,6 +11,7 @@
 import asyncio
 import functools
 import gc
+import inspect
 import logging
 import pprint
 import unittest
@@ -43,6 +44,8 @@ def asynctest(method):
     return wrapper
 
 def no_warnings(function, expected_warnings=None):
+    if inspect.iscoroutinefunction(function):
+        raise Exception("no_warnings decorates functions, not coroutines. Put it over @asynctest.")
     expected_warnings = expected_warnings or []
     def wrapped(self, *args, function=function):
         # assertLogs does not work as assertDoesntLog anyway without major
@@ -51,12 +54,12 @@ def no_warnings(function, expected_warnings=None):
 
         startcount = len(self.handler)
         result = function(self, *args)
-        messages = [m.msg for m in self.handler[startcount:] if m.levelno >= logging.WARNING]
+        messages = [m.getMessage() for m in self.handler[startcount:] if m.levelno >= logging.WARNING]
         if len(expected_warnings) != len(messages) or not all(
                 e == m or (e.endswith('...') and m.startswith(e[:-3]))
                 for (e, m)
                 in zip(expected_warnings, messages)):
-            self.assertEqual(messages, expected_warnings, "Function %s had unexpected warnings: %s"%(function.__name__, messages))
+            self.assertEqual(messages, expected_warnings, "Function %s had unexpected warnings"%function.__name__)
         return result
     wrapped.__name__ = function.__name__
     wrapped.__doc__ = function.__doc__

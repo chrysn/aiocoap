@@ -47,7 +47,7 @@ from .. import interfaces
 from ..numbers import COAP_PORT
 from ..dump import TextDumper
 from ..util.asyncio import RecvmsgDatagramProtocol
-from ..util import hostportjoin
+from ..util import hostportjoin, hostportsplit
 from ..util import socknumbers
 
 class UDP6EndpointAddress(interfaces.EndpointAddress):
@@ -192,6 +192,9 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
     @classmethod
     async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to, bind):
+        bind = bind or ('::', None)
+        bind = (bind[0], bind[1] or COAP_PORT)
+
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -234,9 +237,8 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # similar could be employed.
 
         if request.unresolved_remote is not None:
-            pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
-            host = pseudoparsed.hostname
-            port = pseudoparsed.port or COAP_PORT
+            host, port = hostportsplit(request.unresolved_remote)
+            port = port or COAP_PORT
         elif request.opt.uri_host:
             host = request.opt.uri_host
             port = request.opt.uri_port or COAP_PORT

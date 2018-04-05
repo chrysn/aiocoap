@@ -119,11 +119,18 @@ class UintOption(OptionType):
 class BlockOption(OptionType):
     """Block CoAP option - special option used only for Block1 and Block2 options.
        Currently it is the only type of CoAP options that has
-       internal structure."""
+       internal structure.
+
+       That structure (BlockwiseTuple) covers not only the block options of
+       RFC7959, but also the BERT extension of RFC8323. If the reserved size
+       exponent 7 is used for purposes incompatible with BERT, the implementor
+       might want to look at the context dependent option number
+       interpretations which will hopefully be in place for Signaling (7.xx)
+       messages by then."""
     class BlockwiseTuple(collections.namedtuple('_BlockwiseTuple', ['block_number', 'more', 'size_exponent'])):
         @property
         def size(self):
-            return 2 ** (self.size_exponent + 4)
+            return 2 ** (min(self.size_exponent, 6) + 4)
 
         @property
         def start(self):
@@ -137,6 +144,22 @@ class BlockOption(OptionType):
             case."""
             return self.block_number * self.size
 
+        @property
+        def is_bert(self):
+            """True if the exponent is recognized to signal a BERT message."""
+            return self.size_exponent == 7
+
+        def is_valid_for_payload_size(self, payloadsize):
+            if self.is_bert:
+                if self.more:
+                    return payloadsize % 1024 == 0
+                return True
+            else:
+                if self.more:
+                    return payloadsize == self.size
+                else:
+                    return payloadsize <= self.size
+
         def reduced_to(self, maximum_exponent):
             """Return a BlockwiseTuple whose exponent is capped to the given
             maximum_exponent
@@ -149,7 +172,9 @@ class BlockOption(OptionType):
             """
             if maximum_exponent >= self.size_exponent:
                 return self
-            increasednumber = self.block_number << (self.size_exponent - maximum_exponent)
+            if maximum_exponent == 6 and self.size_exponent == 7:
+                return (self.block_number, self.more, 6)
+            increasednumber = self.block_number << (min(self.size_exponent, 6) - maximum_exponent)
             return type(self)(increasednumber, self.more, maximum_exponent)
 
     def __init__(self, number, value=None):

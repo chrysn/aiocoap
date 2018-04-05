@@ -83,7 +83,7 @@ class TimeResource(resource.ObservableResource):
     def update_observation_count(self, count):
         if count and self.handle is None:
             print("Starting the clock")
-            self.handle = self.reschedule()
+            self.reschedule()
         if count == 0 and self.handle:
             print("Stopping the clock")
             self.handle.cancel()

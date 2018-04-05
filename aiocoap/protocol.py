@@ -32,7 +32,7 @@ from .messagemanager import MessageManager
 from .tokenmanager import TokenManager, PlumbingRequest
 from . import interfaces
 from . import error
-from .numbers import (COAP_PORT, DEFAULT_BLOCK_SIZE_EXP, INTERNAL_SERVER_ERROR,
+from .numbers import (COAP_PORT, INTERNAL_SERVER_ERROR,
         SERVICE_UNAVAILABLE, CONTENT, CONTINUE, REQUEST_ENTITY_INCOMPLETE,
         OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT)
 from .numbers.optionnumbers import OptionNumber
@@ -145,6 +145,14 @@ class Context(interfaces.RequestProvider):
 
         self.request_interfaces.append(tman)
 
+    async def _append_tokenmanaged_transport(self, token_interface_constructor):
+        tman = TokenManager(self)
+        transport = await token_interface_constructor(tman)
+
+        tman.token_interface = transport
+
+        self.request_interfaces.append(tman)
+
     @classmethod
     async def create_client_context(cls, *, dump_to=None, loggername="coap", loop=None):
         """Create a context bound to all addresses on a random listening port.
@@ -174,13 +182,21 @@ class Context(interfaces.RequestProvider):
                 await self._append_tokenmanaged_messagemanaged_transport(
 
                     lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
+            elif transportname == 'tcpclient':
+                from .transports.tcp import TCPClient
+                await self._append_tokenmanaged_transport(
+                    lambda tman: TCPClient.create_client_transport(tman, self.log, loop))
+            elif transportname == 'tlsclient':
+                from .transports.tls import TLSClient
+                await self._append_tokenmanaged_transport(
+                    lambda tman: TLSClient.create_client_transport(tman, self.log, loop))
             else:
                 raise RuntimeError("Transport %r not know for client context creation"%transportname)
 
         return self
 
     @classmethod
-    async def create_server_context(cls, site, bind=("::", COAP_PORT), *, dump_to=None, loggername="coap-server", loop=None):
+    async def create_server_context(cls, site, bind=None, *, dump_to=None, loggername="coap-server", loop=None, _ssl_context=None):
         """Create an context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -215,6 +231,23 @@ class Context(interfaces.RequestProvider):
                 from .transports.simplesocketserver import MessageInterfaceSimpleServer
                 await self._append_tokenmanaged_messagemanaged_transport(
                     lambda mman: MessageInterfaceSimpleServer.create_server(bind, mman, log=self.log, loop=loop))
+            elif transportname == 'tcpserver':
+                from .transports.tcp import TCPServer
+                await self._append_tokenmanaged_transport(
+                    lambda tman: TCPServer.create_server(bind, tman, self.log, loop))
+            elif transportname == 'tcpclient':
+                from .transports.tcp import TCPClient
+                await self._append_tokenmanaged_transport(
+                    lambda tman: TCPClient.create_client_transport(tman, self.log, loop))
+            elif transportname == 'tlsserver':
+                if _ssl_context is not None:
+                    from .transports.tls import TLSServer
+                    await self._append_tokenmanaged_transport(
+                        lambda tman: TLSServer.create_server(bind, tman, self.log, loop, _ssl_context))
+            elif transportname == 'tlsclient':
+                from .transports.tls import TLSClient
+                await self._append_tokenmanaged_transport(
+                    lambda tman: TLSClient.create_client_transport(tman, self.log, loop))
             else:
                 raise RuntimeError("Transport %r not know for server context creation"%transportname)
 
@@ -231,6 +264,10 @@ class Context(interfaces.RequestProvider):
 
         await asyncio.wait([ri.shutdown() for ri in self.request_interfaces], timeout=3, loop=self.loop)
 
+    # FIXME: determine how official this should be, or which part of it is
+    # public -- now that BlockwiseRequest uses it. (And formalize what can
+    # change about messages and what can't after the remote has been thusly
+    # populated).
     async def find_remote_and_interface(self, message):
         for ri in self.request_interfaces:
             if await ri.fill_or_recognize_remote(message):
@@ -274,6 +311,16 @@ class Context(interfaces.RequestProvider):
         # catching CancellationError here
         cancellation_future = asyncio.Future()
 
+        def cleanup(cancellation_future=cancellation_future):
+            if not cancellation_future.done():
+                cancellation_future.set_result(None)
+
+        # not trying to cancel the whole rendering right now, as that would
+        # mean that we'll need to cancel the task in a way that won't cause a
+        # message sent back -- but reacting to an end of interest is very
+        # relevant when network errors arrive from observers.
+        plumbing_request.on_interest_end(cleanup)
+
         try:
             await self._render_to_plumbing_request_inner(plumbing_request,
                     cancellation_future)
@@ -289,7 +336,7 @@ class Context(interfaces.RequestProvider):
             plumbing_request.add_response(Message(code=INTERNAL_SERVER_ERROR), is_last=True)
             self.log.error("An exception occurred while rendering a resource: %r", e, exc_info=e)
         finally:
-            cancellation_future.set_result(None)
+            cleanup()
 
 
     async def _render_to_plumbing_request_inner(self, plumbing_request, cancellation_future):
@@ -323,7 +370,9 @@ class Context(interfaces.RequestProvider):
 
             response = response._extract_block(
                     request.opt.block2.block_number,
-                    request.opt.block2.size_exponent)
+                    request.opt.block2.size_exponent,
+                    request.remote.maximum_payload_size
+                    )
             plumbing_request.add_response(
                     response,
                     is_last=True)
@@ -401,9 +450,9 @@ class Context(interfaces.RequestProvider):
 
         if needs_blockwise and (
                 len(response.payload) > (
-                    1024
-                    if response.opt.block2 is None
-                    else response.opt.block2.size)):
+                    request.remote.maximum_payload_size
+                    if request.opt.block2 is None
+                    else request.opt.block2.size)):
 
             if block_key in self._block2_assemblies:
                 _, canceler = self._block2_assemblies.pop(block_key)
@@ -417,10 +466,10 @@ class Context(interfaces.RequestProvider):
             self._block2_assemblies[block_key] = (response, canceler)
 
             szx = request.opt.block2 if request.opt.block2 is not None \
-                    else DEFAULT_BLOCK_SIZE_EXP
+                    else request.remote.maximum_block_size_exp
             # if a requested block2 number were not 0, the code would have
             # diverted earlier to serve from active operations
-            response = response._extract_block(0, szx)
+            response = response._extract_block(0, szx, request.remote.maximum_payload_size)
 
         if needs_blockwise:
             response.opt.block1 = immediate_response_block1
@@ -526,6 +575,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
         # when inspecting the response's uri, which would have worked as well.
         # for dtls, even though not implemented yet, that information would be
         # filled from the SNI host name.)
+        response.requested_scheme = request.requested_scheme
         response.requested_hostinfo = request.opt.uri_host or request.unresolved_remote
         response.requested_path = request.opt.uri_path
         response.requested_query = request.opt.uri_query
@@ -668,35 +718,41 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
     # task running.
     @classmethod
     async def _run(cls, app_request, response, weak_observation, protocol, log):
-        size_exp = DEFAULT_BLOCK_SIZE_EXP
+        # we need to populate the remote right away, because the choice of
+        # blocks depends on it.
+        await protocol.find_remote_and_interface(app_request)
+
+        size_exp = app_request.remote.maximum_block_size_exp
 
         if app_request.opt.block1 is not None:
             assert app_request.opt.block1.block_number == 0, "Unexpected block number in app_request"
             assert app_request.opt.block1.more == False, "Unexpected more-flag in app_request"
+            # this is where the library user can traditionally pass in size
+            # exponent hints into the library.
             size_exp = app_request.opt.block1.size_exponent
 
         # Offset in the message in blocks of size_exp. Whoever changes size_exp
         # is responsible for updating this number.
         block_cursor = 0
 
-        remote = None
-
         while True:
             # ... send a chunk
 
             if len(app_request.payload) > (2 ** (size_exp + 4)):
-                current_block1 = app_request._extract_block(block_cursor, size_exp)
+                current_block1 = app_request._extract_block(
+                        block_cursor,
+                        size_exp,
+                        app_request.remote.maximum_payload_size)
             else:
                 current_block1 = app_request
-
-            if remote is not None:
-                current_block1 = current_block1.copy(remote=remote)
 
             blockrequest = protocol.request(current_block1, handle_blockwise=False)
             blockresponse = await blockrequest.response
 
-            # store for future blocks: don't resolve the address again
-            remote = blockresponse.remote
+            # store for future blocks to ensure that the next blocks will be
+            # sent from the same source address (in the UDP case; for many
+            # other transports it won't matter).
+            app_request.remote = blockresponse.remote
 
             if blockresponse.opt.block1 is None:
                 if blockresponse.code.is_successful() and current_block1.opt.block1:
@@ -817,7 +873,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         assembled_response = initial_response
         last_response = initial_response
         while True:
-            current_block2 = request_to_repeat._generate_next_block2_request(last_response)
+            current_block2 = request_to_repeat._generate_next_block2_request(assembled_response)
 
             current_block2 = current_block2.copy(remote=initial_response.remote)
 

@@ -15,7 +15,7 @@ import urllib.parse
 import functools
 import logging
 
-from .. import numbers, interfaces, message, error
+from .. import numbers, interfaces, message, error, util
 
 class CanNotRedirect(Exception):
     def __init__(self, code, explanation):
@@ -266,24 +266,6 @@ class Redirector():
     def apply_redirection(self, request):
         return None
 
-def splitport(hostport):
-    """Like urllib.parse.splitport, but return port as int, and as None if it
-    equals the CoAP default port. Also, it allows giving IPv6 addresses like a netloc:
-
-    >>> splitport('foo')
-    ('foo', None)
-    >>> splitport('foo:5683')
-    ('foo', None)
-    >>> splitport('[::1]:56830')
-    ('::1', 56830)
-    """
-
-    pseudoparsed = urllib.parse.SplitResult(None, hostport, None, None, None)
-    host, port = pseudoparsed.hostname, pseudoparsed.port
-    if port == numbers.constants.COAP_PORT:
-        port = None
-    return host, port
-
 class NameBasedVirtualHost(Redirector):
     def __init__(self, match_name, target, rewrite_uri_host=False):
         self.match_name = match_name
@@ -295,7 +277,7 @@ class NameBasedVirtualHost(Redirector):
 
         if request.opt.uri_host == self.match_name:
             if self.rewrite_uri_host:
-                request.opt.uri_host, request.opt.uri_port = splitport(self.target)
+                request.opt.uri_host, request.opt.uri_port = util.hostportsplit(self.target)
             else:
                 request.unresolved_remote = self.target
             return request
@@ -320,5 +302,5 @@ class SubresourceVirtualHost(Redirector):
 
         if self.path == request.opt.uri_path[:len(self.path)]:
             request.opt.uri_path = request.opt.uri_path[len(self.path):]
-            request.opt.uri_host, request.opt.uri_port = splitport(self.target)
+            request.opt.uri_host, request.opt.uri_port = util.hostportsplit(self.target)
             return request

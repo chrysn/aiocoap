@@ -36,6 +36,7 @@ This library supports the following standards in full or partially:
 * RFC7641_ (Observe): Reordering, re-registration, and active cancellation are
   missing.
 * RFC7959_ (Blockwise): Multicast exceptions missing.
+* RFC8323_ (TCP): Supports CoAP over TCP but not CoAP over WebSockets.
 * RFC7967_ (No-Response): Basic support, but not automated in library
 * RFC8132_ (PATCH/FETCH): Types and codes known, FETCH observation supported
 * draft-ietf-core-resource-directory_: A standalone resource directory
@@ -55,6 +56,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC7959: https://tools.ietf.org/html/rfc7959
 .. _RFC7967: https://tools.ietf.org/html/rfc7967
 .. _RFC8132: https://tools.ietf.org/html/rfc8132
+.. _RFC8323: https://tools.ietf.org/html/rfc8323
 .. _draft-ietf-core-resource-directory: https://tools.ietf.org/html/draft-ietf-core-resource-directory-12
 .. _draft-ietf-core-object-security-06: https://tools.ietf.org/html/draft-ietf-core-object-security-06
 

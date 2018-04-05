@@ -11,6 +11,7 @@ especially with respect to request and response handling."""
 
 import abc
 from asyncio import coroutine
+from aiocoap.numbers.constants import DEFAULT_BLOCK_SIZE_EXP
 
 from typing import Optional, Callable
 
@@ -98,6 +99,15 @@ class EndpointAddress(metaclass=abc.ABCMeta):
     def is_multicast_locally(self):
         """True if the local address is a multicast address, otherwise false."""
 
+    maximum_block_size_exp = DEFAULT_BLOCK_SIZE_EXP
+    """The maximum negotiated block size that can be sent to this remote."""
+
+    maximum_payload_size = 1024
+    """The maximum payload size that can be sent to this remote. Only relevant
+    if maximum_block_size_exp is 7. This will be removed in favor of a maximum
+    message size when the block handlers can get serialization length
+    predictions from the remote. Must be divisible by 1024."""
+
 class MessageManager(metaclass=abc.ABCMeta):
     """The interface an entity that drives a MessageInterface provides towards
     the MessageInterface for callbacks and object acquisition."""
@@ -127,6 +137,13 @@ class TokenInterface(metaclass=abc.ABCMeta):
         """Send a message. If it returns a a callable, the caller is asked to
         call in case it no longer needs the message sent, and to dispose of if
         it doesn't intend to any more."""
+
+    @abc.abstractmethod
+    async def fill_or_recognize_remote(self, message):
+        """Return True if the message is recognized to already have a .remote
+        managedy by this TokenInterface, or return True and set a .remote on
+        message if it should (by its unresolved remote or Uri-* options) be
+        routed through this TokenInterface, or return False otherwise."""
 
 class TokenManager(metaclass=abc.ABCMeta):
     pass

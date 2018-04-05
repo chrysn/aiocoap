@@ -76,7 +76,11 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(aiocoap.Message.decode(rawdata2).opt.etags, (b"abcd",), "problem with etag option decoding for decode operation")
         self.assertEqual(len(aiocoap.Message.decode(rawdata2).opt._options), 1, "wrong number of options after decode operation")
         rawdata3 = rawdata1 + bytes((0xf0,))
-        self.assertRaises(ValueError, aiocoap.Message.decode, rawdata3) # message with option delta reserved for payload marker
+        self.assertRaises(aiocoap.error.UnparsableMessage, aiocoap.Message.decode, rawdata3) # message with option delta reserved for payload marker
+        rawdata4 = rawdata1 + bytes((0xe0,))
+        self.assertRaises(aiocoap.error.UnparsableMessage, aiocoap.Message.decode, rawdata4) # message with extended option delta that is not actually there
+        rawdata5 = rawdata1 + bytes((0x04,))
+        self.assertRaises(aiocoap.error.UnparsableMessage, aiocoap.Message.decode, rawdata5) # message with option that is not actually there
 
 class TestReadExtendedFieldValue(unittest.TestCase):
 

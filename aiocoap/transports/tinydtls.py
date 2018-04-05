@@ -53,7 +53,7 @@ import functools
 import time
 
 from ..util.asyncio import PeekQueue
-from ..util import hostportjoin
+from ..util import hostportjoin, hostportsplit
 from ..message import Message
 from .. import interfaces, error
 from ..numbers import COAPS_PORT
@@ -308,9 +308,8 @@ class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
             return None
 
         if request.unresolved_remote:
-            pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
-            host = pseudoparsed.hostname
-            port = pseudoparsed.port or COAPS_PORT
+            host, port = hostportsplit(request.unresolved_remote)
+            port = port or COAPS_PORT
         elif request.opt.uri_host:
             host = request.opt.uri_host
             port = request.opt.uri_port or COAPS_PORT
