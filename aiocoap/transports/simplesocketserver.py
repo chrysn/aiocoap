@@ -29,6 +29,7 @@ Shortcomings
 import asyncio
 from collections import namedtuple
 
+from ..numbers import COAP_PORT
 from .simple6 import MessageInterfaceSimple6 as _MessageInterfaceSimple6
 from .. import interfaces
 from .generic_udp import GenericMessageInterface
