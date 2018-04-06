@@ -27,7 +27,7 @@ CLEANUPTIME = 0.01
 # timeout. Thus, the rest of the suite has a chance of running, and we get the
 # debug log from the fixture rather than losing the logs to a brutal
 # termination.
-ASYNCTEST_TIMEOUT = 15
+ASYNCTEST_TIMEOUT = 30
 
 def asynctest(method):
     """Decorator for async WithAsyncLoop fixtures methods that runs them from
