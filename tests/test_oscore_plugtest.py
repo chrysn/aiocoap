@@ -90,9 +90,9 @@ class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
         proc = await asyncio.create_subprocess_exec(*(CLIENT + ['[' + SERVER_ADDRESS + ']', str(x)]), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         out, err = await proc.communicate()
 
+        self.assertEqual(proc.returncode, 0, 'Plugtest client return non-zero exit state\nOutput was:\n' + out.decode('utf8') + '\nErrorr output was:\n' + err.decode('utf8'))
         self.assertNoFaillines(out, '"failed" showed up in plugtest client stdout')
         self.assertNoFaillines(err, '"failed" showed up in plugtest client stderr')
-        self.assertEqual(proc.returncode, 0, 'Plugtest client return non-zero exit state\nOutput was:\n' + out.decode('utf8') + '\nErrorr output was:\n' + err.decode('utf8'))
 
 for x in range(0, 13):
     test = lambda self, x=x: self._test_plugtestclient(x)
