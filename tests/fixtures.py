@@ -27,7 +27,11 @@ CLEANUPTIME = 0.01
 # timeout. Thus, the rest of the suite has a chance of running, and we get the
 # debug log from the fixture rather than losing the logs to a brutal
 # termination.
-ASYNCTEST_TIMEOUT = 30
+#
+# Tests under system load have shown that TestOSCOREPlugtest.test_005 can
+# indeed take quite a while to complete; until I know why, this gives it a
+# chance to complete even on occupied systems.
+ASYNCTEST_TIMEOUT = 3 * 60
 
 def test_is_successful(testcase):
     """Return true if a current TestCase instancance completed so far without
