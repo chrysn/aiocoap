@@ -88,7 +88,11 @@ class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
         await self.client.request(set_seqno).response_raising
 
         proc = await asyncio.create_subprocess_exec(*(CLIENT + ['[' + SERVER_ADDRESS + ']', str(x)]), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        out, err = await proc.communicate()
+        try:
+            out, err = await proc.communicate()
+        except asyncio.CancelledError:
+            proc.terminate()
+            out, err = await proc.communicate()
 
         self.assertEqual(proc.returncode, 0, 'Plugtest client return non-zero exit state\nOutput was:\n' + out.decode('utf8') + '\nErrorr output was:\n' + err.decode('utf8'))
         self.assertNoFaillines(out, '"failed" showed up in plugtest client stdout')

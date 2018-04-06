@@ -40,7 +40,13 @@ def asynctest(method):
             )
         for f in asyncio.as_completed([task], loop=self.loop,
                 timeout=ASYNCTEST_TIMEOUT):
-            return self.loop.run_until_complete(f)
+            try:
+                return self.loop.run_until_complete(f)
+            except asyncio.TimeoutError:
+                task.cancel()
+                # give the task a chance to run finally handlers
+                self.loop.run_until_complete(task)
+                raise
     return wrapper
 
 def no_warnings(function, expected_warnings=None):
