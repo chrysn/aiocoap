@@ -17,6 +17,8 @@ description."""
 import argparse
 import asyncio
 import logging
+import signal
+import functools
 
 from aiocoap import *
 from aiocoap import interfaces
@@ -55,7 +57,14 @@ class PlugtestClientProgram:
 
     @classmethod
     def sync_run(cls):
-        asyncio.get_event_loop().run_until_complete(cls().run())
+        loop = asyncio.get_event_loop()
+        task = cls().run()
+        # Having SIGTERM cause a more graceful shutdown allow for output
+        # buffers to be flushed when the unit test program instrumenting it
+        # terminates it.
+        signal.signal(signal.SIGTERM,
+                lambda signo, frame: task.throw(KeyboardInterrupt))
+        loop.run_until_complete(task)
 
 
     async def run_test(self, testno):
