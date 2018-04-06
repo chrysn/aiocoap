@@ -42,6 +42,9 @@ def get_default_clienttransports(*, loop=None):
         yield from os.environ['AIOCOAP_CLIENT_TRANSPORT'].split(':')
         return
 
+    if not oscore_missing_modules():
+        yield 'oscore'
+
     try:
         from DTLSSocket import dtls
     except ImportError:
@@ -89,6 +92,9 @@ def get_default_servertransports(*, loop=None):
     if 'AIOCOAP_SERVER_TRANSPORT' in os.environ:
         yield from os.environ['AIOCOAP_SERVER_TRANSPORT'].split(':')
         return
+
+    if not oscore_missing_modules():
+        yield 'oscore'
 
     # no server support yet, but doesn't hurt either
     try:

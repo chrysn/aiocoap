@@ -58,15 +58,6 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         return self.token_manager.client_credentials
 
     async def shutdown(self):
-        """Take down the listening socket and stop all related timers.
-
-        After this coroutine terminates, and once all external references to
-        the object are dropped, it should be garbage-collectable.
-
-        This method may take the time to inform communications partners of
-        stopped observations (but currently does not)."""
-
-        self.log.debug("Shutting down context")
         for exchange_monitor, cancellable in self._active_exchanges.values():
             if exchange_monitor is not None:
                 exchange_monitor.cancelled()

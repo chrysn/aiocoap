@@ -150,6 +150,10 @@ class TokenManager(metaclass=abc.ABCMeta):
 
 class RequestInterface(metaclass=abc.ABCMeta):
     @abc.abstractmethod
+    async def fill_or_recognize_remote(self, message):
+        pass
+
+    @abc.abstractmethod
     def request(self, request: "PlumbingRequest"):
         pass
 
