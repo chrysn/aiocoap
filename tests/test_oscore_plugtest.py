@@ -36,6 +36,8 @@ class WithAssertNofaillines(unittest.TestCase):
 
         lines = text_to_check.decode('utf8').split('\n')
         lines = (l for l in lines if not l.startswith('Check passed:'))
+        # explicitly whitelisted for when the server is run with increased verbosity
+        lines = (l for l in lines if 'INFO:coap-server:Render request raised a renderable error' not in l)
         errorlines = (l for l in lines if 'fail'in l or 'WARNING' in l or 'ERROR' in l)
         self.assertEqual([], list(errorlines), message)
 
