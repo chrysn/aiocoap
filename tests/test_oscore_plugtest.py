@@ -78,7 +78,7 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
 
         out, err = self.loop.run_until_complete(self.__done)
 
-        if test_is_successful(self):
+        if not test_is_successful(self):
             if not out and not err:
                 return
             self.fail("Previous errors occurred." +
