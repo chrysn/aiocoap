@@ -18,6 +18,7 @@ from aiocoap.util import hostportjoin
 
 from .test_server import WithAsyncLoop, WithClient, asynctest
 from . import common
+from .fixtures import test_is_successful
 
 from .common import PYTHON_PREFIX
 SERVER_ADDRESS = '::1'
@@ -77,8 +78,19 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
 
         out, err = self.loop.run_until_complete(self.__done)
 
-        self.assertNoFaillines(out, '"failed" showed up in plugtest server stdout')
-        self.assertNoFaillines(err, '"failed" showed up in plugtest server stderr')
+        if test_is_successful(self):
+            if not out and not err:
+                return
+            self.fail("Previous errors occurred." +
+                    ("\nServer stdout was:\n    " +
+                        out.decode('utf8').replace("\n", "\n    ")
+                    if out else "") +
+                    ("\nServer stderr was:\n    " +
+                            err.decode('utf8').replace("\n", "\n    ")
+                    if err else ""))
+        else:
+            self.assertNoFaillines(out, '"failed" showed up in plugtest server stdout')
+            self.assertNoFaillines(err, '"failed" showed up in plugtest server stderr')
 
 class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
