@@ -29,6 +29,13 @@ CLEANUPTIME = 0.01
 # termination.
 ASYNCTEST_TIMEOUT = 30
 
+def test_is_successful(testcase):
+    """Return true if a current TestCase instancance completed so far without
+    raising errors. This is supposed to be used in tearDown handlers on self
+    when additional debug information can be shown that would otherwise be
+    discarded, or to skip tests during teardown that are bound to fail."""
+    return not any(e[1] is not None for e in testcase._outcome.errors)
+
 def asynctest(method):
     """Decorator for async WithAsyncLoop fixtures methods that runs them from
     the fixture's loop with a static timeout"""
@@ -92,9 +99,12 @@ class WithLogMonitoring(unittest.TestCase):
         super(WithLogMonitoring, self).tearDown()
 
         logging.root.removeHandler(self.handler)
-#
-#        formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
-#        print("fyi:\n", "\n".join(formatter.format(x) for x in self.handler if x.name != 'asyncio'))
+
+        formatter = logging.Formatter(fmt='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
+        self.assertTrue(test_is_successful(self), "Previous errors were raised."
+                " Complete log:\n" + "\n".join(
+                formatter.format(x) for x in self.handler if x.name != 'asyncio'),
+                )
 
     class ListHandler(logging.Handler, list):
         def emit(self, record):
@@ -159,7 +169,7 @@ class Destructing(WithLogMonitoring):
 
         s = snapshot()
 
-        if self._outcome.errors:
+        if not test_is_successful(self):
             # An error was already logged, and that error's backtrace usually
             # creates references that make any attempt to detect lingering
             # references fuitile. It'll show an error anyway, no use in
@@ -184,6 +194,5 @@ class Destructing(WithLogMonitoring):
                 snapshotsmessage = "Before extended grace period:\n" + original_s + "\n\nAfter extended grace period:\n" + ("the same" if s == original_s else s)
             else:
                 snapshotsmessage = s
-            formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
-            errormessage = "Protocol %s was not garbage collected.\n\n"%attribute + snapshotsmessage + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
+            errormessage = "Protocol %s was not garbage collected.\n\n"%attribute + snapshotsmessage
             self.fail(errormessage)
