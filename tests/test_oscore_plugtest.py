@@ -22,8 +22,8 @@ from .fixtures import test_is_successful
 
 from .common import PYTHON_PREFIX
 SERVER_ADDRESS = '::1'
-SERVER = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-server', '--bind', hostportjoin(SERVER_ADDRESS, None)]
-CLIENT = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-client']
+SERVER = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-server', '--verbose', '--bind', hostportjoin(SERVER_ADDRESS, None)]
+CLIENT = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-client', '--verbose']
 
 class WithAssertNofaillines(unittest.TestCase):
     def assertNoFaillines(self, text_to_check, message):
