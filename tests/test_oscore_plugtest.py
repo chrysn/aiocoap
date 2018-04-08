@@ -102,11 +102,33 @@ class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
         await self.client.request(set_seqno).response_raising
 
         proc = await asyncio.create_subprocess_exec(*(CLIENT + ['[' + SERVER_ADDRESS + ']', str(x)]), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+
+        # this is a big workaround for (out, err) = proc.communicate() not
+        # filling data into its output variables when raising a
+        # CancellationError (admittedly, how should it; maybe have
+        # `communicate(stdin, *, out_callback, err_callback)`?
+        out = err = b""
+        async def out_read():
+            nonlocal out
+            while True:
+                data = await proc.stdout.readline()
+                if not data:
+                    return
+                out += data
+        async def err_read():
+            nonlocal err
+            while True:
+                data = await proc.stderr.readline()
+                if not data:
+                    return
+                err += data
+        self.loop.create_task(out_read())
+        self.loop.create_task(err_read())
+
         try:
-            out, err = await proc.communicate()
+            await proc.wait()
         except asyncio.CancelledError:
             proc.terminate()
-            out, err = await proc.communicate()
 
         self.assertEqual(proc.returncode, 0, 'Plugtest client return non-zero exit state\nOutput was:\n' + out.decode('utf8') + '\nErrorr output was:\n' + err.decode('utf8'))
         self.assertNoFaillines(out, '"failed" showed up in plugtest client stdout')
