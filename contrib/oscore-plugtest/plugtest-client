@@ -17,6 +17,8 @@ description."""
 import argparse
 import asyncio
 import logging
+import signal
+import functools
 
 from aiocoap import *
 from aiocoap import interfaces
@@ -31,16 +33,20 @@ class PlugtestClientProgram:
         p.add_argument("host", help="Hostname of the server")
         p.add_argument("testno", type=int, help="Test number to run (integer part)")
         p.add_argument("contextdir", nargs="?", help="Directory name where to persist sequence numbers")
+        p.add_argument("--verbose", help="Show aiocoap debug messages", action='store_true')
         opts = p.parse_args()
 
         self.host = opts.host
 
-        # this needs to be called explicitly as only the
+        # this also needs to be called explicitly as only the
         # 'logging.warning()'-style functions will call it; creating a
         # sub-logger and logging from there makes the whole logging system not
         # emit the 'WARNING' prefixes that set apart log messages from regular
         # prints and also help the test suite catch warnings and errors
-        logging.basicConfig()
+        if opts.verbose:
+            logging.basicConfig(level=logging.DEBUG)
+        else:
+            logging.basicConfig(level=logging.WARNING)
 
         security_context = get_security_context(opts.testno, 'client', opts.contextdir)
 
@@ -55,7 +61,14 @@ class PlugtestClientProgram:
 
     @classmethod
     def sync_run(cls):
-        asyncio.get_event_loop().run_until_complete(cls().run())
+        loop = asyncio.get_event_loop()
+        task = cls().run()
+        # Having SIGTERM cause a more graceful shutdown allow for output
+        # buffers to be flushed when the unit test program instrumenting it
+        # terminates it.
+        signal.signal(signal.SIGTERM,
+                lambda signo, frame: task.throw(KeyboardInterrupt))
+        loop.run_until_complete(task)
 
 
     async def run_test(self, testno):

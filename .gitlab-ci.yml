@@ -14,9 +14,10 @@ test:3.6:
     # works, inside setup.py in doesn't -- still looking for all the details
     # for a bug report.
     - pip3 install DTLSSocket
-    - python3 -m coverage run --parallel ./setup.py test
+    # For WORKAROUND111, see tests/test_oscore_plugtest.py
+    - WORKAROUND111=1 python3 -m coverage run --parallel ./setup.py test
     - pip3 install uvloop
-    - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
+    - WORKAROUND111=1 AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
     - python3 -m coverage combine
     - python3 -m coverage report --include=aiocoap/\*
     - mkdir collected-coverage/3.6/ -p

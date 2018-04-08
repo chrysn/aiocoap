@@ -27,7 +27,18 @@ CLEANUPTIME = 0.01
 # timeout. Thus, the rest of the suite has a chance of running, and we get the
 # debug log from the fixture rather than losing the logs to a brutal
 # termination.
-ASYNCTEST_TIMEOUT = 15
+#
+# Tests under system load have shown that TestOSCOREPlugtest.test_005 can
+# indeed take quite a while to complete; until I know why, this gives it a
+# chance to complete even on occupied systems.
+ASYNCTEST_TIMEOUT = 3 * 60
+
+def test_is_successful(testcase):
+    """Return true if a current TestCase instancance completed so far without
+    raising errors. This is supposed to be used in tearDown handlers on self
+    when additional debug information can be shown that would otherwise be
+    discarded, or to skip tests during teardown that are bound to fail."""
+    return not any(e[1] is not None for e in testcase._outcome.errors)
 
 def asynctest(method):
     """Decorator for async WithAsyncLoop fixtures methods that runs them from
@@ -40,7 +51,13 @@ def asynctest(method):
             )
         for f in asyncio.as_completed([task], loop=self.loop,
                 timeout=ASYNCTEST_TIMEOUT):
-            return self.loop.run_until_complete(f)
+            try:
+                return self.loop.run_until_complete(f)
+            except asyncio.TimeoutError:
+                task.cancel()
+                # give the task a chance to run finally handlers
+                self.loop.run_until_complete(task)
+                raise
     return wrapper
 
 def no_warnings(function, expected_warnings=None):
@@ -86,9 +103,12 @@ class WithLogMonitoring(unittest.TestCase):
         super(WithLogMonitoring, self).tearDown()
 
         logging.root.removeHandler(self.handler)
-#
-#        formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
-#        print("fyi:\n", "\n".join(formatter.format(x) for x in self.handler if x.name != 'asyncio'))
+
+        formatter = logging.Formatter(fmt='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
+        self.assertTrue(test_is_successful(self), "Previous errors were raised."
+                " Complete log:\n" + "\n".join(
+                formatter.format(x) for x in self.handler if x.name != 'asyncio'),
+                )
 
     class ListHandler(logging.Handler, list):
         def emit(self, record):
@@ -153,7 +173,7 @@ class Destructing(WithLogMonitoring):
 
         s = snapshot()
 
-        if self._outcome.errors:
+        if not test_is_successful(self):
             # An error was already logged, and that error's backtrace usually
             # creates references that make any attempt to detect lingering
             # references fuitile. It'll show an error anyway, no use in
@@ -178,6 +198,5 @@ class Destructing(WithLogMonitoring):
                 snapshotsmessage = "Before extended grace period:\n" + original_s + "\n\nAfter extended grace period:\n" + ("the same" if s == original_s else s)
             else:
                 snapshotsmessage = s
-            formatter = logging.Formatter(fmt='%(levelname)s:%(name)s:%(message)s')
-            errormessage = "Protocol %s was not garbage collected.\n\n"%attribute + snapshotsmessage + "\n\nLog of the unit test:\n" + "\n".join(formatter.format(x) for x in self.handler)
+            errormessage = "Protocol %s was not garbage collected.\n\n"%attribute + snapshotsmessage
             self.fail(errormessage)
