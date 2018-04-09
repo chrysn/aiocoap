@@ -7,7 +7,7 @@
 # described in the accompanying LICENSE file.
 
 """A plain CoAP resource directory according to
-draft-ietf-core-resource-directory-12
+draft-ietf-core-resource-directory-13
 
 Known Caveats:
 
@@ -172,10 +172,13 @@ class CommonRD:
             result = []
             for l in self.links.links:
                 if 'anchor' in l:
-                    data = [(k, v) for (k, v) in l.attr_pairs if k != 'anchor'] + [['anchor', urljoin(self.con, l.anchor)]]
+                    absanchor = urljoin(self.con, l.anchor)
+                    data = [(k, v) for (k, v) in l.attr_pairs if k != 'anchor'] + [['anchor', absanchor]]
+                    href = urljoin(absanchor, l.href)
                 else:
                     data = l.attr_pairs + [['anchor', self.con]]
-                result.append(Link(l.href, data))
+                    href = urljoin(self.con, l.href)
+                result.append(Link(href, data))
             return LinkFormat(result)
 
     async def shutdown(self):
