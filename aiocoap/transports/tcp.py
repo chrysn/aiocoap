@@ -94,7 +94,7 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
     # depend on whether the library user still keeps a usable address around,
     # those functions could be split.
 
-    def __init__(self, ctx, log, loop):
+    def __init__(self, ctx, log, loop, *, hostinfo=None):
         self._ctx = ctx
         self.log = log
         self.loop = loop
@@ -105,6 +105,7 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
         self._remote_settings = None
 
         self._transport = None
+        self._hostinfo = hostinfo
 
     def _send_initial_csm(self):
         my_csm = Message(code=CSM)
@@ -252,14 +253,20 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
 
     @property
     def hostinfo(self):
-        raise NotImplementedError
+        if self._hostinfo:
+            return self._hostinfo
+        peername = self._transport.get_extra_info('peername')
+        return util.hostportjoin(peername[0], peername[1])
 
     is_multicast = False
     is_multicast_locally = False
 
     @property
     def uri(self):
-        raise NotImplementedError
+        if self._hostinfo:
+            return self._ctx._scheme + '://' + self.hostinfo
+        else:
+            raise error.AnonymousHost("Client side of %s can not be expressed as a URI" % self._ctx._scheme)
 
     @property
     def maximum_block_size_exp(self):
@@ -394,7 +401,8 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
             return self._pool[(host, port)]
 
         _, protocol = await self.loop.create_connection(
-                lambda: TcpConnection(self, self.log, self.loop),
+                lambda: TcpConnection(self, self.log, self.loop,
+                    hostinfo=util.hostportjoin(host, port)),
                 host, port,
                 ssl=self._ssl_context_factory())
 

@@ -182,3 +182,13 @@ class CommunicationKilled(ConstructionRenderableError):
 class LibraryShutdown(Error):
     """The library or a transport registered with it was requested to shut
     down; this error is raised in all outstanding requests."""
+
+class AnonymousHost(Error):
+    """This is raised when it is attempted to express as a reference a (base)
+    URI of a host or a resource that can not be reached by any process other
+    than this.
+
+    Typically, this happens when trying to serialize a link to a resource that
+    is hosted on a CoAP-over-TCP or -WebSockets client: Such resources can be
+    accessed for as long as the connection is active, but can not be used any
+    more once it is closed or even by another system."""
