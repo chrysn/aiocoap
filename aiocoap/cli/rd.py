@@ -67,7 +67,7 @@ class CommonRD:
         def href(self):
             return '/' + '/'.join(self.path)
 
-        def __init__(self, path, network_con, delete_cb, update_cb, registration_parameters):
+        def __init__(self, path, network_remote, delete_cb, update_cb, registration_parameters):
             # note that this can not modify d and ep any more, since they were
             # already used in keying to a path
             self.path = path
@@ -75,20 +75,30 @@ class CommonRD:
 
             self._delete_cb = delete_cb
             self._update_cb = update_cb
-            self.update_params(network_con, registration_parameters, is_initial=True)
+            self.update_params(network_remote, registration_parameters, is_initial=True)
 
-        def update_params(self, network_con, registration_parameters, is_initial=False):
+        def update_params(self, network_remote, registration_parameters, is_initial=False):
             """Set the registration_parameters from the parsed query arguments,
             update any effects of them, and and trigger any observation
             observation updates if requried (the typical ones don't because
             their registration_parameters are {} and all it does is restart the
             lifetime counter)"""
 
+            if (is_initial or not self.con_is_explicit) and 'con' not in \
+                    registration_parameters:
+                # check early for validity to avoid side effects of requests
+                # answered with 4.xx
+                try:
+                    network_con = network_remote.uri
+                except error.AnonymousHost:
+                    raise error.BadRequest("explicit con required")
+
             if is_initial:
                 self.registration_parameters = registration_parameters
                 self.lt = 86400
-                self.con_is_explicit = False
-                self.con = network_con
+                if 'con' not in registration_parameters:
+                    self.con = network_con
+                    self.con_is_explicit = False
 
                 # technically might be a re-registration, but we can't catch that at this point
                 actual_change = True
@@ -188,7 +198,7 @@ class CommonRD:
             if path not in self._entities_by_pathtail:
                 return path
 
-    def initialize_endpoint(self, network_con, registration_parameters):
+    def initialize_endpoint(self, network_remote, registration_parameters):
         try:
             ep = registration_parameters['ep']
         except KeyError:
@@ -215,7 +225,7 @@ class CommonRD:
             del self._entities_by_pathtail[path]
             del self._endpoint_registrations_by_key[key]
 
-        reg = self.Registration(self.entity_prefix + path, network_con, delete,
+        reg = self.Registration(self.entity_prefix + path, network_remote, delete,
                 self._updated_state, registration_parameters)
 
         self._endpoint_registrations_by_key[key] = reg
@@ -255,7 +265,7 @@ class RegistrationInterface(ThingWithCommonRD, Resource):
 
         registration_parameters = query_split(request)
 
-        regresource = self.common_rd.initialize_endpoint(request.remote.uri, registration_parameters)
+        regresource = self.common_rd.initialize_endpoint(request.remote, registration_parameters)
         regresource.links = links
 
         return aiocoap.Message(code=aiocoap.CREATED, location_path=regresource.path)
@@ -440,17 +450,24 @@ class SimpleRegistrationWKC(WKCResource):
             except ValueError:
                 raise error.BadRequest("lt must be numeric")
 
+        if 'con' not in query:
+            try:
+                con = request.remote.uri
+            except error.UnparsableMessage:
+                raise error.BadRequest("explicit con required")
+
         asyncio.Task(self.process_request(
-                network_con=request.remote.uri,
+                network_remote=request.remote,
                 registration_parameters=query,
             ))
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
-    async def process_request(self, network_con, registration_parameters):
-        con = network_con
-        if 'con' in registration_parameters:
-            con = registration_parameters['con']
+    async def process_request(self, network_remote, registration_parameters):
+        con = registration_parameters.get('con', None)
+        if con is None:
+            con = network_remote.uri
+
         # FIXME actually we should have complained about the con uri not being in host-only form ... and is that defined at all?
         fetch_address = (con + '/.well-known/core')
 
@@ -462,7 +479,7 @@ class SimpleRegistrationWKC(WKCResource):
             logging.exception(e)
             return
 
-        registration = self.common_rd.initialize_endpoint(network_con, registration_parameters)
+        registration = self.common_rd.initialize_endpoint(network_remote, registration_parameters)
         registration.links = links
 
 class StandaloneResourceDirectory(Site):
