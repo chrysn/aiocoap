@@ -33,6 +33,7 @@ from aiocoap.resource import Site, Resource, ObservableResource, PathCapable, WK
 from aiocoap.util.cli import AsyncCLIDaemon
 from aiocoap import error
 from aiocoap.cli.common import add_server_arguments, server_context_from_arguments
+from aiocoap.numbers import media_types_rev
 
 from aiocoap.util.linkformat import Link, LinkFormat, parse
 
@@ -237,17 +238,49 @@ class CommonRD:
     def get_endpoints(self):
         return self._endpoint_registrations_by_key.values()
 
+supported_ct = [
+        media_types_rev['application/link-format'],
+        media_types_rev['application/link-format+cbor'],
+        media_types_rev['application/link-format+json'],
+        ]
 
 def link_format_from_message(message):
     try:
-        if message.opt.content_format == aiocoap.numbers.media_types_rev['application/link-format']:
+        if message.opt.content_format == media_types_rev['application/link-format']:
             return parse(message.payload.decode('utf8'))
-        # FIXME this should support json/cbor too
+        elif message.opt.content_format == media_types_rev['application/link-format+json']:
+            return LinkFormat.from_json_string(message.payload.decode('utf8'))
+        elif message.opt.content_format == media_types_rev['application/link-format+cbor']:
+            return LinkFormat.from_cbor_bytes(message.payload)
         else:
             raise error.UnsupportedMediaType()
     except (UnicodeDecodeError, link_header.ParseException):
         raise error.BadRequest()
 
+def link_format_to_message(request, linkformat,
+        default_ct=media_types_rev['application/link-format']):
+    """Given a LinkFormat object, render it to a response message, picking a
+    suitable conent format from a given request.
+
+    It returns a Not Acceptable response if something unsupported was queried.
+
+    It makes no attempt to modify the URI reference literals encoded in the
+    LinkFormat object; they have to be suitably prepared by the caller."""
+
+    ct = request.opt.accept
+    if ct is None:
+        ct = default_ct
+
+    if ct == media_types_rev['application/link-format']:
+        payload = str(linkformat).encode('utf8')
+    elif ct == media_types_rev['application/link-format+cbor']:
+        payload = linkformat.as_cbor_bytes()
+    elif ct == media_types_rev['application/link-format+json']:
+        payload = linkformat.as_json_string().encode('utf8')
+    else:
+        return aiocoap.Message(code=aiocoap.NOT_ACCEPTABLE)
+
+    return aiocoap.Message(payload=payload, content_format=ct)
 
 class ThingWithCommonRD:
     def __init__(self, common_rd):
@@ -258,7 +291,7 @@ class ThingWithCommonRD:
             self.common_rd.register_change_callback(self.updated_state)
 
 class RegistrationInterface(ThingWithCommonRD, Resource):
-    ct = 40
+    ct = supported_ct
     rt = "core.rd"
 
     async def render_post(self, request):
@@ -281,7 +314,7 @@ class RegistrationResource(Resource):
         self.reg = registration
 
     async def render_get(self, request):
-        return aiocoap.Message(payload=str(self.reg.links).encode('utf8'), content_format=aiocoap.numbers.media_types_rev['application/link-format'])
+        return link_format_from_message(request, self.reg.links)
 
     def _update_params(self, msg):
         query = query_split(msg)
@@ -324,7 +357,7 @@ class EntityDispatchSite(ThingWithCommonRD, Resource, PathCapable):
         return entity.render(request.copy(uri_path=()))
 
 class GroupRegistrationInterface(ThingWithCommonRD, Resource):
-    ct = 40
+    ct = supported_ct
     rt = "core.rd-group"
 
 def _paginate(candidates, query):
@@ -343,7 +376,7 @@ def _link_matches(link, key, condition):
     return any(k == key and condition(v) for (k, v) in link.attr_pairs)
 
 class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
-    ct = 40
+    ct = supported_ct
     rt = "core.rd-lookup-ep"
 
     async def render_get(self, request):
@@ -380,10 +413,10 @@ class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
 
         result = [c.get_host_link() for c in candidates]
 
-        return aiocoap.Message(payload=str(LinkFormat(result)).encode('utf8'), content_format=40)
+        return link_format_to_message(request, LinkFormat(result))
 
 class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
-    ct = 40
+    ct = supported_ct
     rt = "core.rd-lookup-res"
 
     async def render_get(self, request):
@@ -425,10 +458,10 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
 
         candidates = _paginate(candidates, query)
 
-        return aiocoap.Message(payload=str(LinkFormat(candidates)).encode('utf8'), content_format=40)
+        return link_format_to_message(request, LinkFormat(candidates))
 
 class GroupLookupInterface(ThingWithCommonRD, ObservableResource):
-    ct = 40
+    ct = supported_ct
     rt = "core.rd-lookup-gp"
 
 class SimpleRegistrationWKC(WKCResource):
