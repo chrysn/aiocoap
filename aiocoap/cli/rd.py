@@ -34,8 +34,9 @@ from aiocoap.util.cli import AsyncCLIDaemon
 from aiocoap import error
 from aiocoap.cli.common import add_server_arguments, server_context_from_arguments
 
+from aiocoap.util.linkformat import Link, LinkFormat, parse
+
 import link_header
-from link_header import Link, LinkHeader
 
 def query_split(msg):
     return dict(q.split('=', 1) if '=' in q else (q, True) for q in msg.opt.uri_query)
@@ -71,7 +72,7 @@ class CommonRD:
             # note that this can not modify d and ep any more, since they were
             # already used in keying to a path
             self.path = path
-            self.links = LinkHeader([])
+            self.links = LinkFormat([])
 
             self._delete_cb = delete_cb
             self._update_cb = update_cb
@@ -159,7 +160,7 @@ class CommonRD:
             return Link(href=self.href, **args)
 
         def get_conned_links(self):
-            """Produce a LinkHeader object that represents all statements in
+            """Produce a LinkFormat object that represents all statements in
             the registration, resolved to the registration's con (and thus
             suitable for serving from the lookup interface).
 
@@ -174,7 +175,7 @@ class CommonRD:
                 else:
                     data = l.attr_pairs + [['anchor', self.con]]
                 result.append(Link(l.href, data))
-            return LinkHeader(result)
+            return LinkFormat(result)
 
     async def shutdown(self):
         pass
@@ -240,7 +241,7 @@ class CommonRD:
 def link_format_from_message(message):
     try:
         if message.opt.content_format == aiocoap.numbers.media_types_rev['application/link-format']:
-            return link_header.parse(message.payload.decode('utf8'))
+            return parse(message.payload.decode('utf8'))
         # FIXME this should support json/cbor too
         else:
             raise error.UnsupportedMediaType()
@@ -379,7 +380,7 @@ class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
 
         result = [c.get_host_link() for c in candidates]
 
-        return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'), content_format=40)
+        return aiocoap.Message(payload=str(LinkFormat(result)).encode('utf8'), content_format=40)
 
 class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
     ct = 40
@@ -424,7 +425,7 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
 
         candidates = _paginate(candidates, query)
 
-        return aiocoap.Message(payload=str(LinkHeader(candidates)).encode('utf8'), content_format=40)
+        return aiocoap.Message(payload=str(LinkFormat(candidates)).encode('utf8'), content_format=40)
 
 class GroupLookupInterface(ThingWithCommonRD, ObservableResource):
     ct = 40
