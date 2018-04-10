@@ -290,7 +290,7 @@ class RegistrationResource(Resource):
 
     def _update_params(self, msg):
         query = query_split(msg)
-        self.reg.update_params(msg.remote.uri, query)
+        self.reg.update_params(msg.remote, query)
 
     async def render_post(self, request):
         self._update_params(request)
@@ -326,7 +326,7 @@ class EntityDispatchSite(ThingWithCommonRD, Resource, PathCapable):
         else:
             raise ValueError("Unexpected object in entities")
 
-        return entity.render(request.copy(uri_path=()))
+        return await entity.render(request.copy(uri_path=()))
 
 class GroupRegistrationInterface(ThingWithCommonRD, Resource):
     ct = link_format_to_message.supported_ct
