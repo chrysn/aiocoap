@@ -309,7 +309,7 @@ class RegistrationResource(Resource):
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
-    def render_delete(self, request):
+    async def render_delete(self, request):
         self.reg.delete()
 
         return aiocoap.Message(code=aiocoap.DELETED)
