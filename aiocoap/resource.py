@@ -133,6 +133,39 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         link['obs'] = None
         return link
 
+def link_format_to_message(request, linkformat,
+        default_ct=numbers.media_types_rev['application/link-format']):
+    """Given a LinkFormat object, render it to a response message, picking a
+    suitable conent format from a given request.
+
+    It returns a Not Acceptable response if something unsupported was queried.
+
+    It makes no attempt to modify the URI reference literals encoded in the
+    LinkFormat object; they have to be suitably prepared by the caller."""
+
+    ct = request.opt.accept
+    if ct is None:
+        ct = default_ct
+
+    if ct == numbers.media_types_rev['application/link-format']:
+        payload = str(linkformat).encode('utf8')
+    elif ct == numbers.media_types_rev['application/link-format+cbor']:
+        payload = linkformat.as_cbor_bytes()
+    elif ct == numbers.media_types_rev['application/link-format+json']:
+        payload = linkformat.as_json_string().encode('utf8')
+    else:
+        return message.Message(code=numbers.NOT_ACCEPTABLE)
+
+    return message.Message(payload=payload, content_format=ct)
+
+# Convenience attribute to set as ct on resources that use
+# link_format_to_message as their final step in the request handler
+link_format_to_message.supported_ct = " ".join(str(x) for x in (
+        numbers.media_types_rev['application/link-format'],
+        numbers.media_types_rev['application/link-format+cbor'],
+        numbers.media_types_rev['application/link-format+json'],
+        ))
+
 class WKCResource(Resource):
     """Read-only dynamic resource list, suitable as .well-known/core.
 
@@ -143,7 +176,7 @@ class WKCResource(Resource):
     constructor; typically, that function would be a bound
     Site.get_resources_as_linkheader() method."""
 
-    ct = 40
+    ct = link_format_to_message.supported_ct
 
     def __init__(self, listgenerator):
         self.listgenerator = listgenerator
@@ -177,11 +210,7 @@ class WKCResource(Resource):
         if not links.links and request.remote.is_multicast():
             return message.NoResponse
 
-        serialized = str(links)
-
-        response = message.Message(code=numbers.codes.CONTENT, payload=serialized.encode('utf8'))
-        response.opt.content_format = self.ct
-        return response
+        return link_format_to_message(request, links)
 
 class PathCapable:
     """Class that indicates that a resource promises to parse the uri_path
@@ -300,7 +329,7 @@ class Site(interfaces.ObservableResource, PathCapable):
             del self._resources[tuple(path)]
 
     def get_resources_as_linkheader(self):
-        import link_header
+        from .util.linkformat import Link, LinkFormat
 
         links = []
 
@@ -309,12 +338,12 @@ class Site(interfaces.ObservableResource, PathCapable):
                 details = resource.get_link_description()
             else:
                 details = {}
-            lh = link_header.Link('/' + '/'.join(path), **details)
+            lh = Link('/' + '/'.join(path), **details)
 
             links.append(lh)
 
         for path, resource in self._subsites.items():
             if hasattr(resource, "get_resources_as_linkheader"):
                 for l in resource.get_resources_as_linkheader().links:
-                    links.append(link_header.Link('/' + '/'.join(path) + l.href, l.attr_pairs))
-        return link_header.LinkHeader(links)
+                    links.append(Link('/' + '/'.join(path) + l.href, l.attr_pairs))
+        return LinkFormat(links)
