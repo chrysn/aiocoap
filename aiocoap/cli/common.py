@@ -11,7 +11,25 @@
 """Common options of aiocoap command line utilities
 
 Unlike those in :mod:`aiocoap.util.cli`, these are particular to aiocoap
-functionality."""
+functionality.
+
+Typical use is like this::
+
+>>> p = argparse.ArgumentParser()
+>>> p.add_argument('--foo')                         # doctest: +ELLIPSIS
+_...
+>>> add_server_arguments(p)
+>>> opts = p.parse_args(['--bind', '[::1]:56830', '--foo=bar'])
+
+You can then either pass opts directly to
+:func:`server_context_from_arguments`, or split up the arguments::
+
+>>> server_opts = extract_server_arguments(opts)
+>>> opts
+Namespace(foo='bar')
+
+Then, server_opts can be passed to `server_context_from_arguments`.
+"""
 
 import sys
 import argparse
@@ -43,6 +61,23 @@ def add_server_arguments(parser):
     parser.add_argument('--tls-server-key', help="TLS key to load that supports the server certificate", metavar="KEY")
 
     parser.add_argument('--help-bind', help=argparse.SUPPRESS, action=_HelpBind)
+
+def extract_server_arguments(namespace):
+    """Given the output of .parse() on a ArgumentParser that had
+    add_server_arguments called with it, remove the resulting option in-place
+    from namespace and return them in a separate namespace."""
+
+    server_arguments = type(namespace)()
+    server_arguments.bind = namespace.bind
+    server_arguments.tls_server_certificate = namespace.tls_server_certificate
+    server_arguments.tls_server_key = namespace.tls_server_key
+
+    del namespace.bind
+    del namespace.tls_server_certificate
+    del namespace.tls_server_key
+    del namespace.help_bind
+
+    return server_arguments
 
 async def server_context_from_arguments(site, namespace, **kwargs):
     """Create a bound context like
