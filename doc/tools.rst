@@ -8,6 +8,8 @@ addresses (as opposed to the fixed addresses in the examples), or of
 integration in a bigger project in general.
 
 .. toctree::
+   :maxdepth: 1
+
    aiocoap-client: A CoAP client that supports observations and proxying <module/aiocoap.cli.client>
    aiocoap-proxy: A command-line configurable forward and reverse proxy <module/aiocoap.cli.proxy>
    aiocoap-rd: A standalone resource directory server <module/aiocoap.cli.rd>
