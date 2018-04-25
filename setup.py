@@ -21,6 +21,7 @@ version = "0.4a1"
 description = "Python CoAP library"
 longdescription = __doc__
 
+# When introducing something new, make sure to update doc/installation.rst
 extras_require = {
         'linkheader': ['LinkHeader'],
         'oscore': ['hkdf', 'cbor', 'cryptography (>= 2.0)'],

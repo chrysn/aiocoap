@@ -15,7 +15,7 @@ First, some tools
 
 Before we get into programming, let's establish tools with which we can probe a
 server, and a server itself. If you have not done it already,
-:doc:`install aiocoap for development<installation>`.
+:ref:`install aiocoap for development<installation-development>`.
 
 Start off with the sample server by running the following in a terminal inside
 the aiocoap directory::
