@@ -17,6 +17,10 @@ sends off the protected messages via another transport.
 
 This transport is a bit different from the others because it doesn't have its
 dedicated URI scheme, but purely relies on preconfigured contexts.
+
+So far, this transport only deals with outgoing requests, and does not help in
+building an OSCORE server. (Some code that could be used here in future resides
+in `contrib/oscore-plugtest/plugtest-server` as the `ProtectedSite` class.
 """
 
 import asyncio

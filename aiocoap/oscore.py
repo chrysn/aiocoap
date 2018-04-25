@@ -8,7 +8,10 @@
 
 """This module contains the tools to send OSCORE secured messages.
 
-(Work in progress.)"""
+It only deals with the algorithmic parts, the security context and protection
+and unprotection of messages. It does not touch on the integration of OSCORE in
+the larger aiocoap stack of having a context or requests; that's what
+:mod:`aiocoap.transports.osore` is for.`"""
 
 import hashlib
 import json
