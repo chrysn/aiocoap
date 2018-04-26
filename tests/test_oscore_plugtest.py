@@ -26,6 +26,35 @@ SERVER_ADDRESS = '::1'
 SERVER = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-server', '--verbose', '--bind', hostportjoin(SERVER_ADDRESS, None)]
 CLIENT = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-client', '--verbose']
 
+class CapturingSubprocess(asyncio.SubprocessProtocol):
+    """This protocol just captures stdout and stderr into properties of the
+    same name.
+
+    Unlike using communicate() on a create_subprocess_exec product, this does
+    not discard any output that was collected when the task is cancelled, and
+    thus allows cleanup.
+
+    No way of passing data into the process is implemented, as it is not needed
+    here."""
+
+    def __init__(self):
+        self.stdout = b""
+        self.stderr = b""
+        self.read_more = asyncio.Future()
+
+    def pipe_data_received(self, fd, data):
+        self.read_more.set_result(None)
+        self.read_more = asyncio.Future()
+        if fd == 1:
+            self.stdout += data
+        elif fd == 2:
+            self.stderr += data
+        else:
+            raise ValueError("Data on unexpected fileno")
+
+    def process_exited(self):
+        self.read_more.set_result(None)
+
 class WithAssertNofaillines(unittest.TestCase):
     def assertNoFaillines(self, text_to_check, message):
         """Assert that there are no lines that contain the phrase 'fail' or
@@ -52,29 +81,33 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         self.loop.run_until_complete(ready)
 
     async def run_server(self, readiness, done):
-        self.process = await asyncio.create_subprocess_exec(
+        self.process, process_outputs = await self.loop.subprocess_exec(
+                CapturingSubprocess,
                 *SERVER,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stdin=None
                 )
+
         while True:
-            l = await self.process.stdout.readline()
-            if l == b"":
-                try:
-                    _, err = await self.process.communicate()
-                    message = err.decode('utf8')
-                except BaseException as e:
-                    message = str(e)
-                finally:
-                    readiness.set_exception(RuntimeError("OSCORE server process terminated during startup: %s."%message))
-                return
-            if l == b'Plugtest server ready.\n':
+            if b"Plugtest server ready.\n" in process_outputs.stdout:
                 break
+            if self.process.get_returncode() is not None:
+                readiness.set_exception(RuntimeError(
+                    "OSCORE server process terminated during startup:\n%s\n%s" % (
+                        process_outputs.stdout.decode('utf8'),
+                        process_outputs.stderr.decode('utf8'))))
+                return
+            await process_outputs.read_more
         readiness.set_result(True)
 
-        out, err = await self.process.communicate()
+        while True:
+            if self.process.get_returncode() is not None:
+                break
+            await process_outputs.read_more
 
-        done.set_result((out, err))
+        done.set_result(
+                (process_outputs.stdout, process_outputs.stderr))
+
+        self.process.close()
 
     def tearDown(self):
         self.process.terminate()
@@ -102,38 +135,28 @@ class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
         set_seqno = aiocoap.Message(code=aiocoap.PUT, uri='coap://%s/sequence-numbers'%(common.loopbackname_v6 or common.loopbackname_v46), payload=b'0')
         await self.client.request(set_seqno).response_raising
 
-        proc = await asyncio.create_subprocess_exec(*(CLIENT + ['[' + SERVER_ADDRESS + ']', str(x)]), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-
-        # this is a big workaround for (out, err) = proc.communicate() not
-        # filling data into its output variables when raising a
-        # CancellationError (admittedly, how should it; maybe have
-        # `communicate(stdin, *, out_callback, err_callback)`?
-        out = err = b""
-        async def out_read():
-            nonlocal out
-            while True:
-                data = await proc.stdout.readline()
-                if not data:
-                    return
-                out += data
-        async def err_read():
-            nonlocal err
-            while True:
-                data = await proc.stderr.readline()
-                if not data:
-                    return
-                err += data
-        self.loop.create_task(out_read())
-        self.loop.create_task(err_read())
+        proc, transport = await self.loop.subprocess_exec(
+                CapturingSubprocess,
+                *(CLIENT + ['[' + SERVER_ADDRESS + ']', str(x)]),
+                stdin=None
+                )
 
         try:
-            await proc.wait()
+            while True:
+                if proc.get_returncode() is not None:
+                    break
+                await transport.read_more
         except asyncio.CancelledError:
             proc.terminate()
+        else:
+            proc.close()
 
-        self.assertEqual(proc.returncode, 0, 'Plugtest client return non-zero exit state\nOutput was:\n' + out.decode('utf8') + '\nErrorr output was:\n' + err.decode('utf8'))
-        self.assertNoFaillines(out, '"failed" showed up in plugtest client stdout')
-        self.assertNoFaillines(err, '"failed" showed up in plugtest client stderr')
+        self.assertEqual(proc.get_returncode(), 0,
+                'Plugtest client return non-zero exit state\nOutput was:\n' +
+                transport.stdout.decode('utf8') + '\nErrorr output was:\n' +
+                transport.stderr.decode('utf8'))
+        self.assertNoFaillines(transport.stdout, '"failed" showed up in plugtest client stdout')
+        self.assertNoFaillines(transport.stderr, '"failed" showed up in plugtest client stderr')
 
 for x in range(0, 13):
     test = lambda self, x=x: self._test_plugtestclient(x)
