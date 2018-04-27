@@ -50,6 +50,27 @@ test:3.5:
     paths:
       - .eggs/
 
+test:pypy:
+  image: "ubuntu:12.04"
+  script:
+    - apt-get update
+    - apt-get -y install wget ca-certificates bzip2 libexpat1 python-pip
+    - wget -m https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
+    - tar xf bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
+    # ubuntu's old virtualenv has trouble setting up pypy
+    - pip install virtualenv
+    - virtualenv -p pypy3-v6.0.0-linux64/bin/pypy3 venv
+    - AIOCOAP_TEST_EXTRAS= venv/bin/pypy3 ./setup.py test
+#     # inactive while oscore seems not to work on pypy
+#     - apt-get -y install libssl-dev autoconf
+#     # pypy3 is not yet supported with all extras, but let's see where it breaks
+#     - venv/bin/pypy3 ./setup.py test
+  cache:
+    key: pypy
+    paths:
+      - bitbucket.org/
+      - /var/cache/apt
+
 pages:
   image: "python:3.6-stretch"
   stage: deploy
