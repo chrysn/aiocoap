@@ -50,8 +50,29 @@ test:3.5:
     paths:
       - .eggs/
 
-test:pypy:
+test:pypy-u1204:
   image: "ubuntu:12.04"
+  script:
+    - apt-get update
+    - apt-get -y install wget ca-certificates bzip2 libexpat1 python-pip
+    - wget -m https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
+    - tar xf bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
+    # ubuntu's old virtualenv has trouble setting up pypy
+    - pip install virtualenv
+    - virtualenv -p pypy3-v6.0.0-linux64/bin/pypy3 venv
+    - AIOCOAP_TEST_EXTRAS= venv/bin/pypy3 ./setup.py test
+    - apt-get -y install libssl-dev autoconf
+    # see above
+    - virtualenv -p pypy3-v6.0.0-linux64/bin/pip3 install DTLSSocket
+    - venv/bin/pypy3 ./setup.py test
+  cache:
+    key: pypy
+    paths:
+      - bitbucket.org/
+
+test:pypy-u1604:
+  image: "ubuntu:16.04"
+  # 1:1 copy of -u1204
   script:
     - apt-get update
     - apt-get -y install wget ca-certificates bzip2 libexpat1 python-pip
