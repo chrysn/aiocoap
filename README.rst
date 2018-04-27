@@ -67,9 +67,9 @@ the list or in the excluded items, file a wishlist item at the same location).
 Dependencies
 ------------
 
-Basic aiocoap works out of the box on Python_ 3.5.2 or greater. For full
-support (DTLS, OSCORE and link-format handling) follow the installation_
-instructions.
+Basic aiocoap works out of the box on Python_ 3.5.2 or newer (also works on
+PyPy3_). For full support (DTLS, OSCORE and link-format handling) follow the
+installation_ instructions as these require additional libraries.
 
 aiocoap provides different network backends for different platforms. The
 udp6_ module is most full-featured, but ties into the default asyncio loop
@@ -83,6 +83,7 @@ installation_) and declare a dependency like ``aiocoap[linkheader,oscore] >=
 0.4a1``.
 
 .. _Python: https://www.python.org/
+.. _PyPy3: http://pypy.org/
 .. _udp6: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.udp6.html
 .. _uvloop: https://uvloop.readthedocs.io/
 .. _`platform issues`: https://github.com/chrysn/aiocoap/issues?q=is%3Aissue+is%3Aopen+label%3A%22platform+support%22
