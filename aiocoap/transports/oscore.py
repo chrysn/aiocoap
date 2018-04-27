@@ -61,6 +61,12 @@ class TransportOSCORE(interfaces.RequestProvider):
         self.loop = self._context.loop
         self.log = self._context.log
 
+        # Keep current requests. This is not needed for shutdown purposes (see
+        # .shutdown), but because Python 3.6.4 (but not 3.6.5, and not at least
+        # some 3.5) would otherwise cancel OSCORE tasks mid-observation. This
+        # manifested itself as <https://github.com/chrysn/aiocoap/issues/111>.
+        self._tasks = set()
+
     #
     # implement RequestInterface
     #
@@ -96,7 +102,9 @@ class TransportOSCORE(interfaces.RequestProvider):
 
         wire_request = self._wire.request(protected)
 
-        self.loop.create_task(self._request(request, wire_request, secctx, original_request_seqno))
+        t = self.loop.create_task(self._request(request, wire_request, secctx, original_request_seqno))
+        self._tasks.add(t)
+        t.add_done_callback(lambda _, _tasks=self._tasks, _t=t: _tasks.remove(_t))
 
     async def _request(self, request, wire_request, secctx, original_request_seqno):
 
