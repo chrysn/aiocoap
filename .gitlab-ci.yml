@@ -61,10 +61,8 @@ test:pypy:
     - pip install virtualenv
     - virtualenv -p pypy3-v6.0.0-linux64/bin/pypy3 venv
     - AIOCOAP_TEST_EXTRAS= venv/bin/pypy3 ./setup.py test
-#     # inactive while oscore seems not to work on pypy
-#     - apt-get -y install libssl-dev autoconf
-#     # pypy3 is not yet supported with all extras, but let's see where it breaks
-#     - venv/bin/pypy3 ./setup.py test
+    - apt-get -y install libssl-dev autoconf
+    - venv/bin/pypy3 ./setup.py test
   cache:
     key: pypy
     paths:
