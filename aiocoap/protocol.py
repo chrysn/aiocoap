@@ -300,10 +300,10 @@ class Context(interfaces.RequestProvider):
         async def send():
             try:
                 request_interface = await self.find_remote_and_interface(request_message)
+                request_interface.request(plumbing_request)
             except Exception as e:
                 plumbing_request.add_exception(e)
                 return
-            request_interface.request(plumbing_request)
         self.loop.create_task(send())
         return result
 
