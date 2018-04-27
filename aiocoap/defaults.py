@@ -148,6 +148,13 @@ def oscore_missing_modules():
         import cryptography
     except ImportError:
         missing.append('cryptography')
+    else:
+        try:
+            from cryptography.hazmat.primitives.ciphers.aead import AESCCM
+            AESCCM(b"x" * 16, 8)
+        except cryptography.exceptions.UnsupportedAlgorithm:
+            missing.append('a version of OpenSSL that supports AES-CCM')
+
     return missing
 
 def linkheader_missing_modules():
