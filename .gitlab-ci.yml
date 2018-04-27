@@ -62,12 +62,13 @@ test:pypy:
     - virtualenv -p pypy3-v6.0.0-linux64/bin/pypy3 venv
     - AIOCOAP_TEST_EXTRAS= venv/bin/pypy3 ./setup.py test
     - apt-get -y install libssl-dev autoconf
+    # see above
+    - virtualenv -p pypy3-v6.0.0-linux64/bin/pip3 install DTLSSocket
     - venv/bin/pypy3 ./setup.py test
   cache:
     key: pypy
     paths:
       - bitbucket.org/
-      - /var/cache/apt
 
 pages:
   image: "python:3.6-stretch"
