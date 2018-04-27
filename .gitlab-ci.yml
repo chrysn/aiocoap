@@ -63,7 +63,7 @@ test:pypy-u1204:
     - AIOCOAP_TEST_EXTRAS= venv/bin/pypy3 ./setup.py test
     - apt-get -y install libssl-dev autoconf
     # see above
-    - virtualenv -p pypy3-v6.0.0-linux64/bin/pip3 install DTLSSocket
+    - venv/bin/pip3 install DTLSSocket
     - venv/bin/pypy3 ./setup.py test
   cache:
     key: pypy
@@ -84,7 +84,7 @@ test:pypy-u1604:
     - AIOCOAP_TEST_EXTRAS= venv/bin/pypy3 ./setup.py test
     - apt-get -y install libssl-dev autoconf
     # see above
-    - virtualenv -p pypy3-v6.0.0-linux64/bin/pip3 install DTLSSocket
+    - venv/bin/pip3 install DTLSSocket
     - venv/bin/pypy3 ./setup.py test
   cache:
     key: pypy
