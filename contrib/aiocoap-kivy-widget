@@ -22,6 +22,8 @@ from aiocoap.resource import Site, Resource, ObservableResource, WKCResource
 from kivy.app import App
 from kivy.lang.builder import Builder
 
+from widgets_common.kivy_resource import *
+
 kv = '''
 BoxLayout:
     orientation: 'vertical'
@@ -32,46 +34,6 @@ of clicks.'
         background_normal: ''
         color: (0, 0, 0, 1)
 '''
-
-class Text(Resource):
-    """A resource that represents a Kivy widget's text"""
-
-    ct = "0"
-    if_ = "core.p"
-
-    def __init__(self, kivy_backend):
-        super().__init__()
-        self._backend = kivy_backend
-
-    async def render_get(self, request):
-        return Message(payload=self._backend.text.encode('utf8'))
-
-    async def render_put(self, request):
-        self._backend.text = request.payload.decode('utf8')
-        return Message(code=CHANGED)
-
-class PressState(ObservableResource):
-    """A resource that resesents a Kivy widget's "pressed" property"""
-
-    ct = "0"
-    if_ = "core.s"
-
-    # This is no good modelling (for a button modelled as press-release is hard
-    # to observe with eventualy consistent semantics only), but it works for a
-    # first demo.
-
-    def __init__(self, kivy_backend):
-        super().__init__()
-        self._backend = kivy_backend
-        asyncio.get_event_loop().create_task(self._monitor())
-
-    async def _monitor(self):
-        async for evt in self._backend.async_bind('state'):
-            self.updated_state()
-
-    async def render_get(self, request):
-        return Message(payload=
-                {'down': b'1', 'normal': b'0'}[self._backend.state])
 
 class CoAPDisplay(App):
     def build(self):
