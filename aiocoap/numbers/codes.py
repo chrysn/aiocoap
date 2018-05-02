@@ -61,6 +61,12 @@ class Code(ExtensibleIntEnum):
     GATEWAY_TIMEOUT = 164
     PROXYING_NOT_SUPPORTED = 165
 
+    CSM = 225
+    PING = 226
+    PONG = 227
+    RELEASE = 228
+    ABORT = 229
+
     def is_request(self):
         """True if the code is in the request code range"""
         return True if (self >= 1 and self < 32) else False
@@ -69,6 +75,9 @@ class Code(ExtensibleIntEnum):
     def is_response(self):
         """True if the code is in the response code range"""
         return True if (self >= 64 and self < 192) else False
+
+    def is_signalling(self):
+        return True if self >= 224 else False
 
 
     def is_successful(self):
@@ -93,7 +102,7 @@ class Code(ExtensibleIntEnum):
     def __str__(self):
         if self.is_request() or self is self.EMPTY:
             return self.name
-        elif self.is_response():
+        elif self.is_response() or self.is_signalling():
             return "%s %s"%(self.dotted, self.name_printable)
         else:
             return "%d"%self

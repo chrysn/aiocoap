@@ -42,8 +42,7 @@ class ProxyRequest(interfaces.Request):
 
         asyncio.Task(self._launch())
 
-    @asyncio.coroutine
-    def _launch(self):
+    async def _launch(self):
         try:
             self.app_request.remote = None
             self.app_request.unresolved_remote = self.proxy.proxy_address
@@ -52,7 +51,7 @@ class ProxyRequest(interfaces.Request):
                 self.observation._hook_onto(proxyrequest.observation)
             else:
                 self.observation.error(Exception("No proxied observation, this should not have been created in the first place."))
-            self.response.set_result((yield from proxyrequest.response))
+            self.response.set_result(await proxyrequest.response)
         except Exception as e:
             self.response.set_exception(e)
 

@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="130"
+   height="35.953781"
+   viewBox="0 0 130 35.95378"
+   id="svg2"
+   version="1.1"
+   inkscape:version="0.92.2 (5c3e80d, 2017-08-06)"
+   sodipodi:docname="logo.svg">
+  <title
+     id="title7055">The aiocoap library logo</title>
+  <defs
+     id="defs4" />
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="8"
+     inkscape:cx="58.490867"
+     inkscape:cy="18.455062"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer5"
+     showgrid="false"
+     inkscape:snap-bbox="true"
+     inkscape:bbox-paths="true"
+     showguides="true"
+     inkscape:guide-bbox="true"
+     inkscape:snap-bbox-midpoints="true"
+     inkscape:snap-bbox-edge-midpoints="true"
+     inkscape:bbox-nodes="true"
+     inkscape:object-paths="true"
+     inkscape:snap-intersection-paths="false"
+     inkscape:object-nodes="true"
+     inkscape:window-width="1920"
+     inkscape:window-height="1080"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="0"
+     fit-margin-top="1"
+     fit-margin-left="1"
+     fit-margin-right="1"
+     fit-margin-bottom="1"
+     units="px"
+     inkscape:snap-global="false" />
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title>The aiocoap library logo</dc:title>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>chrysn &lt;chrysn@fsfe.org&gt;</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:rights>
+          <cc:Agent>
+            <dc:title>The file is published under the same license as the aiocoap project (see its LICENSE file).</dc:title>
+          </cc:Agent>
+        </dc:rights>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:groupmode="layer"
+     id="layer2"
+     inkscape:label="backline"
+     sodipodi:insensitive="true">
+    <g
+       id="g4787"
+       transform="translate(-212.71558,-410.45676)">
+      <rect
+         y="423.43362"
+         x="217.71558"
+         height="10"
+         width="120"
+         id="rect4743-0"
+         style="opacity:1;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#bb9400;stroke-width:8;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+      <rect
+         y="423.43362"
+         x="217.71558"
+         height="10"
+         width="120"
+         id="rect4743"
+         style="opacity:1;fill:#ffd22e;fill-opacity:1;fill-rule:nonzero;stroke:#ffe27c;stroke-width:0.5;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+    </g>
+  </g>
+  <g
+     inkscape:label="backdrop"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-6.072709,-1009.5282)"
+     sodipodi:insensitive="true">
+    <path
+       inkscape:connector-curvature="0"
+       id="path4180-7-68-8"
+       d="m 36.93661,1035.1631 v -15.316 h -2.072 v 2.716 c -1.512,-2.128 -3.388,-3.08 -6.048,-3.08 -4.592,0 -8.064,3.472 -8.064,8.064 0,4.564 3.5,7.98 8.204,7.98 2.604,0 4.284,-0.868 5.908,-3.052 v 2.688 z m -2.072,-7.728 c 0,3.472 -2.576,6.188 -5.88,6.188 -3.472,0 -6.132,-2.716 -6.132,-6.216 0,-3.332 2.688,-6.02 6.02,-6.02 3.36,0 5.992,2.632 5.992,6.048 z"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:28px;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:center;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:middle;display:inline;overflow:visible;visibility:visible;fill:#ff00e7;fill-opacity:1;fill-rule:nonzero;stroke:#274e70;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none;enable-background:accumulate" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path4180-7-9-3-6"
+       d="m 40.45419,1035.1631 v -15.316 h 2.072 v 2.716 c 1.512,-2.128 3.388,-3.08 6.048,-3.08 4.592,0 8.064,3.472 8.064,8.064 0,4.564 -3.5,7.98 -8.204,7.98 -2.604,0 -4.284,-0.868 -5.908,-3.052 v 2.688 z m 2.072,-7.728 c 0,3.472 2.576,6.188 5.88,6.188 3.472,0 6.132,-2.716 6.132,-6.216 0,-3.332 -2.688,-6.02 -6.02,-6.02 -3.36,0 -5.992,2.632 -5.992,6.048 z"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:28px;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:center;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:middle;display:inline;overflow:visible;visibility:visible;fill:#ff00e7;fill-opacity:1;fill-rule:nonzero;stroke:#274e70;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none;enable-background:accumulate" />
+    <path
+       id="path4233-6-7-1"
+       d="m 38.3564,1018.0562 v -3.528 h -2.072 v 3.528 z"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:28px;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:center;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:middle;display:inline;overflow:visible;visibility:visible;fill:#ff00e7;fill-opacity:1;fill-rule:nonzero;stroke:#274e70;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none;enable-background:accumulate"
+       inkscape:connector-curvature="0" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path4188-9-80-6"
+       d="m 73.12619,1027.5471 c 0,-4.676 -3.36,-8.064 -7.952,-8.064 -4.536,0 -8.036,3.444 -8.036,7.924 0,4.704 3.444,8.12 8.204,8.12 4.48,0 7.784,-3.388 7.784,-7.98 z m -2.1,0.028 c 0,3.5 -2.408,6.048 -5.74,6.048 -3.528,0 -6.048,-2.576 -6.048,-6.16 0,-3.472 2.548,-6.076 5.936,-6.076 3.36,0 5.852,2.632 5.852,6.188 z"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:28px;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:center;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:middle;display:inline;overflow:visible;visibility:visible;fill:#ff00e7;fill-opacity:1;fill-rule:nonzero;stroke:#274e70;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none;enable-background:accumulate" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path4180-7-3-47-5"
+       d="m 104.95881,1019.8471 v 15.316 h 2.072 v -2.716 c 1.512,2.128 3.388,3.08 6.048,3.08 4.592,0 8.064,-3.472 8.064,-8.064 0,-4.564 -3.5,-7.98 -8.204,-7.98 -2.604,0 -4.284,0.868 -5.908,3.052 v -2.688 z m 2.072,7.728 c 0,-3.472 2.576,-6.188 5.88,-6.188 3.472,0 6.132,2.716 6.132,6.216 0,3.332 -2.688,6.02 -6.02,6.02 -3.36,0 -5.992,-2.632 -5.992,-6.048 z"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:28px;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:center;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:middle;display:inline;overflow:visible;visibility:visible;fill:#ff00e7;fill-opacity:1;fill-rule:nonzero;stroke:#274e70;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none;enable-background:accumulate" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path4180-7-9-7-8-5"
+       d="m 104.19123,1019.8471 v 15.316 h -2.072 v -2.716 c -1.512,2.128 -3.388,3.08 -6.048,3.08 -4.592,0 -8.064,-3.472 -8.064,-8.064 0,-4.564 3.5,-7.98 8.204,-7.98 2.604,0 4.284,0.868 5.908,3.052 v -2.688 z m -2.072,7.728 c 0,-3.472 -2.576,-6.188 -5.88,-6.188 -3.472,0 -6.132,2.716 -6.132,6.216 0,3.332 2.688,6.02 6.02,6.02 3.36,0 5.992,-2.632 5.992,-6.048 z"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:28px;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:center;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:middle;display:inline;overflow:visible;visibility:visible;fill:#ff00e7;fill-opacity:1;fill-rule:nonzero;stroke:#274e70;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none;enable-background:accumulate" />
+    <path
+       id="path4233-6-5-4-3"
+       d="m 103.53902,1036.954 v 3.528 h 2.072 v -3.528 z"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:28px;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:center;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:middle;display:inline;overflow:visible;visibility:visible;fill:#ff00e7;fill-opacity:1;fill-rule:nonzero;stroke:#274e70;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none;enable-background:accumulate"
+       inkscape:connector-curvature="0" />
+    <path
+       inkscape:connector-curvature="0"
+       id="path4188-9-2-79-6"
+       d="m 71.51923,1027.4631 c 0,4.676 3.36,8.064 7.952,8.064 4.536,0 8.036,-3.444 8.036,-7.924 0,-4.704 -3.444,-8.12 -8.204,-8.12 -4.48,0 -7.784,3.388 -7.784,7.98 z m 2.1,-0.028 c 0,-3.5 2.408,-6.048 5.74,-6.048 3.528,0 6.048,2.576 6.048,6.16 0,3.472 -2.548,6.076 -5.936,6.076 -3.36,0 -5.852,-2.632 -5.852,-6.188 z"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:28px;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:center;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:middle;display:inline;overflow:visible;visibility:visible;fill:#ff00e7;fill-opacity:1;fill-rule:nonzero;stroke:#274e70;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none;enable-background:accumulate" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer4"
+     inkscape:label="outlines"
+     sodipodi:insensitive="true">
+    <path
+       d="m 31.113901,25.63486 v -15.316 h -2.072 v 2.716 c -1.512,-2.128 -3.388,-3.0799999 -6.048,-3.0799999 -4.592,0 -8.064,3.4719999 -8.064,8.0639999 0,4.564 3.5,7.98 8.204,7.98 2.604,0 4.284,-0.868 5.908,-3.052 v 2.688 z m -2.072,-7.728 c 0,3.472 -2.576,6.188 -5.88,6.188 -3.472,0 -6.132,-2.716 -6.132,-6.216 0,-3.332 2.688,-6.02 6.02,-6.02 3.36,0 5.992,2.632 5.992,6.048 z"
+       id="path4385-4-9"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#6e9bbf;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+    <path
+       d="m 50.467481,18.01886 c 0,-4.676 -3.36,-8.0639999 -7.952,-8.0639999 -4.536,0 -8.036,3.4439999 -8.036,7.9239999 0,4.704 3.444,8.12 8.204,8.12 4.48,0 7.784,-3.388 7.784,-7.98 z m -2.1,0.028 c 0,3.5 -2.408,6.048 -5.74,6.048 -3.528,0 -6.048,-2.576 -6.048,-6.16 0,-3.472 2.548,-6.076 5.936,-6.076 3.36,0 5.852,2.632 5.852,6.188 z"
+       id="path4389-9-40"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#6e9bbf;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+    <path
+       d="m 66.983481,21.12686 h -2.352 c -1.596,2.128 -3.08,2.968 -5.236,2.968 -3.444,0 -6.16,-2.716 -6.16,-6.104 0,-3.444 2.66,-6.132 6.076,-6.132 2.268,0 4.144,1.092 5.32,3.108 h 2.324 c -1.232,-3.08 -4.172,-5.0119999 -7.616,-5.0119999 -4.592,0 -8.204,3.5279999 -8.204,7.9799999 0,4.564 3.64,8.064 8.344,8.064 3.164,0 5.656,-1.372 7.504,-4.872 z"
+       id="path4391-0-48"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#6e9bbf;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+    <path
+       d="m 98.118521,25.63486 v -15.316 h -2.072 v 2.716 c -1.512,-2.128 -3.388,-3.0799999 -6.048,-3.0799999 -4.592,0 -8.064,3.4719999 -8.064,8.0639999 0,4.564 3.5,7.98 8.204,7.98 2.604,0 4.284,-0.868 5.908,-3.052 v 2.688 z m -2.072,-7.728 c 0,3.472 -2.576,6.188 -5.88,6.188 -3.472,0 -6.132,-2.716 -6.132,-6.216 0,-3.332 2.688,-6.02 6.02,-6.02 3.36,0 5.992,2.632 5.992,6.048 z"
+       id="path4395-2-2"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#6e9bbf;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+    <path
+       d="m 115.0421,18.07486 c 0,-4.564 -3.5,-8.064 -8.064,-8.064 -2.604,0 -4.732,1.064 -6.02,2.996 v -2.632 h -2.071999 v 20.692 h 2.071999 v -8.008 c 1.344,1.96 3.416,2.996 5.964,2.996 4.564,0 8.12,-3.5 8.12,-7.98 z m -2.1,0 c 0,3.444 -2.604,6.076 -6.02,6.076 -3.5,0 -6.104,-2.66 -6.104,-6.188 0,-3.388 2.688,-6.048 6.076,-6.048 3.444,0 6.048,2.632 6.048,6.16 z"
+       id="path4397-9-8"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#6e9bbf;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+    <path
+       d="m 33.953481,25.63486 v -15.316 h -2.072 v 15.316 z m 0,-16.9959999 v -3.528 h -2.072 v 3.528 z"
+       id="path4387-6-3"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#6e9bbf;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+    <path
+       d="m 81.434521,18.01886 c 0,-4.676 -3.36,-8.0639999 -7.952,-8.0639999 -4.536,0 -8.036,3.4439999 -8.036,7.9239999 0,4.704 3.444,8.12 8.204,8.12 4.48,0 7.784,-3.388 7.784,-7.98 z m -2.1,0.028 c 0,3.5 -2.408,6.048 -5.74,6.048 -3.528,0 -6.048,-2.576 -6.048,-6.16 0,-3.472 2.548,-6.076 5.936,-6.076 3.36,0 5.852,2.632 5.852,6.188 z"
+       id="path4393-9-1"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#6e9bbf;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer5"
+     inkscape:label="front">
+    <path
+       d="m 31.113901,25.63487 v -15.316 h -2.072 v 2.716 c -1.512,-2.128 -3.388,-3.0799999 -6.048,-3.0799999 -4.592,0 -8.064,3.4719999 -8.064,8.0639999 0,4.564 3.5,7.98 8.204,7.98 2.604,0 4.284,-0.868 5.908,-3.052 v 2.688 z m -2.072,-7.728 c 0,3.472 -2.576,6.188 -5.88,6.188 -3.472,0 -6.132,-2.716 -6.132,-6.216 0,-3.332 2.688,-6.02 6.02,-6.02 3.36,0 5.992,2.632 5.992,6.048 z"
+       id="path4385-4-0-9"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:#5082ab;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.30000001;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+    <path
+       d="m 50.467481,18.01887 c 0,-4.676 -3.36,-8.0639999 -7.952,-8.0639999 -4.536,0 -8.036,3.4439999 -8.036,7.9239999 0,4.704 3.444,8.12 8.204,8.12 4.48,0 7.784,-3.388 7.784,-7.98 z m -2.1,0.028 c 0,3.5 -2.408,6.048 -5.74,6.048 -3.528,0 -6.048,-2.576 -6.048,-6.16 0,-3.472 2.548,-6.076 5.936,-6.076 3.36,0 5.852,2.632 5.852,6.188 z"
+       id="path4389-9-4-1"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:#5082ab;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.30000001;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+    <path
+       d="m 33.953481,25.63487 v -15.316 h -2.072 v 15.316 z m 0,-16.9959999 v -3.528 h -2.072 v 3.528 z"
+       id="path4387-6-1-3"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:#5082ab;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.30000001;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+    <path
+       d="m 66.983481,21.12687 h -2.352 c -1.596,2.128 -3.08,2.968 -5.236,2.968 -3.444,0 -6.16,-2.716 -6.16,-6.104 0,-3.444 2.66,-6.132 6.076,-6.132 2.268,0 4.144,1.092 5.32,3.108 h 2.324 c -1.232,-3.08 -4.172,-5.0119999 -7.616,-5.0119999 -4.592,0 -8.204,3.5279999 -8.204,7.9799999 0,4.564 3.64,8.064 8.344,8.064 3.164,0 5.656,-1.372 7.504,-4.872 z"
+       id="path4391-0-4-0"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:#5082ab;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.30000001;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+    <path
+       d="m 98.118521,25.63487 v -15.316 h -2.072 v 2.716 c -1.512,-2.128 -3.388,-3.0799999 -6.048,-3.0799999 -4.592,0 -8.064,3.4719999 -8.064,8.0639999 0,4.564 3.5,7.98 8.204,7.98 2.604,0 4.284,-0.868 5.908,-3.052 v 2.688 z m -2.072,-7.728 c 0,3.472 -2.576,6.188 -5.88,6.188 -3.472,0 -6.132,-2.716 -6.132,-6.216 0,-3.332 2.688,-6.02 6.02,-6.02 3.36,0 5.992,2.632 5.992,6.048 z"
+       id="path4395-2-9-2"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:#5082ab;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.30000001;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+    <path
+       d="m 115.0421,18.07487 c 0,-4.564 -3.5,-8.064 -8.064,-8.064 -2.604,0 -4.732,1.064 -6.02,2.996 v -2.632 h -2.071999 v 20.692 h 2.071999 v -8.008 c 1.344,1.96 3.416,2.996 5.964,2.996 4.564,0 8.12,-3.5 8.12,-7.98 z m -2.1,0 c 0,3.444 -2.604,6.076 -6.02,6.076 -3.5,0 -6.104,-2.66 -6.104,-6.188 0,-3.388 2.688,-6.048 6.076,-6.048 3.444,0 6.048,2.632 6.048,6.16 z"
+       id="path4397-9-2-0"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:#5082ab;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.30000001;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+    <path
+       d="m 81.434521,18.01887 c 0,-4.676 -3.36,-8.0639999 -7.952,-8.0639999 -4.536,0 -8.036,3.4439999 -8.036,7.9239999 0,4.704 3.444,8.12 8.204,8.12 4.48,0 7.784,-3.388 7.784,-7.98 z m -2.1,0.028 c 0,3.5 -2.408,6.048 -5.74,6.048 -3.528,0 -6.048,-2.576 -6.048,-6.16 0,-3.472 2.548,-6.076 5.936,-6.076 3.36,0 5.852,2.632 5.852,6.188 z"
+       id="path4393-9-7-7"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:#5082ab;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.30000001;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+  </g>
+</svg>

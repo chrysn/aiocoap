@@ -15,7 +15,7 @@ First, some tools
 
 Before we get into programming, let's establish tools with which we can probe a
 server, and a server itself. If you have not done it already,
-:doc:`install aiocoap for development<installation>`.
+:ref:`install aiocoap for development<installation-development>`.
 
 Start off with the sample server by running the following in a terminal inside
 the aiocoap directory::
@@ -67,7 +67,7 @@ The response should have arrived immediately: The client sent a message to the
 server in which it requested the resource at ``/time``, and the server could
 right away send a message back. In contrast, ``/other/separate`` is slower::
 
-    $ ./aiocoap-client coap://localhost/others/separate
+    $ ./aiocoap-client coap://localhost/other/separate
     Three rings for the elven kings [abbreviated]
 
 The response to this message comes back with a delay. Here, it is simulated by
@@ -83,7 +83,7 @@ message::
     >>> from aiocoap import *
     >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
     >>> print(msg)
-    <aiocoap.Message at 0x0123deadbeef: None GET (ID None, token b'') remote None, 2 option(s)>
+    <aiocoap.Message at 0x0123deadbeef: no mtype, GET (no MID, empty token) remote None, 2 option(s)>
 
 The message consists of several parts. The non-optional ones are largely
 handled by aiocoap (message type, ID, token and remote are all None or empty
@@ -115,7 +115,7 @@ processing in the meantime. For now, all we want is to wait until the response
 is ready::
 
     >>> await protocol.request(msg).response
-    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (ID 51187, token b'\x00\x00\x81\x99') remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
+    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
 
 Here, we have a successful message ("2.05 Content" is the rough equivalent of
 HTTP's "200 OK", and the 186 bytes of payload look promising). Until we can
@@ -144,7 +144,7 @@ accordingly. Now we can run what did not work before::
     ...     response = await protocol.request(msg).response
     ...     print(response)
     >>> run(main())
-    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (ID 51187, token b'\x00\x00\x81\x99') remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
+    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
 
 That's better!
 
@@ -161,7 +161,7 @@ To dissect the response, let's make sure we have it available::
     >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
     >>> response = run(protocol.request(msg).response)
     >>> print(response)
-    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (ID 51187, token b'\x00\x00\x81\x99') remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
+    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
 
 The response obtained in the main function is a message like the request
 message, just that it has a different code (2.05 is of the successful 2.00

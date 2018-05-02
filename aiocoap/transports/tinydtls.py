@@ -6,13 +6,13 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module implements a TransportEndpoint that handles coaps:// using a
+"""This module implements a MessageInterface that handles coaps:// using a
 wrapped tinydtls library.
 
 This currently only implements the client side. To have a test server, run::
 
-    $ git clone https://github.com/obgm/libcoap.git
-    $ git submodule update --init
+    $ git clone https://github.com/obgm/libcoap.git --recursive
+    $ cd libcoap
     $ ./autogen.sh
     $ ./configure --with-tinydtls --disable-shared
     $ make
@@ -21,9 +21,25 @@ This currently only implements the client side. To have a test server, run::
 (Using TinyDTLS in libcoap is important; with the default OpenSSL build, I've
 seen DTLS1.0 responses to DTLS1.3 requests, which are hard to debug.)
 
-The test server can then be accessed with the currently built-in credentials using::
+The test server with its built-in credentials can then be accessed using::
 
-    $ ./aiocoap-client coaps://localhost/
+    $ echo '{"coaps://localhost/*": {"dtls": {"psk": {"ascii": "secretPSK"}, "client-identity": {"ascii": "client_Identity"}}}}' > testserver.json
+    $ ./aiocoap-client coaps://localhost --credentials testserver.json
+
+While it is planned to allow more programmatical construction of the
+credentials store, the currently recommended way of storing DTLS credentials is
+to load a structured data object into the client_credentials store of the context:
+
+>>> c = await aiocoap.Context.create_client_context()          # doctest: +SKIP
+>>> c.client_credentials.load_from_dict(
+...     {'coaps://localhost/*': {'dtls': {
+...         'psk': b'secretPSK',
+...         'client-identity': b'client_Identity',
+...         }}})                                               # doctest: +SKIP
+
+where, compared to the JSON example above, byte strings can be used directly
+rather than expressing them as 'ascii'/'hex' (`{'hex': '30383135'}` style works
+as well) to work around JSON's limitation of not having raw binary strings.
 
 Bear in mind that the aiocoap CoAPS support is highly experimental; for
 example, while requests to this server do complete, error messages are still
@@ -37,10 +53,11 @@ import functools
 import time
 
 from ..util.asyncio import PeekQueue
-from ..util import hostportjoin
+from ..util import hostportjoin, hostportsplit
 from ..message import Message
 from .. import interfaces, error
 from ..numbers import COAPS_PORT
+from ..credentials import CredentialsMissingError
 
 # tinyDTLS passes address information around in its session data, but the way
 # it's used here that will be ignored; this is the data that is sent to / read
@@ -66,10 +83,6 @@ CODE_CLOSE_NOTIFY = 0
 # FIXME this should be exposed by the dtls wrapper
 DTLS_TICKS_PER_SECOND = 1000
 DTLS_CLOCK_OFFSET = time.time()
-
-class DTLSSecurityStore:
-    def _get_psk(self, host, port):
-        return b"Client_identity", b"secretPSK"
 
 class DTLSClientConnection(interfaces.EndpointAddress):
     # for now i'd assyme the connection can double as an address. this means it
@@ -124,19 +137,18 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
     log = property(lambda self: self.coaptransport.log)
 
-    @asyncio.coroutine
-    def _run(self, connect_immediately):
+    async def _run(self, connect_immediately):
         from DTLSSocket import dtls
 
         self._dtls_socket = None
 
         if not connect_immediately:
-            yield from self._queue.peek()
+            await self._queue.peek()
 
         self._connection = None
 
         try:
-            self._transport, singleconnection = yield from self.coaptransport.loop.create_datagram_endpoint(
+            self._transport, singleconnection = await self.coaptransport.loop.create_datagram_endpoint(
                     self.SingleConnection.factory(self),
                     remote_addr=(self._host, self._port),
                     )
@@ -154,19 +166,19 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
             self._connecting = asyncio.Future()
 
-            yield from self._connecting
+            await self._connecting
 
             while True:
-                message = yield from self._queue.get()
+                message = await self._queue.get()
                 self._retransmission_task.cancel()
                 self._dtls_socket.write(self._connection, message)
                 self._retransmission_task = asyncio.Task(self._run_retransmissions())
         except OSError as e:
             self.log.debug("Expressing exception %r as errno %d.", e, e.errno)
-            self.coaptransport.new_error_callback(e.errno, self)
+            self.coaptransport.ctx.dispatch_error(e.errno, self)
         except Exception as e:
             self.log.error("Exception %r can not be represented as errno, setting -1.", e)
-            self.coaptransport.new_error_callback(-1, self)
+            self.coaptransport.ctx.dispatch_error(-1, self)
         finally:
             if self._connection is not None:
                 try:
@@ -179,14 +191,13 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             # delayed ICMP errors that might still wind up in the old socket
             self._transport.close()
 
-    @asyncio.coroutine
-    def _run_retransmissions(self):
+    async def _run_retransmissions(self):
         while True:
             when = self._dtls_socket.checkRetransmit() / DTLS_TICKS_PER_SECOND
             if when == 0:
                 return
             now = time.time() - DTLS_CLOCK_OFFSET
-            yield from asyncio.sleep(when - now)
+            await asyncio.sleep(when - now)
 
 
     def shutdown(self):
@@ -207,7 +218,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return len(data)
 
-        self.coaptransport.new_message_callback(message)
+        self.coaptransport.ctx.dispatch_message(message)
 
         return len(data)
 
@@ -261,19 +272,16 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         def datagram_received(self, data, addr):
             self.parent._dtls_socket.handleMessage(self.parent._connection, data)
 
-class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
-    def __init__(self, new_message_callback, new_error_callback, log, loop):
+class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
+    def __init__(self, ctx: interfaces.MessageManager, log, loop):
         self._pool = weakref.WeakValueDictionary({}) # see _connection_for_address
 
-        self.new_message_callback = new_message_callback
-        self.new_error_callback = new_error_callback
+        self.ctx = ctx
+
         self.log = log
         self.loop = loop
 
-        self.security = DTLSSecurityStore()
-
-    @asyncio.coroutine
-    def _connection_for_address(self, host, port, pskId, psk):
+    async def _connection_for_address(self, host, port, pskId, psk):
         """Return a DTLSConnection to a given address. This will always give
         the same result for the same host/port combination, at least for as
         long as that result is kept alive (eg. by messages referring to it in
@@ -287,36 +295,39 @@ class TransportEndpointTinyDTLS(interfaces.TransportEndpoint):
             return connection
 
     @classmethod
-    @asyncio.coroutine
-    def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to):
+    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to):
         if dump_to is not None:
             log.error("Ignoring dump_to in tinyDTLS transport endpoint")
-        return cls(new_message_callback, new_error_callback, log, loop)
+        return cls(ctx, log, loop)
 
-    @asyncio.coroutine
-    def determine_remote(self, request):
+    async def recognize_remote(self, remote):
+        return isinstance(remote, DTLSClientConnection) and remote in self._pool.values()
+
+    async def determine_remote(self, request):
         if request.requested_scheme != 'coaps':
             return None
 
         if request.unresolved_remote:
-            pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
-            host = pseudoparsed.hostname
-            port = pseudoparsed.port or COAPS_PORT
+            host, port = hostportsplit(request.unresolved_remote)
+            port = port or COAPS_PORT
         elif request.opt.uri_host:
             host = request.opt.uri_host
             port = request.opt.uri_port or COAPS_PORT
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-        pskId, psk = self.security._get_psk(host, port)
-        result = yield from self._connection_for_address(host, port, pskId, psk)
+        dtlsparams = self.ctx.client_credentials.credentials_from_request(request)
+        try:
+            pskId, psk = dtlsparams.as_dtls_psk()
+        except AttributeError:
+            raise CredentialsMissingError("Credentials for requested URI are not compatible with DTLS-PSK")
+        result = await self._connection_for_address(host, port, pskId, psk)
         return result
 
     def send(self, message):
         message.remote.send(message.encode())
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         remaining_connections = list(self._pool.values())
         for c in remaining_connections:
             c.shutdown()

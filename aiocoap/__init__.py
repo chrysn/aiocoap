@@ -7,32 +7,26 @@
 # described in the accompanying LICENSE file.
 
 """
-aiocoap
-=======
+The aiocoap package is a library that implements CoAP, the `Constrained
+Application Protocol`_.
 
-The aiocoap package is a library that implements CoAP, the Constrained
-Application Protocol (`RFC 7252`_, more info at http://coap.technology/).
+If you are reading this through the Python documentation, be aware that there
+is additional documentation available online_ and in the source code's ``doc``
+directory.
 
-.. _`RFC 7252`: http://tools.ietf.org/html/rfc7252
+.. _`Constrained Application Protocol`: http://coap.technology/
+.. _online: http://aiocoap.readthedocs.io/
 
-Usage
------
+Module contents
+---------------
 
-In all but the most exotic applications, you will want to create a single
-:class:`.Context` instance that binds to the network. The
-:meth:`.Context.create_client_context` and
-:meth:`.Context.create_server_context` coroutines give you a readily connected
-context.
+This root module re-exports the most commonly used classes in aiocoap:
+:class:`.Context`, :class:`.Message` (along with its sentinel stand-in
+:data:`.NoResponse`) as well as all commonly used numeric constants from
+:mod:`.numbers`; see their respective documentation entries.
 
-On the client side, you can request resources by assembling a :class:`.Message`
-and passing it to your context's :meth:`.Context.request` method, which
-returns a :class:`.protocol.Request` object with a
-:attr:`.protocol.Request.response` future (which is a :class:`.Message` again).
-
-On the server side, a resource tree gets built from
-:class:`aiocoap.resource.Resource` objects into a
-:class:`aiocoap.resource.Site`, which is assigned to the context at creation
-time.
+The presence of :class:`.Message` and :class:`.Context` in the root module is
+stable.
 """
 
 from .numbers import *

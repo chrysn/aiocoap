@@ -6,7 +6,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module implements a TransportEndpoint for UDP based on the asyncio
+"""This module implements a MessageInterface for UDP based on the asyncio
 DatagramProtocol.
 
 This is a simple version that works only for clients (by creating a dedicated
@@ -30,7 +30,7 @@ import socket
 from aiocoap import interfaces, error
 from aiocoap import Message, COAP_PORT
 from ..util import hostportjoin
-from .generic_udp import GenericTransportEndpoint
+from .generic_udp import GenericMessageInterface
 
 class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
     def __init__(self, ready_callback, new_message_callback, new_error_callback, stored_sockaddr):
@@ -108,8 +108,7 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
     def send(self, data):
         self._transport.sendto(data, None)
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         self._stage = "shutting down"
         self._transport.abort()
         del self._new_message_callback
@@ -133,9 +132,9 @@ class _DatagramClientSocketpoolSimple6:
 
     # FIXME (new_message_callback, new_error_callback) should probably rather
     # be one object with a defined interface; either that's the
-    # TransportEndpointSimple6 and stored accessibly (so the Protocol can know
-    # which TransportEndpoint to talk to for sending), or we move the
-    # TransportEndpoint out completely and have that object be the Protocol,
+    # MessageInterfaceSimple6 and stored accessibly (so the Protocol can know
+    # which MessageInterface to talk to for sending), or we move the
+    # MessageInterface out completely and have that object be the Protocol,
     # and the Protocol can even send new packages via the address
     def __init__(self, loop, new_message_callback, new_error_callback):
         # currently tracked only for shutdown
@@ -145,8 +144,7 @@ class _DatagramClientSocketpoolSimple6:
         self._new_message_callback = new_message_callback
         self._new_error_callback = new_error_callback
 
-    @asyncio.coroutine
-    def connect(self, sockaddr):
+    async def connect(self, sockaddr):
         """Create a new socket with a given remote socket address
 
         Note that the sockaddr does not need to be fully resolved or complete,
@@ -159,12 +157,12 @@ class _DatagramClientSocketpoolSimple6:
         fixed at all when this must return identical objects."""
 
         ready = asyncio.Future()
-        transport, protocol = yield from self._loop.create_datagram_endpoint(
+        transport, protocol = await self._loop.create_datagram_endpoint(
                 lambda: _Connection(lambda: ready.set_result(None), self._new_message_callback, self._new_error_callback, sockaddr),
                 family=socket.AF_INET6,
                 flags=socket.AI_V4MAPPED,
                 remote_addr=sockaddr)
-        yield from ready
+        await ready
 
         # FIXME twice: 1., those never get removed yet (should timeout or
         # remove themselves on error), and 2., this is racy against a shutdown right after a connect
@@ -172,17 +170,18 @@ class _DatagramClientSocketpoolSimple6:
 
         return protocol
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         if self._sockets:
-            yield from asyncio.wait([s.shutdown() for s in self._sockets])
+            await asyncio.wait([s.shutdown() for s in self._sockets])
         del self._sockets
 
-class TransportEndpointSimple6(GenericTransportEndpoint):
+class MessageInterfaceSimple6(GenericMessageInterface):
     @classmethod
-    @asyncio.coroutine
-    def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop):
-        self = cls(new_message_callback, new_error_callback, log, loop)
+    async def create_client_transport_endpoint(cls, ctx, log, loop):
+        self = cls(ctx, log, loop)
 
         self._pool = _DatagramClientSocketpoolSimple6(self._loop, self._received_datagram, self._received_exception)
         return self
+
+    async def recognize_remote(self, remote):
+        return isinstance(remote, _Connection) and remote in self._pool._sockets

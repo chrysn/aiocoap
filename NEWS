@@ -1,3 +1,97 @@
+Version next
+------------
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+* Client observations that have been requested by sending the Observe option
+  must now be taken up by the client. The warning that was previously shown
+  when an observation was shut down due to garbage collection can not be
+  produced easily in this version, and will result in a useless persisting
+  observation in the background. (See <https://github.com/chrysn/aiocoap/issues/104>)
+
+* Server resources that expect the library to do handle blockwise by returning
+  true to `needs_blockwise_assembly` do not allow random initial access any
+  more; this this is especially problematic with clients that use a different
+  source port for every package.
+
+  The old behavior was prone to triggering an action twice on non-safe methods,
+  and generating wrong results in block1+block2 scenarios when a later `FETCH
+  block2:2/x/x` request would be treated as a new operation and return the
+  result of an empty request body rather than being aligned with an earlier
+  `FETCH block1:x/x/x` operation.
+
+Version 0.4a1
+-------------
+
+Security fixes
+~~~~~~~~~~~~~~
+
+* 18ddf8c: Proxy now only creates log files when explicitly requested
+* Support for secured protocols added (see Experimental Features)
+
+Experimental features
+~~~~~~~~~~~~~~~~~~~~~
+
+* Support for OSCORE (formerly OSCOAP) and CoAP over DTLS was included
+
+  These features both lack proper key management so far, which will be
+  available in a 0.4 release.
+
+* Added implementations of Resource Directory (RD) server and endpoint
+
+* Support for different transports was added. The transport backends to enable
+  are chosen heuristically depending on operating system and installed modules.
+
+  * Transports for platforms not supporting all POSIX operations to run CoAP
+    correctly were added (simple6, simplesocketserver). This should allow
+    running aiocoap on Windows, MacOS and using uvloop, but with some
+    disadvantages (see the the respective transport documentations).
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+
+* 8641b5c: Blockwise handling is now available as stand-alone responder.
+  Applications that previously created a Request object rather than using
+  Protocol.request now need to create a BlockwiseRequest object.
+* 8641b5c: The ``.observation`` property can now always be present in
+  responses, and applications that previously checked for its presence should
+  now check whether it is None.
+* cdfeaeb: The multicast interface using queuewithend was replaced with
+  asynchronous iterators
+* d168f44: Handling of sub-sites changed, subsites' root resources now need to
+  reside at path ``("",)``
+
+Deprecations
+~~~~~~~~~~~~
+
+* e50e994: Rename UnsupportedMediaType to UnsupportedContentFormat
+* 9add964 and others: The ``.remote`` message property is not necessarily a
+  tuple any more, and has its own interface
+* 25cbf54, c67c2c2: Drop support for Python versions < 3.4.4; the required
+  version will be incremented to 3.5 soon.
+
+Assorted changes
+~~~~~~~~~~~~~~~~
+
+* 750d88d: Errors from predefined exceptions like BadRequest("...") are now
+  sent with their text message in the diagnostic payload
+* 3c7635f: Examples modernized
+* 97fc5f7: Multicast handling changed (but is still not fully supported)
+* 933f2b1: Added support for the  No-Response option (RFC7967)
+* baa84ee: V4MAPPED addresses are now properly displayed as IPv4 addresses
+
+Tests
+~~~~~
+
+* Test suite is now run at Gitlab, and coverage reported
+* b2396bf: Test suite probes for usable hostnames for localhost
+* b4c5b1d: Allow running tests with a limited set of extras installed
+* General improvements on coverage
+
+
+
 Version 0.3
 -----------
 

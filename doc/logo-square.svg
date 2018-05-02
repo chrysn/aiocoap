@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="45"
+   height="45"
+   viewBox="0 0 45 44.999999"
+   id="svg2"
+   version="1.1"
+   inkscape:version="0.92.2 (5c3e80d, 2017-08-06)"
+   sodipodi:docname="logo-square.svg"
+   inkscape:export-filename="/home/chrysn/git/aiocoap/logo-square.svg.png"
+   inkscape:export-xdpi="546.13"
+   inkscape:export-ydpi="546.13">
+  <title
+     id="title7055">The aiocoap library logo</title>
+  <defs
+     id="defs4" />
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="8"
+     inkscape:cx="37.740867"
+     inkscape:cy="12.330062"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer2"
+     showgrid="false"
+     inkscape:snap-bbox="true"
+     inkscape:bbox-paths="true"
+     showguides="true"
+     inkscape:guide-bbox="true"
+     inkscape:snap-bbox-midpoints="true"
+     inkscape:snap-bbox-edge-midpoints="true"
+     inkscape:bbox-nodes="true"
+     inkscape:object-paths="true"
+     inkscape:snap-intersection-paths="false"
+     inkscape:object-nodes="true"
+     inkscape:window-width="976"
+     inkscape:window-height="954"
+     inkscape:window-x="0"
+     inkscape:window-y="106"
+     inkscape:window-maximized="0"
+     fit-margin-top="1"
+     fit-margin-left="1"
+     fit-margin-right="1"
+     fit-margin-bottom="1"
+     units="px"
+     inkscape:snap-global="false" />
+  <metadata
+     id="metadata7">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title>The aiocoap library logo</dc:title>
+        <dc:creator>
+          <cc:Agent>
+            <dc:title>chrysn &lt;chrysn@fsfe.org&gt;</dc:title>
+          </cc:Agent>
+        </dc:creator>
+        <dc:rights>
+          <cc:Agent>
+            <dc:title>The file is published under the same license as the aiocoap project (see its LICENSE file).</dc:title>
+          </cc:Agent>
+        </dc:rights>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:groupmode="layer"
+     id="layer2"
+     inkscape:label="backline"
+     transform="translate(0,9.0462155)">
+    <g
+       id="g845"
+       transform="translate(1.0000038,-2.375)">
+      <rect
+         y="12.976864"
+         x="6.2499962"
+         height="10"
+         width="30.5"
+         id="rect4743-0"
+         style="opacity:1;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#bb9400;stroke-width:7.99999905;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+      <rect
+         y="12.976864"
+         x="6.2499962"
+         height="10"
+         width="30.5"
+         id="rect4743"
+         style="opacity:1;fill:#ffd22e;fill-opacity:1;fill-rule:nonzero;stroke:#ffe27c;stroke-width:0.49999994;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+    </g>
+  </g>
+  <g
+     inkscape:label="backdrop"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-6.072709,-1000.482)">
+    <path
+       inkscape:connector-curvature="0"
+       id="path4180-7-68-8"
+       d="m 36.56161,1032.7881 v -15.316 h -2.072 v 2.716 c -1.512,-2.128 -3.388,-3.08 -6.048,-3.08 -4.592,0 -8.064,3.472 -8.064,8.064 0,4.564 3.5,7.98 8.204,7.98 2.604,0 4.284,-0.868 5.908,-3.052 v 2.688 z m -2.072,-7.728 c 0,3.472 -2.576,6.188 -5.88,6.188 -3.472,0 -6.132,-2.716 -6.132,-6.216 0,-3.332 2.688,-6.02 6.02,-6.02 3.36,0 5.992,2.632 5.992,6.048 z"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:28px;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:center;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:middle;display:inline;overflow:visible;visibility:visible;fill:#ff00e7;fill-opacity:1;fill-rule:nonzero;stroke:#274e70;stroke-width:8;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none;enable-background:accumulate" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer4"
+     inkscape:label="outlines"
+     transform="translate(0,9.0462155)">
+    <path
+       d="m 30.738901,23.25986 v -15.316 h -2.072 v 2.716 c -1.512,-2.128 -3.388,-3.0799999 -6.048,-3.0799999 -4.592,0 -8.064,3.4719999 -8.064,8.0639999 0,4.564 3.5,7.98 8.204,7.98 2.604,0 4.284,-0.868 5.908,-3.052 v 2.688 z m -2.072,-7.728 c 0,3.472 -2.576,6.188 -5.88,6.188 -3.472,0 -6.132,-2.716 -6.132,-6.216 0,-3.332 2.688,-6.02 6.02,-6.02 3.36,0 5.992,2.632 5.992,6.048 z"
+       id="path4385-4-9"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:none;fill-opacity:1;fill-rule:nonzero;stroke:#6e9bbf;stroke-width:1;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+  </g>
+  <g
+     inkscape:groupmode="layer"
+     id="layer5"
+     inkscape:label="front"
+     transform="translate(0,9.0462155)">
+    <path
+       d="m 30.738901,23.25987 v -15.316 h -2.072 v 2.716 c -1.512,-2.128 -3.388,-3.0799999 -6.048,-3.0799999 -4.592,0 -8.064,3.4719999 -8.064,8.0639999 0,4.564 3.5,7.98 8.204,7.98 2.604,0 4.284,-0.868 5.908,-3.052 v 2.688 z m -2.072,-7.728 c 0,3.472 -2.576,6.188 -5.88,6.188 -3.472,0 -6.132,-2.716 -6.132,-6.216 0,-3.332 2.688,-6.02 6.02,-6.02 3.36,0 5.992,2.632 5.992,6.048 z"
+       id="path4385-4-0-9"
+       inkscape:connector-curvature="0"
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:125%;font-family:'TeX Gyre Adventor';-inkscape-font-specification:'TeX Gyre Adventor';text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;letter-spacing:0px;word-spacing:0px;text-transform:none;writing-mode:lr-tb;direction:ltr;baseline-shift:baseline;text-anchor:start;visibility:visible;fill:#5082ab;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.30000001;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker:none" />
+  </g>
+</svg>
