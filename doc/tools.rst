@@ -40,8 +40,10 @@ These tools are currently present:
 
 * ``aiocoap-widgets``: Graphical software implementations of example CoAP
   devices as servers (eg. light bulb, switch). They should become an example of
-  how CoRE interfaces and dynlinks can be used to discover and connect servers.
-  
+  how CoRE interfaces and dynlinks can be used to discover and connect servers,
+  and additionally serve as a playground for a more suitable Resource
+  implementation.
+
   The GUI is implemented in Gtk3 using the gbulb_ asyncio loop.
 
 .. _gbulb: https://github.com/nathan-hoad/gbulb
