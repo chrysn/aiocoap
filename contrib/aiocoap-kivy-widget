@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+
+# This file is part of the Python aiocoap library project.
+#
+# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
+#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+#
+# aiocoap is free software, this file is published under the MIT license as
+# described in the accompanying LICENSE file.
+
+"""A demo that opens a Kivy window and exposes it as a text display via CoAP
+
+Running this example requires a version of Kivy that has asyncio support merged
+(see <https://github.com/kivy/kivy/pull/5241>).
+"""
+
+import asyncio
+
+from aiocoap import Context, Message, CHANGED
+from aiocoap.resource import Site, Resource, ObservableResource, WKCResource
+
+from kivy.app import App
+from kivy.lang.builder import Builder
+
+from widgets_common.kivy_resource import *
+
+kv = '''
+BoxLayout:
+    orientation: 'vertical'
+    Button:
+        id: btn
+        text: 'Use CoAP discovery to write here or receive notifications \
+of clicks.'
+        background_normal: ''
+        color: (0, 0, 0, 1)
+'''
+
+class CoAPDisplay(App):
+    def build(self):
+        return Builder.load_string(kv)
+
+    async def main(self):
+        site = Site()
+        site.add_resource(('text',), Text(self.root.ids.btn))
+        site.add_resource(('pressed',), PressState(self.root.ids.btn))
+        site.add_resource(('.well-known', 'core'),
+                WKCResource(site.get_resources_as_linkheader))
+
+        self.context = await Context.create_server_context(site)
+
+    def on_start(self):
+        asyncio.get_event_loop().create_task(self.main())
+
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(CoAPDisplay().async_run())
