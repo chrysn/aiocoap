@@ -10,6 +10,7 @@ from itertools import chain
 import struct
 
 from .numbers import *
+from .error import UnparsableMessage
 
 def _read_extended_field_value(value, rawdata):
     """Used to decode large values of option delta and option length
@@ -17,11 +18,15 @@ def _read_extended_field_value(value, rawdata):
     if value >= 0 and value < 13:
         return (value, rawdata)
     elif value == 13:
+        if len(rawdata) < 1:
+            raise UnparsableMessage("Option ended prematurely")
         return (rawdata[0] + 13, rawdata[1:])
     elif value == 14:
+        if len(rawdata) < 2:
+            raise UnparsableMessage("Option ended prematurely")
         return (struct.unpack('!H', rawdata[:2])[0] + 269, rawdata[2:])
     else:
-        raise ValueError("Value out of range.")
+        raise UnparsableMessage("Option contained partial payload marker.")
 
 
 def _write_extended_field_value(value):
@@ -139,6 +144,8 @@ class Options(object):
             (delta, rawdata) = _read_extended_field_value(delta, rawdata)
             (length, rawdata) = _read_extended_field_value(length, rawdata)
             option_number += delta
+            if len(rawdata) < length:
+                raise UnparsableMessage("Option announced but absent")
             option = option_number.create_option(decode=rawdata[:length])
             self.add_option(option)
             rawdata = rawdata[length:]

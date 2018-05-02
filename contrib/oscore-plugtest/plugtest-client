@@ -8,7 +8,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""A client suitable for running the OSCOAP plug test series against a given
+"""A client suitable for running the OSCORE plug test series against a given
 server
 
 See https://github.com/EricssonResearch/OSCOAP for the test suite
@@ -16,104 +16,59 @@ description."""
 
 import argparse
 import asyncio
+import logging
+import signal
+import functools
 
 from aiocoap import *
 from aiocoap import interfaces
+from aiocoap import credentials
 
 from plugtest_common import *
-
-class ProtectedRequester(interfaces.RequestProvider):
-    """A RequestProvider that protectes requests using OSCOAP using a
-    configured mapping between URIs and security contexts and sends it over the underlying_requester."""
-    def __init__(self, underlying_requester):
-        self._wire = underlying_requester
-        self._prefixes = {}
-
-    def set_uri_prefix_context(self, prefix, security_context):
-        """Use the given security context for all URIs starting with the
-        prefix"""
-        self._prefixes[prefix] = security_context
-
-    def request(self, request_message):
-        uri = request_message.get_request_uri()
-        for (prefix, context) in sorted(self._prefixes.items(), reverse=True):
-            if uri.startswith(prefix):
-                security_context = context
-                break
-        else:
-            raise KeyError("No suitable security context found.")
-
-        return self.Request(self._wire, security_context, request_message)
-
-    class Request(interfaces.Request):
-        def __init__(self, wire, security_context, request_message):
-            if request_message.opt.observe is not None:
-                self.observation = self.Observation(request_message)
-            self._security_context = security_context
-
-            self.response = self._initial(wire, request_message)
-
-        @asyncio.coroutine
-        def _initial(self, wire, request_message):
-            protected, self._original_request_seqno = self._security_context.protect(request_message)
-            # FIXME where should this be called from?
-            self._security_context._store()
-
-            wire_request =  wire.request(protected)
-
-            # FIXME do we want to expose anything else of the request? what other
-            # interfaces are there that are applicable?
-
-            if request_message.opt.observe is not None:
-                wire_request.observation.register_errback(self.observation.error)
-                wire_request.observation.register_callback(self._observe_message)
-
-                # FIXME something is weak too aggressively here -- proper solution
-                # would probably be keeping references in callback recipients as
-                # mandatory-to-keep callback removers (ie. the handle is not only
-                # for removing one's callback again, but also to keep it alive)
-                self.observation._wire_observation = wire_request.observation
-
-            wire_response = yield from wire_request.response
-            unprotected_response, _ = self._security_context.unprotect(wire_response, self._original_request_seqno)
-            self._security_context._store()
-
-            return unprotected_response
-
-        def _observe_message(self, message):
-            unprotected_message, _ = self._security_context.unprotect(message, self._original_request_seqno)
-            self._security_context._store()
-            self.observation.callback(unprotected_message)
-
-        class Observation(protocol.ClientObservation):
-            # using the inheritance mainly for the __aiter__ that's so nicely generated from register_{call,err}back
-            def _register(self, *args):
-                "This is an OSCOAP observation and doesn't register"
-            def _unregister(self, *args):
-                "This is an OSCOAP observation and doesn't unregister"
 
 
 class PlugtestClientProgram:
     async def run(self):
-        p = argparse.ArgumentParser("Client for the OSCOAP plug test..")
+        p = argparse.ArgumentParser("Client for the OSCORE plug test..")
         p.add_argument("host", help="Hostname of the server")
         p.add_argument("testno", type=int, help="Test number to run (integer part)")
         p.add_argument("contextdir", nargs="?", help="Directory name where to persist sequence numbers")
+        p.add_argument("--verbose", help="Show aiocoap debug messages", action='store_true')
         opts = p.parse_args()
 
         self.host = opts.host
 
-        self.regular_context = get_security_context(opts.testno, 'client', opts.contextdir)
+        # this also needs to be called explicitly as only the
+        # 'logging.warning()'-style functions will call it; creating a
+        # sub-logger and logging from there makes the whole logging system not
+        # emit the 'WARNING' prefixes that set apart log messages from regular
+        # prints and also help the test suite catch warnings and errors
+        if opts.verbose:
+            logging.basicConfig(level=logging.DEBUG)
+        else:
+            logging.basicConfig(level=logging.WARNING)
+
+        security_context = get_security_context(opts.testno, 'client', opts.contextdir)
 
         self.ctx = await Context.create_client_context()
-        self.protected_ctx = ProtectedRequester(self.ctx)
-        self.protected_ctx.set_uri_prefix_context("coap://%s" % self.host, self.regular_context)
+        self.ctx.client_credentials["coap://%s/*" % self.host] = security_context
 
-        await self.run_test(opts.testno)
+        try:
+            await self.run_test(opts.testno)
+        except oscore.NotAProtectedMessage as e:
+            print("Response carried no Object-Security option, but was: %s %s"%(e.plain_message, e.plain_message.payload))
+            raise
 
     @classmethod
     def sync_run(cls):
-        asyncio.get_event_loop().run_until_complete(cls().run())
+        loop = asyncio.get_event_loop()
+        task = cls().run()
+        # Having SIGTERM cause a more graceful shutdown allow for output
+        # buffers to be flushed when the unit test program instrumenting it
+        # terminates it.
+        signal.signal(signal.SIGTERM,
+                lambda signo, frame: task.throw(KeyboardInterrupt))
+        loop.run_until_complete(task)
 
 
     async def run_test(self, testno):
@@ -132,7 +87,14 @@ class PlugtestClientProgram:
     @__implements_tests([0])
     async def test_plain(self):
         request = Message(code=GET, uri='coap://' + self.host + '/hello/coap')
+
+        moved = self.ctx.client_credentials
+
+        self.ctx.client_credentials = type(self.ctx.client_credentials)()
         response = await self.ctx.request(request).response
+
+        self.ctx.client_credentials = moved
+
         print("Response:", response)
         additional_verify("Responde had correct code", response.code, CONTENT)
         additional_verify("Responde had correct payload", response.payload, b"Hello World!")
@@ -147,7 +109,7 @@ class PlugtestClientProgram:
         if self.testno == 3:
             request.opt.accept = 0
             expected['max_age'] = 5
-        unprotected_response = await self.protected_ctx.request(request).response
+        unprotected_response = await self.ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", unprotected_response.code, CONTENT)
@@ -157,7 +119,7 @@ class PlugtestClientProgram:
     async def test_nonobservable(self):
         request = Message(code=GET, uri='coap://' + self.host + '/hello/1', observe=0)
 
-        request = self.protected_ctx.request(request)
+        request = self.ctx.request(request)
 
         unprotected_response = await request.response
 
@@ -172,7 +134,7 @@ class PlugtestClientProgram:
     async def test_observable(self):
         request = Message(code=GET, uri='coap://' + self.host + '/observe', observe=0)
 
-        request = self.protected_ctx.request(request)
+        request = self.ctx.request(request)
 
         unprotected_response = await request.response
 
@@ -180,13 +142,23 @@ class PlugtestClientProgram:
         additional_verify("Code as expected", unprotected_response.code, CONTENT)
         additional_verify("Observe option present", unprotected_response.opt.observe is not None, True)
 
+        payloads = []
+
         async for o in request.observation:
+            payloads.append(o.payload)
             print("Verify: Received message", o, o.payload)
+
+        if not payloads:
+            print("Failed: Observation ended with no notifications.")
+
+        if b'Zwei' in payloads:
+            # be more strict: this is our own test server that should give exactly 5 responses
+            additional_verify("Own server gave the expected responses", payloads, [b'Zwei', b'Drei', b'und aus!', b'server is bored with client'])
 
     @__implements_tests([6])
     async def test_post(self):
         request = Message(code=POST, uri='coap://' + self.host+ '/hello/6', payload=b"\x4a", content_format=0)
-        unprotected_response = await self.protected_ctx.request(request).response
+        unprotected_response = await self.ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", CREATED, unprotected_response.code)
@@ -196,7 +168,7 @@ class PlugtestClientProgram:
     @__implements_tests([7])
     async def test_put_match(self):
         request = Message(code=PUT, uri='coap://' + self.host+ '/hello/7', payload=b"\x7a", content_format=0, if_match=[b"\x7b"])
-        unprotected_response = await self.protected_ctx.request(request).response
+        unprotected_response = await self.ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", CHANGED, unprotected_response.code)
@@ -205,7 +177,7 @@ class PlugtestClientProgram:
     @__implements_tests([8])
     async def test_put_nonmatch(self):
         request = Message(code=PUT, uri='coap://' + self.host+ '/hello/7', payload=b"\x8a", content_format=0, if_none_match=True)
-        unprotected_response = await self.protected_ctx.request(request).response
+        unprotected_response = await self.ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", PRECONDITION_FAILED, unprotected_response.code)
@@ -214,14 +186,14 @@ class PlugtestClientProgram:
     @__implements_tests([9])
     async def test_delete(self):
         request = Message(code=DELETE, uri='coap://' + self.host+ '/test')
-        unprotected_response = await self.protected_ctx.request(request).response
+        unprotected_response = await self.ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", DELETED, unprotected_response.code)
         additional_verify("Options empty as expected", Message().opt, unprotected_response.opt)
 
     @__implements_tests([10, 11])
-    async def test_oscoaperror_server_reports_error(self):
+    async def test_oscoreerror_server_reports_error(self):
         request = Message(code=GET, uri='coap://' + self.host + '/hello/1')
 
         if self.testno == 10:
@@ -230,8 +202,8 @@ class PlugtestClientProgram:
             expected_code = BAD_REQUEST
 
         try:
-            unprotected_response = await self.protected_ctx.request(request).response
-        except oscoap.NotAProtectedMessage as e:
+            unprotected_response = await self.ctx.request(request).response
+        except oscore.NotAProtectedMessage as e:
             if e.plain_message.code == expected_code:
                 print("Check passed: The server responded with unencrypted %s."%(expected_code))
             else:
@@ -241,12 +213,12 @@ class PlugtestClientProgram:
             print("Unprotected response:", unprotected_response)
 
     @__implements_tests([12])
-    async def test_oscoaperror_failclientside(self):
+    async def test_oscoreerror_failclientside(self):
         request = Message(code=GET, uri='coap://' + self.host + '/hello/1')
 
         try:
-            unprotected_response = await self.protected_ctx.request(request).response
-        except oscoap.ProtectionInvalid as e:
+            unprotected_response = await self.ctx.request(request).response
+        except oscore.ProtectionInvalid as e:
             print("Check passed: The validation failed. (%s)"%e)
         else:
             print("Failed: the validation passed.")
@@ -256,24 +228,41 @@ class PlugtestClientProgram:
     async def test_replay(self):
         request = Message(code=GET, uri='coap://' + self.host + '/hello/1')
 
-        unprotected_response = await self.protected_ctx.request(request).response # make this _nonraising as soon as there's a proper context backend
+        unprotected_response = await self.ctx.request(request).response # make this _nonraising as soon as there's a proper context backend
         if unprotected_response.code != CONTENT:
             print("Failed: Request did not even pass before replay (%s)"%unprotected_response)
             return
 
-        self.regular_context = get_security_context(self.testno, 'client')
-        self.protected_ctx.set_uri_prefix_context("coap://%s" % self.host, self.regular_context)
+        security_context = get_security_context(self.testno, 'client')
+        self.ctx.client_credentials["coap://%s/*" % self.host] = security_context
 
         try:
-            unprotected_response = await self.protected_ctx.request(request).response
-        except oscoap.NotAProtectedMessage as e:
-            if e.plain_message.code == BAD_REQUEST:
+            unprotected_response = await self.ctx.request(request).response
+        except oscore.NotAProtectedMessage as e:
+            if e.plain_message.code == SERVICE_UNAVAILABLE:
                 print("Check passed: The server responded with unencrypted replay error.")
             else:
                 print("Failed: Server responded with something unencrypted, but not the expected code %s: %s"%(expected_code, e.plain_message))
         else:
             print("Failed: the validation passed.")
             print("Unprotected response:", unprotected_response)
+
+    # unofficial blockwise tests start here
+
+    @__implements_tests([16, 17])
+    async def test_block2(self):
+        #request = Message(code=GET, uri='coap://' + self.host + '/block/' + {16: 'outer', 17: 'inner'}[self.testno])
+        request = Message(code=GET, uri='coap://' + self.host + '/LargeResource')
+
+        expected = {'content_format': 0}
+        unprotected_response = await self.ctx.request(request, handle_blockwise=True).response
+        if self.testno == 17:
+            # the library should probably strip that
+            expected['block2'] = optiontypes.BlockOption.BlockwiseTuple(block_number=1, more=False, size_exponent=6)
+
+        print("Unprotected response:", unprotected_response)
+        additional_verify("Code as expected", unprotected_response.code, CONTENT)
+        additional_verify("Options as expected", unprotected_response.opt, Message(**expected).opt)
 
 if __name__ == "__main__":
     PlugtestClientProgram.sync_run()

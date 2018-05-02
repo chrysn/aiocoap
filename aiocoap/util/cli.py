@@ -14,6 +14,7 @@ in aiocoap and thus shared here."""
 import sys
 import logging
 import asyncio
+import signal
 
 class AsyncCLIDaemon:
     """Helper for creating daemon-style CLI prorgrams.
@@ -34,7 +35,12 @@ class AsyncCLIDaemon:
     program's ``if __name__ == "__main__":`` section."""
 
     def __init__(self, *args, **kwargs):
+        self.__exitcode = asyncio.Future()
         self.initializing = asyncio.Task(self.start(*args, **kwargs))
+
+    def stop(self, exitcode):
+        """Stop the operation (and exit sync_main) at the next convenience."""
+        self.__exitcode.set_result(exitcode)
 
     @classmethod
     def sync_main(cls, *args, **kwargs):
@@ -48,10 +54,13 @@ class AsyncCLIDaemon:
             # exiting in case of a daemon setup, or to any other process
             # management.
             logging.info("Application ready.")
-            loop.run_forever()
+            loop.add_signal_handler(signal.SIGTERM, loop.stop)
+            exitcode = loop.run_until_complete(main.__exitcode)
         except KeyboardInterrupt:
             logging.info("Keyboard interupt received, shutting down")
             sys.exit(3)
+        else:
+            sys.exit(exitcode)
         finally:
             if main.initializing.done() and main.initializing.exception():
                 pass # will raise from run_until_complete

@@ -8,6 +8,8 @@
 
 """Tools not directly related with CoAP that are needed to provide the API"""
 
+import urllib.parse
+
 class ExtensibleEnumMeta(type):
     """Metaclass for ExtensibleIntEnum, see there for detailed explanations"""
     def __init__(self, name, bases, dict):
@@ -32,7 +34,7 @@ class ExtensibleEnumMeta(type):
         return self._value2member_map_[value]
 
 class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
-    """Similar to Python3.4's enum.IntEnum, this type can be used for named
+    """Similar to Python's enum.IntEnum, this type can be used for named
     numbers which are not comprehensively known, like CoAP option numbers."""
 
     def __add__(self, delta):
@@ -55,6 +57,21 @@ def hostportjoin(host, port=None):
     else:
         hostinfo = "%s:%d"%(host, port)
     return hostinfo
+
+def hostportsplit(hostport):
+    """Like urllib.parse.splitport, but return port as int, and as None if not
+    given. Also, it allows giving IPv6 addresses like a netloc:
+
+    >>> hostportsplit('foo')
+    ('foo', None)
+    >>> hostportsplit('foo:5683')
+    ('foo', 5683)
+    >>> hostportsplit('[::1%eth0]:56830')
+    ('::1%eth0', 56830)
+    """
+
+    pseudoparsed = urllib.parse.SplitResult(None, hostport, None, None, None)
+    return pseudoparsed.hostname, pseudoparsed.port
 
 class Sentinel:
     """Class for sentinel that can only be compared for identity. No efforts

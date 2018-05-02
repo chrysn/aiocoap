@@ -110,4 +110,10 @@ DEFAULT_LEISURE = 5
 
 MULTICAST_REQUEST_TIMEOUT = REQUEST_TIMEOUT + DEFAULT_LEISURE
 
+OBSERVATION_RESET_TIME = 128
+"""Time in seconds after which the value of the observe field are ignored.
+
+This number is not explicitly named in RFC7641.
+"""
+
 __all__ = [k for k in dir() if not k.startswith('_')]

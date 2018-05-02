@@ -7,7 +7,7 @@
 # described in the accompanying LICENSE file.
 
 """A plain CoAP resource directory according to
-draft-ietf-core-resource-directory-12
+draft-ietf-core-resource-directory-13
 
 Known Caveats:
 
@@ -29,12 +29,15 @@ from urllib.parse import urljoin
 import itertools
 
 import aiocoap
-from aiocoap.resource import Site, Resource, ObservableResource, PathCapable, WKCResource
+from aiocoap.resource import Site, Resource, ObservableResource, PathCapable, WKCResource, link_format_to_message
 from aiocoap.util.cli import AsyncCLIDaemon
 from aiocoap import error
+from aiocoap.cli.common import add_server_arguments, server_context_from_arguments
+from aiocoap.numbers import media_types_rev
+
+from aiocoap.util.linkformat import Link, LinkFormat, parse
 
 import link_header
-from link_header import Link, LinkHeader
 
 def query_split(msg):
     return dict(q.split('=', 1) if '=' in q else (q, True) for q in msg.opt.uri_query)
@@ -66,28 +69,38 @@ class CommonRD:
         def href(self):
             return '/' + '/'.join(self.path)
 
-        def __init__(self, path, network_con, delete_cb, update_cb, registration_parameters):
+        def __init__(self, path, network_remote, delete_cb, update_cb, registration_parameters):
             # note that this can not modify d and ep any more, since they were
             # already used in keying to a path
             self.path = path
-            self.links = LinkHeader([])
+            self.links = LinkFormat([])
 
             self._delete_cb = delete_cb
             self._update_cb = update_cb
-            self.update_params(network_con, registration_parameters, is_initial=True)
+            self.update_params(network_remote, registration_parameters, is_initial=True)
 
-        def update_params(self, network_con, registration_parameters, is_initial=False):
+        def update_params(self, network_remote, registration_parameters, is_initial=False):
             """Set the registration_parameters from the parsed query arguments,
             update any effects of them, and and trigger any observation
             observation updates if requried (the typical ones don't because
             their registration_parameters are {} and all it does is restart the
             lifetime counter)"""
 
+            if (is_initial or not self.con_is_explicit) and 'con' not in \
+                    registration_parameters:
+                # check early for validity to avoid side effects of requests
+                # answered with 4.xx
+                try:
+                    network_con = network_remote.uri
+                except error.AnonymousHost:
+                    raise error.BadRequest("explicit con required")
+
             if is_initial:
                 self.registration_parameters = registration_parameters
                 self.lt = 86400
-                self.con_is_explicit = False
-                self.con = network_con
+                if 'con' not in registration_parameters:
+                    self.con = network_con
+                    self.con_is_explicit = False
 
                 # technically might be a re-registration, but we can't catch that at this point
                 actual_change = True
@@ -130,13 +143,12 @@ class CommonRD:
             delay = self.lt + self.grace_period
             # workaround for python issue20493
 
-            @asyncio.coroutine
-            def longwait(delay, callback):
+            async def longwait(delay, callback):
                 almostday = 24*60*60 - 10
                 while delay > almostday:
-                    yield from asyncio.sleep(almostday)
+                    await asyncio.sleep(almostday)
                     delay -= almostday
-                yield from asyncio.sleep(delay)
+                await asyncio.sleep(delay)
                 callback()
             self.timeout = asyncio.Task(longwait(delay, self.delete))
 
@@ -149,7 +161,7 @@ class CommonRD:
             return Link(href=self.href, **args)
 
         def get_conned_links(self):
-            """Produce a LinkHeader object that represents all statements in
+            """Produce a LinkFormat object that represents all statements in
             the registration, resolved to the registration's con (and thus
             suitable for serving from the lookup interface).
 
@@ -160,14 +172,16 @@ class CommonRD:
             result = []
             for l in self.links.links:
                 if 'anchor' in l:
-                    data = [(k, v) for (k, v) in l.attr_pairs if k != 'anchor'] + [['anchor', urljoin(self.con, l.anchor)]]
+                    absanchor = urljoin(self.con, l.anchor)
+                    data = [(k, v) for (k, v) in l.attr_pairs if k != 'anchor'] + [['anchor', absanchor]]
+                    href = urljoin(absanchor, l.href)
                 else:
                     data = l.attr_pairs + [['anchor', self.con]]
-                result.append(Link(l.href, data))
-            return LinkHeader(result)
+                    href = urljoin(self.con, l.href)
+                result.append(Link(href, data))
+            return LinkFormat(result)
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         pass
 
     def register_change_callback(self, callback):
@@ -189,7 +203,7 @@ class CommonRD:
             if path not in self._entities_by_pathtail:
                 return path
 
-    def initialize_endpoint(self, network_con, registration_parameters):
+    def initialize_endpoint(self, network_remote, registration_parameters):
         try:
             ep = registration_parameters['ep']
         except KeyError:
@@ -216,7 +230,7 @@ class CommonRD:
             del self._entities_by_pathtail[path]
             del self._endpoint_registrations_by_key[key]
 
-        reg = self.Registration(self.entity_prefix + path, network_con, delete,
+        reg = self.Registration(self.entity_prefix + path, network_remote, delete,
                 self._updated_state, registration_parameters)
 
         self._endpoint_registrations_by_key[key] = reg
@@ -227,17 +241,18 @@ class CommonRD:
     def get_endpoints(self):
         return self._endpoint_registrations_by_key.values()
 
-
 def link_format_from_message(message):
     try:
-        if message.opt.content_format == aiocoap.numbers.media_types_rev['application/link-format']:
-            return link_header.parse(message.payload.decode('utf8'))
-        # FIXME this should support json/cbor too
+        if message.opt.content_format == media_types_rev['application/link-format']:
+            return parse(message.payload.decode('utf8'))
+        elif message.opt.content_format == media_types_rev['application/link-format+json']:
+            return LinkFormat.from_json_string(message.payload.decode('utf8'))
+        elif message.opt.content_format == media_types_rev['application/link-format+cbor']:
+            return LinkFormat.from_cbor_bytes(message.payload)
         else:
             raise error.UnsupportedMediaType()
     except (UnicodeDecodeError, link_header.ParseException):
         raise error.BadRequest()
-
 
 class ThingWithCommonRD:
     def __init__(self, common_rd):
@@ -248,16 +263,15 @@ class ThingWithCommonRD:
             self.common_rd.register_change_callback(self.updated_state)
 
 class RegistrationInterface(ThingWithCommonRD, Resource):
-    ct = 40
+    ct = link_format_to_message.supported_ct
     rt = "core.rd"
 
-    @asyncio.coroutine
-    def render_post(self, request):
+    async def render_post(self, request):
         links = link_format_from_message(request)
 
         registration_parameters = query_split(request)
 
-        regresource = self.common_rd.initialize_endpoint(request.remote.uri, registration_parameters)
+        regresource = self.common_rd.initialize_endpoint(request.remote, registration_parameters)
         regresource.links = links
 
         return aiocoap.Message(code=aiocoap.CREATED, location_path=regresource.path)
@@ -271,16 +285,14 @@ class RegistrationResource(Resource):
     def __init__(self, registration):
         self.reg = registration
 
-    @asyncio.coroutine
-    def render_get(self, request):
-        return aiocoap.Message(payload=str(self.reg.links).encode('utf8'), content_format=aiocoap.numbers.media_types_rev['application/link-format'])
+    async def render_get(self, request):
+        return link_format_from_message(request, self.reg.links)
 
     def _update_params(self, msg):
         query = query_split(msg)
-        self.reg.update_params(msg.remote.uri, query)
+        self.reg.update_params(msg.remote, query)
 
-    @asyncio.coroutine
-    def render_post(self, request):
+    async def render_post(self, request):
         self._update_params(request)
 
         if request.opt.content_format is not None or request.payload:
@@ -288,8 +300,7 @@ class RegistrationResource(Resource):
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
-    @asyncio.coroutine
-    def render_put(self, request):
+    async def render_put(self, request):
         # this is not mentioned in the current spec, but seems to make sense
         links = link_format_from_message(request)
 
@@ -298,14 +309,13 @@ class RegistrationResource(Resource):
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
-    def render_delete(self, request):
+    async def render_delete(self, request):
         self.reg.delete()
 
         return aiocoap.Message(code=aiocoap.DELETED)
 
 class EntityDispatchSite(ThingWithCommonRD, Resource, PathCapable):
-    @asyncio.coroutine
-    def render(self, request):
+    async def render(self, request):
         try:
             entity = self.common_rd._entities_by_pathtail[request.opt.uri_path]
         except KeyError:
@@ -316,10 +326,10 @@ class EntityDispatchSite(ThingWithCommonRD, Resource, PathCapable):
         else:
             raise ValueError("Unexpected object in entities")
 
-        return entity.render(request.copy(uri_path=()))
+        return await entity.render(request.copy(uri_path=()))
 
 class GroupRegistrationInterface(ThingWithCommonRD, Resource):
-    ct = 40
+    ct = link_format_to_message.supported_ct
     rt = "core.rd-group"
 
 def _paginate(candidates, query):
@@ -338,11 +348,10 @@ def _link_matches(link, key, condition):
     return any(k == key and condition(v) for (k, v) in link.attr_pairs)
 
 class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
-    ct = 40
+    ct = link_format_to_message.supported_ct
     rt = "core.rd-lookup-ep"
 
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         query = query_split(request)
 
         candidates = self.common_rd.get_endpoints()
@@ -376,14 +385,13 @@ class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
 
         result = [c.get_host_link() for c in candidates]
 
-        return aiocoap.Message(payload=str(LinkHeader(result)).encode('utf8'), content_format=40)
+        return link_format_to_message(request, LinkFormat(result))
 
 class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
-    ct = 40
+    ct = link_format_to_message.supported_ct
     rt = "core.rd-lookup-res"
 
-    @asyncio.coroutine
-    def render_get(self, request):
+    async def render_get(self, request):
         query = query_split(request)
 
         eps = self.common_rd.get_endpoints()
@@ -422,10 +430,10 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
 
         candidates = _paginate(candidates, query)
 
-        return aiocoap.Message(payload=str(LinkHeader(candidates)).encode('utf8'), content_format=40)
+        return link_format_to_message(request, LinkFormat(candidates))
 
 class GroupLookupInterface(ThingWithCommonRD, ObservableResource):
-    ct = 40
+    ct = link_format_to_message.supported_ct
     rt = "core.rd-lookup-gp"
 
 class SimpleRegistrationWKC(WKCResource):
@@ -433,8 +441,7 @@ class SimpleRegistrationWKC(WKCResource):
         super().__init__(listgenerator)
         self.common_rd = common_rd
 
-    @asyncio.coroutine
-    def render_post(self, request):
+    async def render_post(self, request):
         query = query_split(request)
 
         # this is not deduplicated with update_params in full because that code
@@ -449,30 +456,36 @@ class SimpleRegistrationWKC(WKCResource):
             except ValueError:
                 raise error.BadRequest("lt must be numeric")
 
+        if 'con' not in query:
+            try:
+                con = request.remote.uri
+            except error.UnparsableMessage:
+                raise error.BadRequest("explicit con required")
+
         asyncio.Task(self.process_request(
-                network_con=request.remote.uri,
+                network_remote=request.remote,
                 registration_parameters=query,
             ))
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
-    @asyncio.coroutine
-    def process_request(self, network_con, registration_parameters):
-        con = network_con
-        if 'con' in registration_parameters:
-            con = registration_parameters['con']
+    async def process_request(self, network_remote, registration_parameters):
+        con = registration_parameters.get('con', None)
+        if con is None:
+            con = network_remote.uri
+
         # FIXME actually we should have complained about the con uri not being in host-only form ... and is that defined at all?
         fetch_address = (con + '/.well-known/core')
 
         try:
-            response = yield from self.context.request(aiocoap.Message(code=aiocoap.GET, uri=fetch_address)).response_raising
+            response = await self.context.request(aiocoap.Message(code=aiocoap.GET, uri=fetch_address)).response_raising
             links = link_format_from_message(response)
         except Exception as e:
             logging.error("The request triggered for simple registration of %s failed.", con)
             logging.exception(e)
             return
 
-        registration = self.common_rd.initialize_endpoint(network_con, registration_parameters)
+        registration = self.common_rd.initialize_endpoint(network_remote, registration_parameters)
         registration.links = links
 
 class StandaloneResourceDirectory(Site):
@@ -506,9 +519,8 @@ class StandaloneResourceDirectory(Site):
 
         self.common_rd = common_rd
 
-    @asyncio.coroutine
-    def shutdown(self):
-        yield from self.common_rd.shutdown()
+    async def shutdown(self):
+        await self.common_rd.shutdown()
 
     # the need to pass this around crudely demonstrates that the setup of sites
     # and contexts direly needs improvement, and thread locals are giggling
@@ -519,26 +531,23 @@ class StandaloneResourceDirectory(Site):
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
 
-    p.add_argument('--server-address', help="Address to bind the server context to", metavar="HOST", default="::")
-    p.add_argument('--server-port', help="Port to bind the server context to", metavar="PORT", default=aiocoap.COAP_PORT, type=int)
+    add_server_arguments(p)
 
     return p
 
 class Main(AsyncCLIDaemon):
-    @asyncio.coroutine
-    def start(self, args=None):
+    async def start(self, args=None):
         parser = build_parser()
         options = parser.parse_args(args if args is not None else sys.argv[1:])
 
         self.site = StandaloneResourceDirectory()
 
-        self.context = yield from aiocoap.Context.create_server_context(self.site, bind=(options.server_address, options.server_port))
+        self.context = await server_context_from_arguments(self.site, options)
         self.site.set_context(self.context)
 
-    @asyncio.coroutine
-    def shutdown(self):
-        yield from self.site.shutdown()
-        yield from self.context.shutdown()
+    async def shutdown(self):
+        await self.site.shutdown()
+        await self.context.shutdown()
 
 sync_main = Main.sync_main
 

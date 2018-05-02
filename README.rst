@@ -1,29 +1,32 @@
 aiocoap -- The Python CoAP library
 ==================================
 
-The aiocoap package is a Python implementation of CoAP, the Constrained
-Application Protocol (`RFC 7252`_, more info at http://coap.technology/).
+The aiocoap package is an implementation of CoAP, the `Constrained Application
+Protocol`_.
 
-It uses the Python 3's asynchronous I/O to facilitate concurrent operations
-while maintaining a simple to use interface and not depending on anything
-outside the standard library.
+It is written in Python 3 using its `native asyncio`_ methods to facilitate
+concurrent operations while maintaining an easy to use interface.
 
 aiocoap is originally based on txThings_. If you want to use CoAP in your
-existing twisted application, or can not migrate to Python 3 yet, that is
+existing Twisted application, or can not migrate to Python 3 yet, that is
 probably more useful to you than aiocoap.
 
-.. _`RFC 7252`: http://tools.ietf.org/html/rfc7252
+.. _`Constrained Application Protocol`: http://coap.technology/
+.. _`native asyncio`: https://docs.python.org/3/library/asyncio
 .. _txThings: https://github.com/siskin/txThings
 
 Usage
 -----
 
 For how to use the aiocoap library, have a look at the guidedtour_, or at
-the examples_ and tools_ provided. All the details are in the
-`aiocoap module`_ documentation.
+the examples_ and tools_ provided.
+
+A full reference is available in the  `API documentation`_.
 
 All examples can be run directly from a source code copy. If you prefer to
 install it, the usual Python mechanisms apply (see installation_).
+
+.. _`API documentation`: http://aiocoap.readthedocs.io/en/latest/api.html
 
 Features / Standards
 --------------------
@@ -36,15 +39,17 @@ This library supports the following standards in full or partially:
 * RFC7641_ (Observe): Reordering, re-registration, and active cancellation are
   missing.
 * RFC7959_ (Blockwise): Multicast exceptions missing.
+* RFC8323_ (TCP): Supports CoAP over TCP and TLS (certificate only, no
+  preshared or raw public keys) but not CoAP over WebSockets.
 * RFC7967_ (No-Response): Basic support, but not automated in library
-* RFC8132_ (PATCH/FETCH): Types and codes known (rest is up to the application)
+* RFC8132_ (PATCH/FETCH): Types and codes known, FETCH observation supported
 * draft-ietf-core-resource-directory_: A standalone resource directory
   server is provided along with a library function to register at one. They
-  lack support for groups, PATCHes to endpoint locations and security
-  considerations, and are generally rather simplistic.
-* draft-ietf-core-object-security-02_ (OSCOAP): Infrastructure for supporting
-  it is in place (lacking observe and inner-blockwise support), but no simple
-  way exists yet for launching protected servers or requests yet.
+  lack support for groups and security considerations, and are generally rather
+  simplistic.
+* draft-ietf-core-object-security-06_ (OSCORE, formerly OSCOAP): Full support
+  client-side (except handling the Echo option); protected servers can be
+  implemented based on it but are not automatic yet.
 
 If something described by one of the standards but not implemented, it is
 considered a bug; please file at the `github issue tracker`_. (If it's not on
@@ -55,28 +60,34 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC7959: https://tools.ietf.org/html/rfc7959
 .. _RFC7967: https://tools.ietf.org/html/rfc7967
 .. _RFC8132: https://tools.ietf.org/html/rfc8132
+.. _RFC8323: https://tools.ietf.org/html/rfc8323
 .. _draft-ietf-core-resource-directory: https://tools.ietf.org/html/draft-ietf-core-resource-directory-12
-.. _draft-ietf-core-object-security-02: https://tools.ietf.org/html/draft-ietf-core-object-security-02
+.. _draft-ietf-core-object-security-06: https://tools.ietf.org/html/draft-ietf-core-object-security-06
 
 Dependencies
 ------------
 
-Basic aiocoap works out of the box on Python_ 3.4.4 or greater. Full
-functionality is currently available only on Linux and possibly some BSDs (see
-`platform issues`_). For Windows, macOS and uvloop, limited transports for
-server_ and client_ operation are available and automatically enabled, but see
-their respective caveats.
+Basic aiocoap works out of the box on Python_ 3.5.2 or newer (also works on
+PyPy3_). For full support (DTLS, OSCORE and link-format handling) follow the
+installation_ instructions as these require additional libraries.
 
-The examples_ require Python 3.5 as they use newer syntax.
+aiocoap provides different network backends for different platforms. The
+udp6_ module is most full-featured, but ties into the default asyncio loop
+and requires full POSIX network interfaces only available on Linux and possibly
+some BSDs. On Windows, macOS and when running on uvloop_, more constrained
+server_ and client_ transports with some caveats of their own are used; for
+more details, see the currently open `platform issues`_.
 
-Some components (eg. servers that should auto-generate ``.well-known/core``
-resources, OSCOAP, DTLS) require additional packages to be present; they are
-automatically installed when following the installation_ instructions. For
-slimmer systems, see ``setup.py`` for the definition of the "extras".
+If your library depends on aiocoap, it should pick the required extras (as per
+installation_) and declare a dependency like ``aiocoap[linkheader,oscore] >=
+0.4a1``.
 
 .. _Python: https://www.python.org/
+.. _PyPy3: http://pypy.org/
+.. _udp6: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.udp6.html
+.. _uvloop: https://uvloop.readthedocs.io/
 .. _`platform issues`: https://github.com/chrysn/aiocoap/issues?q=is%3Aissue+is%3Aopen+label%3A%22platform+support%22
-.. _server: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.simpleserversocket.html
+.. _server: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.simplesocketserver.html
 .. _client: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.simple6.html
 
 Development
@@ -85,11 +96,12 @@ Development
 aiocoap tries to stay close to PEP8_ recommendations and general best practice,
 and should thus be easy to contribute to.
 
+Bugs (ranging from "design goal" and "wishlist" to typos) are currently tracked
+in the `github issue tracker`_. Pull requests are welcome there; if you start
+working on larger changes, please coordinate on the issue tracker.
+
 Documentation is built using sphinx_ with ``./setup.py build_sphinx``; hacks
 used there are described in ``./doc/README.doc``.
-
-Bugs (ranging from "design goal" and "wishlist" to typos) are currently tracked
-in the `github issue tracker`_.
 
 Unit tests are implemented in the ``./tests/`` directory and easiest run using
 ``./setup.py test``; complete test coverage is aimed for, but not yet complete

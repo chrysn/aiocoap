@@ -16,7 +16,7 @@ import contextlib
 
 import aiocoap
 
-from .test_server import WithTestServer, precise_warnings, no_warnings
+from .test_server import WithTestServer, precise_warnings, no_warnings, asynctest
 
 class TimeoutError(RuntimeError):
     """Raised when a non-async operation times out"""
@@ -47,35 +47,40 @@ class TestNoncoapClient(WithTestServer):
         super(TestNoncoapClient, self).tearDown()
 
     @precise_warnings(["Ignoring unparsable message from ..."])
-    def test_veryshort(self):
+    @asynctest
+    async def test_veryshort(self):
         self.mocksock.send(b'\x40')
-        self.loop.run_until_complete(asyncio.sleep(0.1))
+        await asyncio.sleep(0.1)
 
     @precise_warnings(["Ignoring unparsable message from ..."])
-    def test_short_mid(self):
+    @asynctest
+    async def test_short_mid(self):
         self.mocksock.send(b'\x40\x01\x97')
-        self.loop.run_until_complete(asyncio.sleep(0.1))
+        await asyncio.sleep(0.1)
 
     @precise_warnings(["Ignoring unparsable message from ..."])
-    def test_version2(self):
+    @asynctest
+    async def test_version2(self):
         self.mocksock.send(b'\x80\x01\x99\x98')
-        self.loop.run_until_complete(asyncio.sleep(0.1))
+        await asyncio.sleep(0.1)
 
     @no_warnings
-    def test_duplicate(self):
+    @asynctest
+    async def test_duplicate(self):
         self.mocksock.send(b'\x40\x01\x99\x99') # that's a GET /
-        self.loop.run_until_complete(asyncio.sleep(0.1))
+        await asyncio.sleep(0.1)
         self.mocksock.send(b'\x40\x01\x99\x99') # that's a GET /
-        self.loop.run_until_complete(asyncio.sleep(0.1))
+        await asyncio.sleep(0.1)
         with TimeoutError.after(1):
             r1 = self.mocksock.recv(1024)
             r2 = self.mocksock.recv(1024)
         self.assertEqual(r1, r2, "Duplicate GETs gave different responses")
 
     @no_warnings
-    def test_ping(self):
+    @asynctest
+    async def test_ping(self):
         self.mocksock.send(b'\x40\x00\x99\x9a') # CoAP ping -- should this test be doable in aiocoap?
-        self.loop.run_until_complete(asyncio.sleep(0.1))
+        await asyncio.sleep(0.1)
         with TimeoutError.after(1):
             response = self.mocksock.recv(1024)
         assert response == b'\x70\x00\x99\x9a'

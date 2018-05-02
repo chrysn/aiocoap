@@ -15,25 +15,16 @@ import unittest
 import aiocoap
 import aiocoap.defaults
 
-from .test_server import WithTestServer, WithClient, no_warnings
-
-if 'simple6' in aiocoap.defaults.get_default_clienttransports():
-    # simple6 has the (comparatively) odd property that whenever it resolves an
-    # address it creates a new client port. Two blockwise requests thus can
-    # proceed without error even when they are simultaneous.
-    expectedFailure_unless_simple6 = lambda x:x
-else:
-    expectedFailure_unless_simple6 = unittest.expectedFailure
+from .test_server import WithTestServer, WithClient, no_warnings, asynctest
 
 class TestBlockwise(WithTestServer, WithClient):
-    @expectedFailure_unless_simple6
+    # tracked as https://github.com/chrysn/aiocoap/issues/58; behavior can be successful more or less by chance
+    @unittest.skip
     @no_warnings
-    def test_sequential(self):
+    @asynctest
+    async def test_sequential(self):
         """Test whether the client serializes simultaneous block requests"""
-        self.loop.run_until_complete(self._test_sequential())
 
-    @asyncio.coroutine
-    def _test_sequential(self):
         pattern1 = b"01234 first pattern" + b"01" * 1024
         pattern2 = b"01234 second pattern" + b"02" * 1024
 
@@ -50,7 +41,7 @@ class TestBlockwise(WithTestServer, WithClient):
 
         responses = []
         for response in asyncio.as_completed([self.client.request(r).response for r in [request1, request2]]):
-            response = yield from response
+            response = await response
             self.assertTrue(response.code.is_successful(), "Simultaneous blockwise requests caused error.")
             responses.append(response.payload)
 

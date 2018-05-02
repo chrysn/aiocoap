@@ -11,11 +11,25 @@ especially with respect to request and response handling."""
 
 import abc
 from asyncio import coroutine
+from aiocoap.numbers.constants import DEFAULT_BLOCK_SIZE_EXP
 
-class TransportEndpoint(metaclass=abc.ABCMeta):
+from typing import Optional, Callable
+
+class MessageInterface(metaclass=abc.ABCMeta):
+    """A MessageInterface is an object that can exchange addressed messages over
+    unreliable transports. Implementations send and receive messages with
+    message type and message ID, and are driven by a Context that deals with
+    retransmission.
+
+    Usually, an MessageInterface refers to something like a local socket, and
+    send messages to different remote endpoints depending on the message's
+    addresses. Just as well, a MessageInterface can be useful for one single
+    address only, or use various local addresses depending on the remote
+    address.
+    """
+
     @abc.abstractmethod
-    @coroutine
-    def shutdown(self):
+    async def shutdown(self):
         """Deactivate the complete transport, usually irrevertably. When the
         coroutine returns, the object must have made sure that it can be
         destructed by means of ref-counting or a garbage collector run."""
@@ -25,19 +39,18 @@ class TransportEndpoint(metaclass=abc.ABCMeta):
         """Send a given :class:`Message` object"""
 
     @abc.abstractmethod
-    @coroutine
-    def determine_remote(self, message):
+    async def determine_remote(self, message):
         """Return a value suitable for the message's remote property based on
         its .opt.uri_host or .unresolved_remote.
 
-        May return None, which indicates that the TransportEndpoint can not
+        May return None, which indicates that the MessageInterface can not
         transport the message (typically because it is of the wrong scheme)."""
 
 class EndpointAddress(metaclass=abc.ABCMeta):
     """An address that is suitable for routing through the application to a
     remote endpoint.
 
-    Depending on the TransportEndpoint implementation used, an EndpointAddress
+    Depending on the MessageInterface implementation used, an EndpointAddress
     property of a message can mean the message is exchanged "with
     [2001:db8::2:1]:5683, while my local address was [2001:db8:1::1]:5683"
     (typical of UDP6), "over the connected <Socket at
@@ -45,9 +58,9 @@ class EndpointAddress(metaclass=abc.ABCMeta):
     participant 0x01 of the OSCAP key 0x..., routed over <another
     EndpointAddress>".
 
-    EndpointAddresses are only concstructed by TransportEndpoint objects,
+    EndpointAddresses are only concstructed by MessageInterface objects,
     either for incoming messages or when populating a message's .remote in
-    :meth:`TransportEndpoint.determine_remote`.
+    :meth:`MessageInterface.determine_remote`.
 
     There is no requirement that those address are always identical for a given
     address. However, incoming addresses must be hashable and hash-compare
@@ -86,6 +99,64 @@ class EndpointAddress(metaclass=abc.ABCMeta):
     def is_multicast_locally(self):
         """True if the local address is a multicast address, otherwise false."""
 
+    maximum_block_size_exp = DEFAULT_BLOCK_SIZE_EXP
+    """The maximum negotiated block size that can be sent to this remote."""
+
+    maximum_payload_size = 1024
+    """The maximum payload size that can be sent to this remote. Only relevant
+    if maximum_block_size_exp is 7. This will be removed in favor of a maximum
+    message size when the block handlers can get serialization length
+    predictions from the remote. Must be divisible by 1024."""
+
+class MessageManager(metaclass=abc.ABCMeta):
+    """The interface an entity that drives a MessageInterface provides towards
+    the MessageInterface for callbacks and object acquisition."""
+
+    @abc.abstractmethod
+    def dispatch_message(self, message):
+        """Callback to be invoked with an incoming message"""
+
+    @abc.abstractmethod
+    def dispatch_error(self, errno, remote):
+        """Callback to be invoked when the operating system indicated an error
+        condition from a particular remote.
+
+        This interface is likely to change soon to something that is not
+        limited to errno-style errors, and might allow transporting additional
+        data."""
+
+    @property
+    @abc.abstractmethod
+    def client_credentials(self):
+        """A CredentialsMap that transports should consult when trying to
+        establish a security context"""
+
+class TokenInterface(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def send_message(self, message) -> Optional[Callable[[], None]]:
+        """Send a message. If it returns a a callable, the caller is asked to
+        call in case it no longer needs the message sent, and to dispose of if
+        it doesn't intend to any more."""
+
+    @abc.abstractmethod
+    async def fill_or_recognize_remote(self, message):
+        """Return True if the message is recognized to already have a .remote
+        managedy by this TokenInterface, or return True and set a .remote on
+        message if it should (by its unresolved remote or Uri-* options) be
+        routed through this TokenInterface, or return False otherwise."""
+
+class TokenManager(metaclass=abc.ABCMeta):
+    pass
+
+class RequestInterface(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    async def fill_or_recognize_remote(self, message):
+        pass
+
+    @abc.abstractmethod
+    def request(self, request: "PlumbingRequest"):
+        pass
+
 class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def request(self, request_message):
@@ -105,8 +176,7 @@ class Resource(metaclass=abc.ABCMeta):
     on the serversite, which renders all requests to that context."""
 
     @abc.abstractmethod
-    @coroutine
-    def render(self, request):
+    async def render(self, request):
         """Return a message that can be sent back to the requester.
 
         This does not need to set any low-level message options like remote,
@@ -118,8 +188,7 @@ class Resource(metaclass=abc.ABCMeta):
         layer nevertheless.)"""
 
     @abc.abstractmethod
-    @coroutine
-    def needs_blockwise_assembly(self, request):
+    async def needs_blockwise_assembly(self, request):
         """Indicator to the :class:`.protocol.Responder` about whether it
         should assemble request blocks to a single request and extract the
         requested blocks from a complete-resource answer (True), or whether
@@ -134,8 +203,7 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
     regular :meth:`.render` method from crafted (fake) requests.
     """
     @abc.abstractmethod
-    @coroutine
-    def add_observation(self, request, serverobservation):
+    async def add_observation(self, request, serverobservation):
         """Before the incoming request is sent to :meth:`.render`, the
         :meth:`.add_observation` method is called. If the resource chooses to
         accept the observation, it has to call the

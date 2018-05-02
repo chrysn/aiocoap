@@ -8,3 +8,6 @@ Notes to the maintainer on what to do during a release
 * ./setup.py sdist upload
 * push everything including tags
 * log in to readthedocs, add new tag as new version
+* Bump versions to add a ".post0"
+  * This serves to indicate that anything built from git is not identical to
+    the last release.

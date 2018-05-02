@@ -17,13 +17,14 @@ from distutils.core import Command
 import os
 
 name = "aiocoap"
-version = "0.3"
+version = "0.4a1.post0"
 description = "Python CoAP library"
 longdescription = __doc__
 
+# When introducing something new, make sure to update doc/installation.rst
 extras_require = {
         'linkheader': ['LinkHeader'],
-        'oscoap': ['hkdf', 'cbor', 'cryptography (>= 2.0)'],
+        'oscore': ['hkdf', 'cbor', 'cryptography (>= 2.0)'],
         'tinydtls': ['DTLSSocket >= 0.1.0'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         'all': [], # populated below, contains everything but documentation dependencies for easier installation
@@ -37,7 +38,13 @@ if 'AIOCOAP_TEST_EXTRAS' in os.environ:
 for k, v in extras_require.items():
     if k.startswith(':') or k == 'all' or k == 'docs':
         continue
-    extras_require['docs'].extend(v)
+
+    # Most extras are required for docs to build. TinyDTLS is an exception
+    # because no module imports it at module level. (This is convenient also
+    # because TinyDTLS installation fails on readthedocs for unknown reasons.)
+    if k != 'tinydtls':
+        extras_require['docs'].extend(v)
+
     extras_require['all'].extend(v)
     if k in test_extras:
         tests_require.extend(v)
@@ -91,7 +98,7 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         ],
 
-    python_requires='>=3.4.4',
+    python_requires='>=3.5',
     extras_require=extras_require,
     tests_require=tests_require,
 
@@ -102,6 +109,7 @@ setup(
         'console_scripts': [
             'aiocoap-client = aiocoap.cli.client:sync_main',
             'aiocoap-proxy = aiocoap.cli.proxy:sync_main',
+            'aiocoap-rd = aiocoap.cli.rd:sync_main',
             ]
         },
 

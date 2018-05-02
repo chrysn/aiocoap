@@ -6,11 +6,14 @@
 test:3.6:
   image: "python:3.6-stretch"
   script:
+    - echo Using cache:; ls .eggs/ || echo No cached .eggs found
     - rm -f .coverage* collected-coverage/3.6/
     - pip3 install coverage
-    # < 0.27 due to bug https://github.com/cython/cython/issues/1894
-    - pip3 install 'cython==0.26'
     - AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test
+    # this should be done locally by setup.py, but while pip installation
+    # works, inside setup.py in doesn't -- still looking for all the details
+    # for a bug report.
+    - pip3 install DTLSSocket
     - python3 -m coverage run --parallel ./setup.py test
     - pip3 install uvloop
     - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
@@ -21,21 +24,72 @@ test:3.6:
   artifacts:
     paths:
       - collected-coverage
+  cache:
+    key: python3.6
+    paths:
+      - .eggs/
 
-# Currently, none of the images provide a recent OpenSSL; waiting for python:3.5-stretch or for python:3.5 to become stretch
+test:3.5:
+  # plain python:3.5 (which is based on jessie) has too old OpenSSL to support
+  # cryptography's AEAD, and python:3.5-stretch is not available from the
+  # official docker hub python containers.
+  image: "python:3.5-jessie"
+  script:
+    - echo deb http://ftp.debian.org/debian jessie-backports main >> /etc/apt/sources.list
+    - apt-get update
+    - apt-get -y -t jessie-backports install libssl-dev
+    - echo Using cache:; ls .eggs/ || echo No cached .eggs found
+    - AIOCOAP_TEST_EXTRAS= ./setup.py test
+    # see above
+    - pip3 install DTLSSocket
+    - ./setup.py test
+    - pip3 install uvloop
+    - AIOCOAP_TESTS_LOOP=uvloop ./setup.py test
+  cache:
+    key: python3.5
+    paths:
+      - .eggs/
 
-# test:3.5:
-#   image: "python:3.5"
-#   script:
-#     - ./setup.py test
+test:pypy-u1204:
+  image: "ubuntu:12.04"
+  script:
+    - apt-get update
+    - apt-get -y install wget ca-certificates bzip2 libexpat1 python-pip
+    - wget -m https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
+    - tar xf bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
+    # ubuntu's old virtualenv has trouble setting up pypy
+    - pip install virtualenv
+    - virtualenv -p pypy3-v6.0.0-linux64/bin/pypy3 venv
+    - AIOCOAP_TEST_EXTRAS= venv/bin/pypy3 ./setup.py test
+    - apt-get -y install libssl-dev autoconf
+    # see above
+    - venv/bin/pip3 install DTLSSocket
+    - venv/bin/pypy3 ./setup.py test
+  cache:
+    key: pypy
+    paths:
+      - bitbucket.org/
 
-# Currently segfaults building tinydtls, and not supported any more anyway
-
-# test:3.4:
-#   image: "python:3.4"
-#   script:
-#     - pip3 install cython
-#     - ./setup.py test
+test:pypy-u1604:
+  image: "ubuntu:16.04"
+  # 1:1 copy of -u1204
+  script:
+    - apt-get update
+    - apt-get -y install wget ca-certificates bzip2 libexpat1 python-pip
+    - wget -m https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
+    - tar xf bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
+    # ubuntu's old virtualenv has trouble setting up pypy
+    - pip install virtualenv
+    - virtualenv -p pypy3-v6.0.0-linux64/bin/pypy3 venv
+    - AIOCOAP_TEST_EXTRAS= venv/bin/pypy3 ./setup.py test
+    - apt-get -y install libssl-dev autoconf
+    # see above
+    - venv/bin/pip3 install DTLSSocket
+    - venv/bin/pypy3 ./setup.py test
+  cache:
+    key: pypy
+    paths:
+      - bitbucket.org/
 
 pages:
   image: "python:3.6-stretch"

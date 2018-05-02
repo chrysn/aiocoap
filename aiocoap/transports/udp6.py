@@ -6,7 +6,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module implements a TransportEndpoint for UDP based on a variation of
+"""This module implements a MessageInterface for UDP based on a variation of
 the asyncio DatagramProtocol.
 
 This implementation strives to be correct and complete behavior while still
@@ -47,11 +47,11 @@ from .. import interfaces
 from ..numbers import COAP_PORT
 from ..dump import TextDumper
 from ..util.asyncio import RecvmsgDatagramProtocol
-from ..util import hostportjoin
+from ..util import hostportjoin, hostportsplit
 from ..util import socknumbers
 
 class UDP6EndpointAddress(interfaces.EndpointAddress):
-    """Remote address type for :cls:`TransportEndpointUDP6`. Remote address is
+    """Remote address type for :cls:`MessageInterfaceUDP6`. Remote address is
     stored in form of a socket address; local address can be roundtripped by
     opaque pktinfo data.
 
@@ -133,10 +133,9 @@ class SockExtendedErr(namedtuple("_SockExtendedErr", "ee_errno ee_origin ee_type
         # unpack_from: recvmsg(2) says that more data may follow
         return cls(*cls._struct.unpack_from(data))
 
-class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoint):
-    def __init__(self, new_message_callback, new_error_callback, log, loop):
-        self.new_message_callback = new_message_callback
-        self.new_error_callback = new_error_callback
+class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface):
+    def __init__(self, ctx: interfaces.MessageManager, log, loop):
+        self._ctx = ctx
         self.log = log
         self.loop = loop
 
@@ -145,8 +144,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
 
     @classmethod
-    @asyncio.coroutine
-    def _create_transport_endpoint(cls, sock, new_message_callback, new_error_callback, log, loop, dump_to, multicast=False):
+    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, dump_to, multicast=False):
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
         sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1)
         # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
@@ -172,48 +170,47 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
                 except OSError:
                     log.warning("Could not join IPv6 multicast group; possibly, there is no network connection available.")
 
-        protofact = lambda: cls(new_message_callback=new_message_callback, new_error_callback=new_error_callback, log=log, loop=loop)
+        protofact = lambda: cls(ctx, log=log, loop=loop)
         if dump_to is not None:
             protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
 
-        transport, protocol = yield from loop.create_datagram_endpoint(protofact, sock=sock)
+        transport, protocol = await loop.create_datagram_endpoint(protofact, sock=sock)
 
         if dump_to is not None:
             protocol = protocol.protocol
 
-        yield from protocol.ready
+        await protocol.ready
 
         return protocol
 
     @classmethod
-    @asyncio.coroutine
-    def create_client_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to):
+    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to):
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
-        return (yield from cls._create_transport_endpoint(sock, new_message_callback, new_error_callback, log, loop, dump_to, multicast=False))
+        return await cls._create_transport_endpoint(sock, ctx, log, loop, dump_to, multicast=False)
 
     @classmethod
-    @asyncio.coroutine
-    def create_server_transport_endpoint(cls, new_message_callback, new_error_callback, log, loop, dump_to, bind):
+    async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to, bind):
+        bind = bind or ('::', None)
+        bind = (bind[0], bind[1] or COAP_PORT)
+
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.bind(bind)
 
-        return (yield from cls._create_transport_endpoint(sock, new_message_callback, new_error_callback, log, loop, dump_to, multicast=True))
+        return (await cls._create_transport_endpoint(sock, ctx, log, loop, dump_to, multicast=True))
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         self._shutting_down = asyncio.Future()
 
         self.transport.close()
 
-        yield from self._shutting_down
+        await self._shutting_down
 
-        del self.new_message_callback
-        del self.new_error_callback
+        del self._ctx
 
     def send(self, message):
         ancdata = []
@@ -228,8 +225,11 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
                     message.remote.pktinfo))
         self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
 
-    @asyncio.coroutine
-    def determine_remote(self, request):
+    async def recognize_remote(self, remote):
+        # FIXME: this does not really cater for multiple udp6 instances
+        return isinstance(remote, UDP6EndpointAddress)
+
+    async def determine_remote(self, request):
         if request.requested_scheme not in ('coap', None):
             return None
 
@@ -237,16 +237,15 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         # similar could be employed.
 
         if request.unresolved_remote is not None:
-            pseudoparsed = urllib.parse.SplitResult(None, request.unresolved_remote, None, None, None)
-            host = pseudoparsed.hostname
-            port = pseudoparsed.port or COAP_PORT
+            host, port = hostportsplit(request.unresolved_remote)
+            port = port or COAP_PORT
         elif request.opt.uri_host:
             host = request.opt.uri_host
             port = request.opt.uri_port or COAP_PORT
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
-        addrinfo = yield from self.loop.getaddrinfo(
+        addrinfo = await self.loop.getaddrinfo(
             host,
             port,
             family=self.transport.get_extra_info('socket').family,
@@ -282,7 +281,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return
 
-        self.new_message_callback(message)
+        self._ctx.dispatch_message(message)
 
     def datagram_errqueue_received(self, data, ancdata, flags, address):
         assert flags == socknumbers.MSG_ERRQUEUE
@@ -303,7 +302,7 @@ class TransportEndpointUDP6(RecvmsgDatagramProtocol, interfaces.TransportEndpoin
         # anyway, when an icmp error comes back, everything pending from that
         # port should err out.
 
-        self.new_error_callback(errno, remote)
+        self._ctx.dispatch_error(errno, remote)
 
     def error_received(self, exc):
         """Implementation of the DatagramProtocol interface, called by the transport."""

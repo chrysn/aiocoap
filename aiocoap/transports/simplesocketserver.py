@@ -6,7 +6,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module implements a TransportEndpoint for UDP based on the asyncio
+"""This module implements a MessageInterface for UDP based on the asyncio
 DatagramProtocol.
 
 This is a simple version that works only for servers bound to a single unicast
@@ -29,9 +29,10 @@ Shortcomings
 import asyncio
 from collections import namedtuple
 
-from .simple6 import TransportEndpointSimple6 as _TransportEndpointSimple6
+from ..numbers import COAP_PORT
+from .simple6 import MessageInterfaceSimple6 as _MessageInterfaceSimple6
 from .. import interfaces
-from .generic_udp import GenericTransportEndpoint
+from .generic_udp import GenericMessageInterface
 
 class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.EndpointAddress):
     # hashability and equality follow from being a namedtuple
@@ -48,9 +49,8 @@ class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.E
 
 class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     @classmethod
-    @asyncio.coroutine
-    def create(cls, server_address, log, loop, new_message_callback, new_error_callback):
-        if server_address[0] in ('::', '0.0.0.0', ''):
+    async def create(cls, bind, log, loop, new_message_callback, new_error_callback):
+        if bind is None or bind[0] in ('::', '0.0.0.0', '', None):
             # If you feel tempted to remove this check, think about what
             # happens if two configured addresses can both route to a
             # requesting endpoint, how that endpoint is supposed to react to a
@@ -61,13 +61,13 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
 
         ready = asyncio.Future()
 
-        transport, protocol = yield from loop.create_datagram_endpoint(
+        transport, protocol = await loop.create_datagram_endpoint(
                 lambda: cls(ready.set_result, new_message_callback, new_error_callback, log),
-                local_addr=server_address,
+                local_addr=bind,
                 reuse_address=True,
                 )
 
-        return (yield from ready)
+        return await ready
 
     def __init__(self, ready_callback, new_message_callback, new_error_callback, log):
         self._ready_callback = ready_callback
@@ -75,14 +75,12 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         self._new_error_callback = new_error_callback
         self.log = log
 
-    @asyncio.coroutine
-    def shutdown(self):
+    async def shutdown(self):
         self._transport.abort()
 
     # interface like _DatagramClientSocketpoolSimple6
 
-    @asyncio.coroutine
-    def connect(self, sockaddr):
+    async def connect(self, sockaddr):
         # FIXME it might be necessary to resolve the address now to get a
         # canonical form that can be recognized later when a package comes back
         self.log.warning("Sending initial messages via a server socket is not recommended")
@@ -108,12 +106,16 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         else:
             self.log.error("Received unexpected connection loss: %s", exception)
 
-class TransportEndpointSimpleServer(GenericTransportEndpoint):
+class MessageInterfaceSimpleServer(GenericMessageInterface):
     @classmethod
-    @asyncio.coroutine
-    def create_server(cls, server_address, new_message_callback, new_error_callback, log, loop):
-        self = cls(new_message_callback, new_error_callback, log, loop)
+    async def create_server(cls, bind, ctx: interfaces.MessageManager, log, loop):
+        self = cls(ctx, log, loop)
+        bind = bind or ('::', None)
+        bind = (bind[0], bind[1] or COAP_PORT)
 
-        self._pool = yield from _DatagramServerSocketSimple.create(server_address, log, self._loop, self._received_datagram, self._received_exception)
+        self._pool = await _DatagramServerSocketSimple.create(bind, log, self._loop, self._received_datagram, self._received_exception)
 
         return self
+
+    async def recognize_remote(self, remote):
+        return isinstance(remote, _Address) and remote in remote.serversocket is self._pool

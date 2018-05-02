@@ -16,9 +16,9 @@ def load_tests(loader, tests, ignore):
             if not f.endswith('.py'):
                 continue
             p = os.path.join(root, f)
-            if 'oscoap' in p and aiocoap.defaults.oscoap_missing_modules():
+            if 'oscore' in p and aiocoap.defaults.oscore_missing_modules():
                 continue
-            if 'resourcedirectory' in p or p == 'aiocoap/cli/rd.py' and aiocoap.defaults.linkheader_missing_modules():
+            if 'resourcedirectory' in p or p in ('aiocoap/cli/rd.py', 'aiocoap/util/linkformat.py') and aiocoap.defaults.linkheader_missing_modules():
                 continue
             tests.addTests(doctest.DocTestSuite(p[:-3].replace('/', '.')))
     return tests
