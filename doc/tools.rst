@@ -46,4 +46,20 @@ These tools are currently present:
 
   The GUI is implemented in Gtk3 using the gbulb_ asyncio loop.
 
+* ``aiocoap-kivy-widget``: A similar (and smaller) widget implemented in Kivy_.
+
+  As asyncio support is not merged in Kivy yet, be sure to build the library
+  from `the asyncio pull request`_.
+
+* ``oscore-plugtest``: Server and client for the interoperability tests
+  conducted during the development of OSCORE.
+
+  The programs in there are also used as part of the test suite.
+
+* ``rd-relay``: An experiment of how much a host must implement if it is to be
+  discovered during a Resource Directory discovery process, but does not serve
+  as the full resource directory itself and redirects the client there.
+
 .. _gbulb: https://github.com/nathan-hoad/gbulb
+.. _Kivy: https://kivy.org/
+.. _`the asyncio pull request`: https://github.com/kivy/kivy/pull/5241
