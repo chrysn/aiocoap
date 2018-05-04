@@ -20,7 +20,7 @@ import shlex
 # even though not used directly, this has side effects on the input() function
 # used in interactive mode
 try:
-    import readline
+    import readline # noqa: F401
 except ImportError:
     pass # that's normal on some platforms, and ok since it's just a usability enhancement
 
