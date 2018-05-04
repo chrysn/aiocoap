@@ -85,8 +85,12 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
     """Simple base implementation of the :class:`interfaces.Resource`
     interface
 
-    The render method delegates content creation to ``render_$method`` methods,
-    and responds appropriately to unsupported methods.
+    The render method delegates content creation to ``render_$method`` methods
+    (``render_get``, ``render_put`` etc), and responds appropriately to
+    unsupported methods. Those messages may return messages without a response
+    code, the default render method will set an appropriate successful code
+    ("Content" for GET/FETCH, "Deleted" for DELETE, "Changed" for anything
+    else).
 
     Moreover, this class provides a ``get_link_description`` method as used by
     .well-known/core to expose a resource's ``.ct``, ``.rt`` and ``.if_``
@@ -102,7 +106,19 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
         m = getattr(self, 'render_%s' % str(request.code).lower(), None)
         if not m:
             raise error.UnallowedMethod()
-        return await m(request)
+
+        response = await m(request)
+
+        if response.code is None:
+            if request.code in (numbers.codes.GET, numbers.codes.FETCH):
+                response_default = numbers.codes.CONTENT
+            elif request.code == numbers.code.DELETE:
+                response_default = numbers.code.DELETED
+            else:
+                response_default = numbers.codes.CHANGED
+            response.code = response_default
+
+        return response
 
 class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):

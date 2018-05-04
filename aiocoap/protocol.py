@@ -33,7 +33,7 @@ from .tokenmanager import TokenManager, PlumbingRequest
 from . import interfaces
 from . import error
 from .numbers import (COAP_PORT, INTERNAL_SERVER_ERROR,
-        SERVICE_UNAVAILABLE, CONTENT, CONTINUE, REQUEST_ENTITY_INCOMPLETE,
+        SERVICE_UNAVAILABLE, CONTINUE, REQUEST_ENTITY_INCOMPLETE,
         OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT)
 from .numbers.optionnumbers import OptionNumber
 
@@ -457,9 +457,7 @@ class Context(interfaces.RequestProvider):
                         lambda f, cb=servobs._cancellation_callback: cb())
 
         response = await self.serversite.render(request)
-        if response.code is None:
-            response.code = CONTENT
-        if not response.code.is_response():
+        if response.code is None or not response.code.is_response():
             self.log.warning("Response does not carry response code (%r),"
                              " application probably violates protocol.",
                              response.code)
@@ -518,8 +516,10 @@ class Context(interfaces.RequestProvider):
 
             if response is None:
                 response = await self.serversite.render(request)
-            if response.code is None:
-                response.code = CONTENT
+            if response.code is None or not response.code.is_response():
+                self.log.warning("Response does not carry response code (%r),"
+                                 " application probably violates protocol.",
+                                 response.code)
 
             can_continue = response.code.is_successful() and \
                     not servobs._late_deregister

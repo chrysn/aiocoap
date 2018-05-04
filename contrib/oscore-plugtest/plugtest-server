@@ -139,9 +139,6 @@ class InnerBlockMixin:
             szx = request.opt.block2.size_exponent
             blockno = request.opt.block2.block_number
 
-        # FIXME this default needs to move *some*where
-        if response.code is None:
-            response.code = aiocoap.CONTENT
         return response._extract_block(blockno, szx)
 
 class InnerBlockResource(InnerBlockMixin, BlockResource):
@@ -356,10 +353,6 @@ class ProtectedSite(resource.Site):
         except Exception as err:
             response = aiocoap.Message(code=aiocoap.INTERNAL_SERVER_ERROR)
             self.log.error("An exception occurred while rendering a protected resource: %r"%err, exc_info=err)
-
-        if response.code is None:
-            # FIXME: this duplicates the default setting in aiocoap.protocol
-            response.code = aiocoap.CONTENT
 
         if unprotected.opt.observe is not None and oscobs._accepted:
             # value won't be transmitted anyway, but protecter needs to know
