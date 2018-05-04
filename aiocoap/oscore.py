@@ -298,7 +298,7 @@ class SecurityContext:
 
         if 6 not in unprotected:
             if request_data is None:
-                raise ProtectonInvalid("No sequence number provided in request")
+                raise ProtectionInvalid("No sequence number provided in request")
 
             nonce = request_nonce
             seqno = None # sentinel for not striking out anyting

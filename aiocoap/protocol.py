@@ -32,7 +32,7 @@ from .messagemanager import MessageManager
 from .tokenmanager import TokenManager, PlumbingRequest
 from . import interfaces
 from . import error
-from .numbers import (INTERNAL_SERVER_ERROR,
+from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
         SERVICE_UNAVAILABLE, CONTINUE, REQUEST_ENTITY_INCOMPLETE,
         OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT)
 from .numbers.optionnumbers import OptionNumber
@@ -568,9 +568,9 @@ class BaseUnicastRequest(BaseRequest):
 
         try:
             return await self.response
-        except error.RenderableError:
+        except error.RenderableError as e:
             return e.to_message()
-        except Exception as e:
+        except Exception:
             return Message(code=INTERNAL_SERVER_ERROR)
 
 class Request(interfaces.Request, BaseUnicastRequest):
@@ -892,7 +892,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
 
         if initial_response.opt.block2.block_number != 0:
             log.error("Error assembling blockwise response (expected first block)")
-            raise UnexpectedBlock2()
+            raise error.UnexpectedBlock2()
 
         assembled_response = initial_response
         last_response = initial_response

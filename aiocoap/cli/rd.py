@@ -339,7 +339,7 @@ def _paginate(candidates, query):
         if 'count' in query:
             candidates = candidates[:int(query['count'])]
     except (KeyError, ValueError):
-        raise BadRequest("page requires count, and both must be ints")
+        raise error.BadRequest("page requires count, and both must be ints")
 
     return candidates
 
