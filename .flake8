@@ -1,0 +1,4 @@
+[flake8]
+ignore = E501, E128, E302, E302, E231, E226, E261, E228, E265, E225, E222, E126, E123, E127, E301, E306, E303, E305, E124, E227, E116, E121, E131
+
+exclude = .eggs, contrib, tests, doc
