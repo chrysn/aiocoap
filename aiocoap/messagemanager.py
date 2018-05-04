@@ -19,7 +19,10 @@ import random
 from . import error
 from . import interfaces
 from .message import Message
-from .numbers import *
+from .numbers.types import CON, ACK, RST, NON
+from .numbers.codes import EMPTY
+from .numbers.constants import (EXCHANGE_LIFETIME, ACK_TIMEOUT, EMPTY_ACK_DELAY,
+        MAX_RETRANSMIT, ACK_RANDOM_FACTOR)
 
 class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     """This MessageManager Drives a message interface following the rules of

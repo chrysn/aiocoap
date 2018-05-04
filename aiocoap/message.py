@@ -12,7 +12,9 @@ import copy
 import string
 
 from . import error, optiontypes
-from .numbers import *
+from .numbers.codes import Code, CHANGED
+from .numbers.types import Type
+from .numbers.constants import DEFAULT_BLOCK_SIZE_EXP
 from .options import Options
 from .util import hostportjoin, Sentinel
 from .util.uri import quote_factory, unreserved, sub_delims
@@ -206,6 +208,7 @@ class Message(object):
         option numbers that are not technically NoCacheKey but handled by the
         application using this method).
 
+        >>> from aiocoap.numbers import GET
         >>> m1 = Message(code=GET)
         >>> m2 = Message(code=GET)
         >>> m1.opt.uri_path = ('s', '1')
@@ -217,6 +220,7 @@ class Message(object):
         >>> m2.opt.etag = b'000'
         >>> m1.get_cache_key() == m2.get_cache_key()
         False
+        >>> from aiocoap.numbers.optionnumbers import OptionNumber
         >>> ignore = [OptionNumber.ETAG]
         >>> m1.get_cache_key(ignore) == m2.get_cache_key(ignore)
         True
