@@ -23,10 +23,9 @@ building an OSCORE server. (Some code that could be used here in future resides
 in `contrib/oscore-plugtest/plugtest-server` as the `ProtectedSite` class.
 """
 
-import asyncio
 from collections import namedtuple
 
-from .. import interfaces, message, credentials, oscore
+from .. import interfaces, credentials, oscore
 
 class OSCOREAddress(
         namedtuple("_OSCOREAddress", ["transport", "security_context", "underlying_address"]),

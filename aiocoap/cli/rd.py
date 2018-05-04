@@ -24,7 +24,6 @@ import sys
 import logging
 import asyncio
 import argparse
-import functools
 from urllib.parse import urljoin
 import itertools
 

@@ -32,7 +32,7 @@ from .messagemanager import MessageManager
 from .tokenmanager import TokenManager, PlumbingRequest
 from . import interfaces
 from . import error
-from .numbers import (COAP_PORT, INTERNAL_SERVER_ERROR,
+from .numbers import (INTERNAL_SERVER_ERROR,
         SERVICE_UNAVAILABLE, CONTINUE, REQUEST_ENTITY_INCOMPLETE,
         OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT)
 from .numbers.optionnumbers import OptionNumber

@@ -11,7 +11,6 @@
 This is work in progress and not yet part of the API."""
 
 import asyncio
-import urllib.parse
 import functools
 import logging
 

@@ -18,7 +18,6 @@ import link_header
 
 from ...message import Message
 from ...numbers import GET, POST, DELETE, SERVICE_UNAVAILABLE, NOT_FOUND
-from ... import error
 
 __all__ = ['Registerer']
 

@@ -46,7 +46,6 @@ example, while requests to this server do complete, error messages are still
 shown during client shutdown.
 """
 
-import urllib.parse
 import asyncio
 import weakref
 import functools

@@ -34,7 +34,6 @@ and the options can not be added easily to your platform, consider using the
 """
 
 import asyncio
-import urllib.parse
 import socket
 import ipaddress
 import struct

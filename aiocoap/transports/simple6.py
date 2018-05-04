@@ -23,12 +23,11 @@ different transport implementations, and because it still fails in proxy
 blockwise tests).
 """
 
-import urllib
 import asyncio
 import socket
 
-from aiocoap import interfaces, error
-from aiocoap import Message, COAP_PORT
+from aiocoap import interfaces
+from aiocoap import COAP_PORT
 from ..util import hostportjoin
 from .generic_udp import GenericMessageInterface
 

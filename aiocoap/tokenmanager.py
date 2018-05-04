@@ -9,18 +9,12 @@
 import asyncio
 from collections import namedtuple
 import functools
-import logging
 import os
 import random
-import weakref
 
 from . import error
 from . import interfaces
-from .message import Message, NoResponse
 from .numbers import *
-from .optiontypes import BlockOption
-from .util.asyncio import AsyncGenerator
-from .util import hostportjoin
 
 class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
     def __init__(self, context):

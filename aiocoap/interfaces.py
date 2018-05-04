@@ -10,7 +10,6 @@
 especially with respect to request and response handling."""
 
 import abc
-from asyncio import coroutine
 from aiocoap.numbers.constants import DEFAULT_BLOCK_SIZE_EXP
 
 from typing import Optional, Callable

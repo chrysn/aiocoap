@@ -28,7 +28,6 @@ dispatch requests based on the Uri-Path header.
 """
 
 import hashlib
-import asyncio
 
 from . import message
 from . import error
