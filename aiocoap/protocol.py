@@ -255,6 +255,7 @@ class Context(interfaces.RequestProvider):
             elif transportname == 'oscore':
                 from .transports.oscore import TransportOSCORE
                 oscoretransport = TransportOSCORE(self, self)
+                self.request_interfaces.append(oscoretransport)
             else:
                 raise RuntimeError("Transport %r not know for server context creation"%transportname)
 

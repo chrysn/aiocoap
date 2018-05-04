@@ -375,8 +375,6 @@ class Message(object):
         # maybe this function does not belong exactly *here*, but it belongs to
         # the results of .request(message), which is currently a message itself.
 
-        host = None
-
         if self.code.is_response():
             proxyuri = self.requested_proxy_uri
             scheme = self.requested_scheme

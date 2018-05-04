@@ -70,7 +70,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         #TODO: add proper Token handling
         token = self.token
         self.token = (self.token + 1) & 0xffffffffffffffff
-        return bytes.fromhex("%08x"%self.token)
+        return bytes.fromhex("%08x"%token)
 
     #
     # implement the tokenmanager interface
@@ -131,7 +131,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # out by the first response, and if there was not even a
             # NoResponse, something went wrong above (and we can't tell easily
             # here).
-        task = self.loop.create_task(run())
+        self.loop.create_task(run())
 
         self.context.render_to_plumbing_request(pr)
 

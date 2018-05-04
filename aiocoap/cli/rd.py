@@ -451,13 +451,17 @@ class SimpleRegistrationWKC(WKCResource):
 
         if 'lt' in query:
             try:
-                _ = int(query['lt'])
+                # just trying out whether it can be constructed to err out
+                # early and meaningfully
+                int(query['lt'])
             except ValueError:
                 raise error.BadRequest("lt must be numeric")
 
         if 'con' not in query:
             try:
-                con = request.remote.uri
+                # just trying out whether it can be constructed to err out in
+                # time (under the current model of "respond early, ask later")
+                request.remote.uri
             except error.UnparsableMessage:
                 raise error.BadRequest("explicit con required")
 

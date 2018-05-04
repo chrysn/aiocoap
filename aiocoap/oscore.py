@@ -377,7 +377,7 @@ class SecurityContext:
 
         if firstbyte & 0b00001000:
             kid = tail
-            unprotected[4] = tail
+            unprotected[4] = kid
 
         return b"", {}, unprotected
 
