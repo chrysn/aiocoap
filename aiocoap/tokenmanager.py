@@ -19,7 +19,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
     def __init__(self, context):
         self.context = context
 
-        self.token = random.randint(0, 65535)
+        self._token = random.randint(0, 65535)
         self.outgoing_requests = {}  #: Unfinished outgoing requests (identified by token and remote)
         self.incoming_requests = {}  #: Unfinished incoming requests. ``(path-tuple, remote): Request``
 
@@ -68,9 +68,8 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
     def next_token(self):
         """Reserve and return a new Token for request."""
         #TODO: add proper Token handling
-        token = self.token
-        self.token = (self.token + 1) & 0xffffffffffffffff
-        return bytes.fromhex("%08x"%token)
+        self._token = (self._token + 1) % (2 ** 64)
+        return self._token.to_bytes(8, 'big').lstrip(b'\0')
 
     #
     # implement the tokenmanager interface
