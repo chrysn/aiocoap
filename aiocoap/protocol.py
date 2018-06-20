@@ -77,11 +77,6 @@ class Context(interfaces.RequestProvider):
     :class:`Response` classes on demand, and decides which transport
     implementations to start and which are to handle which messages.
 
-    Currently, only one network transport is created, and the details of the
-    messaging layer of CoAP are managed in this class. It is expected that much
-    of the functionality will be moved into transports at latest when CoAP over
-    TCP and websockets is implemented.
-
     **Context creation and destruction**
 
     The following functions are provided for creating and stopping a context:
