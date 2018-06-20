@@ -81,6 +81,16 @@ class Context(interfaces.RequestProvider):
 
     The following functions are provided for creating and stopping a context:
 
+    .. note::
+
+        A typical application should only ever create one context, even (or
+        especially when) it acts both as a server and as a client (in which
+        case a server context should be created).
+
+        A context that is not used any more must be shut down using
+        :meth:`.shutdown()`, but typical applications will not need to because
+        they use the context for the full process lifetime.
+
     .. automethod:: create_client_context
     .. automethod:: create_server_context
 
