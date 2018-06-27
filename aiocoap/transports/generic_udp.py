@@ -6,9 +6,6 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-import asyncio
-import urllib
-
 from aiocoap import interfaces, error, util
 from aiocoap import COAP_PORT, Message
 

@@ -7,8 +7,6 @@
 # described in the accompanying LICENSE file.
 
 import asyncio
-import weakref
-import urllib.parse
 
 from aiocoap import interfaces, optiontypes, error, util
 from aiocoap import COAP_PORT, Message

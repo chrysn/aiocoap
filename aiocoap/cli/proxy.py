@@ -9,7 +9,6 @@
 """a plain CoAP proxy that can work both as forward and as reverse proxy"""
 
 import sys
-import asyncio
 import argparse
 
 import aiocoap

@@ -9,7 +9,7 @@
 from itertools import chain
 import struct
 
-from .numbers import *
+from .numbers.optionnumbers import OptionNumber
 from .error import UnparsableMessage
 
 def _read_extended_field_value(value, rawdata):

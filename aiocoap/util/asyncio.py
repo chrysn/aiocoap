@@ -112,22 +112,23 @@ class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
             self._protocol.datagram_msg_received(data, ancdata, flags, addr)
 
     def sendmsg(self, data, ancdata, flags, address):
-        # copied and modified from _SelectorDatagramTransport.sendto
+        # copied and modified from _SelectorDatagramTransport.sendto; unused code paths asserted out
         if not isinstance(data, (bytes, bytearray, memoryview)):
             raise TypeError('data argument must be a bytes-like object, '
                             'not %r' % type(data).__name__)
         if not data:
             return
 
-        if self._address and addr not in (None, self._address):
-            raise ValueError('Invalid address: must be None or %s' %
-                             (self._address,))
-
-        if self._conn_lost and self._address:
-            if self._conn_lost >= constants.LOG_THRESHOLD_FOR_CONNLOST_WRITES:
-                logger.warning('socket.send() raised exception.')
-            self._conn_lost += 1
-            return
+        assert self._address is None, "Transport setup incompatible with recvmsg changes"
+#         if self._address and addr not in (None, self._address):
+#             raise ValueError('Invalid address: must be None or %s' %
+#                              (self._address,))
+#
+#         if self._conn_lost and self._address:
+#             if self._conn_lost >= constants.LOG_THRESHOLD_FOR_CONNLOST_WRITES:
+#                 logger.warning('socket.send() raised exception.')
+#             self._conn_lost += 1
+#             return
 
         if not self._buffer:
             # Attempt to send it right away first.
@@ -144,9 +145,10 @@ class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
                                   'Fatal write error on datagram transport')
                 return
 
-        # Ensure that what we buffer is immutable.
-        self._buffer.append((bytes(data), ancdata, flags, addr))
-        self._maybe_pause_protocol()
+        assert not self._buffer, "Transport setup incompatible with recvmsg changes"
+#         # Ensure that what we buffer is immutable.
+#         self._buffer.append((bytes(data), ancdata, flags, addr))
+#         self._maybe_pause_protocol()
 
     # TODO: not modified _sendto_ready as it's not used in this application and
     # would only be dead code -- given that we store 4-tuples instead of

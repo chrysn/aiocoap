@@ -18,7 +18,6 @@ import link_header
 
 from ...message import Message
 from ...numbers import GET, POST, DELETE, SERVICE_UNAVAILABLE, NOT_FOUND
-from ... import error
 
 __all__ = ['Registerer']
 
@@ -231,7 +230,7 @@ class Registerer:
         obtain = asyncio.Task(self._obtain_link_data())
 
         try:
-            registration = await self._run_inner(obtain)
+            await self._run_inner(obtain)
         except asyncio.CancelledError:
             self._set_state('cancelled')
             pass
@@ -266,7 +265,7 @@ class Registerer:
                     self.log.error("Giving up RD discovery")
                     break
 
-            link_data = await obtain
+            await obtain
 
             self._set_state("registering")
 

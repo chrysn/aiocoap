@@ -46,7 +46,7 @@ def get_default_clienttransports(*, loop=None):
         yield 'oscore'
 
     try:
-        from DTLSSocket import dtls
+        from DTLSSocket import dtls # noqa: F401
     except ImportError:
         pass
     else:
@@ -98,7 +98,7 @@ def get_default_servertransports(*, loop=None):
 
     # no server support yet, but doesn't hurt either
     try:
-        from DTLSSocket import dtls
+        from DTLSSocket import dtls # noqa: F401
     except ImportError:
         pass
     else:
@@ -137,15 +137,15 @@ def oscore_missing_modules():
     false value if everything is present"""
     missing = []
     try:
-        import cbor
+        import cbor # noqa: F401
     except ImportError:
         missing.append('cbor')
     try:
-        import hkdf
+        import hkdf # noqa: F401
     except ImportError:
         missing.append('hkdf')
     try:
-        import cryptography
+        import cryptography # noqa: F401
     except ImportError:
         missing.append('cryptography')
     else:
@@ -163,7 +163,7 @@ def linkheader_missing_modules():
     everything is present."""
     missing = []
     try:
-        import link_header
+        import link_header # noqa: F401
     except ImportError:
         missing.append('link_header')
     return missing
