@@ -7,7 +7,7 @@ import json
 import cbor
 
 from aiocoap import resource, numbers, interfaces
-from aiocoap import GET, PUT, POST, Message
+from aiocoap import GET, PUT, POST, Message, CONTENT, CHANGED
 from aiocoap.error import BadRequest, UnsupportedContentFormat, UnallowedMethod
 
 if 'application/senml+json' not in numbers.media_types_rev:
@@ -118,7 +118,11 @@ class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resou
         elif isinstance(payload, str):
             payload = payload.encode('utf8')
 
-        return Message(payload=payload, content_format=responseformat)
+        return Message(
+                code={GET: CONTENT, PUT: CHANGED}[request.code],
+                payload=payload,
+                content_format=responseformat
+                )
 
 class ObservableContenttypeRendered(ContenttypeRendered, interfaces.ObservableResource):
     def __init__(self):
