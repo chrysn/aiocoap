@@ -222,7 +222,7 @@ class WKCResource(Resource):
             links.links = filter(filters.pop(), links.links)
         links.links = list(links.links)
 
-        if not links.links and request.remote.is_multicast():
+        if not links.links and request.remote.is_multicast:
             return message.NoResponse
 
         return link_format_to_message(request, links)
