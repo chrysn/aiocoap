@@ -357,10 +357,15 @@ class SecurityContext:
         unprotected_message.payload = unprotected_message.opt.decode(plaintext[1:])
 
         if unprotected_message.code.is_request():
-            unprotected_message.opt.observe = protected_message.opt.observe
+            if protected_message.opt.observe != 0:
+                unprotected_message.opt.observe = None
         else:
             if protected_message.opt.observe is not None:
-                unprotected_message.opt.observe = seqno
+                # -1 ensures that they sort correctly in later reordering
+                # detection. Note that neither -1 nor high (>3 byte) sequence
+                # numbers can be serialized in the Observe option, but they are
+                # in this implementation accepted for passing around.
+                unprotected_message.opt.observe = -1 if seqno is not None else seqno
 
         return unprotected_message, (request_kid, request_partiv, request_nonce)
 
