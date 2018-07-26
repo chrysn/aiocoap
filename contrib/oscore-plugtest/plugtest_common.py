@@ -6,19 +6,21 @@ import cbor
 
 from aiocoap import oscore
 
-contextdir = os.path.dirname(__file__) + '/common-context/'
+from pathlib import Path
 
-def get_security_context(testno, role, persist=None):
+contextdir = Path(__file__).parent / 'common-context'
+
+def get_security_context(testno, contextname, role, persist=None):
     if persist is None:
         os.makedirs('temp-contexts', exist_ok=True)
         contextcopy = tempfile.mkdtemp(prefix='context-', dir='temp-contexts')
     else:
         os.makedirs(persist, exist_ok=True)
         contextcopy = persist
-    secretdata = json.load(open(contextdir + 'secret.json'))
+    secretdata = json.load((contextdir / contextname / 'secret.json').open())
     with open(os.path.join(contextcopy, 'secret.json'), 'w') as out:
         json.dump(secretdata, out)
-    settingsdata = json.load(open(contextdir + 'settings.json'))
+    settingsdata = json.load((contextdir / contextname / 'settings.json').open())
 
     # this needs to be messed with early, as key properties are derived
     # from this data

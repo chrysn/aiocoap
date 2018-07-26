@@ -171,7 +171,7 @@ class SeqnoManager(resource.ObservableResource):
         except (ValueError, UnicodeDecodeError):
             raise aiocoap.error.BadRequest("Only numeric values are accepted.")
 
-        new_context = get_security_context(number, 'server')
+        new_context = get_security_context(number, 'ab', 'server')
         self.contextmap[':plugtest'] = new_context
 
         return aiocoap.Message(code=aiocoap.CHANGED)
@@ -401,7 +401,7 @@ class PlugtestServerProgram(AsyncCLIDaemon):
 
 
         server_credentials = CredentialsMap()
-        server_credentials[':plugtest'] = get_security_context(0, 'server', opts.contextdir)
+        server_credentials[':plugtest'] = get_security_context(0, 'ab', 'server', opts.contextdir)
 
         self.context = await server_context_from_arguments(PlugtestSite(server_credentials), opts)
 

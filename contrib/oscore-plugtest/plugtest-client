@@ -48,7 +48,7 @@ class PlugtestClientProgram:
         else:
             logging.basicConfig(level=logging.WARNING)
 
-        security_context = get_security_context(opts.testno, 'client', opts.contextdir)
+        security_context = get_security_context(opts.testno, 'ab', 'client', opts.contextdir)
 
         self.ctx = await Context.create_client_context()
         self.ctx.client_credentials["coap://%s/*" % self.host] = security_context
@@ -233,7 +233,7 @@ class PlugtestClientProgram:
             print("Failed: Request did not even pass before replay (%s)"%unprotected_response)
             return
 
-        security_context = get_security_context(self.testno, 'client')
+        security_context = get_security_context(self.testno, 'ab', 'client')
         self.ctx.client_credentials["coap://%s/*" % self.host] = security_context
 
         try:
