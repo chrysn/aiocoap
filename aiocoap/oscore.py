@@ -33,6 +33,10 @@ import cbor
 
 MAX_SEQNO = 2**40 - 1
 
+# Relevant values from the IANA registry "CBOR Object Signing and Encryption (COSE)"
+COSE_KID = 4
+COSE_PIV = 6
+
 class NotAProtectedMessage(ValueError):
     """Raised when verification is attempted on a non-OSCORE message"""
 
@@ -204,20 +208,20 @@ class SecurityContext:
         if protected:
             raise RuntimeError("Protection produced a message that has uncompressable fields.")
 
-        if set(unprotected.keys()) - {4, 6}:
+        if set(unprotected.keys()) - {COSE_KID, COSE_PIV}:
             raise RuntimeError("Protection produced a message that has uncompressable fields.")
 
-        if 6 in unprotected:
-            piv = unprotected[6] or b""
+        if COSE_PIV in unprotected:
+            piv = unprotected[COSE_PIV] or b""
             if len(piv) > 0b111:
                 raise ValueError("Can't encode overly long partial IV")
         else:
             piv = b""
 
         firstbyte = len(piv)
-        if 4 in unprotected:
+        if COSE_KID in unprotected:
             firstbyte |= 0b1000
-            kid_data = unprotected[4]
+            kid_data = unprotected[COSE_KID]
         else:
             kid_data = b""
 
@@ -237,11 +241,11 @@ class SecurityContext:
             nonce, partial_iv_short = self._build_new_nonce()
 
             unprotected = {
-                    6: partial_iv_short,
+                    COSE_PIV: partial_iv_short,
                     }
             if request_data is None:
                 # this is usually the case; the exception is observe
-                unprotected[4] = self.sender_id
+                unprotected[COSE_KID] = self.sender_id
 
                 request_kid = self.sender_id
                 request_partiv = partial_iv_short
@@ -290,20 +294,20 @@ class SecurityContext:
 
         # FIXME check for duplicate keys in protected
 
-        if unprotected.pop(4, self.recipient_id) != self.recipient_id:
+        if unprotected.pop(COSE_KID, self.recipient_id) != self.recipient_id:
             # for most cases, this is caught by the session ID dispatch, but in
             # responses (where explicit sender IDs are atypical), this is a
             # valid check
             raise ProtectionInvalid("Sender ID does not match")
 
-        if 6 not in unprotected:
+        if COSE_PIV not in unprotected:
             if request_data is None:
                 raise ProtectionInvalid("No sequence number provided in request")
 
             nonce = request_nonce
             seqno = None # sentinel for not striking out anyting
         else:
-            partial_iv_short = unprotected[6]
+            partial_iv_short = unprotected[COSE_PIV]
 
             seqno = int.from_bytes(partial_iv_short, 'big')
 
@@ -360,7 +364,7 @@ class SecurityContext:
         if pivsz:
             if len(tail) < pivsz:
                 raise DecodeError("Partial IV announced but not present")
-            unprotected[6] = tail[:pivsz]
+            unprotected[COSE_PIV] = tail[:pivsz]
             tail = tail[pivsz:]
 
         if firstbyte & 0b00010000:
@@ -374,7 +378,7 @@ class SecurityContext:
 
         if firstbyte & 0b00001000:
             kid = tail
-            unprotected[4] = kid
+            unprotected[COSE_KID] = kid
 
         return b"", {}, unprotected
 
@@ -642,7 +646,7 @@ def verify_start(message):
 
     try:
         # FIXME raise on duplicate key
-        return unprotected[4]
+        return unprotected[COSE_KID]
     except KeyError:
         raise NotAProtectedMessage("No Sender ID present", message)
 
