@@ -152,7 +152,6 @@ class TestOSCOAPStatic(unittest.TestCase):
         encoded = outer_message.encode()
         self.assertEqual(encoded, h('440271c30000b932396c6f63616c686f737463091400ff4ed339a5a379b0b8bc731fffb0'), "Encoded message differs")
 
-    @unittest.expectedFailure # FIXME: we don't encode KID context yet
     def test_c6(self):
         secctx = aiocoap.oscore.SecurityContext()
         secctx.algorithm = default_algorithm
@@ -164,7 +163,7 @@ class TestOSCOAPStatic(unittest.TestCase):
 
 
         unprotected = aiocoap.Message.decode(h('44012f8eef9bbf7a396c6f63616c686f737483747631'))
-        outer_message, (request_kid, request_partiv, request_nonce) = secctx.protect(unprotected)
+        outer_message, (request_kid, request_partiv, request_nonce) = secctx.protect(unprotected, kid_context=C3_ID_CTX)
         outer_message.mid = unprotected.mid
         outer_message.token = unprotected.token
         outer_message.mtype = unprotected.mtype
@@ -172,7 +171,8 @@ class TestOSCOAPStatic(unittest.TestCase):
         # again skipping some intermediary values that are all checked in the final result as well
 
         encoded = outer_message.encode()
-        self.assertEqual(encoded, h('44022f8eef9bbf7a396c6f63616c686f73746b19140837cbf3210017a2d3ff4ed339a5a379b0b8bc731fffb0'), "Encoded message differs")
+        # FIXME: This is composed from the expected ciphertext, not the protected coap request, see https://github.com/core-wg/oscoap/issues/241
+        self.assertEqual(encoded, h('44022f8eef9bbf7a396c6f63616c686f73746b19140837cbf3210017a2d3ff72cd7273fd331ac45cffbe55c3'), "Encoded message differs")
 
 
     def test_c7(self):
@@ -195,9 +195,30 @@ class TestOSCOAPStatic(unittest.TestCase):
 
         # again skipping some intermediary values that are all checked in the final result as well
 
-        expected = aiocoap.Message.decode(h('64445d1f0000397490ffdbaad1e9a7e7b2a813d3c31524378303cdafae119106'))
-
         encoded = outer_message.encode()
         self.assertEqual(encoded, h('64445d1f0000397490ffdbaad1e9a7e7b2a813d3c31524378303cdafae119106'), "Encoded message differs")
 
-    # FIXME: add c8 and c9 for completeness; esp. c9 is not trivial from the existing b/c it's about whether or not to send the context in the response.
+    def test_c8(self):
+        secctx = aiocoap.oscore.SecurityContext()
+        secctx.algorithm = default_algorithm
+        secctx.hashfun = default_hashfun
+        secctx.sender_id = b"\x01"
+        secctx.recipient_id = b""
+        secctx.derive_keys(C1_SALT, C1_KEY, None)
+        secctx.sender_sequence_number = 0
+
+
+        unprotected = aiocoap.Message.decode(h('64455d1f00003974ff48656c6c6f20576f726c6421'))
+        request_sender_id = secctx.recipient_id
+        request_piv_short = b"\x14"
+        request_nonce = secctx._construct_nonce(request_piv_short, request_sender_id)
+        outer_message, _ = secctx.protect(unprotected, (request_sender_id, request_piv_short, request_nonce), can_reuse_partiv=False)
+        outer_message.mid = unprotected.mid
+        outer_message.token = unprotected.token
+        outer_message.mtype = unprotected.mtype
+
+        # again skipping some intermediary values that are all checked in the final result as well
+
+        encoded = outer_message.encode()
+        self.assertEqual(encoded, h('64445d1f00003974920100ff4d4c13669384b67354b2b6175ff4b8658c666a6cf88e'), "Encoded message differs")
+

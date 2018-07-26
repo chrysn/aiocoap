@@ -247,7 +247,7 @@ class SecurityContext:
         else:
             return b""
 
-    def protect(self, message, request_data=None, *, can_reuse_partiv=True):
+    def protect(self, message, request_data=None, *, can_reuse_partiv=True, kid_context=None):
         assert (request_data is None) == message.code.is_request()
         if request_data is not None:
             request_kid, request_partiv, request_nonce = request_data
@@ -270,6 +270,9 @@ class SecurityContext:
         else:
             nonce = request_nonce
             unprotected = {}
+
+        if kid_context:
+            unprotected[COSE_KID_CONTEXT] = kid_context
 
         protected = {}
 
