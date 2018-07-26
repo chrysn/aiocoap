@@ -36,6 +36,16 @@ MAX_SEQNO = 2**40 - 1
 # Relevant values from the IANA registry "CBOR Object Signing and Encryption (COSE)"
 COSE_KID = 4
 COSE_PIV = 6
+# No numeric value has been assigned yet; as we're only building the protected
+# and unprotected fields temporarily in untyped data structures and serializing
+# them through the compression, this can stay a string until a number is
+# assigned.
+COSE_KID_CONTEXT = 'TBD-draft-ietf-core-object-security-14'
+
+COMPRESSION_BITS_N = 0b111
+COMPRESSION_BIT_K = 0b1000
+COMPRESSION_BIT_H = 0b10000
+COMPRESSION_BITS_RESERVED = 0b11100000
 
 class NotAProtectedMessage(ValueError):
     """Raised when verification is attempted on a non-OSCORE message"""
@@ -208,25 +218,32 @@ class SecurityContext:
         if protected:
             raise RuntimeError("Protection produced a message that has uncompressable fields.")
 
-        if set(unprotected.keys()) - {COSE_KID, COSE_PIV}:
-            raise RuntimeError("Protection produced a message that has uncompressable fields.")
-
-        if COSE_PIV in unprotected:
-            piv = unprotected[COSE_PIV] or b""
-            if len(piv) > 0b111:
-                raise ValueError("Can't encode overly long partial IV")
-        else:
-            piv = b""
+        piv = unprotected.pop(COSE_PIV, b"")
+        if len(piv) > COMPRESSION_BITS_N:
+            raise ValueError("Can't encode overly long partial IV")
 
         firstbyte = len(piv)
         if COSE_KID in unprotected:
-            firstbyte |= 0b1000
-            kid_data = unprotected[COSE_KID]
+            firstbyte |= COMPRESSION_BIT_K
+            kid_data = unprotected.pop(COSE_KID)
         else:
             kid_data = b""
 
+        if COSE_KID_CONTEXT in unprotected:
+            firstbyte |= COMPRESSION_BIT_H
+            kid_context = unprotected.pop(COSE_KID_CONTEXT)
+            s = len(kid_context)
+            if s > 255:
+                raise ValueError("KID Context too long")
+            s_kid_context = bytes((s,)) + kid_context
+        else:
+            s_kid_context = b""
+
+        if unprotected:
+            raise RuntimeError("Protection produced a message that has uncompressable fields.")
+
         if firstbyte:
-            return bytes([firstbyte]) + piv + kid_data
+            return bytes([firstbyte]) + piv + s_kid_context + kid_data
         else:
             return b""
 
@@ -357,26 +374,25 @@ class SecurityContext:
 
         unprotected = {}
 
-        if firstbyte & 0b11100000:
+        if firstbyte & COMPRESSION_BITS_RESERVED:
             raise DecodeError("Protected data uses reserved fields")
 
-        pivsz = firstbyte & 0b111
+        pivsz = firstbyte & COMPRESSION_BITS_N
         if pivsz:
             if len(tail) < pivsz:
                 raise DecodeError("Partial IV announced but not present")
             unprotected[COSE_PIV] = tail[:pivsz]
             tail = tail[pivsz:]
 
-        if firstbyte & 0b00010000:
-            # context hint
+        if firstbyte & COMPRESSION_BIT_H:
+            # kid context hint
             s = tail[0]
             if len(tail) - 1 < s:
                 raise DecodeError("Context hint announced but not present")
-            kidctx = 'FIXME' # number to be assigned
-            unprotected[kidctx] = tail[1:s+1]
+            unprotected[COSE_KID_CONTEXT] = tail[1:s+1]
             tail = tail[s+1:]
 
-        if firstbyte & 0b00001000:
+        if firstbyte & COMPRESSION_BIT_K:
             kid = tail
             unprotected[COSE_KID] = kid
 
