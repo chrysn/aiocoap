@@ -31,7 +31,6 @@ import cryptography.exceptions
 import hkdf
 import cbor
 
-USE_COMPRESSION = True
 MAX_SEQNO = 2**40 - 1
 
 class NotAProtectedMessage(ValueError):
@@ -59,10 +58,10 @@ def _xor_bytes(a, b):
 class Algorithm(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def encrypt(cls, plaintext, aad, key, iv):
-        """Return (ciphertext, tag) for given input data"""
+        """Return ciphertext + tag for given input data"""
 
     @abc.abstractmethod
-    def decrypt(cls, ciphertext, tag, aad, key, iv):
+    def decrypt(cls, ciphertext_and_tag, aad, key, iv):
         """Reverse encryption. Must raise ProtectionInvalid on any error
         stemming from untrusted data."""
 
@@ -71,13 +70,12 @@ class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
 
     @classmethod
     def encrypt(cls, plaintext, aad, key, iv):
-        joint = AESCCM(key, cls.tag_bytes).encrypt(iv, plaintext, aad)
-        return joint[:len(plaintext)], joint[len(plaintext):]
+        return AESCCM(key, cls.tag_bytes).encrypt(iv, plaintext, aad)
 
     @classmethod
-    def decrypt(cls, ciphertext, tag, aad, key, iv):
+    def decrypt(cls, ciphertext_and_tag, aad, key, iv):
         try:
-            return AESCCM(key, cls.tag_bytes).decrypt(iv, ciphertext + tag, aad)
+            return AESCCM(key, cls.tag_bytes).decrypt(iv, ciphertext_and_tag, aad)
         except cryptography.exceptions.InvalidTag:
             raise ProtectionInvalid("Tag invalid")
 
@@ -264,12 +262,12 @@ class SecurityContext:
             plaintext += inner_message.payload
 
 
-        ciphertext, tag = self.algorithm.encrypt(plaintext, aad, key, nonce)
+        ciphertext_and_tag = self.algorithm.encrypt(plaintext, aad, key, nonce)
 
         option_data = self._compress(unprotected, protected)
 
         outer_message.opt.object_security = option_data
-        outer_message.payload = ciphertext + tag
+        outer_message.payload = ciphertext_and_tag
 
         # FIXME go through options section
 
@@ -319,16 +317,13 @@ class SecurityContext:
 
         # FIXME is it an error for additional data to be present in unprotected?
 
-        if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0]
+        if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
-
-        tag = ciphertext[-self.algorithm.tag_bytes:]
-        ciphertext = ciphertext[:-self.algorithm.tag_bytes]
 
         enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_kid, request_partiv)]
         aad = cbor.dumps(enc_structure)
 
-        plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.recipient_key, nonce)
+        plaintext = self.algorithm.decrypt(ciphertext, aad, self.recipient_key, nonce)
 
         if seqno is not None:
             self.recipient_replay_window.strike_out(seqno)
