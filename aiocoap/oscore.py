@@ -421,6 +421,32 @@ class SecurityContext:
         # FIXME maybe _store now?
         return retval
 
+    # context parameter setup
+
+    def _kdf(self, master_salt, master_secret, role_id, out_type):
+        out_bytes = {'Key': self.algorithm.key_bytes, 'IV': self.algorithm.iv_bytes}[out_type]
+
+        info = cbor.dumps([
+            role_id,
+            self.algorithm.value,
+            out_type,
+            out_bytes
+            ])
+        extracted = hkdf.hkdf_extract(master_salt, master_secret, hash=self.hashfun)
+        expanded = hkdf.hkdf_expand(extracted, info=info, hash=self.hashfun,
+                length=out_bytes)
+        return expanded
+
+    def derive_keys(self, master_salt, master_secret):
+        """Populate sender_key, recipient_key and common_iv from the algorithm
+        and hash function already configured beforehand, and from the passed
+        salt and secret."""
+
+        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, 'Key')
+        self.recipient_key = self._kdf(master_salt, master_secret, self.recipient_id, 'Key')
+
+        self.common_iv = self._kdf(master_salt, master_secret, None, 'IV')
+
 class ReplayWindow:
     # FIXME: interface, abc
     pass
@@ -567,10 +593,7 @@ class FilesystemSecurityContext(SecurityContext):
         master_secret = data['secret']
         master_salt = data.get('salt', b'')
 
-        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, 'Key')
-        self.recipient_key = self._kdf(master_salt, master_secret, self.recipient_id, 'Key')
-
-        self.common_iv = self._kdf(master_salt, master_secret, None, 'IV')
+        self.derive_keys(master_salt, master_secret)
 
         try:
             sequence = json.load(open(os.path.join(self.basedir, 'sequence.json')))
@@ -586,20 +609,6 @@ class FilesystemSecurityContext(SecurityContext):
             if len(sequence['used']) != 1 or len(sequence['seen']) != 1:
                 warnings.warn("Sequence files shared between roles are "
                         "currently not supported.")
-
-    def _kdf(self, master_salt, master_secret, role_id, out_type):
-        out_bytes = {'Key': self.algorithm.key_bytes, 'IV': self.algorithm.iv_bytes}[out_type]
-
-        info = cbor.dumps([
-            role_id,
-            self.algorithm.value,
-            out_type,
-            out_bytes
-            ])
-        extracted = hkdf.hkdf_extract(master_salt, master_secret, hash=self.hashfun)
-        expanded = hkdf.hkdf_expand(extracted, info=info, hash=self.hashfun,
-                length=out_bytes)
-        return expanded
 
     # FIXME when/how will this be called?
     #
