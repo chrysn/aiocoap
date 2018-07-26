@@ -110,14 +110,15 @@ class SecurityContext:
     def _extract_external_aad(self, message, request_kid, request_piv):
         # If any option were actually Class I, it would be something like
         #
+        # the_options = pick some of(message)
         # class_i_options = Message(the_options).opt.encode()
 
-        version = 1
+        oscore_version = 1
         class_i_options = b""
 
         external_aad = [
-                version,
-                self.algorithm.value,
+                oscore_version,
+                [self.algorithm.value],
                 request_kid,
                 request_piv,
                 class_i_options,
@@ -161,9 +162,9 @@ class SecurityContext:
 
             outer_code = CHANGED
 
+        # no max-age because these are always successsful responses
         outer_message = Message(code=outer_code, uri=outer_uri,
                 observe=None if message.code.is_response() else message.opt.observe,
-                max_age=0 if message.code.is_response() and message.opt.observe is not None else None,
                 )
 
         return outer_message, inner_message
