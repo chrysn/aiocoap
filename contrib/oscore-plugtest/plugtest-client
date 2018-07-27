@@ -282,6 +282,9 @@ class PlugtestClientProgram:
             print("Unprotected response:", unprotected_response)
         finally:
             setattr(secctx, frobnicate_field, unfrobnicated)
+            # With a frobnicated sender_id, the stored context could not be
+            # loaded for later use; making sure it's stored properly again.
+            secctx._store()
 
     @__implements_tests([15])
     async def test_replay(self):
