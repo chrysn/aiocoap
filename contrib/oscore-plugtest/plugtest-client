@@ -237,61 +237,74 @@ class PlugtestClientProgram:
         additional_verify("Code as expected", DELETED, unprotected_response.code)
         additional_verify("Options empty as expected", Message().opt, unprotected_response.opt)
 
-#     @__implements_tests([10, 11])
-#     async def test_oscoreerror_server_reports_error(self):
-#         request = Message(code=GET, uri='coap://' + self.host + '/oscore/hello/1')
-# 
-#         if self.testno == 10:
-#             expected_code = UNAUTHORIZED
-#         elif self.testno == 11:
-#             expected_code = BAD_REQUEST
-# 
-#         try:
-#             unprotected_response = await self.ctx.request(request).response
-#         except oscore.NotAProtectedMessage as e:
-#             if e.plain_message.code == expected_code:
-#                 print("Check passed: The server responded with unencrypted %s."%(expected_code))
-#             else:
-#                 print("Failed: Server responded with something unencrypted, but not the expected code %s: %s"%(expected_code, e.plain_message))
-#         else:
-#             print("Failed: The validation passed.")
-#             print("Unprotected response:", unprotected_response)
-# 
-#     @__implements_tests([12])
-#     async def test_oscoreerror_failclientside(self):
-#         request = Message(code=GET, uri='coap://' + self.host + '/oscore/hello/1')
-# 
-#         try:
-#             unprotected_response = await self.ctx.request(request).response
-#         except oscore.ProtectionInvalid as e:
-#             print("Check passed: The validation failed. (%s)"%e)
-#         else:
-#             print("Failed: the validation passed.")
-#             print("Unprotected response:", unprotected_response)
-# 
-#     @__implements_tests([13])
-#     async def test_replay(self):
-#         request = Message(code=GET, uri='coap://' + self.host + '/oscore/hello/1')
-# 
-#         unprotected_response = await self.ctx.request(request).response # make this _nonraising as soon as there's a proper context backend
-#         if unprotected_response.code != CONTENT:
-#             print("Failed: Request did not even pass before replay (%s)"%unprotected_response)
-#             return
-# 
-#         security_context = get_security_context(self.testno, 'ab', 'client')
-#         self.ctx.client_credentials["coap://%s/*" % self.host] = security_context
-# 
-#         try:
-#             unprotected_response = await self.ctx.request(request).response
-#         except oscore.NotAProtectedMessage as e:
-#             if e.plain_message.code == SERVICE_UNAVAILABLE:
-#                 print("Check passed: The server responded with unencrypted replay error.")
-#             else:
-#                 print("Failed: Server responded with something unencrypted, but not the expected code %s: %s"%(expected_code, e.plain_message))
-#         else:
-#             print("Failed: the validation passed.")
-#             print("Unprotected response:", unprotected_response)
-# 
+    @__implements_tests([12, 13, 14])
+    async def test_oscoreerror_server_reports_error(self):
+        self.use_context("ab")
+        secctx = self.ctx.client_credentials[":ab"]
+
+        if self.testno == 12:
+            expected_code = UNAUTHORIZED
+            expected_error = oscore.NotAProtectedMessage
+            # FIXME: frobbing the sender_id breaks sequence numbers...
+            frobnicate_field = 'sender_id'
+        elif self.testno == 13:
+            expected_code = BAD_REQUEST
+            expected_error = oscore.NotAProtectedMessage
+            frobnicate_field = 'sender_key'
+        elif self.testno == 14:
+            expected_code = None
+            expected_error = oscore.ProtectionInvalid
+            frobnicate_field = 'recipient_key'
+
+        unfrobnicated = getattr(secctx, frobnicate_field)
+        if unfrobnicated == b'':
+            setattr(secctx, frobnicate_field, b'spam')
+        else:
+            setattr(secctx, frobnicate_field, bytes((255 - x) for x in unfrobnicated))
+
+        request = Message(code=GET, uri='coap://' + self.host + '/oscore/hello/1')
+
+        try:
+            unprotected_response = await self.ctx.request(request).response
+        except expected_error as e:
+            if expected_code is not None:
+                if e.plain_message.code == expected_code:
+                    print("Check passed: The server responded with unencrypted %s."%(expected_code))
+                else:
+                    print("Failed: Server responded with something unencrypted, but not the expected code %s: %s"%(expected_code, e.plain_message))
+            else:
+                print("Check passed: The validation failed. (%s)" % e)
+        else:
+            print("Failed: The validation passed.")
+            print("Unprotected response:", unprotected_response)
+        finally:
+            setattr(secctx, frobnicate_field, unfrobnicated)
+
+    @__implements_tests([15])
+    async def test_replay(self):
+        self.use_context("ab")
+
+        request = Message(code=GET, uri='coap://' + self.host + '/oscore/hello/1')
+
+        unprotected_response = await self.ctx.request(request).response # make this _nonraising as soon as there's a proper context backend
+        if unprotected_response.code != CONTENT:
+            print("Failed: Request did not even pass before replay (%s)"%unprotected_response)
+            return
+
+        secctx = self.ctx.client_credentials[":ab"]
+        secctx.sender_sequence_number -= 1
+
+        try:
+            unprotected_response = await self.ctx.request(request).response
+        except oscore.NotAProtectedMessage as e:
+            if e.plain_message.code == SERVICE_UNAVAILABLE:
+                print("Check passed: The server responded with unencrypted replay error.")
+            else:
+                print("Failed: Server responded with something unencrypted, but not the expected code %s: %s"%(expected_code, e.plain_message))
+        else:
+            print("Failed: the validation passed.")
+            print("Unprotected response:", unprotected_response)
+
 #     # unofficial blockwise tests start here
 # 
 #     @__implements_tests([16, 17])
