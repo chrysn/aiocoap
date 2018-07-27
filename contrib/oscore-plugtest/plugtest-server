@@ -273,6 +273,9 @@ class ProtectedSite(resource.Site):
 
                 protected, _ = self._original_response_context.protect(response, self._original_request_seqno, can_reuse_partiv=False)
 
+                # FIXME who should trigger this?
+                self._original_response_context._store()
+
                 if not response.code.is_successful():
                     is_last = True
                 self._serverobservation.trigger(protected, is_last=is_last)
