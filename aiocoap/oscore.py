@@ -247,7 +247,20 @@ class SecurityContext:
         else:
             return b""
 
-    def protect(self, message, request_data=None, *, can_reuse_partiv=True, kid_context=None):
+    def protect(self, message, request_data=None, *, can_reuse_partiv=True, kid_context=True):
+        """Given a plain CoAP message, create a protected message that contains
+        message's options in the inner or outer CoAP message as described in
+        OSCOAP.
+
+        If the message is a response to a previous message, the additional data
+        from unprotecting the request are passed in as request_data. When
+        request data is present, its partial IV is reused unless
+        can_reuse_partiv is set to False. The security context's ID context is
+        encoded in the resulting message unless kid_context is explicitly set
+        to a False; other values for the kid_context can be passed in as byte
+        string in the same parameter.
+        """
+
         assert (request_data is None) == message.code.is_request()
         if request_data is not None:
             request_kid, request_partiv, request_nonce = request_data
@@ -272,8 +285,9 @@ class SecurityContext:
             unprotected = {}
 
         if kid_context is True:
-            unprotected[COSE_KID_CONTEXT] = self.id_context
-        elif kid_context:
+            if self.id_context is not None:
+                unprotected[COSE_KID_CONTEXT] = self.id_context
+        elif kid_context is not False:
             unprotected[COSE_KID_CONTEXT] = kid_context
 
         protected = {}
