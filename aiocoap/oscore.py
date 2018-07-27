@@ -271,7 +271,9 @@ class SecurityContext:
             nonce = request_nonce
             unprotected = {}
 
-        if kid_context:
+        if kid_context is True:
+            unprotected[COSE_KID_CONTEXT] = self.id_context
+        elif kid_context:
             unprotected[COSE_KID_CONTEXT] = kid_context
 
         protected = {}
@@ -426,12 +428,12 @@ class SecurityContext:
 
     # context parameter setup
 
-    def _kdf(self, master_salt, master_secret, role_id, id_context, out_type):
+    def _kdf(self, master_salt, master_secret, role_id, out_type):
         out_bytes = {'Key': self.algorithm.key_bytes, 'IV': self.algorithm.iv_bytes}[out_type]
 
         info = cbor.dumps([
             role_id,
-            id_context,
+            self.id_context,
             self.algorithm.value,
             out_type,
             out_bytes
@@ -441,15 +443,15 @@ class SecurityContext:
                 length=out_bytes)
         return expanded
 
-    def derive_keys(self, master_salt, master_secret, id_context):
-        """Populate sender_key, recipient_key and common_iv from the algorithm
-        and hash function already configured beforehand, and from the passed
-        salt and secret."""
+    def derive_keys(self, master_salt, master_secret):
+        """Populate sender_key, recipient_key and common_iv from the algorithm,
+        hash function and id_context already configured beforehand, and from
+        the passed salt and secret."""
 
-        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, id_context, 'Key')
-        self.recipient_key = self._kdf(master_salt, master_secret, self.recipient_id, id_context, 'Key')
+        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, 'Key')
+        self.recipient_key = self._kdf(master_salt, master_secret, self.recipient_id, 'Key')
 
-        self.common_iv = self._kdf(master_salt, master_secret, b"", id_context, 'IV')
+        self.common_iv = self._kdf(master_salt, master_secret, b"", 'IV')
 
 class ReplayWindow:
     # FIXME: interface, abc
@@ -596,10 +598,9 @@ class FilesystemSecurityContext(SecurityContext):
 
         master_secret = data['secret']
         master_salt = data.get('salt', b'')
+        self.id_context = data.get('id-context', None)
 
-        # None: FIXME, the whole scheme of how to get to the key material might
-        # need to adapt to the late addition of a context.
-        self.derive_keys(master_salt, master_secret, None)
+        self.derive_keys(master_salt, master_secret)
 
         try:
             sequence = json.load(open(os.path.join(self.basedir, 'sequence.json')))

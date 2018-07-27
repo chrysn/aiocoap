@@ -37,7 +37,8 @@ class TestOSCOAPStatic(unittest.TestCase):
         secctx.hashfun = default_hashfun
         secctx.sender_id = b""
         secctx.recipient_id = b"\x01"
-        secctx.derive_keys(C1_SALT, C1_KEY, None)
+        secctx.id_context = None
+        secctx.derive_keys(C1_SALT, C1_KEY)
 
         # info not compared; that would be tricky to extract and adds no value
 
@@ -56,7 +57,8 @@ class TestOSCOAPStatic(unittest.TestCase):
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x01"
         secctx.recipient_id = b""
-        secctx.derive_keys(C1_SALT, C1_KEY, None)
+        secctx.id_context = None
+        secctx.derive_keys(C1_SALT, C1_KEY)
 
         # info not compared; that would be tricky to extract and adds no value
 
@@ -75,7 +77,8 @@ class TestOSCOAPStatic(unittest.TestCase):
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x00"
         secctx.recipient_id = b"\x01"
-        secctx.derive_keys(C2_SALT, C2_KEY, None)
+        secctx.id_context = None
+        secctx.derive_keys(C2_SALT, C2_KEY)
 
         # info not compared; that would be tricky to extract and adds no value
 
@@ -96,7 +99,8 @@ class TestOSCOAPStatic(unittest.TestCase):
         secctx.hashfun = default_hashfun
         secctx.sender_id = b""
         secctx.recipient_id = b"\x01"
-        secctx.derive_keys(C3_SALT, C3_KEY, C3_ID_CTX)
+        secctx.id_context = C3_ID_CTX
+        secctx.derive_keys(C3_SALT, C3_KEY)
 
         # info not compared; that would be tricky to extract and adds no value
 
@@ -116,7 +120,8 @@ class TestOSCOAPStatic(unittest.TestCase):
         secctx.hashfun = default_hashfun
         secctx.sender_id = b""
         secctx.recipient_id = b"\x01"
-        secctx.derive_keys(C1_SALT, C1_KEY, None)
+        secctx.id_context = None
+        secctx.derive_keys(C1_SALT, C1_KEY)
         secctx.sender_sequence_number = 20
 
 
@@ -137,7 +142,8 @@ class TestOSCOAPStatic(unittest.TestCase):
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x00"
         secctx.recipient_id = b"\x01"
-        secctx.derive_keys(C2_SALT, C2_KEY, None)
+        secctx.id_context = None
+        secctx.derive_keys(C2_SALT, C2_KEY)
         secctx.sender_sequence_number = 20
 
 
@@ -158,12 +164,13 @@ class TestOSCOAPStatic(unittest.TestCase):
         secctx.hashfun = default_hashfun
         secctx.sender_id = b""
         secctx.recipient_id = b"\x01"
-        secctx.derive_keys(C3_SALT, C3_KEY, C3_ID_CTX)
+        secctx.id_context = C3_ID_CTX
+        secctx.derive_keys(C3_SALT, C3_KEY)
         secctx.sender_sequence_number = 20
 
 
         unprotected = aiocoap.Message.decode(h('44012f8eef9bbf7a396c6f63616c686f737483747631'))
-        outer_message, (request_kid, request_partiv, request_nonce) = secctx.protect(unprotected, kid_context=C3_ID_CTX)
+        outer_message, (request_kid, request_partiv, request_nonce) = secctx.protect(unprotected, kid_context=True)
         outer_message.mid = unprotected.mid
         outer_message.token = unprotected.token
         outer_message.mtype = unprotected.mtype
@@ -181,7 +188,8 @@ class TestOSCOAPStatic(unittest.TestCase):
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x01"
         secctx.recipient_id = b""
-        secctx.derive_keys(C1_SALT, C1_KEY, None)
+        secctx.id_context = None
+        secctx.derive_keys(C1_SALT, C1_KEY)
 
 
         unprotected = aiocoap.Message.decode(h('64455d1f00003974ff48656c6c6f20576f726c6421'))
@@ -204,7 +212,8 @@ class TestOSCOAPStatic(unittest.TestCase):
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x01"
         secctx.recipient_id = b""
-        secctx.derive_keys(C1_SALT, C1_KEY, None)
+        secctx.id_context = None
+        secctx.derive_keys(C1_SALT, C1_KEY)
         secctx.sender_sequence_number = 0
 
 
