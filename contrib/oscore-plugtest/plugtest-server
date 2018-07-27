@@ -291,7 +291,7 @@ class ProtectedSite(resource.Site):
             self.__stored_serverobservation = None
 
         try:
-            recipient_id = oscore.verify_start(request)
+            recipient_id, id_context = oscore.verify_start(request)
         except oscore.NotAProtectedMessage:
             try:
                 return await super().render(request)
@@ -303,7 +303,7 @@ class ProtectedSite(resource.Site):
                 raise PleaseUseOscore()
 
         try:
-            sc = self.server_credentials.find_oscore(recipient_id)
+            sc = self.server_credentials.find_oscore(recipient_id, id_context)
         except KeyError:
             if request.mtype == aiocoap.CON:
                 raise error.Unauthorized("Security context not found")

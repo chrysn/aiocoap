@@ -288,12 +288,16 @@ class CredentialsMap(dict):
 
     # used by a server
 
-    def find_oscore(self, recipient_id):
+    def find_oscore(self, recipient_id, id_context):
         # FIXME: this is not constant-time as it should be, but too much in
         # flux to warrant optimization
 
+        # FIXME: right now this only does strict matching, ie. an ID context
+        # needs to be given with any request. duplicate contexts for being
+        # tried out are not supported yet.
+
         for item in self.values():
             # FIXME current use completely falls out of pattern by having the actual security object here
-            if getattr(item, "recipient_id", None) == recipient_id:
+            if getattr(item, "recipient_id", None) == recipient_id and getattr(item, "id_context", None) == id_context:
                 return item
         raise KeyError()

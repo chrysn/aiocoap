@@ -672,18 +672,18 @@ class FilesystemSecurityContext(SecurityContext):
         os.rename(tmpnam, os.path.join(basedir, 'secret.json'))
 
 def verify_start(message):
-    """Extract a CID from a message for the verifier to then pick a security
-    context to actually verify the message.
+    """Extract a sender ID and ID context (if present, otherwise None) from a
+    message for the verifier to then pick a security context to actually verify
+    the message.
 
     Call this only requests; for responses, you'll have to know the security
-    context anyway, and there is usually no information to be gained (and
-    things would even fail completely in compressed messages)."""
+    context anyway, and there is usually no information to be gained."""
 
     _, _, unprotected, _ = SecurityContext._extract_encrypted0(message)
 
     try:
         # FIXME raise on duplicate key
-        return unprotected[COSE_KID]
+        return unprotected[COSE_KID], unprotected.get(COSE_KID_CONTEXT, None)
     except KeyError:
         raise NotAProtectedMessage("No Sender ID present", message)
 
