@@ -70,7 +70,7 @@ class WithAssertNofaillines(unittest.TestCase):
         lines = (l for l in lines if not l.startswith('Check passed:'))
         # explicitly whitelisted for when the server is run with increased verbosity
         lines = (l for l in lines if 'INFO:coap-server:Render request raised a renderable error' not in l)
-        errorlines = (l for l in lines if 'fail'in l or 'WARNING' in l or 'ERROR' in l)
+        errorlines = (l for l in lines if 'fail'in l.lower() or 'warning' in l.lower() or 'error' in l.lower())
         self.assertEqual([], list(errorlines), message)
 
 @unittest.skipIf(aiocoap.defaults.oscore_missing_modules(), "Mdules missing for running OSCORE tests: %s"%(aiocoap.defaults.oscore_missing_modules(),))
