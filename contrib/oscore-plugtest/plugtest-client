@@ -81,10 +81,10 @@ class PlugtestClientProgram:
                         print("That's not a number.")
                         continue
                     else:
-                        if as_int - next_testno in (0, 1):
+                        if as_int - next_testno + delta in (0, 1):
                             # Don't jump around randomly if user jumped around,
                             # but otherwise do something sane
-                            delta = as_int - next_testno
+                            delta = as_int - next_testno + delta
                         next_testno = as_int
                         break
 
