@@ -20,6 +20,7 @@ import logging
 import signal
 import functools
 from pathlib import Path
+import sys
 
 from aiocoap import *
 from aiocoap import interfaces
@@ -32,8 +33,8 @@ class PlugtestClientProgram:
     async def run(self):
         p = argparse.ArgumentParser(description="Client for the OSCORE plug test.")
         p.add_argument("host", help="Hostname of the server")
-        p.add_argument("testno", type=int, help="Test number to run (integer part)")
         p.add_argument("contextdir", help="Directory name where to persist sequence numbers", type=Path)
+        p.add_argument("testno", nargs="?", type=int, help="Test number to run (integer part); leave out for interactive mode")
         p.add_argument("--verbose", help="Show aiocoap debug messages", action='store_true')
         opts = p.parse_args()
 
@@ -56,11 +57,41 @@ class PlugtestClientProgram:
         self.ctx.client_credentials[":ab"] = security_context_ab
         self.ctx.client_credentials[":cd"] = security_context_cd
 
-        try:
+        if opts.testno is not None:
             await self.run_test(opts.testno)
-        except oscore.NotAProtectedMessage as e:
-            print("Response carried no Object-Security option, but was: %s %s"%(e.plain_message, e.plain_message.payload))
-            raise
+        else:
+            next_testno = 0
+            delta = 1
+
+            while True:
+                # Yes this is blocking, but since the tests usually terminate
+                # by themselves ... *shrug*
+                while True:
+                    try:
+                        next = input("Enter a test number (empty input runs %s, q to quit): " % next_testno)
+                    except (KeyboardInterrupt, EOFError):
+                        sys.exit()
+                    if next == "q":
+                        sys.exit()
+                    if next == "":
+                        break
+                    try:
+                        as_int = int(next)
+                    except ValueError:
+                        print("That's not a number.")
+                        continue
+                    else:
+                        if as_int - next_testno in (0, 1):
+                            # Don't jump around randomly if user jumped around,
+                            # but otherwise do something sane
+                            delta = as_int - next_testno
+                        next_testno = as_int
+                        break
+
+                print("Running test %s" % next_testno)
+                await self.run_test(next_testno)
+                print()
+                next_testno += delta
 
     def use_context(self, which):
         if which is None:
@@ -83,7 +114,11 @@ class PlugtestClientProgram:
     async def run_test(self, testno):
         self.testno = testno
         testfun = self.__methods[testno]
-        await getattr(self, testfun)()
+        try:
+            await getattr(self, testfun)()
+        except oscore.NotAProtectedMessage as e:
+            print("Response carried no Object-Security option, but was: %s %s"%(e.plain_message, e.plain_message.payload))
+            raise
 
     __methods = {}
     def __implements_tests(numbers, __methods=__methods):
