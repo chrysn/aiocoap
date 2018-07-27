@@ -305,6 +305,35 @@ class PlugtestClientProgram:
             print("Failed: the validation passed.")
             print("Unprotected response:", unprotected_response)
 
+    @__implements_tests([16])
+    async def test_nonoscore_server(self):
+        self.use_context("ab")
+
+        request = Message(code=GET, uri='coap://' + self.host+ '/oscore/hello/coap')
+
+        try:
+            response = await self.ctx.request(request).response
+        except oscore.NotAProtectedMessage as e:
+            if e.plain_message.code == BAD_OPTION:
+                print("Passed: Server reported bad option.")
+            elif e.plain_message.code == METHOD_NOT_ALLOWED:
+                print("Dubious: Server reported Method Not Allowed.")
+            else:
+                print("Failed: Server reported %s" % e.plain_message.code)
+        else:
+            print("Failed: The server accepted an OSCORE message")
+
+    @__implements_tests([17])
+    async def test_unauthorized(self):
+        request = Message(code=GET, uri='coap://' + self.host + '/oscore/hello/1')
+
+        self.use_context(None)
+
+        response = await self.ctx.request(request).response
+
+        print("Response:", response, response.payload)
+        additional_verify("Responde had correct code", response.code, UNAUTHORIZED)
+
 #     # unofficial blockwise tests start here
 # 
 #     @__implements_tests([16, 17])
