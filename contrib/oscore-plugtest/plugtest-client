@@ -300,7 +300,7 @@ class PlugtestClientProgram:
         try:
             unprotected_response = await self.ctx.request(request).response
         except oscore.NotAProtectedMessage as e:
-            if e.plain_message.code == BAD_REQUEST:
+            if e.plain_message.code == UNAUTHORIZED:
                 print("Check passed: The server responded with unencrypted replay error.")
             else:
                 print("Failed: Server responded with something unencrypted, but not the expected code %s: %s"%(e.plain_message.code, e.plain_message))
