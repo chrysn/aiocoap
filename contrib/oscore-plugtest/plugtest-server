@@ -268,7 +268,7 @@ class ProtectedSite(resource.Site):
                     # refactoring should change that anyway.
                 # else, the absence of the observe option will cancel the lower-level observation
 
-                protected, _ = self._original_response_context.protect(response, self._original_request_seqno, can_reuse_partiv=False)
+                protected, _ = self._original_response_context.protect(response, self._original_request_seqno)
 
                 # FIXME who should trigger this?
                 self._original_response_context._store()

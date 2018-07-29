@@ -72,10 +72,21 @@ class RequestIdentifiers:
     Users of this module should never create or interact with instances, but
     just pass them around.
     """
-    def __init__(self, kid, partial_iv, nonce):
+    def __init__(self, kid, partial_iv, nonce, can_reuse_nonce):
         self.kid = kid
         self.partial_iv = partial_iv
         self.nonce = nonce
+        self.can_reuse_nonce = can_reuse_nonce
+
+    def get_reusable_nonce(self):
+        """Return the nonce if can_reuse_nonce is True, and set can_reuse_nonce
+        to False."""
+
+        if self.can_reuse_nonce:
+            self.can_reuse_nonce = False
+            return self.nonce
+        else:
+            return None
 
 def _xor_bytes(a, b):
     assert len(a) == len(b)
@@ -132,6 +143,11 @@ hashfunctions = {
 
 class SecurityContext:
     # FIXME: define an interface for that
+
+    # Indicates that in this context, when responding to a request, will always
+    # be the *only* context that does. (This is primarily a reminder to stop
+    # reusing nonces once multicast is implemented).
+    is_unicast = True
 
     # message processing
 
@@ -261,46 +277,44 @@ class SecurityContext:
         else:
             return b""
 
-    def protect(self, message, request_id=None, *, can_reuse_partiv=True, kid_context=True):
+    def protect(self, message, request_id=None, *, kid_context=True):
         """Given a plain CoAP message, create a protected message that contains
         message's options in the inner or outer CoAP message as described in
         OSCOAP.
 
         If the message is a response to a previous message, the additional data
         from unprotecting the request are passed in as request_id. When
-        request data is present, its partial IV is reused unless
-        can_reuse_partiv is set to False. The security context's ID context is
-        encoded in the resulting message unless kid_context is explicitly set
-        to a False; other values for the kid_context can be passed in as byte
-        string in the same parameter.
+        request data is present, its partial IV is reused if possible. The
+        security context's ID context is encoded in the resulting message
+        unless kid_context is explicitly set to a False; other values for the
+        kid_context can be passed in as byte string in the same parameter.
         """
 
         assert (request_id is None) == message.code.is_request()
 
         outer_message, inner_message = self._split_message(message)
 
-        if request_id is None or not can_reuse_partiv or message.opt.observe is not None:
+        protected = {}
+        nonce = None
+        unprotected = {}
+        if request_id is not None:
+            nonce = request_id.get_reusable_nonce()
+
+        if nonce is None:
             nonce, partial_iv_short = self._build_new_nonce()
 
-            unprotected = {
-                    COSE_PIV: partial_iv_short,
-                    }
-            if request_id is None:
-                # this is usually the case; the exception is observe
-                unprotected[COSE_KID] = self.sender_id
+            unprotected[COSE_PIV] = partial_iv_short
 
-                request_id = RequestIdentifiers(self.sender_id, partial_iv_short, nonce)
-        else:
-            nonce = request_id.nonce
-            unprotected = {}
+        if message.code.is_request():
+            unprotected[COSE_KID] = self.sender_id
 
-        if kid_context is True:
-            if self.id_context is not None:
-                unprotected[COSE_KID_CONTEXT] = self.id_context
-        elif kid_context is not False:
-            unprotected[COSE_KID_CONTEXT] = kid_context
+            request_id = RequestIdentifiers(self.sender_id, partial_iv_short, nonce, can_reuse_nonce=None)
 
-        protected = {}
+            if kid_context is True:
+                if self.id_context is not None:
+                    unprotected[COSE_KID_CONTEXT] = self.id_context
+            elif kid_context is not False:
+                unprotected[COSE_KID_CONTEXT] = kid_context
 
         assert protected == {}
         protected_serialized = b'' # were it into an empty dict, it'd be the cbor dump
@@ -356,12 +370,17 @@ class SecurityContext:
             seqno = int.from_bytes(partial_iv_short, 'big')
 
             if not self.recipient_replay_window.is_valid(seqno):
+                # If here we ever implement something that accepts memory loss
+                # as in 7.5.2 ("Losing Part of the Context State" / "Replay
+                # window"), or an optimization that accepts replays to avoid
+                # storing responses for EXCHANGE_LIFETIM, can_reuse_nonce a few
+                # lines down needs to take that into consideration.
                 raise ReplayError("Sequence number was re-used")
 
             nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
             if request_id is None: # ie. we're unprotecting a request
-                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce)
+                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=self.is_unicast)
 
         # FIXME is it an error for additional data to be present in unprotected?
 
