@@ -63,6 +63,20 @@ class DecodeError(ProtectionInvalid):
 class ReplayError(ProtectionInvalid):
     """Raised when verification of an OSCORE message fails because the sequence numbers was already used"""
 
+class RequestIdentifiers:
+    """A container for details that need to be passed along from the
+    (un)protection of a request to the (un)protection of the response; these
+    data ensure that the request-response binding process works by passing
+    around the request's partial IV.
+
+    Users of this module should never create or interact with instances, but
+    just pass them around.
+    """
+    def __init__(self, kid, partial_iv, nonce):
+        self.kid = kid
+        self.partial_iv = partial_iv
+        self.nonce = nonce
+
 def _xor_bytes(a, b):
     assert len(a) == len(b)
     # FIXME is this an efficient thing to do, or should we store everything
@@ -247,13 +261,13 @@ class SecurityContext:
         else:
             return b""
 
-    def protect(self, message, request_data=None, *, can_reuse_partiv=True, kid_context=True):
+    def protect(self, message, request_id=None, *, can_reuse_partiv=True, kid_context=True):
         """Given a plain CoAP message, create a protected message that contains
         message's options in the inner or outer CoAP message as described in
         OSCOAP.
 
         If the message is a response to a previous message, the additional data
-        from unprotecting the request are passed in as request_data. When
+        from unprotecting the request are passed in as request_id. When
         request data is present, its partial IV is reused unless
         can_reuse_partiv is set to False. The security context's ID context is
         encoded in the resulting message unless kid_context is explicitly set
@@ -261,27 +275,23 @@ class SecurityContext:
         string in the same parameter.
         """
 
-        assert (request_data is None) == message.code.is_request()
-        if request_data is not None:
-            request_kid, request_partiv, request_nonce = request_data
+        assert (request_id is None) == message.code.is_request()
 
         outer_message, inner_message = self._split_message(message)
 
-        if request_data is None or not can_reuse_partiv or message.opt.observe is not None:
+        if request_id is None or not can_reuse_partiv or message.opt.observe is not None:
             nonce, partial_iv_short = self._build_new_nonce()
 
             unprotected = {
                     COSE_PIV: partial_iv_short,
                     }
-            if request_data is None:
+            if request_id is None:
                 # this is usually the case; the exception is observe
                 unprotected[COSE_KID] = self.sender_id
 
-                request_kid = self.sender_id
-                request_partiv = partial_iv_short
-                request_nonce = nonce
+                request_id = RequestIdentifiers(self.sender_id, partial_iv_short, nonce)
         else:
-            nonce = request_nonce
+            nonce = request_id.nonce
             unprotected = {}
 
         if kid_context is True:
@@ -294,7 +304,7 @@ class SecurityContext:
 
         assert protected == {}
         protected_serialized = b'' # were it into an empty dict, it'd be the cbor dump
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, request_kid, request_partiv)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, request_id.kid, request_id.partial_iv)]
         aad = cbor.dumps(enc_structure)
         key = self.sender_key
 
@@ -313,15 +323,13 @@ class SecurityContext:
 
         # FIXME go through options section
 
-        # the request_data in the second argument should be discarded by the
+        # the request_id in the second argument should be discarded by the
         # caller when protecting a response -- is that reason enough for an
         # `if` and returning None?
-        return outer_message, (request_kid, request_partiv, request_nonce)
+        return outer_message, request_id
 
-    def unprotect(self, protected_message, request_data=None):
-        assert (request_data is not None) == protected_message.code.is_response()
-        if request_data is not None:
-            request_kid, request_partiv, request_nonce = request_data
+    def unprotect(self, protected_message, request_id=None):
+        assert (request_id is not None) == protected_message.code.is_response()
 
         protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message)
 
@@ -337,10 +345,10 @@ class SecurityContext:
             raise ProtectionInvalid("Sender ID does not match")
 
         if COSE_PIV not in unprotected:
-            if request_data is None:
+            if request_id is None:
                 raise ProtectionInvalid("No sequence number provided in request")
 
-            nonce = request_nonce
+            nonce = request_id.nonce
             seqno = None # sentinel for not striking out anyting
         else:
             partial_iv_short = unprotected[COSE_PIV]
@@ -352,17 +360,15 @@ class SecurityContext:
 
             nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
-            if request_data is None: # ie. we're unprotecting a request
-                request_partiv = partial_iv_short
-                request_kid = self.recipient_id
-                request_nonce = nonce
+            if request_id is None: # ie. we're unprotecting a request
+                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce)
 
         # FIXME is it an error for additional data to be present in unprotected?
 
         if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
 
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_kid, request_partiv)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_id.kid, request_id.partial_iv)]
         aad = cbor.dumps(enc_structure)
 
         plaintext = self.algorithm.decrypt(ciphertext, aad, self.recipient_key, nonce)
@@ -386,7 +392,7 @@ class SecurityContext:
                 # in this implementation accepted for passing around.
                 unprotected_message.opt.observe = -1 if seqno is not None else seqno
 
-        return unprotected_message, (request_kid, request_partiv, request_nonce)
+        return unprotected_message, request_id
 
     @staticmethod
     def _uncompress(option_data):
