@@ -67,9 +67,10 @@ class WithAssertNofaillines(unittest.TestCase):
         invalid)'"""
 
         lines = text_to_check.decode('utf8').split('\n')
-        lines = (l for l in lines if not l.startswith('Check passed:'))
+        # those are to be expected to contain bad words -- 'Check passed: X failed' is legitimate, as is 'Unprotected response: ... Precondition failed...'
+        lines = (l for l in lines if not l.startswith('Check passed:') and not l.startswith('Unprotected response: '))
         # explicitly whitelisted for when the server is run with increased verbosity
-        lines = (l for l in lines if 'INFO:coap-server:Render request raised a renderable error' not in l)
+        lines = (l for l in lines if 'INFO:coap-server:Render request raised a renderable error' not in l and 'DEBUG:oscore-site:Will encrypt message as response: ' not in l)
         errorlines = (l for l in lines if 'fail'in l.lower() or 'warning' in l.lower() or 'error' in l.lower())
         self.assertEqual([], list(errorlines), message)
 
