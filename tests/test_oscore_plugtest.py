@@ -166,6 +166,9 @@ class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
 for x in range(0, 17):
     test = lambda self, x=x: self._test_plugtestclient(x)
+    if x == 16:
+        # That test can not succeed against a regular plugtest server
+        test = unittest.expectedFailure(test)
     # enforcing them to sort properly is purely a readability thing, they
     # execute correctly out-of-order too.
     setattr(TestOSCOREPlugtest, 'test_%03d'%x, test)
