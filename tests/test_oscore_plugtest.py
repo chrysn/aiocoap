@@ -57,20 +57,24 @@ class CapturingSubprocess(asyncio.SubprocessProtocol):
     def process_exited(self):
         self.read_more.set_result(None)
 
+# those are to be expected to contain bad words -- 'Check passed: X failed' is legitimate, as is 'Unprotected response: ... Precondition failed...'
+output_whitelist = ['Check passed: ', 'Unprotected response: ', 'Verify: Received message']
+# explicitly whitelisted for when the server is run with increased verbosity
+debug_whitelist = ['INFO:coap-server:Render request raised a renderable error', 'DEBUG:oscore-site:Will encrypt message as response: ']
+
 class WithAssertNofaillines(unittest.TestCase):
     def assertNoFaillines(self, text_to_check, message):
         """Assert that there are no lines that contain the phrase 'fail' or
-        'WARNING'/'ERROR' in the output, unless they are a 'Check passed' line.
+        'WARNING'/'ERROR' in the output, unless they are a 'Check passed' line
+        or other whitelisted ones.
 
         This is to check the output of the plugtest client, which may
         successfully report: 'Check passed: The validation failed. (Tag
         invalid)'"""
 
         lines = text_to_check.decode('utf8').split('\n')
-        # those are to be expected to contain bad words -- 'Check passed: X failed' is legitimate, as is 'Unprotected response: ... Precondition failed...'
-        lines = (l for l in lines if not l.startswith('Check passed:') and not l.startswith('Unprotected response: '))
-        # explicitly whitelisted for when the server is run with increased verbosity
-        lines = (l for l in lines if 'INFO:coap-server:Render request raised a renderable error' not in l and 'DEBUG:oscore-site:Will encrypt message as response: ' not in l)
+        lines = (l for l in lines if not any(l.startswith(white) for white in output_whitelist))
+        lines = (l for l in lines if not any(white in l for white in debug_whitelist))
         errorlines = (l for l in lines if 'fail'in l.lower() or 'warning' in l.lower() or 'error' in l.lower())
         self.assertEqual([], list(errorlines), message)
 
