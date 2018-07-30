@@ -1,6 +1,9 @@
 import shutil
 from pathlib import Path
 
+# When Python 3.5 support is dropped (and PyPy has evolved beyond that
+# point), .as_posix() can be dropped
+
 import cbor
 
 from aiocoap import oscore
@@ -14,11 +17,11 @@ def get_security_context(contextname, role, contextcopy: Path):
     for debugging purposes."""
     if not contextcopy.exists():
         contextcopy.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(contextdir / contextname, contextcopy)
+        shutil.copytree((contextdir / contextname).as_posix(), contextcopy.as_posix())
 
         print("Context %s copied to %s" % (contextname, contextcopy))
 
-    secctx = oscore.FilesystemSecurityContext(contextcopy, role=role)
+    secctx = oscore.FilesystemSecurityContext(contextcopy.as_posix(), role=role)
 
     original_extract_external_aad = secctx._extract_external_aad
     def _extract_extenal_aad(message, i_am_sender, request_partiv=None):
