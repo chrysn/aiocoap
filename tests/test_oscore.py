@@ -11,25 +11,32 @@
 import unittest
 
 import aiocoap
-import aiocoap.oscore
 
-# shortcut definition, as this will be used all over the place with copy-pasted
-# values from the specification
-h = bytes.fromhex
+oscore_modules = aiocoap.defaults.oscore_missing_modules()
 
-C1_KEY = h('0102030405060708090a0b0c0d0e0f10')
-C1_SALT = h('9e7ca92223786340')
+if not oscore_modules:
+    import aiocoap.oscore
 
-C2_KEY = h('0102030405060708090a0b0c0d0e0f10')
-C2_SALT = None
+    # shortcut definition, as this will be used all over the place with copy-pasted
+    # values from the specification
+    h = bytes.fromhex
 
-C3_KEY = h('0102030405060708090a0b0c0d0e0f10')
-C3_SALT = h('9e7ca92223786340')
-C3_ID_CTX = h('37cbf3210017a2d3')
+    C1_KEY = h('0102030405060708090a0b0c0d0e0f10')
+    C1_SALT = h('9e7ca92223786340')
 
-default_algorithm = aiocoap.oscore.AES_CCM_16_64_128
-default_hashfun = aiocoap.oscore.hashfunctions['sha256']
+    C2_KEY = h('0102030405060708090a0b0c0d0e0f10')
+    C2_SALT = None
 
+    C3_KEY = h('0102030405060708090a0b0c0d0e0f10')
+    C3_SALT = h('9e7ca92223786340')
+    C3_ID_CTX = h('37cbf3210017a2d3')
+
+    default_algorithm = aiocoap.oscore.AES_CCM_16_64_128
+    default_hashfun = aiocoap.oscore.hashfunctions['sha256']
+
+_skip_unless_oscore = unittest.skipIf(oscore_modules, "Modules missing for running OSCORE tests: %s" % (oscore_modules,))
+
+@_skip_unless_oscore
 class TestOSCOAPStatic(unittest.TestCase):
     def test_c1_1(self):
         secctx = aiocoap.oscore.SecurityContext()
