@@ -990,7 +990,7 @@ class ClientObservation:
             if self._future.done():
                 try:
                     self._future.result()
-                except error.ObservationCancelled:
+                except (error.ObservationCancelled, error.NotObservable):
                     # This is the case at the end of an observation cancelled
                     # by the server.
                     pass
