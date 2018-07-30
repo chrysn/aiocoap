@@ -409,7 +409,7 @@ class SecurityContext:
                 # detection. Note that neither -1 nor high (>3 byte) sequence
                 # numbers can be serialized in the Observe option, but they are
                 # in this implementation accepted for passing around.
-                unprotected_message.opt.observe = -1 if seqno is not None else seqno
+                unprotected_message.opt.observe = -1 if seqno is None else seqno
 
         return unprotected_message, request_id
 
