@@ -35,7 +35,6 @@ class TestClientWithSetHost(WithTestServer, WithClient):
         self.assertEqual(response.get_request_uri(), "coap://" + self.servernamealias + "/empty", "Host name did not get round-tripped")
 
     @no_warnings
-    @unittest.skipIf(type(asyncio.get_event_loop()).__module__ == 'uvloop', "uvloop can't report error (https://github.com/MagicStack/uvloop/issues/109)")
     @asynctest
     async def test_uri_parser2(self):
         """A difficult test because it is prone to keeping the transport
