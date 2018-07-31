@@ -19,6 +19,8 @@ import asyncio
 import logging
 import signal
 import functools
+from pathlib import Path
+import sys
 
 from aiocoap import *
 from aiocoap import interfaces
@@ -29,10 +31,10 @@ from plugtest_common import *
 
 class PlugtestClientProgram:
     async def run(self):
-        p = argparse.ArgumentParser("Client for the OSCORE plug test..")
+        p = argparse.ArgumentParser(description="Client for the OSCORE plug test.")
         p.add_argument("host", help="Hostname of the server")
-        p.add_argument("testno", type=int, help="Test number to run (integer part)")
-        p.add_argument("contextdir", nargs="?", help="Directory name where to persist sequence numbers")
+        p.add_argument("contextdir", help="Directory name where to persist sequence numbers", type=Path)
+        p.add_argument("testno", nargs="?", type=int, help="Test number to run (integer part); leave out for interactive mode")
         p.add_argument("--verbose", help="Show aiocoap debug messages", action='store_true')
         opts = p.parse_args()
 
@@ -48,16 +50,54 @@ class PlugtestClientProgram:
         else:
             logging.basicConfig(level=logging.WARNING)
 
-        security_context = get_security_context(opts.testno, 'client', opts.contextdir)
+        security_context_ab = get_security_context('ab', 'client', opts.contextdir / "ab")
+        security_context_cd = get_security_context('cd', 'client', opts.contextdir / "cd")
 
         self.ctx = await Context.create_client_context()
-        self.ctx.client_credentials["coap://%s/*" % self.host] = security_context
+        self.ctx.client_credentials[":ab"] = security_context_ab
+        self.ctx.client_credentials[":cd"] = security_context_cd
 
-        try:
+        if opts.testno is not None:
             await self.run_test(opts.testno)
-        except oscore.NotAProtectedMessage as e:
-            print("Response carried no Object-Security option, but was: %s %s"%(e.plain_message, e.plain_message.payload))
-            raise
+        else:
+            next_testno = 0
+            delta = 1
+
+            while True:
+                # Yes this is blocking, but since the tests usually terminate
+                # by themselves ... *shrug*
+                while True:
+                    try:
+                        next = input("Enter a test number (empty input runs %s, q to quit): " % next_testno)
+                    except (KeyboardInterrupt, EOFError):
+                        sys.exit()
+                    if next == "q":
+                        sys.exit()
+                    if next == "":
+                        break
+                    try:
+                        as_int = int(next)
+                    except ValueError:
+                        print("That's not a number.")
+                        continue
+                    else:
+                        if as_int - next_testno + delta in (0, 1):
+                            # Don't jump around randomly if user jumped around,
+                            # but otherwise do something sane
+                            delta = as_int - next_testno + delta
+                        next_testno = as_int
+                        break
+
+                print("Running test %s" % next_testno)
+                await self.run_test(next_testno)
+                print()
+                next_testno += delta
+
+    def use_context(self, which):
+        if which is None:
+            self.ctx.client_credentials.pop("coap://%s/*" % self.host, None)
+        else:
+            self.ctx.client_credentials["coap://%s/*" % self.host] = ":" + which
 
     @classmethod
     def sync_run(cls):
@@ -74,7 +114,11 @@ class PlugtestClientProgram:
     async def run_test(self, testno):
         self.testno = testno
         testfun = self.__methods[testno]
-        await getattr(self, testfun)()
+        try:
+            await getattr(self, testfun)()
+        except oscore.NotAProtectedMessage as e:
+            print("Response carried no Object-Security option, but was: %s %s"%(e.plain_message, e.plain_message.payload))
+            raise
 
     __methods = {}
     def __implements_tests(numbers, __methods=__methods):
@@ -86,38 +130,64 @@ class PlugtestClientProgram:
 
     @__implements_tests([0])
     async def test_plain(self):
-        request = Message(code=GET, uri='coap://' + self.host + '/hello/coap')
+        request = Message(code=GET, uri='coap://' + self.host + '/oscore/hello/coap')
 
-        moved = self.ctx.client_credentials
+        self.use_context(None)
 
-        self.ctx.client_credentials = type(self.ctx.client_credentials)()
         response = await self.ctx.request(request).response
-
-        self.ctx.client_credentials = moved
 
         print("Response:", response)
         additional_verify("Responde had correct code", response.code, CONTENT)
         additional_verify("Responde had correct payload", response.payload, b"Hello World!")
         additional_verify("Options as expected", response.opt, Message(content_format=0).opt)
 
-    @__implements_tests([1, 2, 3])
-    async def test_hellotests(self):
-        request = Message(code=GET, uri='coap://' + self.host+ '/hello/%d'%self.testno + ("?first=1" if self.testno == 2 else ""))
+    @__implements_tests([1, 2])
+    async def test_hello12(self):
+        if self.testno == 1:
+            self.use_context("ab")
+        else:
+            self.use_context("cd")
+
+        request = Message(code=GET, uri='coap://' + self.host+ '/oscore/hello/1')
         expected = {'content_format': 0}
-        if self.testno == 2:
-            expected['etag'] = b"\x2b"
-        if self.testno == 3:
-            request.opt.accept = 0
-            expected['max_age'] = 5
         unprotected_response = await self.ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", unprotected_response.code, CONTENT)
         additional_verify("Options as expected", unprotected_response.opt, Message(**expected).opt)
+        additional_verify("Payload as expected", unprotected_response.payload, b"Hello World!")
+
+    @__implements_tests([3])
+    async def test_hellotest3(self):
+        self.use_context("ab")
+
+        request = Message(code=GET, uri='coap://' + self.host+ '/oscore/hello/2?first=1')
+        expected = {'content_format': 0, 'etag': b'\x2b'}
+        unprotected_response = await self.ctx.request(request).response
+
+        print("Unprotected response:", unprotected_response)
+        additional_verify("Code as expected", unprotected_response.code, CONTENT)
+        additional_verify("Options as expected", unprotected_response.opt, Message(**expected).opt)
+        additional_verify("Payload as expected", unprotected_response.payload, b"Hello World!")
 
     @__implements_tests([4])
+    async def test_hellotest4(self):
+        self.use_context("ab")
+
+        request = Message(code=GET, uri='coap://' + self.host+ '/oscore/hello/3', accept=0)
+        expected = {'content_format': 0, 'max_age': 5}
+        unprotected_response = await self.ctx.request(request).response
+
+        print("Unprotected response:", unprotected_response)
+        additional_verify("Code as expected", unprotected_response.code, CONTENT)
+        additional_verify("Options as expected", unprotected_response.opt, Message(**expected).opt)
+        additional_verify("Payload as expected", unprotected_response.payload, b"Hello World!")
+
+    @__implements_tests([5])
     async def test_nonobservable(self):
-        request = Message(code=GET, uri='coap://' + self.host + '/hello/1', observe=0)
+        self.use_context("ab")
+
+        request = Message(code=GET, uri='coap://' + self.host + '/oscore/hello/1', observe=0)
 
         request = self.ctx.request(request)
 
@@ -130,9 +200,11 @@ class PlugtestClientProgram:
         async for o in request.observation:
             print("Expectation failed: Observe events coming in.")
 
-    @__implements_tests([5])
+    @__implements_tests([6, 7])
     async def test_observable(self):
-        request = Message(code=GET, uri='coap://' + self.host + '/observe', observe=0)
+        self.use_context("ab")
+
+        request = Message(code=GET, uri='coap://' + self.host + '/oscore/observe%s' % (self.testno - 5), observe=0)
 
         request = self.ctx.request(request)
 
@@ -142,127 +214,183 @@ class PlugtestClientProgram:
         additional_verify("Code as expected", unprotected_response.code, CONTENT)
         additional_verify("Observe option present", unprotected_response.opt.observe is not None, True)
 
-        payloads = []
+        payloads = [unprotected_response.payload]
 
         async for o in request.observation:
+            # FIXME: where's the 'two' stuck?
             payloads.append(o.payload)
             print("Verify: Received message", o, o.payload)
+            if len(payloads) == 2 and self.testno == 7:
+                # FIXME: Not yet ready to send actual cancellations
+                break
 
-        if not payloads:
-            print("Failed: Observation ended with no notifications.")
+        expected_payloads = [b'one', b'two']
+        if self.testno == 6:
+            expected_payloads.append(b'Terminate Observe')
+        additional_verify("Server gave the correct responses", payloads, expected_payloads)
 
-        if b'Zwei' in payloads:
-            # be more strict: this is our own test server that should give exactly 5 responses
-            additional_verify("Own server gave the expected responses", payloads, [b'Zwei', b'Drei', b'und aus!', b'server is bored with client'])
-
-    @__implements_tests([6])
+    @__implements_tests([8])
     async def test_post(self):
-        request = Message(code=POST, uri='coap://' + self.host+ '/hello/6', payload=b"\x4a", content_format=0)
+        self.use_context("ab")
+
+        request = Message(code=POST, uri='coap://' + self.host+ '/oscore/hello/6', payload=b"\x4a", content_format=0)
         unprotected_response = await self.ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", CREATED, unprotected_response.code)
-        additional_verify("Location-Path as expected", ('hello','6'), unprotected_response.opt.location_path)
-        additional_verify("Location-Query as expected", ('first=1',), unprotected_response.opt.location_query)
+        additional_verify("Options as expected", unprotected_response.opt, Message(content_format=0).opt)
+        additional_verify("Payload as expected", unprotected_response.payload, b"\x4a")
 
-    @__implements_tests([7])
+    @__implements_tests([9])
     async def test_put_match(self):
-        request = Message(code=PUT, uri='coap://' + self.host+ '/hello/7', payload=b"\x7a", content_format=0, if_match=[b"\x7b"])
+        self.use_context("ab")
+
+        request = Message(code=PUT, uri='coap://' + self.host+ '/oscore/hello/7', payload=b"\x7a", content_format=0, if_match=[b"\x7b"])
         unprotected_response = await self.ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", CHANGED, unprotected_response.code)
-        additional_verify("Options empty as expected", Message().opt, unprotected_response.opt)
+        additional_verify("Options empty as expected", Message(content_format=0).opt, unprotected_response.opt)
+        additional_verify("Payload as expected", unprotected_response.payload, b"\x7a")
 
-    @__implements_tests([8])
+    @__implements_tests([10])
     async def test_put_nonmatch(self):
-        request = Message(code=PUT, uri='coap://' + self.host+ '/hello/7', payload=b"\x8a", content_format=0, if_none_match=True)
+        self.use_context("ab")
+
+        request = Message(code=PUT, uri='coap://' + self.host+ '/oscore/hello/7', payload=b"\x8a", content_format=0, if_none_match=True)
         unprotected_response = await self.ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", PRECONDITION_FAILED, unprotected_response.code)
         additional_verify("Options empty as expected", Message().opt, unprotected_response.opt)
 
-    @__implements_tests([9])
+    @__implements_tests([11])
     async def test_delete(self):
-        request = Message(code=DELETE, uri='coap://' + self.host+ '/test')
+        self.use_context("ab")
+
+        request = Message(code=DELETE, uri='coap://' + self.host+ '/oscore/test')
         unprotected_response = await self.ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", DELETED, unprotected_response.code)
         additional_verify("Options empty as expected", Message().opt, unprotected_response.opt)
 
-    @__implements_tests([10, 11])
+    @__implements_tests([12, 13, 14])
     async def test_oscoreerror_server_reports_error(self):
-        request = Message(code=GET, uri='coap://' + self.host + '/hello/1')
+        self.use_context("ab")
+        secctx = self.ctx.client_credentials[":ab"]
 
-        if self.testno == 10:
+        if self.testno == 12:
             expected_code = UNAUTHORIZED
-        elif self.testno == 11:
+            expected_error = oscore.NotAProtectedMessage
+            # FIXME: frobbing the sender_id breaks sequence numbers...
+            frobnicate_field = 'sender_id'
+        elif self.testno == 13:
             expected_code = BAD_REQUEST
+            expected_error = oscore.NotAProtectedMessage
+            frobnicate_field = 'sender_key'
+        elif self.testno == 14:
+            expected_code = None
+            expected_error = oscore.ProtectionInvalid
+            frobnicate_field = 'recipient_key'
+
+        unfrobnicated = getattr(secctx, frobnicate_field)
+        if unfrobnicated == b'':
+            setattr(secctx, frobnicate_field, b'spam')
+        else:
+            setattr(secctx, frobnicate_field, bytes((255 - x) for x in unfrobnicated))
+
+        request = Message(code=GET, uri='coap://' + self.host + '/oscore/hello/1')
 
         try:
             unprotected_response = await self.ctx.request(request).response
-        except oscore.NotAProtectedMessage as e:
-            if e.plain_message.code == expected_code:
-                print("Check passed: The server responded with unencrypted %s."%(expected_code))
+        except expected_error as e:
+            if expected_code is not None:
+                if e.plain_message.code == expected_code:
+                    print("Check passed: The server responded with unencrypted %s."%(expected_code))
+                else:
+                    print("Failed: Server responded with something unencrypted, but not the expected code %s: %s"%(expected_code, e.plain_message))
             else:
-                print("Failed: Server responded with something unencrypted, but not the expected code %s: %s"%(expected_code, e.plain_message))
+                print("Check passed: The validation failed. (%s)" % e)
         else:
             print("Failed: The validation passed.")
             print("Unprotected response:", unprotected_response)
+        finally:
+            setattr(secctx, frobnicate_field, unfrobnicated)
+            # With a frobnicated sender_id, the stored context could not be
+            # loaded for later use; making sure it's stored properly again.
+            secctx._store()
 
-    @__implements_tests([12])
-    async def test_oscoreerror_failclientside(self):
-        request = Message(code=GET, uri='coap://' + self.host + '/hello/1')
-
-        try:
-            unprotected_response = await self.ctx.request(request).response
-        except oscore.ProtectionInvalid as e:
-            print("Check passed: The validation failed. (%s)"%e)
-        else:
-            print("Failed: the validation passed.")
-            print("Unprotected response:", unprotected_response)
-
-    @__implements_tests([13])
+    @__implements_tests([15])
     async def test_replay(self):
-        request = Message(code=GET, uri='coap://' + self.host + '/hello/1')
+        self.use_context("ab")
+
+        request = Message(code=GET, uri='coap://' + self.host + '/oscore/hello/1')
 
         unprotected_response = await self.ctx.request(request).response # make this _nonraising as soon as there's a proper context backend
         if unprotected_response.code != CONTENT:
             print("Failed: Request did not even pass before replay (%s)"%unprotected_response)
             return
 
-        security_context = get_security_context(self.testno, 'client')
-        self.ctx.client_credentials["coap://%s/*" % self.host] = security_context
+        secctx = self.ctx.client_credentials[":ab"]
+        secctx.sender_sequence_number -= 1
 
         try:
             unprotected_response = await self.ctx.request(request).response
         except oscore.NotAProtectedMessage as e:
-            if e.plain_message.code == SERVICE_UNAVAILABLE:
+            if e.plain_message.code == UNAUTHORIZED:
                 print("Check passed: The server responded with unencrypted replay error.")
             else:
-                print("Failed: Server responded with something unencrypted, but not the expected code %s: %s"%(expected_code, e.plain_message))
+                print("Failed: Server responded with something unencrypted, but not the expected code %s: %s"%(e.plain_message.code, e.plain_message))
         else:
             print("Failed: the validation passed.")
             print("Unprotected response:", unprotected_response)
 
-    # unofficial blockwise tests start here
+    @__implements_tests([16])
+    async def test_nonoscore_server(self):
+        self.use_context("ab")
 
-    @__implements_tests([16, 17])
-    async def test_block2(self):
-        #request = Message(code=GET, uri='coap://' + self.host + '/block/' + {16: 'outer', 17: 'inner'}[self.testno])
-        request = Message(code=GET, uri='coap://' + self.host + '/LargeResource')
+        request = Message(code=GET, uri='coap://' + self.host+ '/oscore/hello/coap')
 
-        expected = {'content_format': 0}
-        unprotected_response = await self.ctx.request(request, handle_blockwise=True).response
-        if self.testno == 17:
-            # the library should probably strip that
-            expected['block2'] = optiontypes.BlockOption.BlockwiseTuple(block_number=1, more=False, size_exponent=6)
+        try:
+            response = await self.ctx.request(request).response
+        except oscore.NotAProtectedMessage as e:
+            if e.plain_message.code == BAD_OPTION:
+                print("Passed: Server reported bad option.")
+            elif e.plain_message.code == METHOD_NOT_ALLOWED:
+                print("Dubious: Server reported Method Not Allowed.")
+            else:
+                print("Failed: Server reported %s" % e.plain_message.code)
+        else:
+            print("Failed: The server accepted an OSCORE message")
 
-        print("Unprotected response:", unprotected_response)
-        additional_verify("Code as expected", unprotected_response.code, CONTENT)
-        additional_verify("Options as expected", unprotected_response.opt, Message(**expected).opt)
+    @__implements_tests([17])
+    async def test_unauthorized(self):
+        request = Message(code=GET, uri='coap://' + self.host + '/oscore/hello/1')
+
+        self.use_context(None)
+
+        response = await self.ctx.request(request).response
+
+        print("Response:", response, response.payload)
+        additional_verify("Responde had correct code", response.code, UNAUTHORIZED)
+
+#     # unofficial blockwise tests start here
+# 
+#     @__implements_tests([16, 17])
+#     async def test_block2(self):
+#         #request = Message(code=GET, uri='coap://' + self.host + '/oscore/block/' + {16: 'outer', 17: 'inner'}[self.testno])
+#         request = Message(code=GET, uri='coap://' + self.host + '/oscore/LargeResource')
+# 
+#         expected = {'content_format': 0}
+#         unprotected_response = await self.ctx.request(request, handle_blockwise=True).response
+#         if self.testno == 17:
+#             # the library should probably strip that
+#             expected['block2'] = optiontypes.BlockOption.BlockwiseTuple(block_number=1, more=False, size_exponent=6)
+# 
+#         print("Unprotected response:", unprotected_response)
+#         additional_verify("Code as expected", unprotected_response.code, CONTENT)
+#         additional_verify("Options as expected", unprotected_response.opt, Message(**expected).opt)
 
 if __name__ == "__main__":
     PlugtestClientProgram.sync_run()

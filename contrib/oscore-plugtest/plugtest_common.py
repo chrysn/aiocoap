@@ -1,53 +1,27 @@
-import os, os.path
-import tempfile
-import json
+import shutil
+from pathlib import Path
+
+# When Python 3.5 support is dropped (and PyPy has evolved beyond that
+# point), .as_posix() can be dropped
 
 import cbor
 
 from aiocoap import oscore
 
-contextdir = os.path.dirname(__file__) + '/common-context/'
+contextdir = Path(__file__).parent / 'common-context'
 
-def get_security_context(testno, role, persist=None):
-    if persist is None:
-        os.makedirs('temp-contexts', exist_ok=True)
-        contextcopy = tempfile.mkdtemp(prefix='context-', dir='temp-contexts')
-    else:
-        os.makedirs(persist, exist_ok=True)
-        contextcopy = persist
-    secretdata = json.load(open(contextdir + 'secret.json'))
-    with open(os.path.join(contextcopy, 'secret.json'), 'w') as out:
-        json.dump(secretdata, out)
-    settingsdata = json.load(open(contextdir + 'settings.json'))
+def get_security_context(contextname, role, contextcopy: Path):
+    """Copy the base context (disambiguated by contextname in "ab", "cd") onto
+    the path in contextcopy if it does not already exist, and load the
+    resulting context with the given role. The context will be monkey-patched
+    for debugging purposes."""
+    if not contextcopy.exists():
+        contextcopy.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree((contextdir / contextname).as_posix(), contextcopy.as_posix())
 
-    # this needs to be messed with early, as key properties are derived
-    # from this data
-    if role == 'client':
-        if testno == 10:
-            settingsdata['client-sender-id_hex'] += '00'
+        print("Context %s copied to %s" % (contextname, contextcopy))
 
-    with open(os.path.join(contextcopy, 'settings.json'), 'w') as out:
-        json.dump(settingsdata, out)
-
-    if not os.path.exists(os.path.join(contextcopy, 'sequence.json')):
-        sequence = {
-                "used": {(settingsdata['server-sender-id_hex'] if role == 'server' else settingsdata['client-sender-id_hex']).lower(): testno},
-                "seen": {(settingsdata['client-sender-id_hex'] if role == 'server' else settingsdata['server-sender-id_hex']).lower(): list([testno - 1]) if role == 'server' else [-1]}
-            }
-
-        with open(os.path.join(contextcopy, 'sequence.json'), 'w') as out:
-            json.dump(sequence, out)
-
-    print("Temporary context with seqno %d copied to %s"%(testno, contextcopy))
-    secctx = oscore.FilesystemSecurityContext(contextcopy, role=role)
-
-    # this needs to be messed with late, as it is not explicit in the context
-    # files
-    if role == 'client':
-        if testno == 11:
-            secctx.sender_key = bytes(((secctx.sender_key[0] + 1)%256,)) + secctx.sender_key[1:]
-        if testno == 12:
-            secctx.recipient_key = bytes(((secctx.recipient_key[0] + 1)%256,)) + secctx.recipient_key[1:]
+    secctx = oscore.FilesystemSecurityContext(contextcopy.as_posix(), role=role)
 
     original_extract_external_aad = secctx._extract_external_aad
     def _extract_extenal_aad(message, i_am_sender, request_partiv=None):

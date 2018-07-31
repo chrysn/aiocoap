@@ -54,7 +54,10 @@ class AsyncCLIDaemon:
             # exiting in case of a daemon setup, or to any other process
             # management.
             logging.info("Application ready.")
-            loop.add_signal_handler(signal.SIGTERM, loop.stop)
+            # Common options are 143 or 0
+            # (<https://github.com/go-task/task/issues/75#issuecomment-339466142> and
+            # <https://unix.stackexchange.com/questions/10231/when-does-the-system-send-a-sigterm-to-a-process>)
+            loop.add_signal_handler(signal.SIGTERM, lambda: main.__exitcode.set_result(143))
             exitcode = loop.run_until_complete(main.__exitcode)
         except KeyboardInterrupt:
             logging.info("Keyboard interupt received, shutting down")

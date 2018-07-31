@@ -17,6 +17,7 @@ import sys
 import asyncio
 import logging
 import argparse
+from pathlib import Path
 
 import aiocoap
 import aiocoap.oscore as oscore
@@ -67,24 +68,21 @@ class Hello3(Hello):
 
 class Observe(PlugtestResource, aiocoap.interfaces.ObservableResource):
     expected_options = {'observe': 0}
-    options = {}
+    options = {'content_format': 0}
 
-    message = "1"
+    message = "one"
 
     async def add_observation(self, request, serverobservation):
         async def keep_entertained():
-            def say(text):
-                return aiocoap.Message(mtype=aiocoap.CON, code=aiocoap.CONTENT, payload=text.encode('utf8'))
             await asyncio.sleep(2)
-            serverobservation.trigger(say("Zwei"))
-            await asyncio.sleep(2)
-            serverobservation.trigger(say("Drei"))
-            await asyncio.sleep(2)
-            serverobservation.trigger(say("und aus!"))
+            serverobservation.trigger(aiocoap.Message(
+                mtype=aiocoap.CON, code=aiocoap.CONTENT,
+                payload=b"two", content_format=0,
+                ))
             await asyncio.sleep(2)
             serverobservation.trigger(aiocoap.Message(
                 mtype=aiocoap.CON, code=aiocoap.INTERNAL_SERVER_ERROR,
-                payload="server is bored with client".encode('utf8')
+                payload=b"Terminate Observe", content_format=0,
                 ))
         t = asyncio.Task(keep_entertained())
         serverobservation.accept(t.cancel)
@@ -92,24 +90,24 @@ class Observe(PlugtestResource, aiocoap.interfaces.ObservableResource):
 class Hello6(resource.Resource):
     async def render_post(self, request):
         additional_verify("Request options as expected", aiocoap.Message(content_format=0).opt, request.opt)
-        additional_verify("Request payload as expected", request.payload, b"J")
+        additional_verify("Request payload as expected", request.payload, b"\x4a")
 
-        return aiocoap.Message(code=aiocoap.CREATED, location_path=["hello", "6"], location_query=["first=1"])
+        return aiocoap.Message(code=aiocoap.CREATED, payload=b"\x4a", content_format=0)
 
 class Hello7(resource.Resource):
     async def render_put(self, request):
         if request.opt.if_none_match:
-            print("This looks like test 8b")
+            print("This looks like test 10b")
             additional_verify("Request options as expected", aiocoap.Message(content_format=0, if_none_match=True).opt, request.opt)
             additional_verify("Request payload as expected", request.payload, b"\x8a")
 
             return aiocoap.Message(code=aiocoap.PRECONDITION_FAILED)
         else:
-            print("This looks like test 7b")
+            print("This looks like test 9b")
             additional_verify("Request options as expected", aiocoap.Message(content_format=0, if_match=[b"{"]).opt, request.opt)
             additional_verify("Request payload as expected", request.payload, b"z")
 
-            return aiocoap.Message(code=aiocoap.CHANGED)
+            return aiocoap.Message(code=aiocoap.CHANGED, payload=b"\x7a", content_format=0)
 
 class DeleteResource(resource.Resource):
     async def render_delete(self, request):
@@ -150,19 +148,22 @@ class SeqnoManager(resource.ObservableResource):
         self.contextmap = contextmap
 
     async def render_get(self, request):
-        the_context = self.contextmap[':plugtest']
+        text = ""
+        for name in ('ab', 'cd'):
+            the_context = self.contextmap[':' + name]
 
-        if not hasattr(the_context, "_SeqnoManager__patched"):
-            the_context.__patched = True
-            the_context._store = lambda oldstore=the_context._store: (oldstore(), self.updated_state())
+            if not hasattr(the_context, "_SeqnoManager__patched"):
+                the_context.__patched = True
+                the_context._store = lambda oldstore=the_context._store: (oldstore(), self.updated_state())
 
-        # this direct access is technically outside the interface for a
-        # SecurityContext, but then again, there isn't one yet
-        text = """Next sequence number I will use: %d\n""" % the_context.sender_sequence_number
-        text += """I've seen all sequence numbers up to including %d%s.""" % (
-                the_context.recipient_replay_window.seen[0],
-                ", and also %s" % the_context.recipient_replay_window.seen[1:] if len(the_context.recipient_replay_window.seen) > 1 else ""
-                )
+            # this direct access is technically outside the interface for a
+            # SecurityContext, but then again, there isn't one yet
+            text += """In context %s, next seqno is: %d\n""" % (name.upper(), the_context.sender_sequence_number)
+            text += """I've seen all sequence numbers up to including %d%s.""" % (
+                    the_context.recipient_replay_window.seen[0],
+                    ", and also %s" % the_context.recipient_replay_window.seen[1:] if len(the_context.recipient_replay_window.seen) > 1 else ""
+                    )
+            text += "\n"
         return aiocoap.Message(payload=text.encode('utf-8'), content_format=0)
 
     async def render_put(self, request):
@@ -171,10 +172,7 @@ class SeqnoManager(resource.ObservableResource):
         except (ValueError, UnicodeDecodeError):
             raise aiocoap.error.BadRequest("Only numeric values are accepted.")
 
-        new_context = get_security_context(number, 'server')
-        self.contextmap[':plugtest'] = new_context
-
-        return aiocoap.Message(code=aiocoap.CHANGED)
+        raise NotImplementedError
 
 class ProtectedSite(resource.Site):
     """A site that requires OSCORE protection for resources added with the
@@ -270,7 +268,10 @@ class ProtectedSite(resource.Site):
                     # refactoring should change that anyway.
                 # else, the absence of the observe option will cancel the lower-level observation
 
-                protected, _ = self._original_response_context.protect(response, self._original_request_seqno, can_reuse_partiv=False)
+                protected, _ = self._original_response_context.protect(response, self._original_request_seqno)
+
+                # FIXME who should trigger this?
+                self._original_response_context._store()
 
                 if not response.code.is_successful():
                     is_last = True
@@ -291,7 +292,7 @@ class ProtectedSite(resource.Site):
             self.__stored_serverobservation = None
 
         try:
-            recipient_id = oscore.verify_start(request)
+            recipient_id, id_context = oscore.verify_start(request)
         except oscore.NotAProtectedMessage:
             try:
                 return await super().render(request)
@@ -303,7 +304,7 @@ class ProtectedSite(resource.Site):
                 raise PleaseUseOscore()
 
         try:
-            sc = self.server_credentials.find_oscore(recipient_id)
+            sc = self.server_credentials.find_oscore(recipient_id, id_context)
         except KeyError:
             if request.mtype == aiocoap.CON:
                 raise error.Unauthorized("Security context not found")
@@ -314,7 +315,7 @@ class ProtectedSite(resource.Site):
             unprotected, seqno = sc.unprotect(request)
         except oscore.ReplayError:
             if request.mtype == aiocoap.CON:
-                return aiocoap.Message(code=aiocoap.SERVICE_UNAVAILABLE, max_age=0, payload=b"Replay protection failed")
+                return aiocoap.Message(code=aiocoap.UNAUTHORIZED, max_age=0, payload=b"Replay detected")
             else:
                 return aiocoap.message.NoResponse
         except oscore.DecodeError:
@@ -372,24 +373,25 @@ class PlugtestSite(ProtectedSite):
         super().__init__(server_credentials=server_credentials)
 
         self.add_resource(('.well-known', 'core'), resource.WKCResource(self.get_resources_as_linkheader))
-        self.add_resource(('hello', 'coap'), Hello())
-        self.add_protected_resource(('hello', '1'), Hello1())
-        self.add_protected_resource(('hello', '2'), Hello2())
-        self.add_protected_resource(('hello', '3'), Hello3())
-        self.add_protected_resource(('observe',), Observe())
-        self.add_protected_resource(('hello', '6'), Hello6())
-        self.add_protected_resource(('hello', '7'), Hello7())
-        self.add_protected_resource(('test',), DeleteResource())
+        self.add_resource(('oscore', 'hello', 'coap'), Hello())
+        self.add_protected_resource(('oscore', 'hello', '1'), Hello1())
+        self.add_protected_resource(('oscore', 'hello', '2'), Hello2())
+        self.add_protected_resource(('oscore', 'hello', '3'), Hello3())
+        self.add_protected_resource(('oscore', 'hello', '6'), Hello6())
+        self.add_protected_resource(('oscore', 'hello', '7'), Hello7())
+        self.add_protected_resource(('oscore', 'observe1',), Observe())
+        self.add_protected_resource(('oscore', 'observe2',), Observe())
+        self.add_protected_resource(('oscore', 'test',), DeleteResource())
 
-        self.add_protected_resource(('block', 'outer'), BlockResource())
-        self.add_protected_resource(('block', 'inner'), InnerBlockResource())
+        self.add_protected_resource(('oscore', 'block', 'outer'), BlockResource())
+        self.add_protected_resource(('oscore', 'block', 'inner'), InnerBlockResource())
 
         self.add_resource(('sequence-numbers',), SeqnoManager(server_credentials))
 
 class PlugtestServerProgram(AsyncCLIDaemon):
     async def start(self):
         p = argparse.ArgumentParser(description="Server for the OSCORE plug test. Requires a test number to be present.")
-        p.add_argument("contextdir", nargs="?", help="Directory name where to persist sequence numbers")
+        p.add_argument("contextdir", help="Directory name where to persist sequence numbers", type=Path)
         p.add_argument('--verbose', help="Increase log level", action='store_true')
         add_server_arguments(p)
         opts = p.parse_args()
@@ -401,7 +403,8 @@ class PlugtestServerProgram(AsyncCLIDaemon):
 
 
         server_credentials = CredentialsMap()
-        server_credentials[':plugtest'] = get_security_context(0, 'server', opts.contextdir)
+        server_credentials[':ab'] = get_security_context('ab', 'server', opts.contextdir / "ab")
+        server_credentials[':cd'] = get_security_context('cd', 'server', opts.contextdir / "cd")
 
         self.context = await server_context_from_arguments(PlugtestSite(server_credentials), opts)
 

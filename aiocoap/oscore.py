@@ -31,8 +31,21 @@ import cryptography.exceptions
 import hkdf
 import cbor
 
-USE_COMPRESSION = True
 MAX_SEQNO = 2**40 - 1
+
+# Relevant values from the IANA registry "CBOR Object Signing and Encryption (COSE)"
+COSE_KID = 4
+COSE_PIV = 6
+# No numeric value has been assigned yet; as we're only building the protected
+# and unprotected fields temporarily in untyped data structures and serializing
+# them through the compression, this can stay a string until a number is
+# assigned.
+COSE_KID_CONTEXT = 'TBD-draft-ietf-core-object-security-14'
+
+COMPRESSION_BITS_N = 0b111
+COMPRESSION_BIT_K = 0b1000
+COMPRESSION_BIT_H = 0b10000
+COMPRESSION_BITS_RESERVED = 0b11100000
 
 class NotAProtectedMessage(ValueError):
     """Raised when verification is attempted on a non-OSCORE message"""
@@ -50,6 +63,31 @@ class DecodeError(ProtectionInvalid):
 class ReplayError(ProtectionInvalid):
     """Raised when verification of an OSCORE message fails because the sequence numbers was already used"""
 
+class RequestIdentifiers:
+    """A container for details that need to be passed along from the
+    (un)protection of a request to the (un)protection of the response; these
+    data ensure that the request-response binding process works by passing
+    around the request's partial IV.
+
+    Users of this module should never create or interact with instances, but
+    just pass them around.
+    """
+    def __init__(self, kid, partial_iv, nonce, can_reuse_nonce):
+        self.kid = kid
+        self.partial_iv = partial_iv
+        self.nonce = nonce
+        self.can_reuse_nonce = can_reuse_nonce
+
+    def get_reusable_nonce(self):
+        """Return the nonce if can_reuse_nonce is True, and set can_reuse_nonce
+        to False."""
+
+        if self.can_reuse_nonce:
+            self.can_reuse_nonce = False
+            return self.nonce
+        else:
+            return None
+
 def _xor_bytes(a, b):
     assert len(a) == len(b)
     # FIXME is this an efficient thing to do, or should we store everything
@@ -59,10 +97,10 @@ def _xor_bytes(a, b):
 class Algorithm(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def encrypt(cls, plaintext, aad, key, iv):
-        """Return (ciphertext, tag) for given input data"""
+        """Return ciphertext + tag for given input data"""
 
     @abc.abstractmethod
-    def decrypt(cls, ciphertext, tag, aad, key, iv):
+    def decrypt(cls, ciphertext_and_tag, aad, key, iv):
         """Reverse encryption. Must raise ProtectionInvalid on any error
         stemming from untrusted data."""
 
@@ -71,13 +109,12 @@ class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
 
     @classmethod
     def encrypt(cls, plaintext, aad, key, iv):
-        joint = AESCCM(key, cls.tag_bytes).encrypt(iv, plaintext, aad)
-        return joint[:len(plaintext)], joint[len(plaintext):]
+        return AESCCM(key, cls.tag_bytes).encrypt(iv, plaintext, aad)
 
     @classmethod
-    def decrypt(cls, ciphertext, tag, aad, key, iv):
+    def decrypt(cls, ciphertext_and_tag, aad, key, iv):
         try:
-            return AESCCM(key, cls.tag_bytes).decrypt(iv, ciphertext + tag, aad)
+            return AESCCM(key, cls.tag_bytes).decrypt(iv, ciphertext_and_tag, aad)
         except cryptography.exceptions.InvalidTag:
             raise ProtectionInvalid("Tag invalid")
 
@@ -107,19 +144,25 @@ hashfunctions = {
 class SecurityContext:
     # FIXME: define an interface for that
 
+    # Indicates that in this context, when responding to a request, will always
+    # be the *only* context that does. (This is primarily a reminder to stop
+    # reusing nonces once multicast is implemented).
+    is_unicast = True
+
     # message processing
 
     def _extract_external_aad(self, message, request_kid, request_piv):
         # If any option were actually Class I, it would be something like
         #
+        # the_options = pick some of(message)
         # class_i_options = Message(the_options).opt.encode()
 
-        version = 1
+        oscore_version = 1
         class_i_options = b""
 
         external_aad = [
-                version,
-                self.algorithm.value,
+                oscore_version,
+                [self.algorithm.value],
                 request_kid,
                 request_piv,
                 class_i_options,
@@ -163,9 +206,9 @@ class SecurityContext:
 
             outer_code = CHANGED
 
+        # no max-age because these are always successsful responses
         outer_message = Message(code=outer_code, uri=outer_uri,
                 observe=None if message.code.is_response() else message.opt.observe,
-                max_age=0 if message.code.is_response() and message.opt.observe is not None else None,
                 )
 
         return outer_message, inner_message
@@ -181,15 +224,16 @@ class SecurityContext:
         return (self._construct_nonce(partial_iv, self.sender_id), partial_iv.lstrip(b'\0') or b'\0')
 
     def _construct_nonce(self, partial_iv_short, piv_generator_id):
-        partial_iv = b"\0" * (5 - len(partial_iv_short)) + partial_iv_short
+        pad_piv = b"\0" * (5 - len(partial_iv_short))
 
         s = bytes([len(piv_generator_id)])
-        pad = b'\0' * (self.algorithm.iv_bytes - 6 - len(piv_generator_id))
+        pad_id = b'\0' * (self.algorithm.iv_bytes - 6 - len(piv_generator_id))
 
         components = s + \
-                pad + \
+                pad_id + \
                 piv_generator_id + \
-                partial_iv
+                pad_piv + \
+                partial_iv_short
 
         nonce = _xor_bytes(self.common_iv, components)
 
@@ -204,57 +248,77 @@ class SecurityContext:
         if protected:
             raise RuntimeError("Protection produced a message that has uncompressable fields.")
 
-        if set(unprotected.keys()) - {4, 6}:
-            raise RuntimeError("Protection produced a message that has uncompressable fields.")
-
-        if 6 in unprotected:
-            piv = unprotected[6] or b""
-            if len(piv) > 0b111:
-                raise ValueError("Can't encode overly long partial IV")
-        else:
-            piv = b""
+        piv = unprotected.pop(COSE_PIV, b"")
+        if len(piv) > COMPRESSION_BITS_N:
+            raise ValueError("Can't encode overly long partial IV")
 
         firstbyte = len(piv)
-        if 4 in unprotected:
-            firstbyte |= 0b1000
-            kid_data = unprotected[4]
+        if COSE_KID in unprotected:
+            firstbyte |= COMPRESSION_BIT_K
+            kid_data = unprotected.pop(COSE_KID)
         else:
             kid_data = b""
 
+        if COSE_KID_CONTEXT in unprotected:
+            firstbyte |= COMPRESSION_BIT_H
+            kid_context = unprotected.pop(COSE_KID_CONTEXT)
+            s = len(kid_context)
+            if s > 255:
+                raise ValueError("KID Context too long")
+            s_kid_context = bytes((s,)) + kid_context
+        else:
+            s_kid_context = b""
+
+        if unprotected:
+            raise RuntimeError("Protection produced a message that has uncompressable fields.")
+
         if firstbyte:
-            return bytes([firstbyte]) + piv + kid_data
+            return bytes([firstbyte]) + piv + s_kid_context + kid_data
         else:
             return b""
 
-    def protect(self, message, request_data=None, *, can_reuse_partiv=True):
-        assert (request_data is None) == message.code.is_request()
-        if request_data is not None:
-            request_kid, request_partiv, request_nonce = request_data
+    def protect(self, message, request_id=None, *, kid_context=True):
+        """Given a plain CoAP message, create a protected message that contains
+        message's options in the inner or outer CoAP message as described in
+        OSCOAP.
+
+        If the message is a response to a previous message, the additional data
+        from unprotecting the request are passed in as request_id. When
+        request data is present, its partial IV is reused if possible. The
+        security context's ID context is encoded in the resulting message
+        unless kid_context is explicitly set to a False; other values for the
+        kid_context can be passed in as byte string in the same parameter.
+        """
+
+        assert (request_id is None) == message.code.is_request()
 
         outer_message, inner_message = self._split_message(message)
 
-        if request_data is None or not can_reuse_partiv or message.opt.observe is not None:
+        protected = {}
+        nonce = None
+        unprotected = {}
+        if request_id is not None:
+            nonce = request_id.get_reusable_nonce()
+
+        if nonce is None:
             nonce, partial_iv_short = self._build_new_nonce()
 
-            unprotected = {
-                    6: partial_iv_short,
-                    }
-            if request_data is None:
-                # this is usually the case; the exception is observe
-                unprotected[4] = self.sender_id
+            unprotected[COSE_PIV] = partial_iv_short
 
-                request_kid = self.sender_id
-                request_partiv = partial_iv_short
-                request_nonce = nonce
-        else:
-            nonce = request_nonce
-            unprotected = {}
+        if message.code.is_request():
+            unprotected[COSE_KID] = self.sender_id
 
-        protected = {}
+            request_id = RequestIdentifiers(self.sender_id, partial_iv_short, nonce, can_reuse_nonce=None)
+
+            if kid_context is True:
+                if self.id_context is not None:
+                    unprotected[COSE_KID_CONTEXT] = self.id_context
+            elif kid_context is not False:
+                unprotected[COSE_KID_CONTEXT] = kid_context
 
         assert protected == {}
         protected_serialized = b'' # were it into an empty dict, it'd be the cbor dump
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, request_kid, request_partiv)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, request_id.kid, request_id.partial_iv)]
         aad = cbor.dumps(enc_structure)
         key = self.sender_key
 
@@ -264,24 +328,22 @@ class SecurityContext:
             plaintext += inner_message.payload
 
 
-        ciphertext, tag = self.algorithm.encrypt(plaintext, aad, key, nonce)
+        ciphertext_and_tag = self.algorithm.encrypt(plaintext, aad, key, nonce)
 
         option_data = self._compress(unprotected, protected)
 
         outer_message.opt.object_security = option_data
-        outer_message.payload = ciphertext + tag
+        outer_message.payload = ciphertext_and_tag
 
         # FIXME go through options section
 
-        # the request_data in the second argument should be discarded by the
+        # the request_id in the second argument should be discarded by the
         # caller when protecting a response -- is that reason enough for an
         # `if` and returning None?
-        return outer_message, (request_kid, request_partiv, request_nonce)
+        return outer_message, request_id
 
-    def unprotect(self, protected_message, request_data=None):
-        assert (request_data is not None) == protected_message.code.is_response()
-        if request_data is not None:
-            request_kid, request_partiv, request_nonce = request_data
+    def unprotect(self, protected_message, request_id=None):
+        assert (request_id is not None) == protected_message.code.is_response()
 
         protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message)
 
@@ -290,45 +352,45 @@ class SecurityContext:
 
         # FIXME check for duplicate keys in protected
 
-        if unprotected.pop(4, self.recipient_id) != self.recipient_id:
+        if unprotected.pop(COSE_KID, self.recipient_id) != self.recipient_id:
             # for most cases, this is caught by the session ID dispatch, but in
             # responses (where explicit sender IDs are atypical), this is a
             # valid check
             raise ProtectionInvalid("Sender ID does not match")
 
-        if 6 not in unprotected:
-            if request_data is None:
+        if COSE_PIV not in unprotected:
+            if request_id is None:
                 raise ProtectionInvalid("No sequence number provided in request")
 
-            nonce = request_nonce
+            nonce = request_id.nonce
             seqno = None # sentinel for not striking out anyting
         else:
-            partial_iv_short = unprotected[6]
+            partial_iv_short = unprotected[COSE_PIV]
 
             seqno = int.from_bytes(partial_iv_short, 'big')
 
             if not self.recipient_replay_window.is_valid(seqno):
+                # If here we ever implement something that accepts memory loss
+                # as in 7.5.2 ("Losing Part of the Context State" / "Replay
+                # window"), or an optimization that accepts replays to avoid
+                # storing responses for EXCHANGE_LIFETIM, can_reuse_nonce a few
+                # lines down needs to take that into consideration.
                 raise ReplayError("Sequence number was re-used")
 
             nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
-            if request_data is None: # ie. we're unprotecting a request
-                request_partiv = partial_iv_short
-                request_kid = self.recipient_id
-                request_nonce = nonce
+            if request_id is None: # ie. we're unprotecting a request
+                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=self.is_unicast)
 
         # FIXME is it an error for additional data to be present in unprotected?
 
-        if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0]
+        if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
 
-        tag = ciphertext[-self.algorithm.tag_bytes:]
-        ciphertext = ciphertext[:-self.algorithm.tag_bytes]
-
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_kid, request_partiv)]
+        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_id.kid, request_id.partial_iv)]
         aad = cbor.dumps(enc_structure)
 
-        plaintext = self.algorithm.decrypt(ciphertext, tag, aad, self.recipient_key, nonce)
+        plaintext = self.algorithm.decrypt(ciphertext, aad, self.recipient_key, nonce)
 
         if seqno is not None:
             self.recipient_replay_window.strike_out(seqno)
@@ -339,12 +401,17 @@ class SecurityContext:
         unprotected_message.payload = unprotected_message.opt.decode(plaintext[1:])
 
         if unprotected_message.code.is_request():
-            unprotected_message.opt.observe = protected_message.opt.observe
+            if protected_message.opt.observe != 0:
+                unprotected_message.opt.observe = None
         else:
             if protected_message.opt.observe is not None:
-                unprotected_message.opt.observe = seqno
+                # -1 ensures that they sort correctly in later reordering
+                # detection. Note that neither -1 nor high (>3 byte) sequence
+                # numbers can be serialized in the Observe option, but they are
+                # in this implementation accepted for passing around.
+                unprotected_message.opt.observe = -1 if seqno is None else seqno
 
-        return unprotected_message, (request_kid, request_partiv, request_nonce)
+        return unprotected_message, request_id
 
     @staticmethod
     def _uncompress(option_data):
@@ -356,28 +423,27 @@ class SecurityContext:
 
         unprotected = {}
 
-        if firstbyte & 0b11100000:
+        if firstbyte & COMPRESSION_BITS_RESERVED:
             raise DecodeError("Protected data uses reserved fields")
 
-        pivsz = firstbyte & 0b111
+        pivsz = firstbyte & COMPRESSION_BITS_N
         if pivsz:
             if len(tail) < pivsz:
                 raise DecodeError("Partial IV announced but not present")
-            unprotected[6] = tail[:pivsz]
+            unprotected[COSE_PIV] = tail[:pivsz]
             tail = tail[pivsz:]
 
-        if firstbyte & 0b00010000:
-            # context hint
+        if firstbyte & COMPRESSION_BIT_H:
+            # kid context hint
             s = tail[0]
             if len(tail) - 1 < s:
                 raise DecodeError("Context hint announced but not present")
-            kidctx = 'FIXME' # number to be assigned
-            unprotected[kidctx] = tail[1:s+1]
+            unprotected[COSE_KID_CONTEXT] = tail[1:s+1]
             tail = tail[s+1:]
 
-        if firstbyte & 0b00001000:
+        if firstbyte & COMPRESSION_BIT_K:
             kid = tail
-            unprotected[4] = kid
+            unprotected[COSE_KID] = kid
 
         return b"", {}, unprotected
 
@@ -398,6 +464,33 @@ class SecurityContext:
         self.sender_sequence_number += 1
         # FIXME maybe _store now?
         return retval
+
+    # context parameter setup
+
+    def _kdf(self, master_salt, master_secret, role_id, out_type):
+        out_bytes = {'Key': self.algorithm.key_bytes, 'IV': self.algorithm.iv_bytes}[out_type]
+
+        info = cbor.dumps([
+            role_id,
+            self.id_context,
+            self.algorithm.value,
+            out_type,
+            out_bytes
+            ])
+        extracted = hkdf.hkdf_extract(master_salt, master_secret, hash=self.hashfun)
+        expanded = hkdf.hkdf_expand(extracted, info=info, hash=self.hashfun,
+                length=out_bytes)
+        return expanded
+
+    def derive_keys(self, master_salt, master_secret):
+        """Populate sender_key, recipient_key and common_iv from the algorithm,
+        hash function and id_context already configured beforehand, and from
+        the passed salt and secret."""
+
+        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, 'Key')
+        self.recipient_key = self._kdf(master_salt, master_secret, self.recipient_id, 'Key')
+
+        self.common_iv = self._kdf(master_salt, master_secret, b"", 'IV')
 
 class ReplayWindow:
     # FIXME: interface, abc
@@ -510,7 +603,8 @@ class FilesystemSecurityContext(SecurityContext):
         data = {}
         for readfile in ("secret.json", "settings.json"):
             try:
-                filedata = json.load(open(os.path.join(self.basedir, readfile)))
+                with open(os.path.join(self.basedir, readfile)) as f:
+                    filedata = json.load(f)
             except FileNotFoundError:
                 continue
 
@@ -544,14 +638,13 @@ class FilesystemSecurityContext(SecurityContext):
 
         master_secret = data['secret']
         master_salt = data.get('salt', b'')
+        self.id_context = data.get('id-context', None)
 
-        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, 'Key')
-        self.recipient_key = self._kdf(master_salt, master_secret, self.recipient_id, 'Key')
-
-        self.common_iv = self._kdf(master_salt, master_secret, None, 'IV')
+        self.derive_keys(master_salt, master_secret)
 
         try:
-            sequence = json.load(open(os.path.join(self.basedir, 'sequence.json')))
+            with open(os.path.join(self.basedir, 'sequence.json')) as f:
+                sequence = json.load(f)
         except FileNotFoundError:
             self.sender_sequence_number = 0
             self.recipient_replay_window = SimpleReplayWindow([])
@@ -564,20 +657,6 @@ class FilesystemSecurityContext(SecurityContext):
             if len(sequence['used']) != 1 or len(sequence['seen']) != 1:
                 warnings.warn("Sequence files shared between roles are "
                         "currently not supported.")
-
-    def _kdf(self, master_salt, master_secret, role_id, out_type):
-        out_bytes = {'Key': self.algorithm.key_bytes, 'IV': self.algorithm.iv_bytes}[out_type]
-
-        info = cbor.dumps([
-            role_id,
-            self.algorithm.value,
-            out_type,
-            out_bytes
-            ])
-        extracted = hkdf.hkdf_extract(master_salt, master_secret, hash=self.hashfun)
-        expanded = hkdf.hkdf_expand(extracted, info=info, hash=self.hashfun,
-                length=out_bytes)
-        return expanded
 
     # FIXME when/how will this be called?
     #
@@ -634,18 +713,18 @@ class FilesystemSecurityContext(SecurityContext):
         os.rename(tmpnam, os.path.join(basedir, 'secret.json'))
 
 def verify_start(message):
-    """Extract a CID from a message for the verifier to then pick a security
-    context to actually verify the message.
+    """Extract a sender ID and ID context (if present, otherwise None) from a
+    message for the verifier to then pick a security context to actually verify
+    the message.
 
     Call this only requests; for responses, you'll have to know the security
-    context anyway, and there is usually no information to be gained (and
-    things would even fail completely in compressed messages)."""
+    context anyway, and there is usually no information to be gained."""
 
     _, _, unprotected, _ = SecurityContext._extract_encrypted0(message)
 
     try:
         # FIXME raise on duplicate key
-        return unprotected[4]
+        return unprotected[COSE_KID], unprotected.get(COSE_KID_CONTEXT, None)
     except KeyError:
         raise NotAProtectedMessage("No Sender ID present", message)
 

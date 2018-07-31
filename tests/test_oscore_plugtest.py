@@ -12,6 +12,8 @@ import os
 import sys
 import asyncio
 import unittest
+import tempfile
+import shutil
 
 import aiocoap
 import aiocoap.defaults
@@ -55,20 +57,25 @@ class CapturingSubprocess(asyncio.SubprocessProtocol):
     def process_exited(self):
         self.read_more.set_result(None)
 
+# those are to be expected to contain bad words -- 'Check passed: X failed' is legitimate, as is 'Unprotected response: ... Precondition failed...'
+output_whitelist = ['Check passed: ', 'Unprotected response: ', 'Verify: Received message']
+# explicitly whitelisted for when the server is run with increased verbosity
+debug_whitelist = ['INFO:coap-server:Render request raised a renderable error', 'DEBUG:oscore-site:Will encrypt message as response: ']
+
 class WithAssertNofaillines(unittest.TestCase):
     def assertNoFaillines(self, text_to_check, message):
         """Assert that there are no lines that contain the phrase 'fail' or
-        'WARNING'/'ERROR' in the output, unless they are a 'Check passed' line.
+        'WARNING'/'ERROR' in the output, unless they are a 'Check passed' line
+        or other whitelisted ones.
 
         This is to check the output of the plugtest client, which may
         successfully report: 'Check passed: The validation failed. (Tag
         invalid)'"""
 
         lines = text_to_check.decode('utf8').split('\n')
-        lines = (l for l in lines if not l.startswith('Check passed:'))
-        # explicitly whitelisted for when the server is run with increased verbosity
-        lines = (l for l in lines if 'INFO:coap-server:Render request raised a renderable error' not in l)
-        errorlines = (l for l in lines if 'fail'in l or 'WARNING' in l or 'ERROR' in l)
+        lines = (l for l in lines if not any(l.startswith(white) for white in output_whitelist))
+        lines = (l for l in lines if not any(white in l for white in debug_whitelist))
+        errorlines = (l for l in lines if 'fail'in l.lower() or 'warning' in l.lower() or 'error' in l.lower())
         self.assertEqual([], list(errorlines), message)
 
 @unittest.skipIf(aiocoap.defaults.oscore_missing_modules(), "Mdules missing for running OSCORE tests: %s"%(aiocoap.defaults.oscore_missing_modules(),))
@@ -77,6 +84,9 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         super(WithPlugtestServer, self).setUp()
         ready = asyncio.Future()
         self.__done = asyncio.Future()
+
+        self.contextdir = tempfile.mkdtemp(suffix="-contexts")
+
         self.__task = asyncio.Task(self.run_server(ready, self.__done))
         self.loop.run_until_complete(ready)
 
@@ -84,6 +94,7 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         self.process, process_outputs = await self.loop.subprocess_exec(
                 CapturingSubprocess,
                 *SERVER,
+                self.contextdir + "/server",
                 stdin=None
                 )
 
@@ -128,16 +139,15 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
             self.assertNoFaillines(out, '"failed" showed up in plugtest server stdout')
             self.assertNoFaillines(err, '"failed" showed up in plugtest server stderr')
 
+        shutil.rmtree(self.contextdir)
+
 class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
     @asynctest
     async def _test_plugtestclient(self, x):
-        set_seqno = aiocoap.Message(code=aiocoap.PUT, uri='coap://%s/sequence-numbers'%(common.loopbackname_v6 or common.loopbackname_v46), payload=b'0')
-        await self.client.request(set_seqno).response_raising
-
         proc, transport = await self.loop.subprocess_exec(
                 CapturingSubprocess,
-                *(CLIENT + ['[' + SERVER_ADDRESS + ']', str(x)]),
+                *(CLIENT + ['[' + SERVER_ADDRESS + ']', self.contextdir + "/client", str(x)]),
                 stdin=None
                 )
 
@@ -158,8 +168,11 @@ class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
         self.assertNoFaillines(transport.stdout, '"failed" showed up in plugtest client stdout')
         self.assertNoFaillines(transport.stderr, '"failed" showed up in plugtest client stderr')
 
-for x in range(0, 13):
+for x in range(0, 17):
     test = lambda self, x=x: self._test_plugtestclient(x)
+    if x == 16:
+        # That test can not succeed against a regular plugtest server
+        test = unittest.expectedFailure(test)
     # enforcing them to sort properly is purely a readability thing, they
     # execute correctly out-of-order too.
     setattr(TestOSCOREPlugtest, 'test_%03d'%x, test)

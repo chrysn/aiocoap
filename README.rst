@@ -47,7 +47,7 @@ This library supports the following standards in full or partially:
   server is provided along with a library function to register at one. They
   lack support for groups and security considerations, and are generally rather
   simplistic.
-* draft-ietf-core-object-security-06_ (OSCORE, formerly OSCOAP): Full support
+* draft-ietf-core-object-security-14_ (OSCORE, formerly OSCOAP): Full support
   client-side (except handling the Echo option); protected servers can be
   implemented based on it but are not automatic yet.
 
@@ -62,7 +62,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC8132: https://tools.ietf.org/html/rfc8132
 .. _RFC8323: https://tools.ietf.org/html/rfc8323
 .. _draft-ietf-core-resource-directory: https://tools.ietf.org/html/draft-ietf-core-resource-directory-12
-.. _draft-ietf-core-object-security-06: https://tools.ietf.org/html/draft-ietf-core-object-security-06
+.. _draft-ietf-core-object-security-14: https://tools.ietf.org/html/draft-ietf-core-object-security-14
 
 Dependencies
 ------------
