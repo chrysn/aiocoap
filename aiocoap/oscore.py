@@ -603,7 +603,8 @@ class FilesystemSecurityContext(SecurityContext):
         data = {}
         for readfile in ("secret.json", "settings.json"):
             try:
-                filedata = json.load(open(os.path.join(self.basedir, readfile)))
+                with open(os.path.join(self.basedir, readfile)) as f:
+                    filedata = json.load(f)
             except FileNotFoundError:
                 continue
 
@@ -642,7 +643,8 @@ class FilesystemSecurityContext(SecurityContext):
         self.derive_keys(master_salt, master_secret)
 
         try:
-            sequence = json.load(open(os.path.join(self.basedir, 'sequence.json')))
+            with open(os.path.join(self.basedir, 'sequence.json')) as f:
+                sequence = json.load(f)
         except FileNotFoundError:
             self.sender_sequence_number = 0
             self.recipient_replay_window = SimpleReplayWindow([])
