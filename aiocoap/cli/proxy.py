@@ -26,8 +26,6 @@ def build_parser():
     details = p.add_argument_group("details", "Options that govern how requests go in and out")
     add_server_arguments(details)
     details.add_argument('--proxy', help="Relay outgoing requests through yet another proxy", metavar="HOST[:PORT]")
-    details.add_argument('--dump-client', help="Log network traffic from clients to FILE", metavar="FILE")
-    details.add_argument('--dump-server', help="Log network traffic to servers to FILE", metavar="FILE")
 
     r = p.add_argument_group('Rules', description="Sequence of forwarding rules that, if matched by a request, specify a forwarding destination")
     class TypedAppend(argparse.Action):
@@ -49,7 +47,7 @@ class Main(AsyncCLIDaemon):
         if options.direction is None:
             raise parser.error("Either --forward or --reverse must be given.")
 
-        self.outgoing_context = await aiocoap.Context.create_client_context(dump_to=options.dump_server)
+        self.outgoing_context = await aiocoap.Context.create_client_context()
         proxy = options.direction(self.outgoing_context)
         for kind, data in options.r or ():
             if kind == '--namebased':
@@ -70,7 +68,7 @@ class Main(AsyncCLIDaemon):
                 raise AssertionError('Unknown redirectory kind')
             proxy.add_redirector(r)
 
-        self.proxy_context = await server_context_from_arguments(proxy, options, dump_to=options.dump_client)
+        self.proxy_context = await server_context_from_arguments(proxy, options)
 
     async def shutdown(self):
         await self.outgoing_context.shutdown()

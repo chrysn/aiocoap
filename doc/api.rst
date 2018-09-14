@@ -51,7 +51,6 @@ Modules with stable components
    module/aiocoap.numbers
    module/aiocoap.optiontypes
    module/aiocoap.resource
-   module/aiocoap.dump
    module/aiocoap.util
    module/aiocoap.util.asyncio
    module/aiocoap.util.cli

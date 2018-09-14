@@ -39,7 +39,6 @@ def build_parser():
     p.add_argument('--content-format', help="Content format sent via POST or PUT", metavar="MIME")
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
-    p.add_argument('--dump', help="Log network traffic to FILE", metavar="FILE")
     p.add_argument('--interactive', help="Enter interactive mode", action="store_true") # careful: picked before parsing
     p.add_argument('--credentials', help="Load credentials to use from a given file", type=Path)
     p.add_argument('url', help="CoAP address to fetch")
@@ -97,10 +96,7 @@ async def single_request(args, context=None):
             raise parser.error("Unknown method")
 
     if context is None:
-        context = await aiocoap.Context.create_client_context(dump_to=options.dump)
-    else:
-        if options.dump:
-            print("The --dump option is not implemented in interactive mode.", file=sys.stderr)
+        context = await aiocoap.Context.create_client_context()
 
     if options.credentials is not None:
         apply_credentials(context, options.credentials, parser.error)

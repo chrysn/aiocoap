@@ -294,9 +294,7 @@ class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
             return connection
 
     @classmethod
-    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to):
-        if dump_to is not None:
-            log.error("Ignoring dump_to in tinyDTLS transport endpoint")
+    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop):
         return cls(ctx, log, loop)
 
     async def recognize_remote(self, remote):

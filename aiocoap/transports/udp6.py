@@ -44,7 +44,6 @@ from ..numbers import constants
 from .. import error
 from .. import interfaces
 from ..numbers import COAP_PORT
-from ..dump import TextDumper
 from ..util.asyncio import RecvmsgDatagramProtocol
 from ..util import hostportjoin, hostportsplit
 from ..util import socknumbers
@@ -143,7 +142,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
 
     @classmethod
-    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, dump_to, multicast=False):
+    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=False):
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
         sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1)
         # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
@@ -169,28 +168,21 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                 except OSError:
                     log.warning("Could not join IPv6 multicast group; possibly, there is no network connection available.")
 
-        protofact = lambda: cls(ctx, log=log, loop=loop)
-        if dump_to is not None:
-            protofact = TextDumper.endpointfactory(open(dump_to, 'w'), protofact)
-
-        transport, protocol = await loop.create_datagram_endpoint(protofact, sock=sock)
-
-        if dump_to is not None:
-            protocol = protocol.protocol
+        transport, protocol = await loop.create_datagram_endpoint(lambda: cls(ctx, log=log, loop=loop), sock=sock)
 
         await protocol.ready
 
         return protocol
 
     @classmethod
-    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to):
+    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop):
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
-        return await cls._create_transport_endpoint(sock, ctx, log, loop, dump_to, multicast=False)
+        return await cls._create_transport_endpoint(sock, ctx, log, loop, multicast=False)
 
     @classmethod
-    async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, dump_to, bind):
+    async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, bind):
         bind = bind or ('::', None)
         bind = (bind[0], bind[1] or COAP_PORT)
 
@@ -200,7 +192,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.bind(bind)
 
-        return (await cls._create_transport_endpoint(sock, ctx, log, loop, dump_to, multicast=True))
+        return (await cls._create_transport_endpoint(sock, ctx, log, loop, multicast=True))
 
     async def shutdown(self):
         self._shutting_down = asyncio.Future()

@@ -159,7 +159,7 @@ class Context(interfaces.RequestProvider):
         self.request_interfaces.append(tman)
 
     @classmethod
-    async def create_client_context(cls, *, dump_to=None, loggername="coap", loop=None):
+    async def create_client_context(cls, *, loggername="coap", loop=None):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get an context suitable for sending client
@@ -176,17 +176,16 @@ class Context(interfaces.RequestProvider):
             if transportname == 'udp6':
                 from .transports.udp6 import MessageInterfaceUDP6
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
+                    lambda mman: MessageInterfaceUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
             elif transportname == 'simple6':
                 from .transports.simple6 import MessageInterfaceSimple6
                 await self._append_tokenmanaged_messagemanaged_transport(
                     lambda mman: MessageInterfaceSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
-                # FIXME warn if dump_to is not None
             elif transportname == 'tinydtls':
                 from .transports.tinydtls import MessageInterfaceTinyDTLS
                 await self._append_tokenmanaged_messagemanaged_transport(
 
-                    lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
+                    lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop))
             elif transportname == 'tcpclient':
                 from .transports.tcp import TCPClient
                 await self._append_tokenmanaged_transport(
@@ -205,7 +204,7 @@ class Context(interfaces.RequestProvider):
         return self
 
     @classmethod
-    async def create_server_context(cls, site, bind=None, *, dump_to=None, loggername="coap-server", loop=None, _ssl_context=None):
+    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None):
         """Create an context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -222,21 +221,19 @@ class Context(interfaces.RequestProvider):
                 from .transports.udp6 import MessageInterfaceUDP6
 
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to, bind=bind))
+                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, bind=bind))
             # FIXME this is duplicated from the client version, as those are client-only anyway
             elif transportname == 'simple6':
                 from .transports.simple6 import MessageInterfaceSimple6
                 await self._append_tokenmanaged_messagemanaged_transport(
                     lambda mman: MessageInterfaceSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
-                # FIXME warn if dump_to is not None
             elif transportname == 'tinydtls':
                 from .transports.tinydtls import MessageInterfaceTinyDTLS
 
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop, dump_to=dump_to))
+                    lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop))
             # FIXME end duplication
             elif transportname == 'simplesocketserver':
-                # FIXME dump_to not implemented
                 from .transports.simplesocketserver import MessageInterfaceSimpleServer
                 await self._append_tokenmanaged_messagemanaged_transport(
                     lambda mman: MessageInterfaceSimpleServer.create_server(bind, mman, log=self.log, loop=loop))
