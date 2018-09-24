@@ -28,6 +28,7 @@ dispatch requests based on the Uri-Path header.
 """
 
 import hashlib
+import warnings
 
 from . import message
 from . import error
@@ -89,7 +90,9 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
     unsupported methods. Those messages may return messages without a response
     code, the default render method will set an appropriate successful code
     ("Content" for GET/FETCH, "Deleted" for DELETE, "Changed" for anything
-    else).
+    else). The render method will also fill in the request's no_response code
+    into the response (see :meth:`.interfaces.Resource.render`) if none was
+    set.
 
     Moreover, this class provides a ``get_link_description`` method as used by
     .well-known/core to expose a resource's ``.ct``, ``.rt`` and ``.if_``
@@ -108,6 +111,12 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
 
         response = await m(request)
 
+        if response is message.NoResponse:
+            warnings.warn("Returning NoResponse is deprecated, please return a"
+                          " regular response with a no_response option set.",
+                          DeprecationWarning)
+            response = aiocoap.Message(no_response=26)
+
         if response.code is None:
             if request.code in (numbers.codes.GET, numbers.codes.FETCH):
                 response_default = numbers.codes.CONTENT
@@ -116,6 +125,9 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
             else:
                 response_default = numbers.codes.CHANGED
             response.code = response_default
+
+        if response.opt.no_response is None:
+            response.opt.no_response = request.opt.no_response
 
         return response
 
@@ -222,10 +234,16 @@ class WKCResource(Resource):
             links.links = filter(filters.pop(), links.links)
         links.links = list(links.links)
 
-        if not links.links and request.remote.is_multicast:
-            return message.NoResponse
+        response = link_format_to_message(request, links)
 
-        return link_format_to_message(request, links)
+        if not links.links and request.remote.is_multicast:
+            if request.opt.no_response is not None:
+                # If the filter does not match, multicast requests should not
+                # be responded to -- that's equivalent to a "no_response on
+                # 2.xx" option.
+                response.opt.no_response = 0x20
+
+        return response
 
 class PathCapable:
     """Class that indicates that a resource promises to parse the uri_path

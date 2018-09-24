@@ -480,4 +480,7 @@ _quote_for_query = quote_factory(unreserved + "".join(c for c in sub_delims if c
 #: configuration (eg. the No-Response option), no response should be sent at
 #: all. Note that per RFC7967 section 2, an ACK is still sent to a CON
 #: request.
+#:
+#: Depercated; set the no_response option on a regular response instead (see
+#: :meth:`.interfaces.Resource.render` for details).
 NoResponse = Sentinel("NoResponse")

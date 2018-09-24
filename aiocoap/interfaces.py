@@ -135,7 +135,10 @@ class TokenInterface(metaclass=abc.ABCMeta):
     def send_message(self, message) -> Optional[Callable[[], None]]:
         """Send a message. If it returns a a callable, the caller is asked to
         call in case it no longer needs the message sent, and to dispose of if
-        it doesn't intend to any more."""
+        it doesn't intend to any more.
+
+        Currently, it is up to the TokenInterface to unset the no_response
+        option in response messages, and to possibly not send them."""
 
     @abc.abstractmethod
     async def fill_or_recognize_remote(self, message):
@@ -181,10 +184,10 @@ class Resource(metaclass=abc.ABCMeta):
         This does not need to set any low-level message options like remote,
         token or message type; it does however need to set a response code.
 
-        The ``aiocoap.message.NoResponse`` sentinel can be returned if the
-        resources wishes to suppress an answer on the request/response
-        layer. (An empty ACK is sent responding to a CON request on message
-        layer nevertheless.)"""
+        A response returned may carry a no_response option (which is actually
+        specified to apply to requests only); the underlying transports will
+        decide based on that and its code whether to actually transmit the
+        response."""
 
     @abc.abstractmethod
     async def needs_blockwise_assembly(self, request):

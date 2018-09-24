@@ -41,7 +41,7 @@ This library supports the following standards in full or partially:
 * RFC7959_ (Blockwise): Multicast exceptions missing.
 * RFC8323_ (TCP): Supports CoAP over TCP and TLS (certificate only, no
   preshared or raw public keys) but not CoAP over WebSockets.
-* RFC7967_ (No-Response): Basic support, but not automated in library
+* RFC7967_ (No-Response): Supported.
 * RFC8132_ (PATCH/FETCH): Types and codes known, FETCH observation supported
 * draft-ietf-core-resource-directory_: A standalone resource directory
   server is provided along with a library function to register at one. They

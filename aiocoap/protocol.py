@@ -460,6 +460,7 @@ class Context(interfaces.RequestProvider):
                         lambda f, cb=servobs._cancellation_callback: cb())
 
         response = await self.serversite.render(request)
+
         if response.code is None or not response.code.is_response():
             self.log.warning("Response does not carry response code (%r),"
                              " application probably violates protocol.",

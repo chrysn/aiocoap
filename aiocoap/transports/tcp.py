@@ -296,6 +296,11 @@ class _TCPPooling:
     # implementing TokenInterface
 
     def send_message(self, message, exchange_monitor=None):
+        if message.code.is_response():
+            no_response = (message.opt.no_response or 0) & (1 << (message.code >> 5) - 1) != 0
+            if no_response:
+                return
+
         message.remote._send_message(message)
 
     # used by the TcpConnection instances

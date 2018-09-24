@@ -21,9 +21,8 @@ Module contents
 ---------------
 
 This root module re-exports the most commonly used classes in aiocoap:
-:class:`.Context`, :class:`.Message` (along with its sentinel stand-in
-:data:`.NoResponse`) as well as all commonly used numeric constants from
-:mod:`.numbers`; see their respective documentation entries.
+:class:`.Context`, :class:`.Message` as well as all commonly used numeric
+constants from :mod:`.numbers`; see their respective documentation entries.
 
 The presence of :class:`.Message` and :class:`.Context` in the root module is
 stable.

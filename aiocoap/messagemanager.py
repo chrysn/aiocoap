@@ -349,13 +349,27 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             message.mid = None
 
         if message.code.is_response():
+            no_response = (message.opt.no_response or 0) & (1 << (message.code >> 5) - 1) != 0
+
             piggyback_key = (message.remote, message.token)
             if piggyback_key in self._piggyback_opportunities:
                 mid, handle = self._piggyback_opportunities.pop(piggyback_key)
                 handle.cancel()
 
-                message.mtype = ACK
-                message.mid = mid
+                if no_response:
+                    new_message = Message(code=EMPTY, mid=mid, mtype=ACK)
+                    new_message.remote = message.remote
+                    message = new_message
+                    self.log.debug("Turning to-be-sent message into an empty ACK due to no_response option.")
+                else:
+                    message.mtype = ACK
+                    message.mid = mid
+            else:
+                if no_response:
+                    self.log.debug("Stopping message in message manager as it is no_response and no ACK is pending.")
+                    return
+
+            message.opt.no_response = None
 
         # FIXME: on responses, this should take the request into consideration
         # (cf. RFC7252 Section 5.2.3, answer to NON SHOULD be NON)
