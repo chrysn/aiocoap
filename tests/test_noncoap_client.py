@@ -84,3 +84,15 @@ class TestNoncoapClient(WithTestServer):
         with TimeoutError.after(1):
             response = self.mocksock.recv(1024)
         assert response == b'\x70\x00\x99\x9a'
+
+    @no_warnings
+    @asynctest
+    async def test_noresponse(self):
+        self.mocksock.send(b'\x50\x01\x99\x9b\xd1\xf5\x02') # CoAP NON GET / with no-response on 2.xx
+        await asyncio.sleep(0.1)
+        try:
+            with TimeoutError.after(1):
+                response = self.mocksock.recv(1024)
+            self.assertTrue(False, "Response was sent when No-Response should have suppressed it")
+        except TimeoutError:
+            pass
