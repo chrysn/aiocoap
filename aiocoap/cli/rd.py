@@ -15,9 +15,7 @@ Known Caveats:
 
     * Multiply given registration parameters are not handled.
 
-    * It is very permissive. Not only is no security implemented, it also
-    allows mechanisms that follow from the simple implementation, like Simple
-    Registration with base=.
+    * It is very permissive. Not only is no security implemented.
 """
 
 import sys
@@ -458,13 +456,15 @@ class SimpleRegistrationWKC(WKCResource):
             except ValueError:
                 raise error.BadRequest("lt must be numeric")
 
-        if 'base' not in query:
-            try:
-                # just trying out whether it can be constructed to err out in
-                # time (under the current model of "respond early, ask later")
-                request.remote.uri
-            except error.UnparsableMessage:
-                raise error.BadRequest("explicit base required")
+        if 'base' in query:
+            raise error.BadRequest("base is not allowed in simple registrations")
+
+        try:
+            # just trying out whether it can be constructed to err out in
+            # time (under the current model of "respond early, ask later")
+            request.remote.uri
+        except error.UnparsableMessage:
+            raise error.BadRequest("explicit base required")
 
         asyncio.Task(self.process_request(
                 network_remote=request.remote,
@@ -474,11 +474,8 @@ class SimpleRegistrationWKC(WKCResource):
         return aiocoap.Message(code=aiocoap.CHANGED)
 
     async def process_request(self, network_remote, registration_parameters):
-        base = registration_parameters.get('base', None)
-        if base is None:
-            base = network_remote.uri
+        base = network_remote.uri
 
-        # FIXME actually we should have complained about the base uri not being in host-only form ... and is that defined at all?
         fetch_address = (base + '/.well-known/core')
 
         try:
