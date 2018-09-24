@@ -61,7 +61,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC7967: https://tools.ietf.org/html/rfc7967
 .. _RFC8132: https://tools.ietf.org/html/rfc8132
 .. _RFC8323: https://tools.ietf.org/html/rfc8323
-.. _draft-ietf-core-resource-directory: https://tools.ietf.org/html/draft-ietf-core-resource-directory-12
+.. _draft-ietf-core-resource-directory: https://tools.ietf.org/html/draft-ietf-core-resource-directory-14
 .. _draft-ietf-core-object-security-14: https://tools.ietf.org/html/draft-ietf-core-object-security-14
 
 Dependencies

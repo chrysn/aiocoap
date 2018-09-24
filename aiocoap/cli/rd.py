@@ -7,7 +7,7 @@
 # described in the accompanying LICENSE file.
 
 """A plain CoAP resource directory according to
-draft-ietf-core-resource-directory-13
+draft-ietf-core-resource-directory-14
 
 Known Caveats:
 
@@ -17,7 +17,7 @@ Known Caveats:
 
     * It is very permissive. Not only is no security implemented, it also
     allows mechanisms that follow from the simple implementation, like Simple
-    Registration with con=.
+    Registration with base=.
 """
 
 import sys
@@ -85,21 +85,21 @@ class CommonRD:
             their registration_parameters are {} and all it does is restart the
             lifetime counter)"""
 
-            if (is_initial or not self.con_is_explicit) and 'con' not in \
+            if (is_initial or not self.base_is_explicit) and 'base' not in \
                     registration_parameters:
                 # check early for validity to avoid side effects of requests
                 # answered with 4.xx
                 try:
-                    network_con = network_remote.uri
+                    network_base = network_remote.uri
                 except error.AnonymousHost:
-                    raise error.BadRequest("explicit con required")
+                    raise error.BadRequest("explicit base required")
 
             if is_initial:
                 self.registration_parameters = registration_parameters
-                self.lt = 86400
-                if 'con' not in registration_parameters:
-                    self.con = network_con
-                    self.con_is_explicit = False
+                self.lt = 90000
+                if 'base' not in registration_parameters:
+                    self.base = network_base
+                    self.base_is_explicit = False
 
                 # technically might be a re-registration, but we can't catch that at this point
                 actual_change = True
@@ -117,12 +117,12 @@ class CommonRD:
                 except ValueError:
                     raise error.BadRequest("lt must be numeric")
 
-            if 'con' in registration_parameters:
-                self.con = registration_parameters['con']
-                self.con_is_explicit = True
+            if 'base' in registration_parameters:
+                self.base = registration_parameters['base']
+                self.base_is_explicit = True
 
-            if not self.con_is_explicit and self.con != network_con:
-                self.con = network_con
+            if not self.base_is_explicit and self.base != network_base:
+                self.base = network_base
                 actual_change = True
 
             if is_initial:
@@ -156,27 +156,28 @@ class CommonRD:
             self._set_timeout()
 
         def get_host_link(self):
-            args = dict(self.registration_parameters, con=self.con)
+            args = dict(self.registration_parameters, base=self.base, rt="core.rd-ep")
+            args.pop('lt', None)
             return Link(href=self.href, **args)
 
-        def get_conned_links(self):
+        def get_based_links(self):
             """Produce a LinkFormat object that represents all statements in
-            the registration, resolved to the registration's con (and thus
+            the registration, resolved to the registration's base (and thus
             suitable for serving from the lookup interface).
 
-            If protocol negotiation is implemented and con becomes a list, this
-            function will probably grow parameters that hint at which con to
+            If protocol negotiation is implemented and base becomes a list, this
+            function will probably grow parameters that hint at which base to
             use.
             """
             result = []
             for l in self.links.links:
                 if 'anchor' in l:
-                    absanchor = urljoin(self.con, l.anchor)
+                    absanchor = urljoin(self.base, l.anchor)
                     data = [(k, v) for (k, v) in l.attr_pairs if k != 'anchor'] + [['anchor', absanchor]]
                     href = urljoin(absanchor, l.href)
                 else:
-                    data = l.attr_pairs + [['anchor', self.con]]
-                    href = urljoin(self.con, l.href)
+                    data = l.attr_pairs + [['anchor', self.base]]
+                    href = urljoin(self.base, l.href)
                 result.append(Link(href, data))
             return LinkFormat(result)
 
@@ -365,19 +366,19 @@ class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
                 matches = lambda x: x == search_value
 
             if search_key in ('if', 'rt'):
-                candidates = (c for c in candidates if any(any(matches(x) for x in getattr(r, search_key, '').split()) for r in c.get_conned_links().links))
+                candidates = (c for c in candidates if any(any(matches(x) for x in getattr(r, search_key, '').split()) for r in c.get_based_links().links))
                 continue
 
             if search_key == 'href':
                 candidates = (c for c in candidates if
                         matches(c.href) or
-                        any(matches(r.href) for r in c.get_conned_links().links)
+                        any(matches(r.href) for r in c.get_based_links().links)
                         )
                 continue
 
             candidates = (c for c in candidates if
                     (search_key in c.registration_parameters and matches(c.registration_parameters[search_key])) or
-                    any(_link_matches(r, search_key, matches) for r in c.get_conned_links().links)
+                    any(_link_matches(r, search_key, matches) for r in c.get_based_links().links)
                     )
 
         candidates = _paginate(candidates, query)
@@ -394,7 +395,7 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
         query = query_split(request)
 
         eps = self.common_rd.get_endpoints()
-        candidates = ((e, c) for e in eps for c in e.get_conned_links().links)
+        candidates = ((e, c) for e in eps for c in e.get_based_links().links)
 
         for search_key, search_value in query.items():
             if search_key in ('page', 'count'):
@@ -457,13 +458,13 @@ class SimpleRegistrationWKC(WKCResource):
             except ValueError:
                 raise error.BadRequest("lt must be numeric")
 
-        if 'con' not in query:
+        if 'base' not in query:
             try:
                 # just trying out whether it can be constructed to err out in
                 # time (under the current model of "respond early, ask later")
                 request.remote.uri
             except error.UnparsableMessage:
-                raise error.BadRequest("explicit con required")
+                raise error.BadRequest("explicit base required")
 
         asyncio.Task(self.process_request(
                 network_remote=request.remote,
@@ -473,18 +474,18 @@ class SimpleRegistrationWKC(WKCResource):
         return aiocoap.Message(code=aiocoap.CHANGED)
 
     async def process_request(self, network_remote, registration_parameters):
-        con = registration_parameters.get('con', None)
-        if con is None:
-            con = network_remote.uri
+        base = registration_parameters.get('base', None)
+        if base is None:
+            base = network_remote.uri
 
-        # FIXME actually we should have complained about the con uri not being in host-only form ... and is that defined at all?
-        fetch_address = (con + '/.well-known/core')
+        # FIXME actually we should have complained about the base uri not being in host-only form ... and is that defined at all?
+        fetch_address = (base + '/.well-known/core')
 
         try:
             response = await self.context.request(aiocoap.Message(code=aiocoap.GET, uri=fetch_address)).response_raising
             links = link_format_from_message(response)
         except Exception as e:
-            logging.error("The request triggered for simple registration of %s failed.", con)
+            logging.error("The request triggered for simple registration of %s failed.", base)
             logging.exception(e)
             return
 

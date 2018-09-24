@@ -40,7 +40,7 @@ class Registerer:
     The registration does not observe the resource list of the registered host
     (yet?), so registrations are only kept alive and never updated."""
 
-    def __init__(self, context, rd=None, lt=86400, name_from_hostname=None,
+    def __init__(self, context, rd=None, lt=90000, name_from_hostname=None,
             link_source=None, registration_parameters={},
             loggername='coap-rd-registerer'):
         """Use a ``context`` to create a registration at the Resource
@@ -54,7 +54,7 @@ class Registerer:
         Tool.
 
         Parameters to pass with the registration can be given in
-        ``registration_parameters``. ``lt`` and ``con`` default to the
+        ``registration_parameters``. ``lt`` and ``base`` default to the
         constructor arguments ``lt`` and ``link_source``, respectively.
 
         If ``name_from_hostname`` is True (or by default if ``ep`` is not
@@ -195,10 +195,10 @@ class Registerer:
     async def _register(self):
         initial_message = self._link_data.copy(code=POST, uri=self._directory_resource)
         base_query = {}
-        if self._lt != 86400:
+        if self._lt != 90000:
             base_query['lt'] = str(self._lt)
         if self._link_source is not None:
-            base_query['con'] = self._link_source
+            base_query['base'] = self._link_source
         query = dict(base_query, **self._registration_parameters)
 
         initial_message.opt.uri_query = initial_message.opt.uri_query + \
