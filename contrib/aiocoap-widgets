@@ -54,24 +54,6 @@ class ArgumentParser(argparse.ArgumentParser):
         self.add_argument('--register-at', help="Resource directory to register at", metavar='RD')
         self.add_argument('--register-as', help="Endpoint name (or name.domain) to register as at the resource directory (Default: %(default)s)", default='widget', metavar='EP')
 
-async def registration_loop(ctx, rd, ep, domain=None):
-    # for now: simple registration
-    last_success = None
-
-    while True:
-        req = Message(code=POST, uri='coap://' + rd + '/.well-known/core?lt=600&ep=' + ep + ('&d=' + domain if domain else ''))
-        response = await ctx.request(req).response_nonraising
-        if response.code.is_successful() != last_success:
-            if response.code.is_successful():
-                print("Now registered at", rd)
-            else:
-                print("Registration at %s failed (%s %s)"%(rd, response.code, response.payload))
-            last_success = response.code.is_successful()
-
-        await asyncio.sleep(600)
-
-    # FIXME arrange for the task to be cancelled & deregister (yes this probably means proper registration and not simple)
-
 async def start_context(site, args):
     if args.anyport:
         ctx = await Context.create_client_context()
@@ -81,7 +63,7 @@ async def start_context(site, args):
 
     if args.register_at:
         ep, _, d = args.register_as.partition('.')
-        registerer = Registerer(ctx, ep, args.register_at, d, lt=120)
+        registerer = Registerer(ctx, args.register_at, lt=120, registration_parameters=dict(ep=ep, d=d))
 
         async def shutdown():
             await registerer.shutdown()
