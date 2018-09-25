@@ -45,6 +45,77 @@ class TestCommandlineClient(WithTestServer):
         empty_json = subprocess.check_output(AIOCOAP_CLIENT + ['coap://' + self.servernetloc + '/empty', '--accept', 'application/json', '--quiet'])
         self.assertEqual(empty_json, b'{}')
 
+        verbose = subprocess.check_output(AIOCOAP_CLIENT + [
+            'coap://' + self.servernetloc + '/empty', '-v'],
+            stderr=subprocess.STDOUT)
+        # It'd not be actually wrong to have info level messages in here, but
+        # they should at least not start appearing unnoticed.
+        self.assertEqual(verbose, b'',
+                "Unexpected info-level messages in simple request")
+
+        debug = subprocess.check_output(AIOCOAP_CLIENT + [
+            'coap://' + self.servernetloc + '/empty', '-v', '-v'],
+            stderr=subprocess.STDOUT)
+        self.assertTrue(b'DEBUG:coap:Incoming message' in debug,
+                "Not even some (or unexpected) output in aiocoap-client -vv")
+
+        quiet = subprocess.check_output(AIOCOAP_CLIENT + [
+            'coap://' + self.servernetloc + '/empty', '--quiet'],
+            stderr=subprocess.STDOUT)
+        self.assertEqual(quiet, b'')
+
+        explicit_code = subprocess.check_output(AIOCOAP_CLIENT + [
+            'coap://' + self.servernetloc + '/empty', '-m1'])
+        self.assertEqual(explicit_code, b'')
+
+    @no_warnings
+    @asynctest
+    async def test_post(self):
+        await self.loop.run_in_executor(None, self._test_post)
+
+    def _test_post(self):
+        replace_foo = subprocess.check_output(AIOCOAP_CLIENT + [
+            'coap://' + self.servernetloc + '/replacing/one',
+            '-m', 'post', '--payload', 'f00'
+            ])
+        self.assertEqual(replace_foo, b'fOO')
+
+        replace_file = subprocess.check_output(AIOCOAP_CLIENT + [
+            'coap://' + self.servernetloc + '/replacing/one',
+            '-m', 'post', '--payload', '@/dev/null'
+            ])
+        self.assertEqual(replace_file, b'')
+
+    @no_warnings
+    @asynctest
+    async def test_erroneous(self):
+        await self.loop.run_in_executor(None, self._test_erroneous)
+
+    def _test_erroneous(self):
+        with self.assertRaises(subprocess.CalledProcessError):
+            # non-existant method
+            subprocess.check_output(AIOCOAP_CLIENT + [
+                'coap://' + self.servernetloc + '/empty', '-mSPAM'],
+                stderr=subprocess.STDOUT)
+
+        with self.assertRaises(subprocess.CalledProcessError):
+            # not a URI
+            subprocess.check_output(AIOCOAP_CLIENT + [
+                'coap::://' + self.servernetloc + '/empty'],
+                stderr=subprocess.STDOUT)
+
+        with self.assertRaises(subprocess.CalledProcessError):
+            # relative URI
+            subprocess.check_output(AIOCOAP_CLIENT + [
+                '/empty'],
+                stderr=subprocess.STDOUT)
+
+        with self.assertRaises(subprocess.CalledProcessError):
+            # non-existant mime type
+            subprocess.check_output(AIOCOAP_CLIENT + [
+                'coap://' + self.servernetloc + '/empty', '--accept', 'spam/eggs'],
+                stderr=subprocess.STDOUT)
+
 class TestCommandlineRD(unittest.TestCase):
     @unittest.skipIf(linkheader_modules, "Modules missing for running RD tests: %s"%(linkheader_modules,))
     def test_help(self):
