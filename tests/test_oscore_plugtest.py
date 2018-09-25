@@ -173,7 +173,7 @@ for x in range(0, 17):
     if x == 16:
         # That test can not succeed against a regular plugtest server
         test = unittest.expectedFailure(test)
-    if x == 7 and sys.version_info < (3, 6):
+    if x == 7 and sys.version_info < (3, 6) and 'PyPy' not in sys.version:
         # That test fails because there is no proper observation cancellation
         # aroun yet, see https://github.com/chrysn/aiocoap/issues/104
         # Funnily, this only bites in Python 3.5; 3.6+'s asyncio seems to be
