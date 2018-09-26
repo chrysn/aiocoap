@@ -30,7 +30,7 @@ class MultiRepresentationResource(aiocoap.resource.Resource):
         else:
             return aiocoap.Message(code=aiocoap.NOT_ACCEPTABLE)
 
-        return aiocoap.Message(code=aiocoap.CONTENT, payload=response)
+        return aiocoap.Message(payload=response)
 
 class SlowResource(aiocoap.resource.Resource):
     async def render_get(self, request):
@@ -41,7 +41,7 @@ class BigResource(aiocoap.resource.Resource):
     async def render_get(self, request):
         # 10kb
         payload = b"0123456789----------" * 512
-        response = aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+        response = aiocoap.Message(payload=payload)
 
         aiocoap.resource.hashing_etag(request, response)
         return response
@@ -51,15 +51,15 @@ class SlowBigResource(aiocoap.resource.Resource):
         await asyncio.sleep(0.2)
         # 1.6kb
         payload = b"0123456789----------" * 80
-        return aiocoap.Message(code=aiocoap.CONTENT, payload=payload)
+        return aiocoap.Message(payload=payload)
 
 class ReplacingResource(aiocoap.resource.Resource):
     async def render_get(self, request):
-        return aiocoap.Message(code=aiocoap.CONTENT, payload=self.value)
+        return aiocoap.Message(payload=self.value)
 
     async def render_put(self, request):
         self.value = request.payload.replace(b'0', b'O')
-        return aiocoap.Message(code=aiocoap.CHANGED)
+        return aiocoap.Message()
 
     async def render_post(self, request):
         response = request.payload.replace(b'0', b'O')
