@@ -41,8 +41,9 @@ def hashing_etag(request, response):
 
     Run this on your request and response before returning from render_get; it is
     safe to use this function with all kinds of responses, it will only act on
-    2.05 Content. The hash used are the first 8 bytes of the sha1 sum of the
-    payload.
+    2.05 Content messages (and those with no code set, which defaults to that
+    for GET requests). The hash used are the first 8 bytes of the sha1 sum of
+    the payload.
 
     Note that this method is not ideal from a server performance point of view
     (a file server, for example, might want to hash only the stat() result of a
@@ -60,7 +61,7 @@ def hashing_etag(request, response):
     <aiocoap.Message at ... 2.03 Valid ... 1 option(s)>
     """
 
-    if response.code != numbers.codes.CONTENT:
+    if response.code != numbers.codes.CONTENT and response.code is not None:
         return
 
     response.opt.etag = hashlib.sha1(response.payload).digest()[:8]
@@ -120,8 +121,8 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
         if response.code is None:
             if request.code in (numbers.codes.GET, numbers.codes.FETCH):
                 response_default = numbers.codes.CONTENT
-            elif request.code == numbers.code.DELETE:
-                response_default = numbers.code.DELETED
+            elif request.code == numbers.codes.DELETE:
+                response_default = numbers.codes.DELETED
             else:
                 response_default = numbers.codes.CHANGED
             response.code = response_default
