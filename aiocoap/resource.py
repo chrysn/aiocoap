@@ -120,8 +120,8 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
         if response.code is None:
             if request.code in (numbers.codes.GET, numbers.codes.FETCH):
                 response_default = numbers.codes.CONTENT
-            elif request.code == numbers.code.DELETE:
-                response_default = numbers.code.DELETED
+            elif request.code == numbers.codes.DELETE:
+                response_default = numbers.codes.DELETED
             else:
                 response_default = numbers.codes.CHANGED
             response.code = response_default
