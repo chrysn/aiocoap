@@ -10,4 +10,3 @@
 
 from .peekqueue import PeekQueue
 from .pre35 import AsyncGenerator
-from .recvmsg import RecvmsgDatagramProtocol
