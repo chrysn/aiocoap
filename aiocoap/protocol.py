@@ -987,10 +987,14 @@ class ClientObservation:
         def __del__(self):
             if self._future.done():
                 try:
+                    # Fetch the result so any errors show up at least in the
+                    # finalizer output
                     self._future.result()
                 except (error.ObservationCancelled, error.NotObservable):
                     # This is the case at the end of an observation cancelled
                     # by the server.
+                    pass
+                except error.LibraryShutdown:
                     pass
 
     def register_callback(self, callback):
