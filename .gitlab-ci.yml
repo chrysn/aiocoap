@@ -15,8 +15,7 @@ test:3.6:
     # for a bug report.
     - pip3 install DTLSSocket
     - python3 -m coverage run --parallel ./setup.py test
-    # Workaround for https://github.com/chrysn/aiocoap/issues/118
-    - pip3 install 'uvloop < 0.11'
+    - pip3 install uvloop
     - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
     # Could just as well do this on the default main loop, but AFAIR uvloop
     # required occasional workarounds
