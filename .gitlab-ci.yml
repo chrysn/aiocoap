@@ -18,6 +18,12 @@ test:3.6:
     # Workaround for https://github.com/chrysn/aiocoap/issues/118
     - pip3 install 'uvloop < 0.11'
     - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
+    # Not installing python3-gi directly, as Debian's dist-modules is not in
+    # docker image's Python path
+    - apt-get update
+    - apt-get -y install libgirepository1.0-dev
+    - pip3 install pygobject gbulb
+    - AIOCOAP_TESTS_LOOP=gbulb python3 -m coverage run --parallel ./setup.py test
     - python3 -m coverage combine
     - python3 -m coverage report --include=aiocoap/\*
     - mkdir collected-coverage/3.6/ -p

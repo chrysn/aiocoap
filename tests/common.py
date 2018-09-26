@@ -17,6 +17,9 @@ if os.environ.get('AIOCOAP_TESTS_LOOP', None) == 'uvloop':
     import asyncio
     import uvloop
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+elif os.environ.get('AIOCOAP_TESTS_LOOP', None) == 'gbulb':
+    import gbulb
+    gbulb.install()
 
 if 'coverage' in sys.modules:
     PYTHON_PREFIX = [sys.executable, '-m', 'coverage', 'run', '--parallel-mode']
