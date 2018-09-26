@@ -71,10 +71,15 @@ class TestNoncoapClient(WithTestServer):
         await asyncio.sleep(0.1)
         self.mocksock.send(b'\x40\x01\x99\x99') # that's a GET /
         await asyncio.sleep(0.1)
-        with TimeoutError.after(1):
-            r1 = self.mocksock.recv(1024)
-            r2 = self.mocksock.recv(1024)
+        r1 = r2 = None
+        try:
+            with TimeoutError.after(1):
+                r1 = self.mocksock.recv(1024)
+                r2 = self.mocksock.recv(1024)
+        except TimeoutError:
+            pass
         self.assertEqual(r1, r2, "Duplicate GETs gave different responses")
+        self.assertTrue(r1 is not None, "No responses received to duplicate GET")
 
     @no_warnings
     @asynctest

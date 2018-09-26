@@ -14,8 +14,7 @@ unbound but connected socket for each communication partner) and probably not
 with multicast (it is assumed to be unsafe for multicast), which can be
 expected to work even on platforms where the :mod:`.udp6` module can not be
 made to work (Android, OSX, Windows for missing ``recvmsg`` and socket options,
-uvloop because :class:`.util.asyncio.RecvmsgSelectorDatagramTransport` is not
-implemented there).
+or any event loops that don't have an add_reader method).
 
 This transport is experimental, likely to change, and not fully tested yet
 (because the test suite is not yet ready to matrix-test the same tests with

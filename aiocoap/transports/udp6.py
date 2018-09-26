@@ -44,7 +44,7 @@ from ..numbers import constants
 from .. import error
 from .. import interfaces
 from ..numbers import COAP_PORT
-from ..util.asyncio import RecvmsgDatagramProtocol
+from ..util.asyncio.recvmsg import RecvmsgDatagramProtocol, create_recvmsg_datagram_endpoint
 from ..util import hostportjoin, hostportsplit
 from ..util import socknumbers
 
@@ -168,7 +168,9 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                 except OSError:
                     log.warning("Could not join IPv6 multicast group; possibly, there is no network connection available.")
 
-        transport, protocol = await loop.create_datagram_endpoint(lambda: cls(ctx, log=log, loop=loop), sock=sock)
+        transport, protocol = await create_recvmsg_datagram_endpoint(loop,
+                lambda: cls(ctx, log=log, loop=loop),
+                sock=sock)
 
         await protocol.ready
 

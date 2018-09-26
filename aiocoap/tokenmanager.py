@@ -21,7 +21,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
 
         self._token = random.randint(0, 65535)
         self.outgoing_requests = {}  #: Unfinished outgoing requests (identified by token and remote)
-        self.incoming_requests = {}  #: Unfinished incoming requests. ``(path-tuple, remote): Request``
+        self.incoming_requests = {}  #: Unfinished incoming requests. ``(path-tuple, remote): (Request, "run" task)``
 
         self.log = self.context.log
         self.loop = self.context.loop
@@ -37,8 +37,12 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             request.add_exception(error.LibraryShutdown())
         self.outgoing_requests = None
 
-        await self.token_interface.shutdown()
+        for request, task in self.incoming_requests.values():
+            # FIXME decide what to do with pending requests
+            # request.add_response(... RST? 5.00 Server Shutdown?
+            task.cancel()
 
+        await self.token_interface.shutdown()
 
     def kill_transactions(self, remote, exception=error.CommunicationKilled):
         """Abort all pending exchanges and observations to a given remote.
@@ -92,7 +96,9 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                 if _r == remote
                 ]
         for key in keys_for_removal:
-            self.incoming_requests.pop(key).stop_interest()
+            pr, task = self.incoming_requests.pop(key)
+            pr.stop_interest()
+            task.cancel()
 
     def process_request(self, request):
         key = (request.token, request.remote)
@@ -102,10 +108,11 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # about it, but here's a new request" or renewed interest in an
             # observation, which gets modelled as a new request at thislevel
             self.log.debug("Incoming request overrides existing request")
-            self.incoming_requests.pop(key).stop_interest()
+            pr, task = self.incoming_requests.pop(key)
+            pr.stop_interest()
+            task.cancel()
 
         pr = PlumbingRequest(request)
-        self.incoming_requests[key] = pr
 
         # FIXME: what can we pass down to the token_interface?  certainly not
         # the request, but maybe the request with a response filter applied?
@@ -130,7 +137,9 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # out by the first response, and if there was not even a
             # NoResponse, something went wrong above (and we can't tell easily
             # here).
-        self.loop.create_task(run())
+        task = self.loop.create_task(run())
+
+        self.incoming_requests[key] = (pr, task)
 
         self.context.render_to_plumbing_request(pr)
 

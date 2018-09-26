@@ -10,7 +10,7 @@ import asyncio
 import re
 import aiocoap
 import aiocoap.resource
-
+import unittest
 import logging
 
 from . import common
@@ -269,6 +269,7 @@ class TestServer(WithTestServer, WithClient):
                 self.handler
                 if x.name != 'coap-server')
 
+@unittest.skipIf(common.tcp_disabled, "TCP disabled in environment")
 class TestServerTCP(TestServer):
     # no modification in server setup necessary, as by default, all transports
     # are enabled on servers.

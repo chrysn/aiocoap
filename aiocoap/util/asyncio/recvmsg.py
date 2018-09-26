@@ -8,20 +8,68 @@
 
 from .. import socknumbers
 
-from asyncio import DatagramProtocol
-from asyncio.selector_events import _SelectorDatagramTransport, BaseSelectorEventLoop
+from asyncio import BaseProtocol
+from asyncio.transports import BaseTransport
 
-class RecvmsgDatagramProtocol(DatagramProtocol):
-    """Inheriting from this indicates that the instance expects to be called
-    back datagram_msg_received instead of datagram_received"""
+class RecvmsgDatagramProtocol(BaseProtocol):
+    """Callback interface similar to asyncio.DatagramProtocol, but dealing with
+    recvmsg data."""
 
-class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
-    def __init__(self, *args, **kwargs):
-        super(RecvmsgSelectorDatagramTransport, self).__init__(*args, **kwargs)
+    def datagram_msg_received(self, data, ancdata, flags, address):
+        """Called when some datagram is received."""
 
-        self.__sock = self.get_extra_info('socket')
+    def datagram_errqueue_received(self, data, ancdata, flags, address):
+        """Called when some data is received from the error queue"""
+
+    def error_received(self, exc):
+        """Called when a send or receive operation raises an OSError."""
+
+def _set_result_unless_cancelled(fut, result):
+    """Helper setting the result only if the future was not cancelled."""
+    if fut.cancelled():
+        return
+    fut.set_result(result)
+
+class RecvmsgSelectorDatagramTransport(BaseTransport):
+    """A simple loop-independent transport that largely mimicks
+    DatagramTransport but interfaces a RecvmsgSelectorDatagramProtocol.
+
+    This does not implement any flow control, based on the assumption that it's
+    not needed, for CoAP has its own flow control mechanisms."""
+
+    max_size = 4096  # Buffer size passed to recvmsg() -- should suffice for a full MTU package and ample ancdata
+
+    def __init__(self, loop, sock, protocol, waiter):
+        super().__init__(extra={'socket': sock})
+        self.__sock = sock
+        # Persisted outside of sock because when GC breaks a reference cycle,
+        # it can happen that the sock gets closed before this; we have to hope
+        # that no new file gets opened and registered in the meantime.
+        self.__sock_fileno = sock.fileno()
+        self._loop = loop
+        self._protocol = protocol
+
+        loop.call_soon(protocol.connection_made, self)
+        # only start reading when connection_made() has been called
+        import weakref
+        rr = lambda s=weakref.ref(self): s()._read_ready()
+        loop.call_soon(loop.add_reader, self.__sock_fileno, rr)
+        loop.call_soon(_set_result_unless_cancelled, waiter, None)
+
+    def close(self):
+        self._loop.call_soon(self._protocol.connection_lost, None)
+
         if self.__sock is None:
-            raise RuntimeError("RecvmsgSelectorDatagramTransport requires access to its underlying socket.")
+            return
+        self._loop.remove_reader(self.__sock_fileno)
+        self.__sock.close()
+        self.__sock = None
+        self._protocol = None
+        self._loop = None
+
+    def __del__(self):
+        if self.__sock is not None:
+            self.close()
 
     def _read_ready(self):
         try:
@@ -51,55 +99,40 @@ class RecvmsgSelectorDatagramTransport(_SelectorDatagramTransport):
             self._protocol.datagram_msg_received(data, ancdata, flags, addr)
 
     def sendmsg(self, data, ancdata, flags, address):
-        # copied and modified from _SelectorDatagramTransport.sendto; unused code paths asserted out
-        if not isinstance(data, (bytes, bytearray, memoryview)):
-            raise TypeError('data argument must be a bytes-like object, '
-                            'not %r' % type(data).__name__)
-        if not data:
+        try:
+            self.__sock.sendmsg((data,), ancdata, flags, address)
+            return
+        except OSError as exc:
+            self._protocol.error_received(exc)
+            return
+        except Exception as exc:
+            self._fatal_error(exc,
+                              'Fatal write error on datagram transport')
             return
 
-        assert self._address is None, "Transport setup incompatible with recvmsg changes"
-#         if self._address and addr not in (None, self._address):
-#             raise ValueError('Invalid address: must be None or %s' %
-#                              (self._address,))
-#
-#         if self._conn_lost and self._address:
-#             if self._conn_lost >= constants.LOG_THRESHOLD_FOR_CONNLOST_WRITES:
-#                 logger.warning('socket.send() raised exception.')
-#             self._conn_lost += 1
-#             return
+async def create_recvmsg_datagram_endpoint(loop, factory, sock):
+    """Create a datagram connection that uses recvmsg rather than recvfrom, and
+    a RecvmsgDatagramProtocol protocol type.
 
-        if not self._buffer:
-            # Attempt to send it right away first.
-            try:
-                self.__sock.sendmsg((data,), ancdata, flags, address)
-                return
-            except (BlockingIOError, InterruptedError):
-                self._loop.add_writer(self.__sock.fileno(), self._sendto_ready)
-            except OSError as exc:
-                self._protocol.error_received(exc)
-                return
-            except Exception as exc:
-                self._fatal_error(exc,
-                                  'Fatal write error on datagram transport')
-                return
+    This is used like the create_datagram_endpoint method of an asyncio loop,
+    but implemented in a generic way using the loop's add_reader method; thus,
+    it's not a method of the loop but an independent function.
 
-        assert not self._buffer, "Transport setup incompatible with recvmsg changes"
-#         # Ensure that what we buffer is immutable.
-#         self._buffer.append((bytes(data), ancdata, flags, addr))
-#         self._maybe_pause_protocol()
+    Due to the way it is used in aiocoap, socket is not an optional argument
+    here; it could be were this module ever split off into a standalone
+    package.
+    """
+    sock.setblocking(False)
 
-    # TODO: not modified _sendto_ready as it's not used in this application and
-    # would only be dead code -- given that we store 4-tuples instead of
-    # 2-tuples, _sendto_ready will fail anyway cleanly
+    protocol = factory()
+    waiter = loop.create_future()
+    transport = RecvmsgSelectorDatagramTransport(
+            loop, sock, protocol, waiter)
 
-# monkey patching because otherwise we'd have to create a loop subclass and
-# require this to be loaded.
+    try:
+        await waiter
+    except:
+        transport.close()
+        raise
 
-_orig_mdt = BaseSelectorEventLoop._make_datagram_transport
-def _new_mdt(self, sock, protocol, *args, **kwargs):
-    if isinstance(protocol, RecvmsgDatagramProtocol):
-        return RecvmsgSelectorDatagramTransport(self, sock, protocol, *args, **kwargs)
-    else:
-        return _orig_mdt(self, sock, protocol, *args, **kwargs)
-BaseSelectorEventLoop._make_datagram_transport = _new_mdt
+    return transport, protocol
