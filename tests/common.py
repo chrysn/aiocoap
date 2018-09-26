@@ -71,7 +71,10 @@ loopbackname_v4, loopbackname_v6, loopbackname_v46 = _find_loopbacknames()
 
 using_simple6 = 'simple6' in list(aiocoap.defaults.get_default_clienttransports())
 
+tcp_disabled = 'tcp' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'tcp is default')
+
 if __name__ == "__main__":
     print("Python prefix:", PYTHON_PREFIX)
     print("Loopback names:\n  %s (IPv4)\n  %s (IPv6),\n  %s (IPv4+IPv6)"%(loopbackname_v4, loopbackname_v6, loopbackname_v46))
     print("simple6 transport in use:", using_simple6)
+    print("TCP disabled:", tcp_disabled)

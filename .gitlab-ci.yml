@@ -18,6 +18,9 @@ test:3.6:
     # Workaround for https://github.com/chrysn/aiocoap/issues/118
     - pip3 install 'uvloop < 0.11'
     - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
+    # Could just as well do this on the default main loop, but AFAIR uvloop
+    # required occasional workarounds
+    - AIOCOAP_TESTS_LOOP=uvloop AIOCOAP_CLIENT_TRANSPORT=oscore:simple6 AIOCOAP_SERVER_TRANSPORT=oscore:simplesocketserver python3 -m coverage run --parallel ./setup.py test
     # Not installing python3-gi directly, as Debian's dist-modules is not in
     # docker image's Python path
     - apt-get update
