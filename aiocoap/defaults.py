@@ -26,19 +26,6 @@ import os
 import sys
 import asyncio
 
-def _expect_udp6_works(loop=None):
-    if loop is None:
-        loop = asyncio.get_event_loop()
-
-    # Loops not built from stdlib's asyncio have no chance of working
-    if not isinstance(loop, asyncio.base_events.BaseEventLoop):
-        return False
-    # gbulb (not trying to import it here), even though being based on asyncio,
-    # won't work either
-    if any(b.__name__ == 'GLibBaseEventLoop' for b in type(loop).__mro__):
-        return False
-    return True
-
 def get_default_clienttransports(*, loop=None):
     """Return a list of transports that should be connected when a client
     context is created.
@@ -71,10 +58,6 @@ def get_default_clienttransports(*, loop=None):
     if sys.platform != 'linux':
         # udp6 was never reported to work on anything but linux; would happily
         # add more platforms.
-        yield 'simple6'
-        return
-
-    if not _expect_udp6_works(loop):
         yield 'simple6'
         return
 
@@ -121,11 +104,6 @@ def get_default_servertransports(*, loop=None):
     if sys.platform != 'linux':
         # udp6 was never reported to work on anything but linux; would happily
         # add more platforms.
-        yield 'simple6'
-        yield 'simplesocketserver'
-        return
-
-    if not _expect_udp6_works(loop):
         yield 'simple6'
         yield 'simplesocketserver'
         return
