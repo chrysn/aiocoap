@@ -121,6 +121,8 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         self.process.close()
 
     def tearDown(self):
+        super().tearDown()
+
         self.process.terminate()
 
         out, err = self.loop.run_until_complete(self.__done)
