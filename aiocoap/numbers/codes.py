@@ -90,6 +90,22 @@ class Code(ExtensibleIntEnum):
         return self.is_response() or self in (self.POST, self.PUT, self.FETCH, self.PATCH, self.iPATCH)
 
     @property
+    def class_(self):
+        """The class of a code (distinguishing whether it's successful, a
+        request or a response error or more).
+
+        >>> Code.CONTENT
+        <Successful Response Code 69 "2.05 Content">
+        >>> Code.CONTENT.class_
+        2
+        >>> Code.BAD_GATEWAY
+        <Response Code 162 "5.02 Bad Gateway">
+        >>> Code.BAD_GATEWAY.class_
+        5
+        """
+        return self >> 5
+
+    @property
     def dotted(self):
         """The numeric value three-decimal-digits (c.dd) form"""
         return "%d.%02d"%divmod(self, 32)

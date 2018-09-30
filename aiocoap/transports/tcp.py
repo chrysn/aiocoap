@@ -297,7 +297,7 @@ class _TCPPooling:
 
     def send_message(self, message, exchange_monitor=None):
         if message.code.is_response():
-            no_response = (message.opt.no_response or 0) & (1 << (message.code >> 5) - 1) != 0
+            no_response = (message.opt.no_response or 0) & (1 << message.code.class_ - 1) != 0
             if no_response:
                 return
 

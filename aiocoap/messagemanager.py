@@ -349,7 +349,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             message.mid = None
 
         if message.code.is_response():
-            no_response = (message.opt.no_response or 0) & (1 << (message.code >> 5) - 1) != 0
+            no_response = (message.opt.no_response or 0) & (1 << message.code.class_ - 1) != 0
 
             piggyback_key = (message.remote, message.token)
             if piggyback_key in self._piggyback_opportunities:
