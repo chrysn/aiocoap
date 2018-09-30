@@ -71,11 +71,11 @@ class RGBChannel(FloatResource, PythonBacked):
         self.value = 0 # FIXME this doesn't cater for notifications
 
 class RGBRoot(SubsiteBatch):
-    @ContenttypeRendered.get_handler('text/plain', default=True)
+    @ContenttypeRendered.get_handler('text/plain;charset=utf-8', default=True)
     def __regular_get(self):
         return '#' + "".join("%02x"%int(255 * c.value) for c in self.site.channels)
 
-    @ContenttypeRendered.put_handler('text/plain', default=True)
+    @ContenttypeRendered.put_handler('text/plain;charset=utf-8', default=True)
     def render_put(self, payload):
         if len(payload) == 7 and payload[0:1] == b'#':
             values = tuple(int(payload[i:i+2].decode('ascii'), 16)/255 for i in (1, 3, 5))

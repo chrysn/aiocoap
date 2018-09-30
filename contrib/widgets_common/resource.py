@@ -162,7 +162,7 @@ class SenmlResource(ObservableContenttypeRendered):
     def __cborsenml_get(self):
         return cbor.dumps([{self.cborsenml_key: self.value}])
 
-    @ContenttypeRendered.get_handler('text/plain', default=True)
+    @ContenttypeRendered.get_handler('text/plain;charset=utf-8', default=True)
     def __textplain_get(self):
         return str(self.value)
 
@@ -180,7 +180,7 @@ class SenmlResource(ObservableContenttypeRendered):
         except (KeyError, ValueError):
             raise BadRequest()
 
-    @ContenttypeRendered.put_handler('text/plain', default=True)
+    @ContenttypeRendered.put_handler('text/plain;charset=utf-8', default=True)
     def __textplain_set(self, new):
         try:
             self.value = self.valuetype(new.decode('utf8').strip())
@@ -192,11 +192,11 @@ class BooleanResource(SenmlResource):
     cborsenml_key = 4
     valuetype = bool
 
-    @ContenttypeRendered.get_handler('text/plain', default=True)
+    @ContenttypeRendered.get_handler('text/plain;charset=utf-8', default=True)
     def __textplain_get(self):
         return "01"[self.value]
 
-    @ContenttypeRendered.put_handler('text/plain', default=True)
+    @ContenttypeRendered.put_handler('text/plain;charset=utf-8', default=True)
     def __textplain_set(self, new):
         try:
             self.value = {"0": False, "1": True}[new.decode('utf8').strip()]

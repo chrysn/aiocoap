@@ -19,13 +19,13 @@ from .fixtures import (WithLogMonitoring, no_warnings, precise_warnings,
 
 class MultiRepresentationResource(aiocoap.resource.Resource):
     async def render_get(self, request):
-        ct = request.opt.accept or aiocoap.numbers.media_types_rev['text/plain']
+        ct = request.opt.accept or aiocoap.numbers.media_types_rev['text/plain;charset=utf-8']
 
         if ct == aiocoap.numbers.media_types_rev['application/json']:
             response = b'{}'
         elif ct == aiocoap.numbers.media_types_rev['application/link-format']:
             response = b'<>'
-        elif ct == aiocoap.numbers.media_types_rev['text/plain']:
+        elif ct == aiocoap.numbers.media_types_rev['text/plain;charset=utf-8']:
             response = b''
         else:
             return aiocoap.Message(code=aiocoap.NOT_ACCEPTABLE)
