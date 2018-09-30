@@ -116,7 +116,7 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
             warnings.warn("Returning NoResponse is deprecated, please return a"
                           " regular response with a no_response option set.",
                           DeprecationWarning)
-            response = aiocoap.Message(no_response=26)
+            response = message.Message(no_response=26)
 
         if response.code is None:
             if request.code in (numbers.codes.GET, numbers.codes.FETCH):
