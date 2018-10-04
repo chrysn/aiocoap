@@ -10,12 +10,6 @@ from aiocoap import resource, numbers, interfaces
 from aiocoap import GET, PUT, POST, Message, CONTENT, CHANGED
 from aiocoap.error import BadRequest, UnsupportedContentFormat, UnallowedMethod
 
-if 'application/senml+json' not in numbers.media_types_rev:
-    numbers.media_types[65050] = 'application/senml+json'
-    numbers.media_types[65060] = 'application/senml+cbor'
-    numbers.media_types_rev['application/senml+json'] = 65050
-    numbers.media_types_rev['application/senml+cbor'] = 65060
-
 
 _ContenttypeRenderedHandler = namedtuple("_ContenttypeRenderedHandler", ("method", "accept", "contentformat", "implementation", "responseformat"))
 
