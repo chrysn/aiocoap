@@ -25,6 +25,7 @@ except ImportError:
     pass # that's normal on some platforms, and ok since it's just a usability enhancement
 
 import aiocoap
+import aiocoap.defaults
 import aiocoap.proxy.client
 
 def build_parser():
@@ -41,6 +42,28 @@ def build_parser():
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
     p.add_argument('--interactive', help="Enter interactive mode", action="store_true") # careful: picked before parsing
     p.add_argument('--credentials', help="Load credentials to use from a given file", type=Path)
+    pretty_print_modules = aiocoap.defaults.prettyprint_missing_modules()
+    if not pretty_print_modules:
+        p.add_argument('--pretty-print',
+                help="Pretty-print known content formats (default on TTYs, can be disabled with --no-...)",
+                default=sys.stdout.isatty(),
+                action='store_true'
+                )
+    else:
+        class ErrorOption(argparse.Action):
+            def __init__(self, option_strings, dest, *args, help=None, **kwarsg):
+                super().__init__(option_strings=option_strings, dest='', help=help)
+            def __call__(self, parser, *args, **kwargs):
+                parser.error("Pretty printing needs these module(s) to be installed: %s" % ",".join(pretty_print_modules))
+        p.add_argument('--pretty-print',
+                help="Pretty-print known content formats (disabled, missing modules: %s)" % ", ".join(pretty_print_modules),
+                action=ErrorOption
+                )
+    p.add_argument('--no-pretty-print',
+            dest='pretty_print',
+            help=argparse.SUPPRESS,
+            action='store_false'
+            )
     p.add_argument('url', help="CoAP address to fetch")
 
     return p
@@ -170,10 +193,12 @@ async def single_request(args, context=None):
             sys.exit(1)
 
         if response_data.code.is_successful():
-            sys.stdout.buffer.write(response_data.payload)
-            sys.stdout.buffer.flush()
-            if response_data.payload and not response_data.payload.endswith(b'\n') and not options.quiet:
-                sys.stderr.write('\n(No newline at end of message)\n')
+            if options.pretty_print:
+                from aiocoap.util.prettyprint import pretty_print
+                pretty_print(response_data, quiet=options.quiet)
+            else:
+                sys.stdout.buffer.write(response_data.payload)
+                sys.stdout.buffer.flush()
         else:
             print(response_data.code, file=sys.stderr)
             if response_data.payload:
