@@ -44,8 +44,12 @@ def pretty_print(message, quiet=False):
         except ValueError:
             pass
         else:
-            for i, link in enumerate(parsed.links):
-                print(str(link) + ("," if i + 1 != len(parsed.links) else ""))
+            prettyprinted = ",\n".join(str(l) for l in parsed.links)
+            print(pygments.highlight(
+                    prettyprinted,
+                    LinkFormatLexer(),
+                    pygments.formatters.TerminalFormatter()
+                    ))
             return
 
     elif subtype == 'cbor' or subtype.endswith('+cbor'):
@@ -105,3 +109,22 @@ def pretty_print(message, quiet=False):
             line, data = data[:16], data[16:]
             print(line.hex())
 
+
+from pygments import token, lexer
+from pygments.lexer import RegexLexer, bygroups
+class LinkFormatLexer(RegexLexer):
+    name = "LinkFormat"
+
+    tokens = {
+        'root': [
+            ('(<)([^>]*)(>)', bygroups(token.Punctuation, token.Name.Label, token.Punctuation), 'maybe-end')
+            ],
+        'maybe-end': [
+            # Whitespace is not actually allowed, but produced by the pretty printer
+            (';\\s*', token.Punctuation, 'attribute'),
+            (',\\s*', token.Punctuation, 'root'),
+            ],
+        'attribute': [
+            ('([^,;=]+)((=)("[^,;"]+"|[^,;"]+))?', bygroups(token.Name.Attribute, None, token.Operator, token.String.Symbol), 'maybe-end'),
+            ],
+        }
