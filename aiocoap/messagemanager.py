@@ -309,7 +309,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         """Feed a response back to whatever might expect it.
 
         Returns True if the response was expected (and should be ACK'd
-        depending on mtype), ans False if it was not expected (and should be
+        depending on mtype), and False if it was not expected (and should be
         RST'd)."""
 
         self.log.debug("Received Response: %r" % response)
