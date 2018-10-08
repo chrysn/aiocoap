@@ -68,6 +68,23 @@ class TestCommandlineClient(WithTestServer):
             'coap://' + self.servernetloc + '/empty', '-m1'])
         self.assertEqual(explicit_code, b'')
 
+        if not aiocoap.defaults.prettyprint_missing_modules():
+            json_formatted = subprocess.check_output(AIOCOAP_CLIENT + ['coap://' + self.servernetloc + '/answer', '--accept', 'application/json', '--pretty-print'])
+            # Concrete formatting may vary, but it should be indented
+            self.assertEqual(json_formatted, b'{\n    "answer": 42\n}')
+
+            json_colorformatted = subprocess.check_output(AIOCOAP_CLIENT + ['coap://' + self.servernetloc + '/answer', '--accept', 'application/json', '--pretty-print', '--color'])
+            self.assertTrue(b'\x1b[' in json_colorformatted, "No color indication in pretty-printed JSON")
+            self.assertTrue(b'    ' in json_colorformatted, "No indentation in color-pretty-printed JSON")
+
+            json_coloronly = subprocess.check_output(AIOCOAP_CLIENT + ['coap://' + self.servernetloc + '/answer', '--accept', 'application/json', '--color'])
+            self.assertTrue(b'\x1b[' in json_coloronly, "No color indication in color-printed JSON")
+            self.assertTrue(b'    ' not in json_coloronly, "Indentation in color-printed JSON")
+
+            cbor_formatted = subprocess.check_output(AIOCOAP_CLIENT + ['coap://' + self.servernetloc + '/answer', '--accept', 'application/cbor', '--pretty-print'])
+            # Concrete formatting may vary, as it depends on Python repr
+            self.assertEqual(cbor_formatted, b"{'answer': 42}")
+
     @no_warnings
     @asynctest
     async def test_post(self):
