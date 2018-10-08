@@ -108,15 +108,18 @@ class Registerer:
             # It seems to be a sane assumption that the best thing to do is to
             # assume we're on a big host and multicast is cheap here.
             self._directory_resource = await self._discovery_directory_uri('coap://[ff05::fd]]', blacklist=blacklist)
-
-        components = urlparse(self._initial_rd)
-        if components.path:
-            if self._initial_rd in blacklist:
-                raise self._UnrecoverableError("Explicitly configured RD was blacklisted")
-            else:
-                self._directory_resource = self._initial_rd
         else:
-            self._directory_resource = await self._discovery_directory_uri(self._initial_rd, blacklist=blacklist)
+            components = urlparse(self._initial_rd)
+            if not components.scheme or not components.netloc:
+                raise ValueError("Explicit RD URIs need to contain scheme and path")
+
+            if components.path:
+                if self._initial_rd in blacklist:
+                    raise self._UnrecoverableError("Explicitly configured RD was blacklisted")
+                else:
+                    self._directory_resource = self._initial_rd
+            else:
+                self._directory_resource = await self._discovery_directory_uri(self._initial_rd, blacklist=blacklist)
 
     async def _discovery_directory_uri(self, host, blacklist=set()):
         lookup_uri = urljoin(host,

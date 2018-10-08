@@ -78,7 +78,7 @@ class WithAssertNofaillines(unittest.TestCase):
         errorlines = (l for l in lines if 'fail'in l.lower() or 'warning' in l.lower() or 'error' in l.lower())
         self.assertEqual([], list(errorlines), message)
 
-@unittest.skipIf(aiocoap.defaults.oscore_missing_modules(), "Mdules missing for running OSCORE tests: %s"%(aiocoap.defaults.oscore_missing_modules(),))
+@unittest.skipIf(aiocoap.defaults.oscore_missing_modules(), "Module missing for running OSCORE tests: %s"%(aiocoap.defaults.oscore_missing_modules(),))
 class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
     def setUp(self):
         super(WithPlugtestServer, self).setUp()

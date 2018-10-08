@@ -225,11 +225,11 @@ class WKCResource(Resource):
                 matchexp = lambda x: x == v
 
             if k in ('rt', 'if'):
-                filters.append(lambda link: any(matchexp(part) for part in (" ".join(getattr(link, k))).split(" ")))
+                filters.append(lambda link: any(matchexp(part) for part in (" ".join(getattr(link, k, ()))).split(" ")))
             elif k in ('href',): # x.href is single valued
                 filters.append(lambda link: matchexp(getattr(link, k)))
             else:
-                filters.append(lambda link: any(matchexp(part) for part in getattr(link, k)))
+                filters.append(lambda link: any(matchexp(part) for part in getattr(link, k, ())))
 
         while filters:
             links.links = filter(filters.pop(), links.links)
@@ -237,12 +237,13 @@ class WKCResource(Resource):
 
         response = link_format_to_message(request, links)
 
-        if not links.links and request.remote.is_multicast:
-            if request.opt.no_response is not None:
+        if request.opt.uri_query and not links.links and \
+                request.remote.is_multicast_locally:
+            if request.opt.no_response is None:
                 # If the filter does not match, multicast requests should not
                 # be responded to -- that's equivalent to a "no_response on
                 # 2.xx" option.
-                response.opt.no_response = 0x20
+                response.opt.no_response = 0x02
 
         return response
 

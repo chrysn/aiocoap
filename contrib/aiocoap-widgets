@@ -51,7 +51,7 @@ class ArgumentParser(argparse.ArgumentParser):
         super().__init__(description=__doc__.split("\n")[0])
 
         self.add_argument('--anyport', help="Bind to a non-default port (useful for multiple instances on one computer, and in connection with --register-at)", action='store_true')
-        self.add_argument('--register-at', help="Resource directory to register at", metavar='RD')
+        self.add_argument('--register', help="Resource directory to register at (uses multicast if not specified)", metavar='RD', nargs='?', action='append')
         self.add_argument('--register-as', help="Endpoint name (or name.domain) to register as at the resource directory (Default: %(default)s)", default='widget', metavar='EP')
 
 async def start_context(site, args):
@@ -61,9 +61,9 @@ async def start_context(site, args):
     else:
         ctx = await Context.create_server_context(site)
 
-    if args.register_at:
+    if args.register:
         ep, _, d = args.register_as.partition('.')
-        registerer = Registerer(ctx, args.register_at, lt=120, registration_parameters=dict(ep=ep, d=d))
+        registerer = Registerer(ctx, args.register[0], lt=120, registration_parameters=dict(ep=ep, d=d))
 
         async def shutdown():
             await registerer.shutdown()
