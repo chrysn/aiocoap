@@ -73,20 +73,28 @@ def configure_logging(verbosity):
     elif verbosity >= 2:
         logging.getLogger('coap').setLevel(logging.DEBUG)
 
+def colored(text, options, *args, **kwargs):
+    """Apply termcolor.colored with the given args if options.color is set"""
+    if not options.color:
+        return text
+
+    import termcolor
+    return termcolor.colored(text, *args, **kwargs)
+
 def incoming_observation(options, response):
     if options.observe_exec:
         p = subprocess.Popen(options.observe_exec, shell=True, stdin=subprocess.PIPE)
         # FIXME this blocks
         p.communicate(response.payload)
     else:
-        sys.stdout.buffer.write(b'---\n')
+        sys.stdout.write(colored('---', options, 'grey', attrs=['bold']) + '\n')
         if response.code.is_successful():
-            sys.stdout.buffer.write(response.payload + (b'\n' if not response.payload.endswith(b'\n') else b''))
-            sys.stdout.buffer.flush()
+            present(response, options, file=sys.stderr)
         else:
-            print(response.code, file=sys.stderr)
+            sys.stdout.flush()
+            print(colored(response.code, options, 'red'), file=sys.stderr)
             if response.payload:
-                print(response.payload.decode('utf-8'), file=sys.stderr)
+                present(response, options, file=sys.stderr)
 
 def apply_credentials(context, credentials, errfn):
     if credentials.suffix == '.json':
@@ -107,17 +115,13 @@ def present(message, options, file=sys.stdout):
             'application/octet-stream')
     if options.pretty_print:
         from aiocoap.util.prettyprint import pretty_print
-        import termcolor
         prettyprinted = pretty_print(message)
         if prettyprinted is not None:
             (infos, mime, payload) = prettyprinted
             if not options.quiet:
                 for i in infos:
-                    if options.color:
-                        print(termcolor.colored(i, 'white', attrs=['dark']),
-                                file=sys.stderr)
-                    else:
-                        print(i, file=sys.stderr)
+                    print(colored(i, options, 'grey', attrs=['bold']),
+                            file=sys.stderr)
 
     color = options.color
     if color:
@@ -139,15 +143,15 @@ def present(message, options, file=sys.stdout):
     if color:
         from pygments.formatters import TerminalFormatter
         from pygments import highlight
-        print(highlight(
+        highlit = highlight(
             payload,
             lexer,
             TerminalFormatter(),
-            ),
-            file=file)
+            )
+        # The TerminalFormatter already adds an end-of-line character, not
+        # trying to add one for any missing trailing newlines.
+        print(highlit, file=file, end="")
         file.flush()
-        # Not doing anything about trailing newlines: The TerminalFormatter
-        # already added some.
     else:
         if payload is None:
             file.buffer.write(message.payload)
@@ -260,7 +264,7 @@ async def single_request(args, context=None):
         if response_data.code.is_successful():
             present(response_data, options)
         else:
-            print(response_data.code, file=sys.stderr)
+            print(colored(response_data.code, options, 'red'), file=sys.stderr)
             present(response_data, options, file=sys.stderr)
             sys.exit(1)
 
