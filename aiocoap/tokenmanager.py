@@ -219,7 +219,14 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             request.once_on_message(send_canceller)
             request.on_interest_end(send_canceller)
 
-        key = (msg.token, msg.remote)
+        # A request sent over the multicast interface will only return a single
+        # response and otherwise behave quite like an anycast request (which is
+        # probably intended).
+        if msg.remote.is_multicast:
+            self.log.warning("Sending request to multicast via unicast request method")
+            key = (msg.token, None)
+        else:
+            key = (msg.token, msg.remote)
         self.outgoing_requests[key] = request
         request.on_interest_end(functools.partial(self.outgoing_requests.pop, key, None))
 
