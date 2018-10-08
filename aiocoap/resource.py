@@ -225,11 +225,11 @@ class WKCResource(Resource):
                 matchexp = lambda x: x == v
 
             if k in ('rt', 'if'):
-                filters.append(lambda link: any(matchexp(part) for part in (" ".join(getattr(link, k))).split(" ")))
+                filters.append(lambda link: any(matchexp(part) for part in (" ".join(getattr(link, k, ()))).split(" ")))
             elif k in ('href',): # x.href is single valued
                 filters.append(lambda link: matchexp(getattr(link, k)))
             else:
-                filters.append(lambda link: any(matchexp(part) for part in getattr(link, k)))
+                filters.append(lambda link: any(matchexp(part) for part in getattr(link, k, ())))
 
         while filters:
             links.links = filter(filters.pop(), links.links)
