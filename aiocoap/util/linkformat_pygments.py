@@ -25,7 +25,7 @@ class LinkFormatLexer(RegexLexer):
             (',\\s*', token.Punctuation, 'root'),
             ],
         'attribute': [
-            ('([^,;=]+)((=)("[^,;"]+"|[^,;"]+))?', bygroups(token.Name.Attribute, None, token.Operator, token.String.Symbol), 'maybe-end'),
+            ('([^,;=]+)((=)("[^,;"]*"|[^,;"]+))?', bygroups(token.Name.Attribute, None, token.Operator, token.String.Symbol), 'maybe-end'),
             ],
         }
 
