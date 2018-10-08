@@ -101,7 +101,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                 self.log.info("Response not recognized - sending RST.")
                 rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload='')
                 rst.remote = message.remote
-                self.send_message(rst)
+                self._send_initially(rst)
         else:
             self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it."%(message.code, message.mtype, message.remote))
 
