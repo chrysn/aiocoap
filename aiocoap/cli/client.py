@@ -92,7 +92,7 @@ def incoming_observation(options, response):
             present(response, options, file=sys.stderr)
         else:
             sys.stdout.flush()
-            print(response.code, file=sys.stderr)
+            print(colored(response.code, options, 'red'), file=sys.stderr)
             if response.payload:
                 present(response, options, file=sys.stderr)
 
@@ -264,7 +264,7 @@ async def single_request(args, context=None):
         if response_data.code.is_successful():
             present(response_data, options)
         else:
-            print(response_data.code, file=sys.stderr)
+            print(colored(response_data.code, options, 'red'), file=sys.stderr)
             present(response_data, options, file=sys.stderr)
             sys.exit(1)
 
