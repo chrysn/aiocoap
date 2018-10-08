@@ -371,14 +371,18 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
 
             message.opt.no_response = None
 
-        # FIXME: on responses, this should take the request into consideration
-        # (cf. RFC7252 Section 5.2.3, answer to NON SHOULD be NON)
         if message.mtype is None:
             if self._active_exchanges is None:
                 # during shutdown, this is all we can do
                 message.mtype = NON
             else:
-                message.mtype = CON
+                if message.remote.is_multicast:
+                    message.mtype = NON
+                else:
+                    # FIXME: on responses, this should take the request into
+                    # consideration (cf. RFC7252 Section 5.2.3, answer to NON
+                    # SHOULD be NON)
+                    message.mtype = CON
         else:
             if self._active_exchanges is None:
                 self.log.warning("Forcing message to be sent as NON even though specified because transport is shutting down")
