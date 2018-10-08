@@ -143,15 +143,15 @@ def present(message, options, file=sys.stdout):
     if color:
         from pygments.formatters import TerminalFormatter
         from pygments import highlight
-        print(highlight(
+        highlit = highlight(
             payload,
             lexer,
             TerminalFormatter(),
-            ),
-            file=file)
+            )
+        # The TerminalFormatter already adds an end-of-line character, not
+        # trying to add one for any missing trailing newlines.
+        print(highlit, file=file, end="")
         file.flush()
-        # Not doing anything about trailing newlines: The TerminalFormatter
-        # already added some.
     else:
         if payload is None:
             file.buffer.write(message.payload)
