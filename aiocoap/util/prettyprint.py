@@ -11,24 +11,50 @@
 import json
 import sys
 import pprint
+import re
 
-import termcolor
 import cbor
 import pygments, pygments.lexers, pygments.formatters
 
 from aiocoap.numbers import media_types
 from aiocoap.util import linkformat
 
-def _info(message):
-    """Write a colorful message to stderr"""
+from aiocoap.util.linkformat_pygments import _register
 
-    print(termcolor.colored(message, 'white', attrs=['dark']), file=sys.stderr)
+_register()
 
-def pretty_print(message, quiet=False):
-    if quiet:
-        info = lambda: ()
-    else:
-        info = _info
+MEDIATYPE_HEXDUMP = 'text/vnd.aiocoap.hexdump'
+
+def lexer_for_mime(mime):
+    """A wrapper around pygments.lexers.get_lexer_for_mimetype that takes
+    subtypes into consideration and catches the custom hexdump mime type."""
+
+    if mime == MEDIATYPE_HEXDUMP:
+        return pygments.lexers.HexdumpLexer()
+
+    if mime == 'text/plain;charset=utf8':
+        # We have fall-throughs in place anwyay, no need to go through a no-op
+        # TextLexer
+        raise pygments.util.ClassNotFound
+
+    try:
+        return pygments.lexers.get_lexer_for_mimetype(mime)
+    except pygments.util.ClassNotFound:
+        mime = re.sub('^([^/]+)/.*\\+([^;]+)(;.*)?$',
+                lambda args: args[1] + '/' + args[2], mime)
+        return pygments.lexers.get_lexer_for_mimetype(mime)
+
+def pretty_print(message):
+    """Given a CoAP message, reshape its payload into something human-readable.
+    The return value is a triple (infos, mime, text) where text represents the
+    payload, mime is a type that could be used to syntax-highlight the text
+    (not necessarily related to the original mime type, eg. a report of some
+    binary data that's shaped like Markdown could use a markdown mime type),
+    and some line of infos that give additional data (like the reason for a hex
+    dump or the original mime type).
+    """
+    infos = []
+    info = lambda m: infos.append(m)
 
     cf = message.opt.content_format
     mime_type = media_types.get(cf, "type %s" % cf)
@@ -44,31 +70,23 @@ def pretty_print(message, quiet=False):
         except ValueError:
             pass
         else:
+            info("application/link-format content was re-formatted")
             prettyprinted = ",\n".join(str(l) for l in parsed.links)
-            print(pygments.highlight(
-                    prettyprinted,
-                    LinkFormatLexer(),
-                    pygments.formatters.TerminalFormatter()
-                    ))
-            return
+            return (infos, 'application/link-format', prettyprinted)
 
     elif subtype == 'cbor' or subtype.endswith('+cbor'):
         try:
             parsed = cbor.loads(message.payload)
         except ValueError:
-            show_hex = "No CBOR library available"
+            show_hex = "CBOR value is invalid"
         else:
+            info("CBOR message shown in naïve Python decoding")
             # Formatting it via Python b/c that's reliably available (as
             # opposed to JSON which might not round-trip well). The repr for
             # tags might still not be parsable, but I think chances of good
             # highlighting are best this way
             formatted = pprint.pformat(parsed)
-            print(pygments.highlight(
-                    formatted,
-                    pygments.lexers.PythonLexer(),
-                    pygments.formatters.TerminalFormatter()
-                    ))
-            return
+            return (infos, 'text/x-python3', formatted)
 
     elif subtype == 'json' or subtype.endswith('+json'):
         try:
@@ -76,55 +94,38 @@ def pretty_print(message, quiet=False):
         except ValueError:
             pass
         else:
-            info("JSON re-formated and highlighted")
+            info("JSON re-formated and indented")
             formatted = json.dumps(parsed, indent=4)
-
-            print(pygments.highlight(
-                    formatted,
-                    pygments.lexers.JsonLexer(),
-                    pygments.formatters.TerminalFormatter()
-                    ))
-            return
+            return (infos, 'application/json', formatted)
 
     # That's about the formats we do for now.
 
-    try:
-        text = message.payload.decode('utf8')
-    except UnicodeDecodeError:
-        show_hex = "Message can not be parsed as UTF-8"
-    else:
-        sys.stdout.write(text)
-        sys.stdout.flush()
-        if text and not text.endswith("\n") and not quiet:
-            info("\n(No newline at end of message)")
+    if show_hex is None:
+        try:
+            text = message.payload.decode('utf8')
+        except UnicodeDecodeError:
+            show_hex = "Message can not be parsed as UTF-8"
+        else:
+            return (infos, 'text/plain;charset=utf8', text)
 
-    if show_hex is not None:
-        info("Showing hex dump of %s payload: %s" % (
-            mime_type if cf is not None else "untyped",
-            show_hex))
-        data = message.payload
-        while data:
-            # Not the most efficient hex dumper, but we won't stream video over
-            # this anyway
-            line, data = data[:16], data[16:]
-            print(line.hex())
+    info("Showing hex dump of %s payload%s" % (
+        mime_type if cf is not None else "untyped",
+        ": " + show_hex if show_hex is not None else ""))
+    data = message.payload
+    # Not the most efficient hex dumper, but we won't stream video over
+    # this anyway
+    formatted = []
+    offset = 0
+    while data:
+        line, data = data[:16], data[16:]
 
+        formatted.append("%08x  " % offset + \
+                " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8)) + "  " + \
+                " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8, 16)) + "  |" + \
+                "".join(chr(x) if 32 <= x <= 127 else '.' for x in line) + \
+                "|\n")
 
-from pygments import token, lexer
-from pygments.lexer import RegexLexer, bygroups
-class LinkFormatLexer(RegexLexer):
-    name = "LinkFormat"
-
-    tokens = {
-        'root': [
-            ('(<)([^>]*)(>)', bygroups(token.Punctuation, token.Name.Label, token.Punctuation), 'maybe-end')
-            ],
-        'maybe-end': [
-            # Whitespace is not actually allowed, but produced by the pretty printer
-            (';\\s*', token.Punctuation, 'attribute'),
-            (',\\s*', token.Punctuation, 'root'),
-            ],
-        'attribute': [
-            ('([^,;=]+)((=)("[^,;"]+"|[^,;"]+))?', bygroups(token.Name.Attribute, None, token.Operator, token.String.Symbol), 'maybe-end'),
-            ],
-        }
+        offset += len(line)
+    if offset % 16 != 0:
+        formatted.append("%08x\n" % offset)
+    return (infos, MEDIATYPE_HEXDUMP, "".join(formatted))
