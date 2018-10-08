@@ -148,5 +148,27 @@ def linkheader_missing_modules():
     try:
         import link_header # noqa: F401
     except ImportError:
-        missing.append('link_header')
+        missing.append('LinkHeader')
+    return missing
+
+def prettyprint_missing_modules():
+    """Return a list of modules that are missing in order to use pretty
+    printing (ie. full aiocoap-client)"""
+    missing = []
+    try:
+        import link_header # noqa: F401
+    except ImportError:
+        missing.append('LinkHeader')
+    try:
+        import cbor
+    except ImportError:
+        missing.append('cbor')
+    try:
+        import termcolor
+    except ImportError:
+        missing.append('termcolor')
+    try:
+        import pygments
+    except ImportError:
+        missing.append('pygments')
     return missing

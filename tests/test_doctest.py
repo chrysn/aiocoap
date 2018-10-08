@@ -20,5 +20,7 @@ def load_tests(loader, tests, ignore):
                 continue
             if 'resourcedirectory' in p or p in ('aiocoap/cli/rd.py', 'aiocoap/util/linkformat.py') and aiocoap.defaults.linkheader_missing_modules():
                 continue
+            if p in ('aiocoap/util/prettyprint.py', 'aiocoap/util/linkformat_pygments.py') and aiocoap.defaults.prettyprint_missing_modules():
+                continue
             tests.addTests(doctest.DocTestSuite(p[:-3].replace('/', '.')))
     return tests

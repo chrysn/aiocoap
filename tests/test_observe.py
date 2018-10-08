@@ -84,7 +84,9 @@ class ObserveTestingSite(aiocoap.resource.Site):
     def __init__(self):
         super(ObserveTestingSite, self).__init__()
 
-        self.add_resource(self.prefix + ('unobservable',), MultiRepresentationResource())
+        self.add_resource(self.prefix + ('unobservable',), MultiRepresentationResource({
+            'text/plain;charset=utf-8': b'',
+            }))
         self.add_resource(self.prefix + ('count',), ObservableCounter())
         self.add_resource(self.prefix + ('echo',), ObservableReplacingResource())
         self.add_resource(self.prefix + ('notreally',), ObserveLateUnbloomer())

@@ -18,19 +18,19 @@ from .fixtures import (WithLogMonitoring, no_warnings, precise_warnings,
     WithAsyncLoop, Destructing, CLEANUPTIME, asynctest)
 
 class MultiRepresentationResource(aiocoap.resource.Resource):
-    async def render_get(self, request):
-        ct = request.opt.accept or aiocoap.numbers.media_types_rev['text/plain;charset=utf-8']
+    def __init__(self, representations):
+        self._representations = representations
+        super().__init__()
 
-        if ct == aiocoap.numbers.media_types_rev['application/json']:
-            response = b'{}'
-        elif ct == aiocoap.numbers.media_types_rev['application/link-format']:
-            response = b'<>'
-        elif ct == aiocoap.numbers.media_types_rev['text/plain;charset=utf-8']:
-            response = b''
+    async def render_get(self, request):
+        m = aiocoap.numbers.media_types.get(request.opt.accept or 0, None)
+
+        if m in self._representations:
+            response = self._representations[m]
         else:
             return aiocoap.Message(code=aiocoap.NOT_ACCEPTABLE)
 
-        return aiocoap.Message(payload=response)
+        return aiocoap.Message(payload=response, content_format=request.opt.accept or 0)
 
 class SlowResource(aiocoap.resource.Resource):
     async def render_get(self, request):
@@ -76,7 +76,17 @@ class TestingSite(aiocoap.resource.Site):
         # Not part of the test suite, but handy when running standalone
         self.add_resource(('.well-known', 'core'), aiocoap.resource.WKCResource(self.get_resources_as_linkheader))
 
-        self.add_resource(('empty',), MultiRepresentationResource())
+        self.add_resource(('empty',), MultiRepresentationResource({
+            'application/json': b'{}',
+            'application/link-format': b'<>',
+            'text/plain;charset=utf-8': b'',
+            }))
+        self.add_resource(('answer',), MultiRepresentationResource({
+            'application/json': b'{"answer": 42}',
+            'application/cbor': b'\xa1\x66\x61\x6e\x73\x77\x65\x72\x18\x2a',
+            'application/link-format': b'<data:text/plain;42>;rel="answer";anchor="https://en.wikipedia.org/wiki/Phrases_from_The_Hitchhiker%27s_Guide_to_the_Galaxy#Answer_to_the_Ultimate_Question_of_Life,_the_Universe,_and_Everything_(42)"',
+            'text/plain;charset=utf-8': b'The answer to life, the universe, and everything is 42.',
+            }))
         self.add_resource(('slow',), SlowResource())
         self.add_resource(('big',), BigResource())
         self.add_resource(('slowbig',), SlowBigResource())
