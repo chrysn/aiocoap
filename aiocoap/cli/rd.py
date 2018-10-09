@@ -406,13 +406,13 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
                 matches = lambda x: x == search_value
 
             if search_key in ('if', 'rt'):
-                candidates = ((e, c) for (e, c) in candidates if any(matches(x) for x in getattr(c, search_key, '').split()))
+                candidates = ((e, c) for (e, c) in candidates if any(matches(x) for x in " ".join(getattr(c, search_key, ())).split()))
                 continue
 
             if search_key == 'href':
                 candidates = ((e, c) for (e, c) in candidates if
-                        matches(c.href) or
-                        matches(e.href)
+                        matches(urljoin(e.base, c.href)) or
+                        matches(e.href) # FIXME: actually resolved e, but so far we've avoided knowing our own
                         )
                 continue
 
