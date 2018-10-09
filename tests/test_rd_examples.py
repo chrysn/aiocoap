@@ -50,7 +50,8 @@ class TestDiscovery(WithResourceDirectory, WithClient):
 
         self.assertEqual(response.code, aiocoap.CONTENT, "RD discovery did not give content")
         links = link_header.parse(response.payload.decode('utf8'))
-        for rt in ('core.rd', 'core.rd-lookup-ep', 'core.rd-lookup-res', 'core.rd-lookup-gp', 'core.rd-group'):
+        # Not checking for presence of group resources: not implemented here
+        for rt in ('core.rd', 'core.rd-lookup-ep', 'core.rd-lookup-res'):
             self.assertEqual(len([x for x in links.links if x.rt == [rt]]), 1, "Not exactly one entry of rt=%s found"%rt)
 
     async def _get_endpoint(self, rt):

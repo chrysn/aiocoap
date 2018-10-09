@@ -105,7 +105,7 @@ class CommonRD:
                 if 'd' in registration_parameters or 'ep' in registration_parameters:
                     raise error.BadRequest("Parameters 'd' and 'ep' can not be updated")
 
-                actual_change = any(v != self.registration_parameters[k] for (k, v) in registration_parameters.items())
+                actual_change = any(v != self.registration_parameters.get(k, -1) for (k, v) in registration_parameters.items())
 
                 self.registration_parameters = dict(self.registration_parameters, **registration_parameters)
 
@@ -163,6 +163,9 @@ class CommonRD:
             the registration, resolved to the registration's base (and thus
             suitable for serving from the lookup interface).
 
+            This implements Modernized Link Format as described in Appendix D
+            of draft-ietf-core-resource-directory-15.
+
             If protocol negotiation is implemented and base becomes a list, this
             function will probably grow parameters that hint at which base to
             use.
@@ -172,10 +175,9 @@ class CommonRD:
                 if 'anchor' in l:
                     absanchor = urljoin(self.base, l.anchor)
                     data = [(k, v) for (k, v) in l.attr_pairs if k != 'anchor'] + [['anchor', absanchor]]
-                    href = urljoin(absanchor, l.href)
                 else:
                     data = l.attr_pairs + [['anchor', self.base]]
-                    href = urljoin(self.base, l.href)
+                href = urljoin(self.base, l.href)
                 result.append(Link(href, data))
             return LinkFormat(result)
 
@@ -326,10 +328,6 @@ class EntityDispatchSite(ThingWithCommonRD, Resource, PathCapable):
 
         return await entity.render(request.copy(uri_path=()))
 
-class GroupRegistrationInterface(ThingWithCommonRD, Resource):
-    ct = link_format_to_message.supported_ct
-    rt = "core.rd-group"
-
 def _paginate(candidates, query):
     try:
         candidates = list(candidates)
@@ -408,13 +406,13 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
                 matches = lambda x: x == search_value
 
             if search_key in ('if', 'rt'):
-                candidates = ((e, c) for (e, c) in candidates if any(matches(x) for x in getattr(c, search_key, '').split()))
+                candidates = ((e, c) for (e, c) in candidates if any(matches(x) for x in " ".join(getattr(c, search_key, ())).split()))
                 continue
 
             if search_key == 'href':
                 candidates = ((e, c) for (e, c) in candidates if
-                        matches(c.href) or
-                        matches(e.href)
+                        matches(urljoin(e.base, c.href)) or
+                        matches(e.href) # FIXME: actually resolved e, but so far we've avoided knowing our own
                         )
                 continue
 
@@ -429,10 +427,6 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
         candidates = _paginate(candidates, query)
 
         return link_format_to_message(request, LinkFormat(candidates))
-
-class GroupLookupInterface(ThingWithCommonRD, ObservableResource):
-    ct = link_format_to_message.supported_ct
-    rt = "core.rd-lookup-gp"
 
 class SimpleRegistrationWKC(WKCResource):
     def __init__(self, listgenerator, common_rd):
@@ -497,9 +491,7 @@ class StandaloneResourceDirectory(Site):
     different from the specification (but still recognizable)."""
 
     rd_path = ("resourcedirectory",)
-    group_path = ("resourcedirectory-group",)
     ep_lookup_path = ("endpoint-lookup",)
-    gp_lookup_path = ("group-lookup",)
     res_lookup_path = ("resource-lookup",)
 
     def __init__(self):
@@ -511,9 +503,7 @@ class StandaloneResourceDirectory(Site):
         self.add_resource((".well-known", "core"), self._simple_wkc)
 
         self.add_resource(self.rd_path, RegistrationInterface(common_rd=common_rd))
-        self.add_resource(self.group_path, GroupRegistrationInterface(common_rd=common_rd))
         self.add_resource(self.ep_lookup_path, EndpointLookupInterface(common_rd=common_rd))
-        self.add_resource(self.gp_lookup_path, GroupLookupInterface(common_rd=common_rd))
         self.add_resource(self.res_lookup_path, ResourceLookupInterface(common_rd=common_rd))
 
         self.add_resource(common_rd.entity_prefix, EntityDispatchSite(common_rd=common_rd))
