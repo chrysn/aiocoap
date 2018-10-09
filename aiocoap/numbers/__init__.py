@@ -62,3 +62,9 @@ media_types = {0: 'text/plain;charset=utf-8',
 """A map from CoAP-assigned integral codes to Internet media type descriptions."""
 
 media_types_rev = {v:k for k, v in media_types.items()}
+# deprecated alias. Kept alive for scripts like
+# https://gitlab.f-interop.eu/f-interop-contributors/ioppytest/blob/develop/automation/coap_client_aiocoap/automated_iut.py
+# that run aiocoap-client with text/plain as an argument.
+#
+# FIXME: Make access to this raise a DeprecationWarning
+media_types_rev['text/plain'] = media_types_rev['text/plain;charset=utf-8']
