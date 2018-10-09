@@ -163,6 +163,9 @@ class CommonRD:
             the registration, resolved to the registration's base (and thus
             suitable for serving from the lookup interface).
 
+            This implements Modernized Link Format as described in Appendix D
+            of draft-ietf-core-resource-directory-15.
+
             If protocol negotiation is implemented and base becomes a list, this
             function will probably grow parameters that hint at which base to
             use.
@@ -172,10 +175,9 @@ class CommonRD:
                 if 'anchor' in l:
                     absanchor = urljoin(self.base, l.anchor)
                     data = [(k, v) for (k, v) in l.attr_pairs if k != 'anchor'] + [['anchor', absanchor]]
-                    href = urljoin(absanchor, l.href)
                 else:
                     data = l.attr_pairs + [['anchor', self.base]]
-                    href = urljoin(self.base, l.href)
+                href = urljoin(self.base, l.href)
                 result.append(Link(href, data))
             return LinkFormat(result)
 
