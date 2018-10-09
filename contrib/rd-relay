@@ -30,7 +30,7 @@ import argparse
 import logging
 from urllib.parse import urljoin
 
-from aiocoap import Message, POST, CHANGED
+from aiocoap import Message, POST, CHANGED, CONTENT
 from aiocoap.error import NotFound, MethodNotAllowed, AnonymousHost, BadRequest
 from aiocoap.resource import Resource, PathCapable, link_format_to_message
 from aiocoap.cli.common import (add_server_arguments,
@@ -51,12 +51,10 @@ class RDRelaySite(Resource, PathCapable):
                 links.append(Link(opts[rt_underscored], rt=rt, rel="x-see-also"))
         self.links = LinkFormat(links)
 
-        if opts['simple_address'] is None:
-            self.forward = None
-            if opts['core.rd'] is not None:
-                self.forward = urljoin(opts['core.rd'], '/.well-known/core')
+        if 'core.rd' in opts:
+            self.forward = opts['core.rd']
         else:
-            self.forward = opts['simple_address']
+            self.forward = None
 
     async def render_get(self, request):
         if request.opt.uri_path != ('.well-known', 'core'):
@@ -70,22 +68,40 @@ class RDRelaySite(Resource, PathCapable):
         if self.forward is None:
             raise MethodNotAllowed
 
-        fwd = Message(code=POST, uri=self.forward)
-        fwd.opt.uri_query = request.opt.uri_query
-        if not any(x.startswith('con=') for x in fwd.opt.uri_query):
-            try:
-                fwd.opt.uri_query = fwd.opt.uri_query + ('con=%s' % request.remote.uri,)
-            except AnonymousHost:
-                raise BadRequest("Explicit con required")
+        try:
+            client_uri = request.remote.uri
+        except AnonymousHost:
+            raise BadRequest("explicit base required")
+        # FIXME: deduplicate with aiocoap.cli.rd.SimpleRegistrationWKC
+        args = request.opt.uri_query
+        if any (a.startswith('base=') for a in args):
+            raise BadRequest("base is not allowed in simple registrations")
+        # FIXME: Could do some formal checks on those, like whether the lifetime is numeric
 
-        return await self.context.request(fwd).response
+        async def work():
+            get_wkc = Message(code=GET, uri=urijoin(client_uri, '/.well-known/core'))
+            response = await self.context.request(get_wkc).response_raising
+
+            if response.code != CONTENT:
+                raise RuntimeError("Odd response code from %s" % client_uri)
+
+            fwd = Message(code=POST,
+                    uri=self.forward,
+                    content_format=response.content_format,
+                    payload=response.payload,
+                    )
+            fwd.opt.uri_query = args + ['base=%s' % client_uri]
+            await self.context.request(fwd).response
+
+        asyncio.ensure_future(work())
+
+        return Message(code=CHANGED)
 
 class RDRelayProgram(AsyncCLIDaemon):
     async def start(self):
         p = argparse.ArgumentParser()
         p.add_argument("-v", "--verbose", help="Be more verbose (repeat to debug)", action='count', dest="verbosity", default=0)
         p.add_argument("--core.rd", help="Link to the RD resource")
-        p.add_argument("--simple-address", help=".well-known/core address to forward simple registrations to (default derived from core.rd)")
         p.add_argument("--core.rd-lookup-ep", help="Link to the endpoint lookup resource")
         p.add_argument("--core.rd-lookup-res", help="Link to the resource lookup resource")
 
