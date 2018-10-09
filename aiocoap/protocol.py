@@ -59,6 +59,7 @@ def _extract_block_key(message):
     return (message.remote, message.get_cache_key([
         OptionNumber.BLOCK1,
         OptionNumber.BLOCK2,
+        OptionNumber.OBSERVE,
         ]))
 
 
