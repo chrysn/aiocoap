@@ -326,10 +326,6 @@ class EntityDispatchSite(ThingWithCommonRD, Resource, PathCapable):
 
         return await entity.render(request.copy(uri_path=()))
 
-class GroupRegistrationInterface(ThingWithCommonRD, Resource):
-    ct = link_format_to_message.supported_ct
-    rt = "core.rd-group"
-
 def _paginate(candidates, query):
     try:
         candidates = list(candidates)
@@ -430,10 +426,6 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
 
         return link_format_to_message(request, LinkFormat(candidates))
 
-class GroupLookupInterface(ThingWithCommonRD, ObservableResource):
-    ct = link_format_to_message.supported_ct
-    rt = "core.rd-lookup-gp"
-
 class SimpleRegistrationWKC(WKCResource):
     def __init__(self, listgenerator, common_rd):
         super().__init__(listgenerator)
@@ -497,9 +489,7 @@ class StandaloneResourceDirectory(Site):
     different from the specification (but still recognizable)."""
 
     rd_path = ("resourcedirectory",)
-    group_path = ("resourcedirectory-group",)
     ep_lookup_path = ("endpoint-lookup",)
-    gp_lookup_path = ("group-lookup",)
     res_lookup_path = ("resource-lookup",)
 
     def __init__(self):
@@ -511,9 +501,7 @@ class StandaloneResourceDirectory(Site):
         self.add_resource((".well-known", "core"), self._simple_wkc)
 
         self.add_resource(self.rd_path, RegistrationInterface(common_rd=common_rd))
-        self.add_resource(self.group_path, GroupRegistrationInterface(common_rd=common_rd))
         self.add_resource(self.ep_lookup_path, EndpointLookupInterface(common_rd=common_rd))
-        self.add_resource(self.gp_lookup_path, GroupLookupInterface(common_rd=common_rd))
         self.add_resource(self.res_lookup_path, ResourceLookupInterface(common_rd=common_rd))
 
         self.add_resource(common_rd.entity_prefix, EntityDispatchSite(common_rd=common_rd))
