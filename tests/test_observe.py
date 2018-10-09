@@ -21,9 +21,10 @@ from aiocoap.resource import ObservableResource, WKCResource
 from .test_server import WithTestServer, WithClient, no_warnings, precise_warnings, ReplacingResource, MultiRepresentationResource, run_fixture_as_standalone_server, asynctest
 
 class ObservableCounter(ObservableResource):
-    def __init__(self):
+    def __init__(self, number_formatter=lambda x: x):
         super(ObservableCounter, self).__init__()
         self.count = 0
+        self.number_formatter = number_formatter
 
     async def render_delete(self, request):
         self.count = 0
@@ -38,17 +39,17 @@ class ObservableCounter(ObservableResource):
             # Triggering with explicit value because if left empty, the value
             # would be synthesized after the next yielding anyway, and no
             # ill-effects would be visible.
-            self.updated_state(aiocoap.Message(code=aiocoap.CONTENT, payload=str(self.count).encode('ascii')))
+            self.updated_state(aiocoap.Message(code=aiocoap.CONTENT, payload=str(self.number_formatter(self.count)).encode('ascii')))
         self.count += 1
         self.updated_state()
         return aiocoap.Message(code=aiocoap.CHANGED)
 
     async def render_get(self, request):
-        return aiocoap.Message(code=aiocoap.CONTENT, payload=str(self.count).encode('ascii'))
+        return aiocoap.Message(code=aiocoap.CONTENT, payload=str(self.number_formatter(self.count)).encode('ascii'))
 
     async def render_fetch(self, request):
         return aiocoap.Message(code=aiocoap.CONTENT,
-                payload=("%s; request had length %s"%(self.count, len(request.payload))).encode('ascii'))
+                payload=("%s; request had length %s"%(self.number_formatter(self.count), len(request.payload))).encode('ascii'))
 
 class ObservableReplacingResource(ReplacingResource, ObservableResource):
     async def render_put(self, request):
@@ -91,6 +92,7 @@ class ObserveTestingSite(aiocoap.resource.Site):
         self.add_resource(self.prefix + ('echo',), ObservableReplacingResource())
         self.add_resource(self.prefix + ('notreally',), ObserveLateUnbloomer())
         self.add_resource(self.prefix + ('failure',), ObservableFailure())
+        self.add_resource(self.prefix + ('large',), ObservableCounter(lambda x: (" %3d" % x) * 400))
 
 class NestedSite(aiocoap.resource.Site):
     def __init__(self):
@@ -157,29 +159,29 @@ class TestObserve(WithObserveTestServer, WithClient):
         await asyncio.sleep(0.1)
         self.assertEqual(str(observation_results), '[NotObservable()]')
 
-    async def _change_counter(self, method, payload):
-        request = aiocoap.Message(code=method, uri_path=('deep', 'count'), payload=payload)
+    async def _change_counter(self, method, payload, path=['deep', 'count']):
+        request = aiocoap.Message(code=method, uri_path=path, payload=payload)
         request.unresolved_remote = self.servernetloc
         await self.client.request(request).response_raising
 
     @asynctest
-    async def _test_counter(self, baserequest, formatter, postpayload=b""):
+    async def _test_counter(self, baserequest, formatter, postpayload=b"", path=['deep', 'count']):
         """Run a counter test with requests built from baserequest. Expect
         response payloads to be equal to the formatter(n) for n being the
         counter value"""
-        await self._change_counter(aiocoap.DELETE, b"")
+        await self._change_counter(aiocoap.DELETE, b"", path=path)
 
-        requester, observation_results, notinterested = self.build_observer(['deep', 'count'], baserequest=baserequest)
+        requester, observation_results, notinterested = self.build_observer(path, baserequest=baserequest)
 
         response = await requester.response
         self.assertEqual(response.code, aiocoap.CONTENT, "Observe base request did not succede")
         self.assertEqual(response.payload, formatter(0), "Observe base request gave unexpected result")
 
-        await self._change_counter(aiocoap.POST, postpayload)
+        await self._change_counter(aiocoap.POST, postpayload, path=path)
         await asyncio.sleep(0.1)
         self.assertEqual(observation_results, [formatter(1)])
 
-        await self._change_counter(aiocoap.POST, postpayload)
+        await self._change_counter(aiocoap.POST, postpayload, path=path)
         await asyncio.sleep(0.1)
         self.assertEqual(observation_results, [formatter(1), formatter(2)])
 
@@ -188,6 +190,10 @@ class TestObserve(WithObserveTestServer, WithClient):
     @no_warnings
     def test_counter(self):
         self._test_counter(None, lambda x: str(x).encode('ascii'))
+
+    @no_warnings
+    def test_counter_blockwise(self):
+        self._test_counter(None, lambda x: str((" %3d" % x) * 400).encode('ascii'), path=['deep', 'large'])
 
     @no_warnings
     def test_counter_fetch(self):
