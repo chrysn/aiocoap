@@ -105,7 +105,7 @@ class CommonRD:
                 if 'd' in registration_parameters or 'ep' in registration_parameters:
                     raise error.BadRequest("Parameters 'd' and 'ep' can not be updated")
 
-                actual_change = any(v != self.registration_parameters[k] for (k, v) in registration_parameters.items())
+                actual_change = any(v != self.registration_parameters.get(k, -1) for (k, v) in registration_parameters.items())
 
                 self.registration_parameters = dict(self.registration_parameters, **registration_parameters)
 
