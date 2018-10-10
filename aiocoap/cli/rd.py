@@ -362,7 +362,7 @@ class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
                 matches = lambda x: x == search_value
 
             if search_key in ('if', 'rt'):
-                candidates = (c for c in candidates if any(any(matches(x) for x in getattr(r, search_key, '').split()) for r in c.get_based_links().links))
+                candidates = (c for c in candidates if any(any(matches(x) for x in ' '.join(getattr(r, search_key, '')).split()) for r in c.get_based_links().links))
                 continue
 
             if search_key == 'href':
