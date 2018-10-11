@@ -121,15 +121,21 @@ class ObservableContenttypeRendered(ContenttypeRendered, interfaces.ObservableRe
         self._callbacks = set()
 
     async def add_observation(self, request, serverobservation):
+        """Implementation of interfaces.ObservableResource"""
         callback = serverobservation.trigger
         self._callbacks.add(callback)
         remover = functools.partial(self._callbacks.remove, callback)
         serverobservation.accept(remover)
 
     def add_valuechange_callback(self, cb):
+        """Call this when you want a callback outside of aiocoap called
+        whenever value_change is called, typically because the callback
+        recipient would extract the state of the resource in a non-CoAP way."""
         self._callbacks.add(cb)
 
     def value_changed(self):
+        """Call this whenever the object was modified in such a way that any
+        rendition might change."""
         for c in self._callbacks:
             c()
 
