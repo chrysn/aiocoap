@@ -1,3 +1,5 @@
+# This requires Python 3.6 as it makes use of __init_subclass__
+
 from collections import namedtuple, defaultdict
 import functools
 import inspect
@@ -13,17 +15,10 @@ from aiocoap.error import BadRequest, UnsupportedContentFormat, UnallowedMethod
 
 _ContenttypeRenderedHandler = namedtuple("_ContenttypeRenderedHandler", ("method", "accept", "contentformat", "implementation", "responseformat"))
 
-class _ContenttypeRenderedMeta(abc.ABCMeta): # FIXME i suppose i can't make that a mixin? it feels odd that i have to state that here just because the classes that use it happen to also implement abcmeta interfaces
-    def __new__(cls, *args):
-        ret = super().__new__(cls, *args)
-        ret._cls_setup()
-        return ret
-
 # this could become an alternative to the resource.Resource currently implemented in aiocoap.resource
 
-class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resource, metaclass=_ContenttypeRenderedMeta):
-    @classmethod
-    def _cls_setup(cls):
+class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resource, metaclass=abc.ABCMeta):
+    def __init_subclass__(cls):
         # __new__ code moved in here to use __ properties
         cls.__handlers = defaultdict(lambda: {})
         for member in vars(cls).values():
@@ -84,7 +79,7 @@ class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resou
         # is there no other way to query the registered handlers according to
         # the regular inheritance patterns?
         for cls in type(self).mro():
-            if not issubclass(cls, ContenttypeRendered):
+            if not issubclass(cls, ContenttypeRendered) or cls is ContenttypeRendered:
                 continue
             for_method = cls.__handlers.get(request.code, None)
             if for_method is None:
