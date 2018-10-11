@@ -110,7 +110,8 @@ class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resou
         return Message(
                 code={GET: CONTENT, PUT: CHANGED}[request.code],
                 payload=payload,
-                content_format=responseformat
+                content_format=responseformat,
+                no_response=request.opt.no_response,
                 )
 
 class ObservableContenttypeRendered(ContenttypeRendered, interfaces.ObservableResource):
