@@ -152,11 +152,11 @@ class SenmlResource(ObservableContenttypeRendered):
 
     @ContenttypeRendered.get_handler('application/senml+json')
     def __jsonsenml_get(self):
-        return json.dumps([{self.jsonsenml_key: self.value}])
+        return json.dumps([{"n": "XXX", self.jsonsenml_key: self.value}])
 
     @ContenttypeRendered.get_handler('application/senml+cbor')
     def __cborsenml_get(self):
-        return cbor.dumps([{self.cborsenml_key: self.value}])
+        return cbor.dumps([{0: "XXX", self.cborsenml_key: self.value}])
 
     @ContenttypeRendered.get_handler('text/plain;charset=utf-8', default=True)
     def __textplain_get(self):
@@ -165,13 +165,19 @@ class SenmlResource(ObservableContenttypeRendered):
     @ContenttypeRendered.put_handler('application/senml+json')
     def __jsonsenml_set(self, new):
         try:
-            self.value = self.valuetype(new[self.jsonsenml_key])
+            new = json.loads(new.decode('utf8'))
+            if len(new) != 1 or new[0].get("bn", "") + new[0].get("n", "") != "XXX":
+                raise BadRequest("Not a single record pertaining to this resource")
+            self.value = self.valuetype(new[0][self.jsonsenml_key])
         except (KeyError, ValueError):
             raise BadRequest()
 
     @ContenttypeRendered.put_handler('application/senml+cbor')
-    def __cborsenml_set(self, value):
+    def __cborsenml_set(self, new):
         try:
+            new = cbor.loads(new)
+            if len(new) != 1 or new[0].get(-2, "") + new[0].get(0, "") != "XXX":
+                raise BadRequest("Not a single record pertaining to this resource")
             self.value = self.valuetype(new[self.cborsenml_key])
         except (KeyError, ValueError):
             raise BadRequest()
@@ -257,8 +263,10 @@ class SubsiteBatch(ObservableContenttypeRendered):
                 continue
             for r in rootres.__get_records():
                 r = dict(**r)
+                r.pop('bn', None)
                 r['n'] = "/".join(path) + "/" + r['n']
                 records.append(r)
+        records[0]['bn'] = 'XXX'
         return records
 
     @ContenttypeRendered.get_handler('application/senml+json', default=True)
