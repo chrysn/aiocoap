@@ -366,8 +366,7 @@ class Message(object):
         remote). For responses, this is stored by the Request object not only
         to preserve the request information (which could have been kept by the
         requesting application), but also because the Request can know about
-        multicast responses (which would update the host component) and
-        redirects (FIXME do they exist?).
+        multicast responses (which would update the host component).
 
         This implements Section 6.5 of RFC7252.
         """
