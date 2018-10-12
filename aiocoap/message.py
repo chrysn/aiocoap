@@ -76,9 +76,6 @@ class Message(object):
       normally resolve to the destination address. (Typically, this is used for
       proxying.)
 
-    * :attr:`prepath`, :attr:`postpath`: Not sure, will probably go away when
-      resources are overhauled. Non-roundtrippable.
-
     Options can be given as further keyword arguments at message construction
     time. This feature is experimental, as future message parameters could
     collide with options.
@@ -138,8 +135,6 @@ class Message(object):
 
         self.remote = None
         self.unresolved_remote = None
-        self.prepath = None
-        self.postpath = None
 
         # attributes that indicate which request path the response belongs to.
         # their main purpose is allowing .get_request_uri() to work smoothly, a
