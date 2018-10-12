@@ -82,6 +82,41 @@ class Message(object):
     Options can be given as further keyword arguments at message construction
     time. This feature is experimental, as future message parameters could
     collide with options.
+
+
+    The four messages involved in an exchange
+    -----------------------------------------
+
+    ::
+
+        Requester                                  Responder
+
+        +-------------+                          +-------------+
+        | request msg |  ---- send request --->  | request msg |
+        +-------------+                          +-------------+
+                                                       |
+                                                  processed into
+                                                       |
+                                                       v
+        +-------------+                          +-------------+
+        | response m. |  <--- send response ---  | response m. |
+        +-------------+                          +-------------+
+
+
+    The above shows the four message instances involved in communication
+    between an aiocoap client and server process. Boxes represent instances of
+    Message, and the messages on the same line represent a single CoAP as
+    passed around on the network. Still, they differ in some aspects:
+
+        * The requested URI will look different between requester and responder
+          if the requester uses a host name and does not send it in the message.
+        * If the request was sent via multicast, the response's requested URI
+          differs from the request URI because it has the responder's address
+          filled in. That address is not known at the responder's side yet, as
+          it is typically filled out by the network stack.
+        * Properties like Message ID and token will differ if a proxy was
+          involved.
+        * Some options or even the payload may differ if a proxy was involved.
     """
 
     def __init__(self, *, mtype=None, mid=None, code=None, payload=b'', token=b'', uri=None, **kwargs):
@@ -369,6 +404,10 @@ class Message(object):
         multicast responses (which would update the host component).
 
         This implements Section 6.5 of RFC7252.
+
+        The values are valid only when queried on constructed requests and
+        received responses on the client; a server querying it will get wrong
+        values if the remote is accessed in its course.
         """
 
         # maybe this function does not belong exactly *here*, but it belongs to
