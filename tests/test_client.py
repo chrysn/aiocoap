@@ -55,23 +55,6 @@ class TestClientWithSetHost(WithTestServer, WithClient):
         self.assertTrue(request.remote.hostinfo.endswith(':9999'), "Remote port was not parsed")
         resp.cancel()
 
-    @no_warnings
-    @asynctest
-    async def test_uri_reconstruction(self):
-        """This test aims for reconstruction of the URI when for some reasons
-        the request hostname is not available. That would typically be the case
-        for multicasts (where the response's URI dependes on the response
-        package's origin and does not contain the multicast address), but until
-        that's easily testable, this test just removes the information."""
-        request = aiocoap.Message(code=aiocoap.GET)
-        request_uri = "coap://" + self.servernetloc + "/empty?query=a&query=b"
-        request.set_request_uri(request_uri, set_uri_host=self.set_uri_host)
-
-        response = await self.client.request(request).response
-        response.requested_hostinfo = None
-        self.assertEqual(response.get_request_uri(), request_uri, "Request URL does not round-trip in response")
-        self.assertEqual(response.code, aiocoap.CONTENT, "Request URL building failed")
-
 class TestClientWithHostlessMessages(TestClientWithSetHost):
     set_uri_host = False
 
