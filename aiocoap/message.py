@@ -16,7 +16,7 @@ from .numbers.codes import Code, CHANGED
 from .numbers.types import Type
 from .numbers.constants import DEFAULT_BLOCK_SIZE_EXP
 from .options import Options
-from .util import hostportjoin, Sentinel
+from .util import hostportjoin, hostportsplit, Sentinel, quote_nonascii
 from .util.uri import quote_factory, unreserved, sub_delims
 
 __all__ = ['Message', 'NoResponse']
@@ -60,16 +60,23 @@ class Message(object):
       request's. Follows the :class:`.interfaces.EndpointAddress` interface.
       Non-roundtrippable.
 
+    * :attr:`request`: The request to which an incoming response message
+      belongs; only available at the client. Managed by the
+      :class:`.interfaces.RequestProvider` (typically a :class:`.Context`).
+
+    * :attr:`_remote_hints`: Unresolved data that contains a request's target
+      while it is being prepared for transmission. It is managed; set by
+      :meth:`.set_request_uri()` or the constructor and consumed by the
+      transports.
+
+    These properties are still available but deprecated:
+
     * requested_*: Managed by the :class:`.protocol.Request` a response results
       from, and filled with the request's URL data. Non-roundtrippable.
 
-      requested_scheme is an exception here in that it is also set on requests
-      to indicate which transport should be used when unresolved_remote gets
-      resolved.
-
     * unresolved_remote: ``host[:port]`` (strictly speaking; hostinfo as in a
       URI) formatted string. If this attribute is set, it overrides
-      ``.opt.uri_host`` (and ``-_port``) when it comes to filling the
+      ``.RequestManageropt.uri_host`` (and ``-_port``) when it comes to filling the
       ``remote`` in an outgoing request.
 
       Use this when you want to send a request with a host name that would not
@@ -111,6 +118,9 @@ class Message(object):
           differs from the request URI because it has the responder's address
           filled in. That address is not known at the responder's side yet, as
           it is typically filled out by the network stack.
+        * It is yet unclear whether the response's URI should contain an IP
+          literal or a host name in the unicast case if the Uri-Host option was
+          not sent.
         * Properties like Message ID and token will differ if a proxy was
           involved.
         * Some options or even the payload may differ if a proxy was involved.
@@ -134,7 +144,18 @@ class Message(object):
         self.opt = Options()
 
         self.remote = None
-        self.unresolved_remote = None
+        # FIXME: pack this into a better type; possibly also have it as an
+        # UnresolvedRemote in .remote that implements the appropriate interface
+        # and is recognized by fill_or_recognize_remote implementations rather
+        # than peeking in here.
+        #
+        # The default value of 'coap' could be set to undefined with only
+        # little change to the proxy mechanisms and OSCORE test vector
+        # comparisons; keeping 'coap' the (now explicit) default for now.
+        #
+        # Contents: Scheme, optional host name as a string equivalent to the
+        # string that'd be in a Uri-Host option, optional port number
+        self._remote_hints = ('coap', None, None)
 
         # attributes that indicate which request path the response belongs to.
         # their main purpose is allowing .get_request_uri() to work smoothly, a
@@ -142,11 +163,6 @@ class Message(object):
         #
         # path and query are stored as lists, as they would be accessed for
         # example by self.opt.uri_path
-        self.requested_proxy_uri = None
-        self.requested_scheme = 'coap'
-        self.requested_hostinfo = None
-        self.requested_path = None
-        self.requested_query = None
 
         # deprecation error, should go away roughly after 0.2 release
         if self.payload is None:
@@ -184,12 +200,7 @@ class Message(object):
                 token=kwargs.pop('token', self.token),
                 )
         new.remote = kwargs.pop('remote', self.remote)
-        new.unresolved_remote = self.unresolved_remote
-        new.requested_proxy_uri = self.requested_proxy_uri
-        new.requested_scheme = self.requested_scheme
-        new.requested_hostinfo = self.requested_hostinfo
-        new.requested_path = self.requested_path
-        new.requested_query = self.requested_query
+        new._remote_hints = self._remote_hints
         new.opt = copy.deepcopy(self.opt)
 
         if 'uri' in kwargs:
@@ -393,10 +404,10 @@ class Message(object):
         """The absolute URI this message belongs to.
 
         For requests, this is composed from the options (falling back to the
-        remote). For responses, this is stored by the Request object not only
-        to preserve the request information (which could have been kept by the
-        requesting application), but also because the Request can know about
-        multicast responses (which would update the host component).
+        remote). For responses, this is largely taken from the original request
+        message (so far, that could have been trackecd by the requesting
+        application as well), but -- in case of a multicast request -- with the
+        host replaced by the responder's endpoint details.
 
         This implements Section 6.5 of RFC7252.
 
@@ -409,35 +420,35 @@ class Message(object):
         # the results of .request(message), which is currently a message itself.
 
         if self.code.is_response():
-            proxyuri = self.requested_proxy_uri
-            scheme = self.requested_scheme
-            query = self.requested_query
-            path = self.requested_path
-        else:
-            proxyuri = self.opt.proxy_uri
-            scheme = self.opt.proxy_scheme or self.requested_scheme
-            query = self.opt.uri_query or ()
-            path = self.opt.uri_path
+            refmsg = self.request
 
-        if self.code.is_request() and self.opt.uri_port is not None:
-            port = self.opt.uri_port
+            if refmsg.remote.is_multicast:
+                multicast_netloc_override = self.remote.hostinfo
+            else:
+                multicast_netloc_override = None
         else:
-            port = None
+            refmsg = self
+            multicast_netloc_override = None
 
-        if self.code.is_response() and self.requested_hostinfo is not None:
-            netloc = self.requested_hostinfo
-        elif self.code.is_request() and self.opt.uri_host is not None:
-            if self.opt.uri_host is None:
-                raise ValueError("Can not construct URI without any information on the set host")
-            netloc = hostportjoin(urllib.parse.quote(self.opt.uri_host), port)
-        elif self.code.is_request() and self.unresolved_remote is not None:
-            netloc = self.unresolved_remote
-            scheme = self.requested_scheme
-        else:
-            netloc = self.remote.hostinfo
-
+        proxyuri = refmsg.opt.proxy_uri
         if proxyuri is not None:
             return proxyuri
+
+        scheme = refmsg.opt.proxy_scheme or refmsg._remote_hints[0]
+        query = refmsg.opt.uri_query or ()
+        path = refmsg.opt.uri_path
+
+        if multicast_netloc_override is not None:
+            netloc = multicast_netloc_override
+        else:
+            host = refmsg.opt.uri_host or refmsg._remote_hints[1]
+            port = refmsg.opt.uri_port or refmsg._remote_hints[2]
+
+            escaped_host = quote_nonascii(host)
+            # FIXME: "If host is not valid reg-name / IP-literal / IPv4address,
+            # fail"
+
+            netloc = hostportjoin(escaped_host, port)
 
         # FIXME this should follow coap section 6.5 more closely
         query = "&".join(_quote_for_query(q) for q in query)
@@ -446,6 +457,10 @@ class Message(object):
         fragment = None
         params = "" # are they not there at all?
 
+        # Eases debugging, for when thy raise from urunparse you won't know
+        # which it was
+        assert scheme is not None
+        assert netloc is not None
         return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
 
     def set_request_uri(self, uri, *, set_uri_host=True):
@@ -487,21 +502,59 @@ class Message(object):
         else:
             self.opt.uri_query = []
 
-        if set_uri_host:
-            if parsed.port:
-                # FIXME this should consider the protocol's default port
-                self.opt.uri_port = parsed.port
-            parts = parsed.hostname.split('.')
-            if parsed.netloc.startswith('[') or (len(parts) == 4 and all(c in '0123456789.' for c in parsed.hostname) and all(int(x) <= 255 for x in parts)):
-                # uri_host must not be IP literals -- not only because the
-                # parsing rules say so, but also because it'd mess up the
-                # escaping during a round trip.
-                self.unresolved_remote = parsed.netloc
-            else:
-                self.opt.uri_host = urllib.parse.unquote(parsed.hostname).translate(_ascii_lowercase)
+        self._remote_hints = (parsed.scheme, parsed.hostname, parsed.port)
+
+        is_ip_literal = parsed.netloc.startswith('[') or (
+                parsed.hostname.count('.') == 4 and
+                all(c in '0123456789.' for c in parsed.hostname) and
+                all(int(x) <= 255 for x in parsed.hostname.split('.')))
+
+        if set_uri_host and not is_ip_literal:
+            self.opt.uri_host = urllib.parse.unquote(parsed.hostname).translate(_ascii_lowercase)
+
+    # Deprecated accessors to moved functionality
+
+    @property
+    def unresolved_remote(self):
+        if self._remote_hints[1] is None and self._remote_hints[2] is None:
+            return None
+        return hostportjoin(self._remote_hints[1], self._remote_hints[2])
+
+    @unresolved_remote.setter
+    def unresolved_remote(self, value):
+        # should get a big fat deprecation warning
+        if value is None:
+            self._remote_hints = ('coap', None, None)
         else:
-            self.unresolved_remote = parsed.netloc
-        self.requested_scheme = parsed.scheme
+            host, port = hostportsplit(value)
+            self._remote_hints = ('coap', host, port)
+
+    @property
+    def requested_scheme(self):
+        if self.code.is_request():
+            return self._remote_hints[0]
+        else:
+            return self.request.requested_scheme
+
+    @requested_scheme.setter
+    def requested_scheme(self, value):
+        self._remote_hints = (value, *self._remote_hints[1:])
+
+    @property
+    def requested_proxy_uri(self):
+        return self.request.opt.proxy_uri
+
+    @property
+    def requested_hostinfo(self):
+        return self.request.opt.uri_host or self.request.unresolved_remote
+
+    @property
+    def requested_path(self):
+        return self.request.opt.uri_path
+
+    @property
+    def requested_query(self):
+        return self.request.opt.uri_query
 
 _ascii_lowercase = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 
