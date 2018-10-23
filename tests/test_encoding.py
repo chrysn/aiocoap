@@ -212,7 +212,7 @@ class TestMessageOptionConstruction(unittest.TestCase):
     def test_uri_construction(self):
         message = aiocoap.Message(uri="coap://some-host:1234/some/path/")
         self.assertEqual(message.opt.uri_host, "some-host")
-        self.assertEqual(message.opt.uri_port, 1234)
+        self.assertEqual(message.opt.uri_port, None)
         self.assertEqual(message.opt.uri_path, ("some", "path", ""))
 
     def test_opt_construction(self):
