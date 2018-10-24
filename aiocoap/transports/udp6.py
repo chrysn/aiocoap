@@ -37,6 +37,7 @@ import asyncio
 import socket
 import ipaddress
 import struct
+import weakref
 from collections import namedtuple
 
 from ..message import Message
@@ -53,24 +54,28 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
     stored in form of a socket address; local address can be roundtripped by
     opaque pktinfo data.
 
-    >>> local = UDP6EndpointAddress(socket.getaddrinfo('127.0.0.1', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1])
+    >>> interface = type("FakeMessageInterface", (), {})
+    >>> local = UDP6EndpointAddress(socket.getaddrinfo('127.0.0.1', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1], interface)
     >>> local.is_multicast
     False
     >>> local.hostinfo
     '127.0.0.1'
-    >>> all_coap_site = UDP6EndpointAddress(socket.getaddrinfo('ff05:0:0:0:0:0:0:fd', 1234, type=socket.SOCK_DGRAM, family=socket.AF_INET6)[0][-1])
+    >>> all_coap_site = UDP6EndpointAddress(socket.getaddrinfo('ff05:0:0:0:0:0:0:fd', 1234, type=socket.SOCK_DGRAM, family=socket.AF_INET6)[0][-1], interface)
     >>> all_coap_site.is_multicast
     True
     >>> all_coap_site.hostinfo
     '[ff05::fd]:1234'
-    >>> all_coap4 = UDP6EndpointAddress(socket.getaddrinfo('224.0.1.187', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1])
+    >>> all_coap4 = UDP6EndpointAddress(socket.getaddrinfo('224.0.1.187', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1], interface)
     >>> all_coap4.is_multicast
     True
     """
 
-    def __init__(self, sockaddr, *, pktinfo=None):
+    def __init__(self, sockaddr, interface, *, pktinfo=None):
         self.sockaddr = sockaddr
         self.pktinfo = pktinfo
+        self._interface = weakref.ref(interface)
+
+    interface = property(lambda self: self._interface())
 
     def __hash__(self):
         return hash(self.sockaddr)
@@ -219,8 +224,8 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
 
     async def recognize_remote(self, remote):
-        # FIXME: this does not really cater for multiple udp6 instances
-        return isinstance(remote, UDP6EndpointAddress)
+        return isinstance(remote, UDP6EndpointAddress) and \
+                remote.interface == self
 
     async def determine_remote(self, request):
         if request.requested_scheme not in ('coap', None):
@@ -246,7 +251,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             proto=self.transport.get_extra_info('socket').proto,
             flags=socket.AI_V4MAPPED,
             )
-        return UDP6EndpointAddress(addrinfo[0][-1])
+        return UDP6EndpointAddress(addrinfo[0][-1], self)
 
     #
     # implementing the typical DatagramProtocol interfaces.
@@ -269,7 +274,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             else:
                 self.log.info("Received unexpected ancillary data to recvmsg: level %d, type %d, data %r", cmsg_level, cmsg_type, cmsg_data)
         try:
-            message = Message.decode(data, UDP6EndpointAddress(address, pktinfo=pktinfo))
+            message = Message.decode(data, UDP6EndpointAddress(address, self, pktinfo=pktinfo))
         except error.UnparsableMessage:
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return
@@ -288,7 +293,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                 pktinfo = cmsg_data
             else:
                 self.log.info("Received unexpected ancillary data to recvmsg errqueue: level %d, type %d, data %r", cmsg_level, cmsg_type, cmsg_data)
-        remote = UDP6EndpointAddress(address, pktinfo=pktinfo)
+        remote = UDP6EndpointAddress(address, self, pktinfo=pktinfo)
 
         # not trying to decode a message from data -- that works for
         # "connection refused", doesn't work for "no route to host", and
