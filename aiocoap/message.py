@@ -393,7 +393,7 @@ class Message(object):
     #
 
 
-    def get_request_uri(self):
+    def get_request_uri(self, *, local_is_server=False):
         """The absolute URI this message belongs to.
 
         For requests, this is composed from the options (falling back to the
@@ -404,9 +404,17 @@ class Message(object):
 
         This implements Section 6.5 of RFC7252.
 
-        The values are valid only when queried on constructed requests and
-        received responses on the client; a server querying it will get wrong
-        values if the remote is accessed in its course.
+        By default, these values are only valid on the client. To determine a
+        message's request URI on the server, set the local_is_server argument
+        to True. Note that determining the request URI on the server is brittle
+        when behind a reverse proxy, may not be possible on all platforms, and
+        can only be applied to a request message in a renderer (for the
+        response message created by the renderer will only be populated when it
+        gets transmitted; simple manual copying of the request's remote to the
+        response will not magically make this work, for in the very case where
+        the request and response's URIs differ, that would not catch the
+        difference and still report the multicast address, while the actual
+        sending address will only be populated by the operating system later).
         """
 
         # maybe this function does not belong exactly *here*, but it belongs to
@@ -416,7 +424,10 @@ class Message(object):
             refmsg = self.request
 
             if refmsg.remote.is_multicast:
-                multicast_netloc_override = self.remote.hostinfo
+                if local_is_server:
+                    multicast_netloc_override = self.remote.hostinfo_local
+                else:
+                    multicast_netloc_override = self.remote.hostinfo
             else:
                 multicast_netloc_override = None
         else:
@@ -434,10 +445,25 @@ class Message(object):
         if multicast_netloc_override is not None:
             netloc = multicast_netloc_override
         else:
-            host = refmsg.opt.uri_host or refmsg._remote_hints[1]
-            port = refmsg.opt.uri_port or refmsg._remote_hints[2]
+            host = refmsg.opt.uri_host
+            port = refmsg.opt.uri_port
+
+            if local_is_server:
+                _host, _port = hostportsplit(self.remote.hostinfo_local)
+                if host is not None:
+                    host = _host
+                if port is not None:
+                    port = _port
+            else:
+                # FIXME: Use self.remote.hostinfo as well, and/or wait for
+                # _remote_hints to become just a form of remote
+                if host is None:
+                    host = refmsg._remote_hints[1]
+                if port is None:
+                    port = refmsg._remote_hints[2]
 
             escaped_host = quote_nonascii(host)
+
             # FIXME: "If host is not valid reg-name / IP-literal / IPv4address,
             # fail"
 
