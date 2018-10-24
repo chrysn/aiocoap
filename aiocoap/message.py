@@ -157,13 +157,6 @@ class Message(object):
         # string that'd be in a Uri-Host option, optional port number
         self._remote_hints = ('coap', None, None)
 
-        # attributes that indicate which request path the response belongs to.
-        # their main purpose is allowing .get_request_uri() to work smoothly, a
-        # feature that is required to resolve links relative to the message.
-        #
-        # path and query are stored as lists, as they would be accessed for
-        # example by self.opt.uri_path
-
         # deprecation error, should go away roughly after 0.2 release
         if self.payload is None:
             raise TypeError("Payload must not be None. Use empty string instead.")
