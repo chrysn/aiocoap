@@ -111,7 +111,18 @@ class DTLSClientConnection(interfaces.EndpointAddress):
     is_multicast = False
     is_multicast_locally = False
     hostinfo = None # stored at initualization time
-    uri = property(lambda self: 'coaps://' + self.hostinfo)
+    uri_base = property(lambda self: 'coaps://' + self.hostinfo)
+    # Not necessarily very usable given we don't implement responding to server
+    # connection, but valid anyway
+    uri_base_local = property(lambda self: 'coaps://' + self.hostinfo_local)
+
+    @property
+    def hostinfo_local(self):
+        # See TCP's.hostinfo_local
+        host, port, *_ = self._transport.get_extra_info('socket').getsockname()
+        if port == COAPS_PORT:
+            port = None
+        return util.hostportjoin(host, port)
 
     def __init__(self, host, port, pskId, psk, coaptransport):
         self._ready = False

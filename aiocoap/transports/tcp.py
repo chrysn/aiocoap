@@ -256,15 +256,31 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
         peername = self._transport.get_extra_info('peername')
         return util.hostportjoin(peername[0], peername[1])
 
+    @property
+    def hostinfo_local(self):
+        # `host` already contains the interface identifier, so throwing away
+        # scope and interface identifier
+        host, port, *_ = self._transport.get_extra_info('socket').getsockname()
+        if port == self._ctx._default_port:
+            port = None
+        return util.hostportjoin(host, port)
+
     is_multicast = False
     is_multicast_locally = False
 
     @property
-    def uri(self):
+    def uri_base(self):
         if self._hostinfo:
             return self._ctx._scheme + '://' + self.hostinfo
         else:
             raise error.AnonymousHost("Client side of %s can not be expressed as a URI" % self._ctx._scheme)
+
+    @property
+    def uri_base_local(self):
+        if self._hostinfo:
+            raise error.AnonymousHost("Client side of %s can not be expressed as a URI" % self._ctx._scheme)
+        else:
+            return self._ctx._scheme + '://' + self.hostinfo_local
 
     @property
     def maximum_block_size_exp(self):

@@ -117,8 +117,22 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         return hostportjoin(self._plainaddress(), port)
 
     @property
-    def uri(self):
+    def hostinfo_local(self):
+        host = self._plainaddress_local()
+        port = self.interface._local_port()
+        if port == 0:
+            raise ValueError("Local port read before socket has bound itself")
+        if port == COAP_PORT:
+            port = None
+        return hostportjoin(host, port)
+
+    @property
+    def uri_base(self):
         return 'coap://' + self.hostinfo
+
+    @property
+    def uri_base_local(self):
+        return 'coap://' + self.hostinfo_local
 
     @property
     def is_multicast(self):
@@ -145,6 +159,9 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         self._shutting_down = None #: Future created and used in the .shutdown() method.
 
         self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
+
+    def _local_port(self):
+        return self.transport.get_extra_info('sock').getsockname()[1]
 
     @classmethod
     async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=False):

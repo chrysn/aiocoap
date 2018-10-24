@@ -24,6 +24,7 @@ in `contrib/oscore-plugtest/plugtest-server` as the `ProtectedSite` class.
 """
 
 from collections import namedtuple
+from functools import wraps
 
 from .. import interfaces, credentials, oscore
 
@@ -36,11 +37,33 @@ class OSCOREAddress(
     def __repr__(self):
         return "<%s in context %r to %r>"%(type(self).__name__, self.security_context, self.underlying_address)
 
+    def _requires_ua(f):
+        @wraps(f)
+        def wrapper(self):
+            if self.underlying_address is None:
+                raise ValueError("No underlying address populated that could be used to derive a hostinfo")
+            return f(self)
+        return wrapper
+
     @property
+    @_requires_ua
     def hostinfo(self):
-        if self.underlying_address is None:
-            raise ValueError("No underlying address populated that could be used to derive a hostinfo")
         return self.underlying_address.hostinfo
+
+    @property
+    @_requires_ua
+    def hostinfo_local(self):
+        return self.underlying_address.hostinfo_local
+
+    @property
+    @_requires_ua
+    def uri_base(self):
+        return self.underlying_address.uri_base
+
+    @property
+    @_requires_ua
+    def uri_base_local(self):
+        return self.underlying_address.uri_base_local
 
     is_multicast = False
 
