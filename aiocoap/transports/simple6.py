@@ -46,7 +46,6 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
         # using them), it might be a good idea to move all this into a subclass
         # and split it from the pure networking stuff.
         self.hostinfo = hostportjoin(stored_sockaddr[0], None if stored_sockaddr[1] == COAP_PORT else stored_sockaddr[1])
-        self.uri = 'coap://' + self.hostinfo
 
         self._stage = "initializing" #: Status property purely for debugging
 
@@ -65,7 +64,14 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
 
     # statically initialized in init
     hostinfo = None
-    uri = None
+    uri_base = None
+    uri_base = property(lambda self: 'coap://' + self.hostinfo)
+
+    @property
+    def hostinfo_local(self):
+        # FIXME: make it available *if* it can be obtained
+        raise RuntimeError("Simple6 can not access local host info")
+    uri_base_local = property(lambda self: 'coap://' + self.hostinfo_local)
 
 # fully disabled because some implementations of asyncio don't make the
 # information available; going the easy route and storing it for all (see
