@@ -80,13 +80,42 @@ class EndpointAddress(metaclass=abc.ABCMeta):
     @property
     @abc.abstractmethod
     def hostinfo(self):
-        """The authority component of URIs that this endpoint represents"""
+        """The authority component of URIs that this endpoint represents when
+        request are sent to it
+
+        Note that the presence of a hostinfo does not necessarily mean that
+        globally meaningful or even syntactically valid URI can be constructed
+        out of it; use the :attr:`.uri` property for this."""
 
     @property
     @abc.abstractmethod
-    # FIXME htis is so far only used in RD, might still need renaming
+    def hostinfo_local(self):
+        """The authority component of URIs that this endpoint represents when
+        requests are sent from it.
+
+        As with :attr:`.hostinfo`, this does not necessarily produce sufficient
+        input for a URI; use :attr:`.uri_local` instead."""
+
+    @property
     def uri(self):
-        """The base URI for this endpoint (typically scheme plus .hostinfo)"""
+        """Deprecated alias for uri_base"""
+        return self.uri_base
+
+    @property
+    @abc.abstractmethod
+    def uri_base(self):
+        """The base URI for the peer (typically scheme plus .hostinfo).
+
+        This raises :class:`.error.AnonymousHost` when executed on an address
+        whose peer coordinates can not be expressed meaningfully in a URI."""
+
+    @property
+    @abc.abstractmethod
+    def uri_base_local(self):
+        """The base URI for the local side of this remote.
+
+        This raises :class:`.error.AnonymousHost` when executed on an address
+        whose local coordinates can not be expressed meaningfully in a URI."""
 
     @property
     @abc.abstractmethod
