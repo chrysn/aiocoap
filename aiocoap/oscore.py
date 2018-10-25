@@ -175,39 +175,51 @@ class SecurityContext:
     def _split_message(self, message):
         """Given a protected message, return the outer message that contains
         all Class I and Class U options (but without payload or Object-Security
-        option), and a proto-inner message that contains all Class E options."""
+        option), and a proto-inner message that contains all Class E options.
+
+        This leaves the messages' remotes unset."""
 
         if message.code.is_request():
-            outer_uri = message.get_request_uri()
-
-            if outer_uri.count('/') >= 3:
-                outer_uri = outer_uri[:outer_uri.index('/', outer_uri.index('/', outer_uri.index('/') + 1) + 1)]
+            outer_host = message.opt.uri_host
+            proxy_uri = message.opt.proxy_uri
 
             inner_message = message.copy(
-                    # explicitly passing the .uri so that it gets split up;
-                    # FIXME make sure it always is, even in exotic schemes
-                    uri=message.get_request_uri(),
                     uri_host=None,
                     uri_port=None,
                     proxy_uri=None,
                     proxy_scheme=None,
                     )
+            inner_message.remote = None
+
+            if proxy_uri is not None:
+                # Use set_request_uri to split up the proxy URI into its
+                # components; extract, preserve and clear them.
+                inner_message.set_request_uri(proxy_uri, set_uri_host=False)
+                if inner_message.opt.proxy_uri is not None:
+                    raise ValueError("Can not split Proxy-URI into options")
+                outer_uri = inner_message.remote.uri_base
+                inner_message.remote = None
+                inner_message.opt.proxy_scheme = None
 
             if message.opt.observe is None:
                 outer_code = POST
             else:
                 outer_code = FETCH
         else:
-            outer_uri = None
+            outer_host = None
+            proxy_uri = None
 
             inner_message = message.copy()
 
             outer_code = CHANGED
 
         # no max-age because these are always successsful responses
-        outer_message = Message(code=outer_code, uri=outer_uri,
+        outer_message = Message(code=outer_code,
+                uri_host=outer_host,
                 observe=None if message.code.is_response() else message.opt.observe,
                 )
+        if proxy_uri is not None:
+            outer_message.set_request_uri(outer_uri)
 
         return outer_message, inner_message
 

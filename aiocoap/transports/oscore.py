@@ -108,7 +108,7 @@ class TransportOSCORE(interfaces.RequestProvider):
 
         # FIXME: it'd be better to have a "get me credentials *of this type* if they exist"
         if isinstance(secctx, oscore.SecurityContext):
-            message.remote = OSCOREAddress(self, secctx, None)
+            message.remote = OSCOREAddress(self, secctx, message.remote)
             return True
         else:
             return False
@@ -119,6 +119,7 @@ class TransportOSCORE(interfaces.RequestProvider):
         secctx = msg.remote.security_context
 
         protected, original_request_seqno = secctx.protect(msg)
+        protected.remote = msg.remote.underlying_address
         # FIXME where should this be called from?
         secctx._store()
 
