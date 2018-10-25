@@ -177,8 +177,6 @@ class SecurityContext:
         all Class I and Class U options (but without payload or Object-Security
         option), and a proto-inner message that contains all Class E options."""
 
-        inner_message = message.copy()
-
         if message.code.is_request():
             outer_uri = message.get_request_uri()
 
