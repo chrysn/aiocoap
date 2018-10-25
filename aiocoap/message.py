@@ -10,6 +10,7 @@ import urllib.parse
 import struct
 import copy
 import string
+from collections import namedtuple
 
 from . import error, optiontypes
 from .numbers.codes import Code, CHANGED
@@ -18,6 +19,7 @@ from .numbers.constants import DEFAULT_BLOCK_SIZE_EXP
 from .options import Options
 from .util import hostportjoin, hostportsplit, Sentinel, quote_nonascii
 from .util.uri import quote_factory, unreserved, sub_delims
+from . import interfaces
 
 __all__ = ['Message', 'NoResponse']
 
@@ -60,14 +62,13 @@ class Message(object):
       request's. Follows the :class:`.interfaces.EndpointAddress` interface.
       Non-roundtrippable.
 
+      While a message has not been transmitted, the property is managed by the
+      :class:`.Message` itself using the :meth:`.set_request_uri()` or the
+      constructor `uri` argument.
+
     * :attr:`request`: The request to which an incoming response message
       belongs; only available at the client. Managed by the
       :class:`.interfaces.RequestProvider` (typically a :class:`.Context`).
-
-    * :attr:`_remote_hints`: Unresolved data that contains a request's target
-      while it is being prepared for transmission. It is managed; set by
-      :meth:`.set_request_uri()` or the constructor and consumed by the
-      transports.
 
     These properties are still available but deprecated:
 
@@ -144,18 +145,6 @@ class Message(object):
         self.opt = Options()
 
         self.remote = None
-        # FIXME: pack this into a better type; possibly also have it as an
-        # UnresolvedRemote in .remote that implements the appropriate interface
-        # and is recognized by fill_or_recognize_remote implementations rather
-        # than peeking in here.
-        #
-        # The default value of 'coap' could be set to undefined with only
-        # little change to the proxy mechanisms and OSCORE test vector
-        # comparisons; keeping 'coap' the (now explicit) default for now.
-        #
-        # Contents: Scheme, optional host name as a string equivalent to the
-        # string that'd be in a Uri-Host option, optional port number
-        self._remote_hints = ('coap', None, None)
 
         # deprecation error, should go away roughly after 0.2 release
         if self.payload is None:
@@ -193,7 +182,6 @@ class Message(object):
                 token=kwargs.pop('token', self.token),
                 )
         new.remote = kwargs.pop('remote', self.remote)
-        new._remote_hints = self._remote_hints
         new.opt = copy.deepcopy(self.opt)
 
         if 'uri' in kwargs:
@@ -438,36 +426,34 @@ class Message(object):
         if proxyuri is not None:
             return proxyuri
 
-        scheme = refmsg.opt.proxy_scheme or refmsg._remote_hints[0]
+        scheme = refmsg.opt.proxy_scheme or refmsg.remote.scheme
         query = refmsg.opt.uri_query or ()
         path = refmsg.opt.uri_path
 
         if multicast_netloc_override is not None:
             netloc = multicast_netloc_override
         else:
-            host = refmsg.opt.uri_host
-            port = refmsg.opt.uri_port
-
             if local_is_server:
-                _host, _port = hostportsplit(self.remote.hostinfo_local)
-                if host is not None:
-                    host = _host
-                if port is not None:
-                    port = _port
+                netloc = refmsg.remote.hostinfo_local
             else:
-                # FIXME: Use self.remote.hostinfo as well, and/or wait for
-                # _remote_hints to become just a form of remote
-                if host is None:
-                    host = refmsg._remote_hints[1]
-                if port is None:
-                    port = refmsg._remote_hints[2]
+                netloc = refmsg.remote.hostinfo
 
-            escaped_host = quote_nonascii(host)
+            if refmsg.opt.uri_host is not None or \
+                    refmsg.opt.uri_port is not None:
 
-            # FIXME: "If host is not valid reg-name / IP-literal / IPv4address,
-            # fail"
+                host, port = hostportsplit(netloc)
 
-            netloc = hostportjoin(escaped_host, port)
+                host = refmsg.opt.uri_host or host
+                port = refmsg.opt.uri_port or port
+
+                # FIXME: This sounds like it should be part of
+                # hpostportjoin/-split
+                escaped_host = quote_nonascii(host)
+
+                # FIXME: "If host is not valid reg-name / IP-literal / IPv4address,
+                # fail"
+
+                netloc = hostportjoin(escaped_host, port)
 
         # FIXME this should follow coap section 6.5 more closely
         query = "&".join(_quote_for_query(q) for q in query)
@@ -521,7 +507,7 @@ class Message(object):
         else:
             self.opt.uri_query = []
 
-        self._remote_hints = (parsed.scheme, parsed.hostname, parsed.port)
+        self.remote = UndecidedRemote(parsed.scheme, parsed.netloc)
 
         is_ip_literal = parsed.netloc.startswith('[') or (
                 parsed.hostname.count('.') == 4 and
@@ -535,29 +521,26 @@ class Message(object):
 
     @property
     def unresolved_remote(self):
-        if self._remote_hints[1] is None and self._remote_hints[2] is None:
-            return None
-        return hostportjoin(self._remote_hints[1], self._remote_hints[2])
+        return self.remote.hostinfo
 
     @unresolved_remote.setter
     def unresolved_remote(self, value):
         # should get a big fat deprecation warning
         if value is None:
-            self._remote_hints = ('coap', None, None)
+            self.remote = UndecidedRemote('coap', None)
         else:
-            host, port = hostportsplit(value)
-            self._remote_hints = ('coap', host, port)
+            self.remote = UndecidedRemote('coap', value)
 
     @property
     def requested_scheme(self):
         if self.code.is_request():
-            return self._remote_hints[0]
+            return self.remote.scheme
         else:
             return self.request.requested_scheme
 
     @requested_scheme.setter
     def requested_scheme(self, value):
-        self._remote_hints = (value, *self._remote_hints[1:])
+        self.remote = UndecidedRemote(value, self.remote.hostinfo)
 
     @property
     def requested_proxy_uri(self):
@@ -574,6 +557,21 @@ class Message(object):
     @property
     def requested_query(self):
         return self.request.opt.uri_query
+
+class UndecidedRemote(
+        namedtuple("_UndecidedRemote", ("scheme", "hostinfo")),
+        interfaces.EndpointAddress
+        ):
+    """Remote that is set on messages that have not been sent through any any
+    transport.
+
+    It describes scheme, hostname and port that were set in
+    :meth:`.set_request_uri()` or when setting a URI per Message constructor.
+
+    * :attr:`scheme`: The scheme string
+    * :attr:`hostinfo`: The authority component of the URI, as it would occur
+      in the URI.
+    """
 
 _ascii_lowercase = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 
