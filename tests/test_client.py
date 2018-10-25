@@ -32,7 +32,10 @@ class TestClientWithSetHost(WithTestServer, WithClient):
         self.assertEqual(request.get_request_uri(), "coap://" + self.servernamealias + "/empty")
         response = await self.client.request(request).response
         self.assertEqual(response.code, aiocoap.CONTENT, "Resolving WithTestServer.servernamealias failed")
-        self.assertEqual(response.get_request_uri(), "coap://" + self.servernamealias + "/empty", "Host name did not get round-tripped")
+        if self.set_uri_host:
+            self.assertEqual(response.get_request_uri(), "coap://" + self.servernamealias + "/empty", "Host name did not get round-tripped")
+        else:
+            self.assertEqual(response.get_request_uri(), "coap://" + self.servernetloc + "/empty", "Response's request URI is not numeric in hostname-less query")
 
     @no_warnings
     @asynctest
