@@ -127,6 +127,15 @@ class EndpointAddress(metaclass=abc.ABCMeta):
     def is_multicast_locally(self):
         """True if the local address is a multicast address, otherwise false."""
 
+    @property
+    @abc.abstractmethod
+    def scheme(Self):
+        """The that is used with addresses of this kind
+
+        This is usually a class property. It is applicable to both sides of the
+        communication. (Should there ever be a scheme that addresses the
+        participants differently, a scheme_local will be added.)"""
+
     maximum_block_size_exp = DEFAULT_BLOCK_SIZE_EXP
     """The maximum negotiated block size that can be sent to this remote."""
 

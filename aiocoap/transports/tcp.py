@@ -105,6 +105,10 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
         self._transport = None
         self._hostinfo = hostinfo
 
+    @property
+    def scheme(self):
+        return self._ctx._scheme
+
     def _send_initial_csm(self):
         my_csm = Message(code=CSM)
         # this is a tad awkward in construction because the options objects

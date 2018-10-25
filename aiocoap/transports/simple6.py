@@ -62,6 +62,8 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
 
     is_multicast_locally = False
 
+    scheme = 'coap'
+
     # statically initialized in init
     hostinfo = None
     uri_base = None

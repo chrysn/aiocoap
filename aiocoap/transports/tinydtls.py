@@ -115,6 +115,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
     # Not necessarily very usable given we don't implement responding to server
     # connection, but valid anyway
     uri_base_local = property(lambda self: 'coaps://' + self.hostinfo_local)
+    scheme = 'coaps'
 
     @property
     def hostinfo_local(self):

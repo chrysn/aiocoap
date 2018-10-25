@@ -75,6 +75,8 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         self.pktinfo = pktinfo
         self._interface = weakref.ref(interface)
 
+    scheme = 'coap'
+
     interface = property(lambda self: self._interface())
 
     def __hash__(self):

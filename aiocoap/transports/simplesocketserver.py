@@ -46,6 +46,8 @@ class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.E
     is_multicast = False
     is_multicast_locally = False
 
+    scheme = 'coap'
+
 class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     @classmethod
     async def create(cls, bind, log, loop, new_message_callback, new_error_callback):
