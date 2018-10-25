@@ -163,7 +163,10 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
 
     def _local_port(self):
-        return self.transport.get_extra_info('sock').getsockname()[1]
+        # FIXME: either raise an error if this is 0, or send a message to self
+        # to force the OS to decide on a port. Right now, this reports wrong
+        # results while the first message has not been sent yet.
+        return self.transport.get_extra_info('socket').getsockname()[1]
 
     @classmethod
     async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=False):
