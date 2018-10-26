@@ -16,6 +16,11 @@ expected to work even on platforms where the :mod:`.udp6` module can not be
 made to work (Android, OSX, Windows for missing ``recvmsg`` and socket options,
 or any event loops that don't have an add_reader method).
 
+One small but noteworthy detail about this transport is that it does not
+distinguish between IP literals and host names. As a result, requests and
+responses from remotes will appear to arrive from a remote whose netloc is the
+requested name, not an IP literal.
+
 This transport is experimental, likely to change, and not fully tested yet
 (because the test suite is not yet ready to matrix-test the same tests with
 different transport implementations, and because it still fails in proxy
