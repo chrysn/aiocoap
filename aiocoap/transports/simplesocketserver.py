@@ -32,6 +32,7 @@ from collections import namedtuple
 from ..numbers import COAP_PORT
 from .. import interfaces
 from .generic_udp import GenericMessageInterface
+from ..util import hostportjoin
 
 class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.EndpointAddress):
     # hashability and equality follow from being a namedtuple
@@ -45,6 +46,27 @@ class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.E
 
     is_multicast = False
     is_multicast_locally = False
+
+    @property
+    def hostinfo(self):
+        # `host` already contains the interface identifier, so throwing away
+        # scope and interface identifier
+        host, port, *_ = self.address
+        if port == COAP_PORT:
+            port = None
+        return hostportjoin(host, port)
+
+    @property
+    def uri_base(self):
+        return self.scheme + '://' + self.hostinfo
+
+    @property
+    def hostinfo_local(self):
+        return self.serversocket.hostinfo_local
+
+    @property
+    def uri_base_local(self):
+        return self.scheme + '://' + self.hostinfo_local
 
     scheme = 'coap'
 
@@ -67,6 +89,11 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
                 local_addr=bind,
                 reuse_address=True,
                 )
+
+        # Conveniently, we only bind to a single port (because we need to know
+        # the return address, not because we insist we know the local
+        # hostinfo), and can thus store the local hostinfo without distinction
+        protocol.hostinfo_local = hostportjoin(bind[0], bind[1] if bind[1] != COAP_PORT else None)
 
         return await ready
 
