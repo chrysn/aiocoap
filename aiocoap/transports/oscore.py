@@ -65,6 +65,11 @@ class OSCOREAddress(
     def uri_base_local(self):
         return self.underlying_address.uri_base_local
 
+    @property
+    @_requires_ua
+    def scheme(self):
+        return self.underlying_address.scheme
+
     is_multicast = False
 
     maximum_payload_size = 1024
