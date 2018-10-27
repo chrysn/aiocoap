@@ -73,6 +73,11 @@ def hostportsplit(hostport):
     pseudoparsed = urllib.parse.SplitResult(None, hostport, None, None, None)
     return pseudoparsed.hostname, pseudoparsed.port
 
+def quote_nonascii(s):
+    """Like urllib.parse.quote, but explicitly only escaping non-ascii characters."""
+
+    return "".join(chr(c) if c <= 127 else "%%%02X" % c for c in s.encode('utf8'))
+
 class Sentinel:
     """Class for sentinel that can only be compared for identity. No efforts
     are taken to make these singletons; it is up to the users to always refer

@@ -16,6 +16,11 @@ expected to work even on platforms where the :mod:`.udp6` module can not be
 made to work (Android, OSX, Windows for missing ``recvmsg`` and socket options,
 or any event loops that don't have an add_reader method).
 
+One small but noteworthy detail about this transport is that it does not
+distinguish between IP literals and host names. As a result, requests and
+responses from remotes will appear to arrive from a remote whose netloc is the
+requested name, not an IP literal.
+
 This transport is experimental, likely to change, and not fully tested yet
 (because the test suite is not yet ready to matrix-test the same tests with
 different transport implementations, and because it still fails in proxy
@@ -46,7 +51,6 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
         # using them), it might be a good idea to move all this into a subclass
         # and split it from the pure networking stuff.
         self.hostinfo = hostportjoin(stored_sockaddr[0], None if stored_sockaddr[1] == COAP_PORT else stored_sockaddr[1])
-        self.uri = 'coap://' + self.hostinfo
 
         self._stage = "initializing" #: Status property purely for debugging
 
@@ -63,9 +67,18 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
 
     is_multicast_locally = False
 
+    scheme = 'coap'
+
     # statically initialized in init
     hostinfo = None
-    uri = None
+    uri_base = None
+    uri_base = property(lambda self: 'coap://' + self.hostinfo)
+
+    @property
+    def hostinfo_local(self):
+        # FIXME: make it available *if* it can be obtained
+        raise RuntimeError("Simple6 can not access local host info")
+    uri_base_local = property(lambda self: 'coap://' + self.hostinfo_local)
 
 # fully disabled because some implementations of asyncio don't make the
 # information available; going the easy route and storing it for all (see

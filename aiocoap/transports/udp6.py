@@ -37,6 +37,7 @@ import asyncio
 import socket
 import ipaddress
 import struct
+import weakref
 from collections import namedtuple
 
 from ..message import Message
@@ -53,24 +54,30 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
     stored in form of a socket address; local address can be roundtripped by
     opaque pktinfo data.
 
-    >>> local = UDP6EndpointAddress(socket.getaddrinfo('127.0.0.1', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1])
+    >>> interface = type("FakeMessageInterface", (), {})
+    >>> local = UDP6EndpointAddress(socket.getaddrinfo('127.0.0.1', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1], interface)
     >>> local.is_multicast
     False
     >>> local.hostinfo
     '127.0.0.1'
-    >>> all_coap_site = UDP6EndpointAddress(socket.getaddrinfo('ff05:0:0:0:0:0:0:fd', 1234, type=socket.SOCK_DGRAM, family=socket.AF_INET6)[0][-1])
+    >>> all_coap_site = UDP6EndpointAddress(socket.getaddrinfo('ff05:0:0:0:0:0:0:fd', 1234, type=socket.SOCK_DGRAM, family=socket.AF_INET6)[0][-1], interface)
     >>> all_coap_site.is_multicast
     True
     >>> all_coap_site.hostinfo
     '[ff05::fd]:1234'
-    >>> all_coap4 = UDP6EndpointAddress(socket.getaddrinfo('224.0.1.187', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1])
+    >>> all_coap4 = UDP6EndpointAddress(socket.getaddrinfo('224.0.1.187', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1], interface)
     >>> all_coap4.is_multicast
     True
     """
 
-    def __init__(self, sockaddr, *, pktinfo=None):
+    def __init__(self, sockaddr, interface, *, pktinfo=None):
         self.sockaddr = sockaddr
         self.pktinfo = pktinfo
+        self._interface = weakref.ref(interface)
+
+    scheme = 'coap'
+
+    interface = property(lambda self: self._interface())
 
     def __hash__(self):
         return hash(self.sockaddr)
@@ -112,8 +119,22 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         return hostportjoin(self._plainaddress(), port)
 
     @property
-    def uri(self):
+    def hostinfo_local(self):
+        host = self._plainaddress_local()
+        port = self.interface._local_port()
+        if port == 0:
+            raise ValueError("Local port read before socket has bound itself")
+        if port == COAP_PORT:
+            port = None
+        return hostportjoin(host, port)
+
+    @property
+    def uri_base(self):
         return 'coap://' + self.hostinfo
+
+    @property
+    def uri_base_local(self):
+        return 'coap://' + self.hostinfo_local
 
     @property
     def is_multicast(self):
@@ -140,6 +161,12 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         self._shutting_down = None #: Future created and used in the .shutdown() method.
 
         self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
+
+    def _local_port(self):
+        # FIXME: either raise an error if this is 0, or send a message to self
+        # to force the OS to decide on a port. Right now, this reports wrong
+        # results while the first message has not been sent yet.
+        return self.transport.get_extra_info('socket').getsockname()[1]
 
     @classmethod
     async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=False):
@@ -219,8 +246,8 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
 
     async def recognize_remote(self, remote):
-        # FIXME: this does not really cater for multiple udp6 instances
-        return isinstance(remote, UDP6EndpointAddress)
+        return isinstance(remote, UDP6EndpointAddress) and \
+                remote.interface == self
 
     async def determine_remote(self, request):
         if request.requested_scheme not in ('coap', None):
@@ -246,7 +273,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             proto=self.transport.get_extra_info('socket').proto,
             flags=socket.AI_V4MAPPED,
             )
-        return UDP6EndpointAddress(addrinfo[0][-1])
+        return UDP6EndpointAddress(addrinfo[0][-1], self)
 
     #
     # implementing the typical DatagramProtocol interfaces.
@@ -269,7 +296,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             else:
                 self.log.info("Received unexpected ancillary data to recvmsg: level %d, type %d, data %r", cmsg_level, cmsg_type, cmsg_data)
         try:
-            message = Message.decode(data, UDP6EndpointAddress(address, pktinfo=pktinfo))
+            message = Message.decode(data, UDP6EndpointAddress(address, self, pktinfo=pktinfo))
         except error.UnparsableMessage:
             self.log.warning("Ignoring unparsable message from %s"%(address,))
             return
@@ -288,7 +315,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                 pktinfo = cmsg_data
             else:
                 self.log.info("Received unexpected ancillary data to recvmsg errqueue: level %d, type %d, data %r", cmsg_level, cmsg_type, cmsg_data)
-        remote = UDP6EndpointAddress(address, pktinfo=pktinfo)
+        remote = UDP6EndpointAddress(address, self, pktinfo=pktinfo)
 
         # not trying to decode a message from data -- that works for
         # "connection refused", doesn't work for "no route to host", and

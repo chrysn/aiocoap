@@ -10,14 +10,16 @@ import urllib.parse
 import struct
 import copy
 import string
+from collections import namedtuple
 
 from . import error, optiontypes
 from .numbers.codes import Code, CHANGED
 from .numbers.types import Type
 from .numbers.constants import DEFAULT_BLOCK_SIZE_EXP
 from .options import Options
-from .util import hostportjoin, Sentinel
+from .util import hostportjoin, hostportsplit, Sentinel, quote_nonascii
 from .util.uri import quote_factory, unreserved, sub_delims
+from . import interfaces
 
 __all__ = ['Message', 'NoResponse']
 
@@ -60,28 +62,69 @@ class Message(object):
       request's. Follows the :class:`.interfaces.EndpointAddress` interface.
       Non-roundtrippable.
 
+      While a message has not been transmitted, the property is managed by the
+      :class:`.Message` itself using the :meth:`.set_request_uri()` or the
+      constructor `uri` argument.
+
+    * :attr:`request`: The request to which an incoming response message
+      belongs; only available at the client. Managed by the
+      :class:`.interfaces.RequestProvider` (typically a :class:`.Context`).
+
+    These properties are still available but deprecated:
+
     * requested_*: Managed by the :class:`.protocol.Request` a response results
       from, and filled with the request's URL data. Non-roundtrippable.
 
-      requested_scheme is an exception here in that it is also set on requests
-      to indicate which transport should be used when unresolved_remote gets
-      resolved.
-
     * unresolved_remote: ``host[:port]`` (strictly speaking; hostinfo as in a
       URI) formatted string. If this attribute is set, it overrides
-      ``.opt.uri_host`` (and ``-_port``) when it comes to filling the
+      ``.RequestManageropt.uri_host`` (and ``-_port``) when it comes to filling the
       ``remote`` in an outgoing request.
 
       Use this when you want to send a request with a host name that would not
       normally resolve to the destination address. (Typically, this is used for
       proxying.)
 
-    * :attr:`prepath`, :attr:`postpath`: Not sure, will probably go away when
-      resources are overhauled. Non-roundtrippable.
-
     Options can be given as further keyword arguments at message construction
     time. This feature is experimental, as future message parameters could
     collide with options.
+
+
+    The four messages involved in an exchange
+    -----------------------------------------
+
+    ::
+
+        Requester                                  Responder
+
+        +-------------+                          +-------------+
+        | request msg |  ---- send request --->  | request msg |
+        +-------------+                          +-------------+
+                                                       |
+                                                  processed into
+                                                       |
+                                                       v
+        +-------------+                          +-------------+
+        | response m. |  <--- send response ---  | response m. |
+        +-------------+                          +-------------+
+
+
+    The above shows the four message instances involved in communication
+    between an aiocoap client and server process. Boxes represent instances of
+    Message, and the messages on the same line represent a single CoAP as
+    passed around on the network. Still, they differ in some aspects:
+
+        * The requested URI will look different between requester and responder
+          if the requester uses a host name and does not send it in the message.
+        * If the request was sent via multicast, the response's requested URI
+          differs from the request URI because it has the responder's address
+          filled in. That address is not known at the responder's side yet, as
+          it is typically filled out by the network stack.
+        * It is yet unclear whether the response's URI should contain an IP
+          literal or a host name in the unicast case if the Uri-Host option was
+          not sent.
+        * Properties like Message ID and token will differ if a proxy was
+          involved.
+        * Some options or even the payload may differ if a proxy was involved.
     """
 
     def __init__(self, *, mtype=None, mid=None, code=None, payload=b'', token=b'', uri=None, **kwargs):
@@ -102,21 +145,6 @@ class Message(object):
         self.opt = Options()
 
         self.remote = None
-        self.unresolved_remote = None
-        self.prepath = None
-        self.postpath = None
-
-        # attributes that indicate which request path the response belongs to.
-        # their main purpose is allowing .get_request_uri() to work smoothly, a
-        # feature that is required to resolve links relative to the message.
-        #
-        # path and query are stored as lists, as they would be accessed for
-        # example by self.opt.uri_path
-        self.requested_proxy_uri = None
-        self.requested_scheme = 'coap'
-        self.requested_hostinfo = None
-        self.requested_path = None
-        self.requested_query = None
 
         # deprecation error, should go away roughly after 0.2 release
         if self.payload is None:
@@ -154,12 +182,6 @@ class Message(object):
                 token=kwargs.pop('token', self.token),
                 )
         new.remote = kwargs.pop('remote', self.remote)
-        new.unresolved_remote = self.unresolved_remote
-        new.requested_proxy_uri = self.requested_proxy_uri
-        new.requested_scheme = self.requested_scheme
-        new.requested_hostinfo = self.requested_hostinfo
-        new.requested_path = self.requested_path
-        new.requested_query = self.requested_query
         new.opt = copy.deepcopy(self.opt)
 
         if 'uri' in kwargs:
@@ -359,52 +381,79 @@ class Message(object):
     #
 
 
-    def get_request_uri(self):
+    def get_request_uri(self, *, local_is_server=False):
         """The absolute URI this message belongs to.
 
         For requests, this is composed from the options (falling back to the
-        remote). For responses, this is stored by the Request object not only
-        to preserve the request information (which could have been kept by the
-        requesting application), but also because the Request can know about
-        multicast responses (which would update the host component) and
-        redirects (FIXME do they exist?).
+        remote). For responses, this is largely taken from the original request
+        message (so far, that could have been trackecd by the requesting
+        application as well), but -- in case of a multicast request -- with the
+        host replaced by the responder's endpoint details.
 
         This implements Section 6.5 of RFC7252.
+
+        By default, these values are only valid on the client. To determine a
+        message's request URI on the server, set the local_is_server argument
+        to True. Note that determining the request URI on the server is brittle
+        when behind a reverse proxy, may not be possible on all platforms, and
+        can only be applied to a request message in a renderer (for the
+        response message created by the renderer will only be populated when it
+        gets transmitted; simple manual copying of the request's remote to the
+        response will not magically make this work, for in the very case where
+        the request and response's URIs differ, that would not catch the
+        difference and still report the multicast address, while the actual
+        sending address will only be populated by the operating system later).
         """
 
         # maybe this function does not belong exactly *here*, but it belongs to
         # the results of .request(message), which is currently a message itself.
 
         if self.code.is_response():
-            proxyuri = self.requested_proxy_uri
-            scheme = self.requested_scheme
-            query = self.requested_query
-            path = self.requested_path
-        else:
-            proxyuri = self.opt.proxy_uri
-            scheme = self.opt.proxy_scheme or self.requested_scheme
-            query = self.opt.uri_query or ()
-            path = self.opt.uri_path
+            refmsg = self.request
 
-        if self.code.is_request() and self.opt.uri_port is not None:
-            port = self.opt.uri_port
+            if refmsg.remote.is_multicast:
+                if local_is_server:
+                    multicast_netloc_override = self.remote.hostinfo_local
+                else:
+                    multicast_netloc_override = self.remote.hostinfo
+            else:
+                multicast_netloc_override = None
         else:
-            port = None
+            refmsg = self
+            multicast_netloc_override = None
 
-        if self.code.is_response() and self.requested_hostinfo is not None:
-            netloc = self.requested_hostinfo
-        elif self.code.is_request() and self.opt.uri_host is not None:
-            if self.opt.uri_host is None:
-                raise ValueError("Can not construct URI without any information on the set host")
-            netloc = hostportjoin(urllib.parse.quote(self.opt.uri_host), port)
-        elif self.code.is_request() and self.unresolved_remote is not None:
-            netloc = self.unresolved_remote
-            scheme = self.requested_scheme
-        else:
-            netloc = self.remote.hostinfo
-
+        proxyuri = refmsg.opt.proxy_uri
         if proxyuri is not None:
             return proxyuri
+
+        scheme = refmsg.opt.proxy_scheme or refmsg.remote.scheme
+        query = refmsg.opt.uri_query or ()
+        path = refmsg.opt.uri_path
+
+        if multicast_netloc_override is not None:
+            netloc = multicast_netloc_override
+        else:
+            if local_is_server:
+                netloc = refmsg.remote.hostinfo_local
+            else:
+                netloc = refmsg.remote.hostinfo
+
+            if refmsg.opt.uri_host is not None or \
+                    refmsg.opt.uri_port is not None:
+
+                host, port = hostportsplit(netloc)
+
+                host = refmsg.opt.uri_host or host
+                port = refmsg.opt.uri_port or port
+
+                # FIXME: This sounds like it should be part of
+                # hpostportjoin/-split
+                escaped_host = quote_nonascii(host)
+
+                # FIXME: "If host is not valid reg-name / IP-literal / IPv4address,
+                # fail"
+
+                netloc = hostportjoin(escaped_host, port)
 
         # FIXME this should follow coap section 6.5 more closely
         query = "&".join(_quote_for_query(q) for q in query)
@@ -413,6 +462,10 @@ class Message(object):
         fragment = None
         params = "" # are they not there at all?
 
+        # Eases debugging, for when thy raise from urunparse you won't know
+        # which it was
+        assert scheme is not None
+        assert netloc is not None
         return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
 
     def set_request_uri(self, uri, *, set_uri_host=True):
@@ -454,21 +507,71 @@ class Message(object):
         else:
             self.opt.uri_query = []
 
-        if set_uri_host:
-            if parsed.port:
-                # FIXME this should consider the protocol's default port
-                self.opt.uri_port = parsed.port
-            parts = parsed.hostname.split('.')
-            if parsed.netloc.startswith('[') or (len(parts) == 4 and all(c in '0123456789.' for c in parsed.hostname) and all(int(x) <= 255 for x in parts)):
-                # uri_host must not be IP literals -- not only because the
-                # parsing rules say so, but also because it'd mess up the
-                # escaping during a round trip.
-                self.unresolved_remote = parsed.netloc
-            else:
-                self.opt.uri_host = urllib.parse.unquote(parsed.hostname).translate(_ascii_lowercase)
+        self.remote = UndecidedRemote(parsed.scheme, parsed.netloc)
+
+        is_ip_literal = parsed.netloc.startswith('[') or (
+                parsed.hostname.count('.') == 4 and
+                all(c in '0123456789.' for c in parsed.hostname) and
+                all(int(x) <= 255 for x in parsed.hostname.split('.')))
+
+        if set_uri_host and not is_ip_literal:
+            self.opt.uri_host = urllib.parse.unquote(parsed.hostname).translate(_ascii_lowercase)
+
+    # Deprecated accessors to moved functionality
+
+    @property
+    def unresolved_remote(self):
+        return self.remote.hostinfo
+
+    @unresolved_remote.setter
+    def unresolved_remote(self, value):
+        # should get a big fat deprecation warning
+        if value is None:
+            self.remote = UndecidedRemote('coap', None)
         else:
-            self.unresolved_remote = parsed.netloc
-        self.requested_scheme = parsed.scheme
+            self.remote = UndecidedRemote('coap', value)
+
+    @property
+    def requested_scheme(self):
+        if self.code.is_request():
+            return self.remote.scheme
+        else:
+            return self.request.requested_scheme
+
+    @requested_scheme.setter
+    def requested_scheme(self, value):
+        self.remote = UndecidedRemote(value, self.remote.hostinfo)
+
+    @property
+    def requested_proxy_uri(self):
+        return self.request.opt.proxy_uri
+
+    @property
+    def requested_hostinfo(self):
+        return self.request.opt.uri_host or self.request.unresolved_remote
+
+    @property
+    def requested_path(self):
+        return self.request.opt.uri_path
+
+    @property
+    def requested_query(self):
+        return self.request.opt.uri_query
+
+class UndecidedRemote(
+        namedtuple("_UndecidedRemote", ("scheme", "hostinfo")),
+        interfaces.EndpointAddress
+        ):
+    """Remote that is set on messages that have not been sent through any any
+    transport.
+
+    It describes scheme, hostname and port that were set in
+    :meth:`.set_request_uri()` or when setting a URI per Message constructor.
+
+    * :attr:`scheme`: The scheme string
+    * :attr:`hostinfo`: The authority component of the URI, as it would occur
+      in the URI.
+    """
 
 _ascii_lowercase = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 

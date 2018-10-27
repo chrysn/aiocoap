@@ -276,9 +276,8 @@ class NameBasedVirtualHost(Redirector):
 
         if request.opt.uri_host == self.match_name:
             if self.rewrite_uri_host:
-                request.opt.uri_host, request.opt.uri_port = util.hostportsplit(self.target)
-            else:
-                request.unresolved_remote = self.target
+                request.opt.uri_host, _ = util.hostportsplit(self.target)
+            request.unresolved_remote = self.target
             return request
 
 class UnconditionalRedirector(Redirector):
@@ -301,5 +300,5 @@ class SubresourceVirtualHost(Redirector):
 
         if self.path == request.opt.uri_path[:len(self.path)]:
             request.opt.uri_path = request.opt.uri_path[len(self.path):]
-            request.opt.uri_host, request.opt.uri_port = util.hostportsplit(self.target)
+            request.unresolved_remote = self.target
             return request

@@ -24,6 +24,7 @@ in `contrib/oscore-plugtest/plugtest-server` as the `ProtectedSite` class.
 """
 
 from collections import namedtuple
+from functools import wraps
 
 from .. import interfaces, credentials, oscore
 
@@ -36,11 +37,38 @@ class OSCOREAddress(
     def __repr__(self):
         return "<%s in context %r to %r>"%(type(self).__name__, self.security_context, self.underlying_address)
 
+    def _requires_ua(f):
+        @wraps(f)
+        def wrapper(self):
+            if self.underlying_address is None:
+                raise ValueError("No underlying address populated that could be used to derive a hostinfo")
+            return f(self)
+        return wrapper
+
     @property
+    @_requires_ua
     def hostinfo(self):
-        if self.underlying_address is None:
-            raise ValueError("No underlying address populated that could be used to derive a hostinfo")
         return self.underlying_address.hostinfo
+
+    @property
+    @_requires_ua
+    def hostinfo_local(self):
+        return self.underlying_address.hostinfo_local
+
+    @property
+    @_requires_ua
+    def uri_base(self):
+        return self.underlying_address.uri_base
+
+    @property
+    @_requires_ua
+    def uri_base_local(self):
+        return self.underlying_address.uri_base_local
+
+    @property
+    @_requires_ua
+    def scheme(self):
+        return self.underlying_address.scheme
 
     is_multicast = False
 
@@ -71,7 +99,7 @@ class TransportOSCORE(interfaces.RequestProvider):
     #
 
     async def fill_or_recognize_remote(self, message):
-        if isinstance(message, OSCOREAddress) and message.transport is self:
+        if isinstance(message.remote, OSCOREAddress) and message.remote.transport is self:
             return True
         if message.opt.object_security is not None:
             # double oscore is not specified; using this fact to make `._wire
@@ -85,7 +113,7 @@ class TransportOSCORE(interfaces.RequestProvider):
 
         # FIXME: it'd be better to have a "get me credentials *of this type* if they exist"
         if isinstance(secctx, oscore.SecurityContext):
-            message.remote = OSCOREAddress(self, secctx, None)
+            message.remote = OSCOREAddress(self, secctx, message.remote)
             return True
         else:
             return False
@@ -96,6 +124,7 @@ class TransportOSCORE(interfaces.RequestProvider):
         secctx = msg.remote.security_context
 
         protected, original_request_seqno = secctx.protect(msg)
+        protected.remote = msg.remote.underlying_address
         # FIXME where should this be called from?
         secctx._store()
 
