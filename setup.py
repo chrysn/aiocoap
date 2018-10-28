@@ -113,7 +113,7 @@ setup(
         'console_scripts': [
             'aiocoap-client = aiocoap.cli.client:sync_main',
             'aiocoap-proxy = aiocoap.cli.proxy:sync_main',
-            'aiocoap-rd = aiocoap.cli.rd:sync_main',
+            'aiocoap-rd = aiocoap.cli.rd:sync_main [linkheader]',
             ]
         },
 
