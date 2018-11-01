@@ -69,9 +69,9 @@ def no_warnings(function, expected_warnings=None):
         # tricking, and it interacts badly with WithLogMonitoring as they both
         # try to change the root logger's level.
 
-        startcount = len(self.handler)
+        startcount = len(self.handler.list)
         result = function(self, *args)
-        messages = [m.getMessage() for m in self.handler[startcount:] if m.levelno >= logging.WARNING]
+        messages = [m.getMessage() for m in self.handler.list[startcount:] if m.levelno >= logging.WARNING]
         if len(expected_warnings) != len(messages) or not all(
                 e == m or (e.endswith('...') and m.startswith(e[:-3]))
                 for (e, m)
@@ -107,21 +107,28 @@ class WithLogMonitoring(unittest.TestCase):
         formatter = logging.Formatter(fmt='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
         self.assertTrue(test_is_successful(self), "Previous errors were raised."
                 " Complete log:\n" + "\n".join(
-                formatter.format(x) for x in self.handler if x.name != 'asyncio'),
+                formatter.format(x) for x in self.handler.list if x.name != 'asyncio'),
                 )
 
-    class ListHandler(logging.Handler, list):
+    class ListHandler(logging.Handler):
+        def __init__(self):
+            super().__init__()
+            self.list = []
+
         def emit(self, record):
-            self.append(record)
+            self.list.append(record)
+
+        def __iter__(self):
+            return self.list.__iter__()
 
     def assertWarned(self, message):
         """Assert that there was a warning with the given message.
 
         This function also removes the warning from the log, so an enclosing
         @no_warnings (or @precise_warnings) can succed."""
-        for entry in self.handler:
+        for entry in self.handler.list:
             if entry.msg == message and entry.levelno == logging.WARNING:
-                self.handler.remove(entry)
+                self.handler.list.remove(entry)
                 break
         else:
             raise AssertionError("Warning not logged: %r"%message)
