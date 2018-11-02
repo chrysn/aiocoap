@@ -3,6 +3,42 @@
 # running tests twice, so if something breaks when optional dependencies are
 # missing, it still shows up. (full coverage would mean running each
 # combination, but let's not blow the test matrix out of proportion).
+test:3.7:
+  image: "python:3.7"
+  script:
+    - echo Using cache:; ls .eggs/ || echo No cached .eggs found
+    - rm -f .coverage* collected-coverage/3.7/
+    - pip3 install coverage
+    - AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test
+    # this should be done locally by setup.py, but while pip installation
+    # works, inside setup.py in doesn't -- still looking for all the details
+    # for a bug report.
+    - pip3 install DTLSSocket
+    - python3 -m coverage run --parallel ./setup.py test
+    - pip3 install uvloop
+    - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
+    # Could just as well do this on the default main loop, but AFAIR uvloop
+    # required occasional workarounds
+    - AIOCOAP_TESTS_LOOP=uvloop AIOCOAP_CLIENT_TRANSPORT=oscore:simple6 AIOCOAP_SERVER_TRANSPORT=oscore:simplesocketserver python3 -m coverage run --parallel ./setup.py test
+    # Not installing python3-gi directly, as Debian's dist-modules is not in
+    # docker image's Python path
+    - apt-get update
+    - apt-get -y install libgirepository1.0-dev
+    - pip3 install pygobject gbulb
+    - AIOCOAP_TESTS_LOOP=gbulb python3 -m coverage run --parallel ./setup.py test || echo Letting failing gbulb test slide
+    - python3 -m coverage combine
+    - python3 -m coverage report --include=aiocoap/\*
+    - mkdir collected-coverage/3.7/ -p
+    - mv .coverage* collected-coverage/3.7/
+  artifacts:
+    paths:
+      - collected-coverage
+  cache:
+    key: python3.7
+    paths:
+      - .eggs/
+
+# Notes about the 3.7 cases apply here as well
 test:3.6:
   image: "python:3.6-stretch"
   script:
