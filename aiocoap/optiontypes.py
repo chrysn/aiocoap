@@ -196,7 +196,9 @@ class BlockOption(OptionType):
         self.value = self.BlockwiseTuple(block_number=(as_integer >> 4), more=bool(as_integer & 0x08), size_exponent=(as_integer & 0x07))
 
     def _length(self):
-        return ((self.value[0].bit_length() + 3) // 8 + 1)
+        if self.value.block_number == 0:
+            return int(self.value.more or (self.value.size_exponent != 0))
+        return ((self.value.block_number.bit_length() + 3) // 8 + 1)
     length = property(_length)
 
     def __str__(self):

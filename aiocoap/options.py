@@ -162,7 +162,9 @@ class Options(object):
             data.append(bytes([((delta & 0x0F) << 4) + (length & 0x0F)]))
             data.append(extended_delta)
             data.append(extended_length)
-            data.append(option.encode())
+            optiondata = option.encode()
+            assert len(optiondata) == option.length, "Option announced different data length than produced"
+            data.append(optiondata)
             current_opt_num = option.number
         return (b''.join(data))
 
