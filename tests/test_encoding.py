@@ -145,7 +145,9 @@ class TestUintOption(unittest.TestCase):
                      256,
                      1000)
         for argument, result in zip(arguments, results):
-            self.assertEqual(aiocoap.optiontypes.UintOption(0).decode(argument).value, result,'wrong decode operation for rawdata : '+ str(argument))
+            o = aiocoap.optiontypes.UintOption(0)
+            o.decode(argument)
+            self.assertEqual(o.value, result,'wrong decode operation for rawdata : '+ str(argument))
 
 
 class TestOptions(unittest.TestCase):
