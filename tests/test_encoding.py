@@ -128,7 +128,7 @@ class TestUintOption(unittest.TestCase):
             self.assertEqual(aiocoap.optiontypes.UintOption(0,argument).encode(), result,'wrong encode operation for option value : '+ str(argument))
 
     def test_decode(self):
-        arguments = ("",
+        arguments = (b"",
                      bytes((1,)),
                      bytes((2,)),
                      bytes((40,)),
