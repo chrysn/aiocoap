@@ -157,13 +157,13 @@ class Options(object):
         current_opt_num = 0
         option_list = self.option_list()
         for option in option_list:
+            optiondata = option.encode()
+
             delta, extended_delta = _write_extended_field_value(option.number - current_opt_num)
-            length, extended_length = _write_extended_field_value(option.length)
+            length, extended_length = _write_extended_field_value(len(optiondata))
             data.append(bytes([((delta & 0x0F) << 4) + (length & 0x0F)]))
             data.append(extended_delta)
             data.append(extended_length)
-            optiondata = option.encode()
-            assert len(optiondata) == option.length, "Option announced different data length than produced"
             data.append(optiondata)
             current_opt_num = option.number
         return (b''.join(data))

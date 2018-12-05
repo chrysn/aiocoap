@@ -36,12 +36,6 @@ class OptionType(metaclass=abc.ABCMeta):
     def decode(self, rawdata):
         """Set the option's value from the bytes in rawdata"""
 
-    @property
-    def length(self):
-        """Indicate the length of the encoded value"""
-
-        return len(self.encode())
-
 class StringOption(OptionType):
     """String CoAP option - used to represent string options. Always encoded in
     UTF8 per CoAP specification."""
@@ -57,10 +51,6 @@ class StringOption(OptionType):
 
     def decode(self, rawdata):
         self.value = rawdata.decode('utf-8')
-
-    def _length(self):
-        return len(self.value.encode('utf-8'))
-    length = property(_length)
 
     def __str__(self):
         return self.value
@@ -79,10 +69,6 @@ class OpaqueOption(OptionType):
 
     def decode(self, rawdata):
         self.value = rawdata  # if rawdata is not None else ""
-
-    def _length(self):
-        return len(self.value)
-    length = property(_length)
 
     def __str__(self):
         return repr(self.value)
@@ -104,13 +90,6 @@ class UintOption(OptionType):
             value = (value * 256) + byte
         self.value = value
         return self
-
-    def _length(self):
-        if self.value > 0:
-            return (self.value.bit_length() - 1) // 8 + 1
-        else:
-            return 0
-    length = property(_length)
 
     def __str__(self):
         return str(self.value)
@@ -194,12 +173,6 @@ class BlockOption(OptionType):
         for byte in rawdata:
             as_integer = (as_integer * 256) + byte
         self.value = self.BlockwiseTuple(block_number=(as_integer >> 4), more=bool(as_integer & 0x08), size_exponent=(as_integer & 0x07))
-
-    def _length(self):
-        if self.value.block_number == 0:
-            return int(self.value.more or (self.value.size_exponent != 0))
-        return ((self.value.block_number.bit_length() + 3) // 8 + 1)
-    length = property(_length)
 
     def __str__(self):
         return str(self.value)
