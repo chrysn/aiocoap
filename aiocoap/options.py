@@ -7,7 +7,6 @@
 # described in the accompanying LICENSE file.
 
 from itertools import chain
-import struct
 
 from .numbers.optionnumbers import OptionNumber
 from .error import UnparsableMessage
@@ -24,7 +23,7 @@ def _read_extended_field_value(value, rawdata):
     elif value == 14:
         if len(rawdata) < 2:
             raise UnparsableMessage("Option ended prematurely")
-        return (struct.unpack('!H', rawdata[:2])[0] + 269, rawdata[2:])
+        return (int.from_bytes(rawdata[:2], 'big') + 269, rawdata[2:])
     else:
         raise UnparsableMessage("Option contained partial payload marker.")
 
@@ -37,9 +36,9 @@ def _write_extended_field_value(value):
     if value >= 0 and value < 13:
         return (value, b'')
     elif value >= 13 and value < 269:
-        return (13, struct.pack('!B', value - 13))
+        return (13, (value - 13).to_bytes(1, 'big'))
     elif value >= 269 and value < 65804:
-        return (14, struct.pack('!H', value - 269))
+        return (14, (value - 269).to_bytes(2, 'big'))
     else:
         raise ValueError("Value out of range.")
 
@@ -134,7 +133,7 @@ class Options(object):
         rest of the message (the body)."""
         option_number = OptionNumber(0)
 
-        while len(rawdata) > 0:
+        while rawdata:
             if rawdata[0] == 0xFF:
                 return rawdata[1:]
             dllen = rawdata[0]
@@ -155,18 +154,20 @@ class Options(object):
         """Encode all options in option header into string of bytes."""
         data = []
         current_opt_num = 0
-        option_list = self.option_list()
-        for option in option_list:
+        for option in self.option_list():
+            optiondata = option.encode()
+
             delta, extended_delta = _write_extended_field_value(option.number - current_opt_num)
-            length, extended_length = _write_extended_field_value(option.length)
+            length, extended_length = _write_extended_field_value(len(optiondata))
+
             data.append(bytes([((delta & 0x0F) << 4) + (length & 0x0F)]))
             data.append(extended_delta)
             data.append(extended_length)
-            optiondata = option.encode()
-            assert len(optiondata) == option.length, "Option announced different data length than produced"
             data.append(optiondata)
+
             current_opt_num = option.number
-        return (b''.join(data))
+
+        return b''.join(data)
 
     def add_option(self, option):
         """Add option into option header."""

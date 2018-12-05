@@ -128,7 +128,7 @@ class TestUintOption(unittest.TestCase):
             self.assertEqual(aiocoap.optiontypes.UintOption(0,argument).encode(), result,'wrong encode operation for option value : '+ str(argument))
 
     def test_decode(self):
-        arguments = ("",
+        arguments = (b"",
                      bytes((1,)),
                      bytes((2,)),
                      bytes((40,)),
@@ -145,27 +145,9 @@ class TestUintOption(unittest.TestCase):
                      256,
                      1000)
         for argument, result in zip(arguments, results):
-            self.assertEqual(aiocoap.optiontypes.UintOption(0).decode(argument).value, result,'wrong decode operation for rawdata : '+ str(argument))
-
-    def test_length(self):
-        arguments = (0,
-                     1,
-                     2,
-                     40,
-                     50,
-                     255,
-                     256,
-                     1000)
-        results =   (0,
-                     1,
-                     1,
-                     1,
-                     1,
-                     1,
-                     2,
-                     2)
-        for argument, result in zip(arguments, results):
-            self.assertEqual(aiocoap.optiontypes.UintOption(0,argument)._length(), result,'wrong length for option value : '+ str(argument))
+            o = aiocoap.optiontypes.UintOption(0)
+            o.decode(argument)
+            self.assertEqual(o.value, result,'wrong decode operation for rawdata : '+ str(argument))
 
 
 class TestOptions(unittest.TestCase):

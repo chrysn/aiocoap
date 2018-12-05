@@ -8,7 +8,9 @@
 
 import abc
 import collections
-import struct
+
+def _to_minimum_bytes(value):
+    return value.to_bytes((value.bit_length() + 7) // 8, 'big')
 
 class OptionType(metaclass=abc.ABCMeta):
     """Interface for decoding and encoding option values
@@ -36,12 +38,6 @@ class OptionType(metaclass=abc.ABCMeta):
     def decode(self, rawdata):
         """Set the option's value from the bytes in rawdata"""
 
-    @property
-    def length(self):
-        """Indicate the length of the encoded value"""
-
-        return len(self.encode())
-
 class StringOption(OptionType):
     """String CoAP option - used to represent string options. Always encoded in
     UTF8 per CoAP specification."""
@@ -57,10 +53,6 @@ class StringOption(OptionType):
 
     def decode(self, rawdata):
         self.value = rawdata.decode('utf-8')
-
-    def _length(self):
-        return len(self.value.encode('utf-8'))
-    length = property(_length)
 
     def __str__(self):
         return self.value
@@ -78,11 +70,7 @@ class OpaqueOption(OptionType):
         return rawdata
 
     def decode(self, rawdata):
-        self.value = rawdata  # if rawdata is not None else ""
-
-    def _length(self):
-        return len(self.value)
-    length = property(_length)
+        self.value = rawdata
 
     def __str__(self):
         return repr(self.value)
@@ -95,22 +83,10 @@ class UintOption(OptionType):
         self.number = number
 
     def encode(self):
-        rawdata = struct.pack("!L", self.value)  # For Python >3.1 replace with int.to_bytes()
-        return rawdata.lstrip(bytes([0]))
+        return _to_minimum_bytes(self.value)
 
-    def decode(self, rawdata):  # For Python >3.1 replace with int.from_bytes()
-        value = 0
-        for byte in rawdata:
-            value = (value * 256) + byte
-        self.value = value
-        return self
-
-    def _length(self):
-        if self.value > 0:
-            return (self.value.bit_length() - 1) // 8 + 1
-        else:
-            return 0
-    length = property(_length)
+    def decode(self, rawdata):
+        self.value = int.from_bytes(rawdata, 'big')
 
     def __str__(self):
         return str(self.value)
@@ -186,20 +162,11 @@ class BlockOption(OptionType):
 
     def encode(self):
         as_integer = (self.value.block_number << 4) + (self.value.more * 0x08) + self.value.size_exponent
-        rawdata = struct.pack("!L", as_integer)  # For Python >3.1 replace with int.to_bytes()
-        return rawdata.lstrip(bytes([0]))
+        return _to_minimum_bytes(as_integer)
 
     def decode(self, rawdata):
-        as_integer = 0
-        for byte in rawdata:
-            as_integer = (as_integer * 256) + byte
+        as_integer = int.from_bytes(rawdata, 'big')
         self.value = self.BlockwiseTuple(block_number=(as_integer >> 4), more=bool(as_integer & 0x08), size_exponent=(as_integer & 0x07))
-
-    def _length(self):
-        if self.value.block_number == 0:
-            return int(self.value.more or (self.value.size_exponent != 0))
-        return ((self.value.block_number.bit_length() + 3) // 8 + 1)
-    length = property(_length)
 
     def __str__(self):
         return str(self.value)
