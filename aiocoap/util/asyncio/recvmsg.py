@@ -131,7 +131,8 @@ async def create_recvmsg_datagram_endpoint(loop, factory, sock):
 
     try:
         await waiter
-    except:
+    except: # noqa: E722
+            # see https://github.com/PyCQA/pycodestyle/issues/703
         transport.close()
         raise
 
