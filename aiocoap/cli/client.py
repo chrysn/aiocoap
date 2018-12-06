@@ -337,11 +337,10 @@ def sync_main(args=None):
 
         loop = asyncio.get_event_loop()
         task = asyncio.Task(interactive())
-        task.add_done_callback(lambda result: loop.stop())
 
-        while not loop.is_closed():
+        while not task.done():
             try:
-                loop.run_forever()
+                loop.run_until_complete(task)
             except KeyboardInterrupt:
                 if not interactive_expecting_keyboard_interrupt.done():
                     interactive_expecting_keyboard_interrupt.set_result(None)
