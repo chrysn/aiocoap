@@ -38,7 +38,7 @@ def build_parser():
     p.add_argument('--observe-exec', help="Run the specified program whenever the observed resource changes, feeding the response data to its stdin", metavar='CMD')
     p.add_argument('--accept', help="Content format to request", metavar="MIME")
     p.add_argument('--proxy', help="Relay the CoAP request to a proxy for execution", metavar="HOST[:PORT]")
-    p.add_argument('--payload', help="Send X as payload in POST or PUT requests. If X starts with an '@', its remainder is treated as a file name and read from.", metavar="X")
+    p.add_argument('--payload', help="Send X as payload in POST or PUT requests. If X starts with an '@', its remainder is treated as a file name and read from; '@-' reads from the console.", metavar="X")
     p.add_argument('--content-format', help="Content format sent via POST or PUT", metavar="MIME")
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
@@ -217,8 +217,13 @@ async def single_request(args, context=None):
 
     if options.payload:
         if options.payload.startswith('@'):
+            filename = options.payload[1:]
+            if filename == "-":
+                f = sys.stdin.buffer
+            else:
+                f = open(filename, 'rb')
             try:
-                request.payload = open(options.payload[1:], 'rb').read()
+                request.payload = f.read()
             except OSError as e:
                 raise parser.error("File could not be opened: %s"%e)
         else:
