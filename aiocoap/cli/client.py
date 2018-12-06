@@ -38,8 +38,8 @@ def build_parser():
     p.add_argument('--observe-exec', help="Run the specified program whenever the observed resource changes, feeding the response data to its stdin", metavar='CMD')
     p.add_argument('--accept', help="Content format to request", metavar="MIME")
     p.add_argument('--proxy', help="Relay the CoAP request to a proxy for execution", metavar="HOST[:PORT]")
-    p.add_argument('--payload', help="Send X as payload in POST or PUT requests. If X starts with an '@', its remainder is treated as a file name and read from; '@-' reads from the console.", metavar="X")
-    p.add_argument('--content-format', help="Content format sent via POST or PUT", metavar="MIME")
+    p.add_argument('--payload', help="Send X as request payload (eg. with a PUT). If X starts with an '@', its remainder is treated as a file name and read from; '@-' reads from the console. Non-file data may be recoded, see --content-format.", metavar="X")
+    p.add_argument('--content-format', help="Content format of the --payload data. If a known format is given and --payload has a non-file argument, conversion is attempted (currently only JSON to CBOR).", metavar="MIME")
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
     p.add_argument('--interactive', help="Enter interactive mode", action="store_true") # careful: picked before parsing
@@ -215,6 +215,15 @@ async def single_request(args, context=None):
         request.opt.observe = 0
         observation_is_over = asyncio.Future()
 
+    if options.content_format:
+        try:
+            request.opt.content_format = int(options.content_format)
+        except ValueError:
+            try:
+                request.opt.content_format = aiocoap.numbers.media_types_rev[options.content_format]
+            except KeyError:
+                raise parser.error("Unknown content format")
+
     if options.payload:
         if options.payload.startswith('@'):
             filename = options.payload[1:]
@@ -227,16 +236,19 @@ async def single_request(args, context=None):
             except OSError as e:
                 raise parser.error("File could not be opened: %s"%e)
         else:
-            request.payload = options.payload.encode('utf8')
-
-    if options.content_format:
-        try:
-            request.opt.content_format = int(options.content_format)
-        except ValueError:
-            try:
-                request.opt.content_format = aiocoap.numbers.media_types_rev[options.content_format]
-            except KeyError:
-                raise parser.error("Unknown content format")
+            if aiocoap.numbers.media_types.get(request.opt.content_format, "").startswith("application/cbor"):
+                try:
+                    import cbor
+                except ImportError as e:
+                    raise parser.error("CBOR recoding not available (%s)" % e)
+                import json
+                try:
+                    decoded = json.loads(options.payload)
+                except json.JSONDecodeError as e:
+                    raise parser.error("JSON recoding failed. Make sure quotation marks are escaped from the shell. JSON error: %s" % e)
+                request.payload = cbor.dumps(decoded)
+            else:
+                request.payload = options.payload.encode('utf8')
 
 
     if options.proxy is None:
