@@ -123,7 +123,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         host, port, *_ = self._transport.get_extra_info('socket').getsockname()
         if port == COAPS_PORT:
             port = None
-        return util.hostportjoin(host, port)
+        return hostportjoin(host, port)
 
     def __init__(self, host, port, pskId, psk, coaptransport):
         self._ready = False
