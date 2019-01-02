@@ -87,7 +87,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                 request.add_exception(OSError(errno, os.strerror(errno)))
                 keys_for_removal.append(key)
         for k in keys_for_removal:
-            self.outgoing_requests.pop(key)
+            self.outgoing_requests.pop(k)
 
         keys_for_removal = [
                 (_p, _r)
