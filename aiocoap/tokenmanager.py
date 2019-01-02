@@ -86,7 +86,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             if request_remote == remote:
                 request.add_exception(OSError(errno, os.strerror(errno)))
                 keys_for_removal.append(key)
-        for k in keys_for_removal:
+        for key in keys_for_removal:
             self.outgoing_requests.pop(key)
 
         keys_for_removal = [

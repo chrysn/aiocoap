@@ -2,6 +2,7 @@ __pycache__
 build
 *.egg-info
 dist
+*.pyc
 # managed by doc/aiocoap_index.py
 doc/module
 
