@@ -182,6 +182,10 @@ class Context(interfaces.RequestProvider):
                 from .transports.simple6 import MessageInterfaceSimple6
                 await self._append_tokenmanaged_messagemanaged_transport(
                     lambda mman: MessageInterfaceSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
+            elif transportname == 'simple4':
+                from .transports.simple4 import MessageInterfaceSimple4
+                await self._append_tokenmanaged_messagemanaged_transport(
+                    lambda mman: MessageInterfaceSimple4.create_client_transport_endpoint(mman, log=self.log, loop=loop))
             elif transportname == 'tinydtls':
                 from .transports.tinydtls import MessageInterfaceTinyDTLS
                 await self._append_tokenmanaged_messagemanaged_transport(

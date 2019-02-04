@@ -58,7 +58,8 @@ def get_default_clienttransports(*, loop=None):
     if sys.platform != 'linux':
         # udp6 was never reported to work on anything but linux; would happily
         # add more platforms.
-        yield 'simple6'
+        # Currently, a bug in asyncio prohibits us from using V4MAPPED on windows.
+        yield 'simple4'
         return
 
     # on android it seems that it's only the AI_V4MAPPED that causes trouble,
