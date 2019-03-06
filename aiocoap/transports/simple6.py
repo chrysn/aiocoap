@@ -170,8 +170,6 @@ class _DatagramClientSocketpoolSimple6:
         ready = asyncio.Future()
         transport, protocol = await self._loop.create_datagram_endpoint(
                 lambda: _Connection(lambda: ready.set_result(None), self._new_message_callback, self._new_error_callback, sockaddr),
-                family=socket.AF_INET6,
-                flags=socket.AI_V4MAPPED,
                 remote_addr=sockaddr)
         await ready
 
