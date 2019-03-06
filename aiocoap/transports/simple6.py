@@ -16,6 +16,10 @@ expected to work even on platforms where the :mod:`.udp6` module can not be
 made to work (Android, OSX, Windows for missing ``recvmsg`` and socket options,
 or any event loops that don't have an add_reader method).
 
+Note that the name of the module is a misnomer (and the module is likely to be
+renamed): Nothing in it is IPv6 specific; the socket is created using whichever
+address family the OS chooses based on the given host name.
+
 One small but noteworthy detail about this transport is that it does not
 distinguish between IP literals and host names. As a result, requests and
 responses from remotes will appear to arrive from a remote whose netloc is the
