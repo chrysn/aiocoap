@@ -26,6 +26,7 @@ except ImportError:
 
 import aiocoap
 import aiocoap.defaults
+import aiocoap.meta
 import aiocoap.proxy.client
 from aiocoap.util.cli import ActionNoYes
 from aiocoap.numbers import media_types
@@ -44,6 +45,7 @@ def build_parser():
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
     p.add_argument('--interactive', help="Enter interactive mode", action="store_true") # careful: picked before parsing
     p.add_argument('--credentials', help="Load credentials to use from a given file", type=Path)
+    p.add_argument('--version', action="version", version='%(prog)s ' + aiocoap.meta.version)
 
     p.add_argument('--color',
             help="Color output (default on TTYs if all required modules are installed)",
