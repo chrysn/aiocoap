@@ -58,6 +58,7 @@ Modules with stable components
    module/aiocoap.util.secrets
    module/aiocoap.util.uri
    module/aiocoap.cli
+   module/aiocoap.meta
 
    module/aiocoap.oscore
 
