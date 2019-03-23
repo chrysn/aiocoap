@@ -162,9 +162,10 @@ class Registerer:
         """
 
         if self._link_source is None:
-            self._link_data = await self._context.serversite.render(
-                Message(code=GET, uri_path=('.well-known', 'core'))
-                )
+            self._link_data = Message(
+                    content_format=40,
+                    payload=str(self._context.serversite.get_resources_as_linkheader()).encode('utf8')
+                    )
 
         else:
             self._link_data = await self._context.request(
