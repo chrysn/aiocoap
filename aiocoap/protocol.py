@@ -786,7 +786,11 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             if block1.block_number != current_block1.opt.block1.block_number:
                 raise error.UnexpectedBlock1Option("Block number mismatch")
 
-            block_cursor += 1
+            if size_exp == 7:
+                block_cursor += len(current_block1.payload) // 1024
+            else:
+                block_cursor += 1
+
             while block1.size_exponent < size_exp:
                 block_cursor *= 2
                 size_exp -= 1
