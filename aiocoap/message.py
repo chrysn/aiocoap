@@ -298,8 +298,14 @@ class Message(object):
             raise ValueError("_append_request_block only works on requests.")
 
         block1 = next_block.opt.block1
-        if block1.more and len(next_block.payload) != block1.size:
-            raise error.BadRequest("Payload size does not match Block1")
+        if block1.more:
+            if len(next_block.payload) == block1.size:
+                pass
+            elif block1.size_exponent == 7 and \
+                    len(next_block.payload) % block1.size == 0:
+                pass
+            else:
+                raise error.BadRequest("Payload size does not match Block1")
         if block1.start == len(self.payload):
             self.payload += next_block.payload
             self.opt.block1 = block1
