@@ -152,8 +152,7 @@ class _DatagramClientSocketpoolSimple6:
     # MessageInterface out completely and have that object be the Protocol,
     # and the Protocol can even send new packages via the address
     def __init__(self, loop, new_message_callback, new_error_callback):
-        # currently tracked only for shutdown
-        self._sockets = []
+        self._sockets = dict()
 
         self._loop = loop
         self._new_message_callback = new_message_callback
@@ -171,6 +170,10 @@ class _DatagramClientSocketpoolSimple6:
         For where the general underlying interface is concerned, it is not yet
         fixed at all when this must return identical objects."""
 
+        protocol = self._sockets.get(sockaddr)
+        if protocol is not None:
+            return protocol
+
         ready = asyncio.Future()
         transport, protocol = await self._loop.create_datagram_endpoint(
                 lambda: _Connection(lambda: ready.set_result(None), self._new_message_callback, self._new_error_callback, sockaddr),
@@ -179,7 +182,7 @@ class _DatagramClientSocketpoolSimple6:
 
         # FIXME twice: 1., those never get removed yet (should timeout or
         # remove themselves on error), and 2., this is racy against a shutdown right after a connect
-        self._sockets.append(protocol)
+        self._sockets[sockaddr] = protocol
 
         return protocol
 
