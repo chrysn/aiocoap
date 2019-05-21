@@ -484,7 +484,7 @@ class Context(interfaces.RequestProvider):
 
             self._block2_assemblies[block_key] = (response, canceler)
 
-            szx = request.opt.block2 if request.opt.block2 is not None \
+            szx = request.opt.block2.size_exponent if request.opt.block2 is not None \
                     else request.remote.maximum_block_size_exp
             # if a requested block2 number were not 0, the code would have
             # diverted earlier to serve from active operations
