@@ -102,8 +102,8 @@ string, which are represented as a tuple in Python::
     ('other', 'separate')
 
 Now to send that network as a request over the network, we'll need a network
-protocol object. That has a request method, and can give a response (bear with
-me, these examples don't actually work)::
+protocol object. That has a request method, and can give a response (**bear with
+me, these examples don't actually work**)::
 
     >>> protocol.request(msg).response
     <Future pending cb=[Request._response_cancellation_handler()]>
