@@ -102,8 +102,8 @@ string, which are represented as a tuple in Python::
     ('other', 'separate')
 
 Now to send that network as a request over the network, we'll need a network
-protocol object. That has a request method, and can give a response (bear with
-me, these examples don't actually work)::
+protocol object. That has a request method, and can give a response (**bear with
+me, these examples don't actually work**)::
 
     >>> protocol.request(msg).response
     <Future pending cb=[Request._response_cancellation_handler()]>
@@ -149,7 +149,7 @@ accordingly. Now we can run what did not work before::
 That's better!
 
 (Now the ``protocol`` object could also be created. That doesn't actually take
-long time, but could, depending on the operating system).
+a long time, but could, depending on the operating system).
 
 
 The response
@@ -222,7 +222,7 @@ is numeric in CoAP).
     WIP
 
 This is currently the end of the guided tour; see the :mod:`aiocoap.resource`
-documentation for the server side until the tour covers that too.is complete.
+documentation for the server side until the tour covers that is complete.
 
 
 .. _IPython: http://ipython.org/
