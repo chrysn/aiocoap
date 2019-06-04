@@ -163,7 +163,7 @@ class Context(interfaces.RequestProvider):
     async def create_client_context(cls, *, loggername="coap", loop=None):
         """Create a context bound to all addresses on a random listening port.
 
-        This is the easiest way to get an context suitable for sending client
+        This is the easiest way to get a context suitable for sending client
         requests.
         """
 
@@ -206,7 +206,7 @@ class Context(interfaces.RequestProvider):
 
     @classmethod
     async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None):
-        """Create an context, bound to all addresses on the CoAP port (unless
+        """Create a context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
         This is the easiest way to get a context suitable both for sending
