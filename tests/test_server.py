@@ -100,8 +100,11 @@ class TestingSite(aiocoap.resource.Site):
 
 
 class WithTestServer(WithAsyncLoop, Destructing):
+    # to allow overriding the factory class
+    TestingSite = TestingSite
+
     def create_testing_site(self):
-        return TestingSite()
+        return self.TestingSite()
 
     def setUp(self):
         super(WithTestServer, self).setUp()
