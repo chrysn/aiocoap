@@ -193,6 +193,11 @@ class _DatagramClientSocketpoolSimple6:
                 remote_addr=sockaddr)
         await ready
 
+#         # Enable this to easily make every connection to localhost a new one
+#         # during testing
+#         import random
+#         sockaddr = sockaddr + (random.random(),)
+
         # FIXME twice: 1., those never get removed yet (should timeout or
         # remove themselves on error), and 2., this is racy against a shutdown right after a connect
         self._sockets[sockaddr] = protocol
