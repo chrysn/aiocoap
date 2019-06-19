@@ -33,6 +33,7 @@ blockwise tests).
 
 import asyncio
 import socket
+from collections import OrderedDict
 
 from aiocoap import interfaces
 from aiocoap import COAP_PORT
@@ -145,6 +146,8 @@ class _DatagramClientSocketpoolSimple6:
     PKTINFO) provides the interface, but only implements the outgoing part, and
     will not allow setting the outgoing port or interface."""
 
+    max_sockets = 64
+
     # FIXME (new_message_callback, new_error_callback) should probably rather
     # be one object with a defined interface; either that's the
     # MessageInterfaceSimple6 and stored accessibly (so the Protocol can know
@@ -152,12 +155,18 @@ class _DatagramClientSocketpoolSimple6:
     # MessageInterface out completely and have that object be the Protocol,
     # and the Protocol can even send new packages via the address
     def __init__(self, loop, new_message_callback, new_error_callback):
-        # currently tracked only for shutdown
-        self._sockets = []
+        # using an OrderedDict to implement an LRU cache as it's suitable for that purpose according to its documentation
+        self._sockets = OrderedDict()
 
         self._loop = loop
         self._new_message_callback = new_message_callback
         self._new_error_callback = new_error_callback
+
+    async def _maybe_purge_sockets(self):
+        while len(self._sockets) >= self.max_sockets: # more of an if
+            oldaddr, oldest = next(iter(self._sockets.items()))
+            await oldest.shutdown()
+            del self._sockets[oldaddr]
 
     async def connect(self, sockaddr):
         """Create a new socket with a given remote socket address
@@ -171,15 +180,27 @@ class _DatagramClientSocketpoolSimple6:
         For where the general underlying interface is concerned, it is not yet
         fixed at all when this must return identical objects."""
 
+        protocol = self._sockets.get(sockaddr)
+        if protocol is not None:
+            self._sockets.move_to_end(sockaddr)
+            return protocol
+
+        await self._maybe_purge_sockets()
+
         ready = asyncio.Future()
         transport, protocol = await self._loop.create_datagram_endpoint(
                 lambda: _Connection(lambda: ready.set_result(None), self._new_message_callback, self._new_error_callback, sockaddr),
                 remote_addr=sockaddr)
         await ready
 
+#         # Enable this to easily make every connection to localhost a new one
+#         # during testing
+#         import random
+#         sockaddr = sockaddr + (random.random(),)
+
         # FIXME twice: 1., those never get removed yet (should timeout or
         # remove themselves on error), and 2., this is racy against a shutdown right after a connect
-        self._sockets.append(protocol)
+        self._sockets[sockaddr] = protocol
 
         return protocol
 
