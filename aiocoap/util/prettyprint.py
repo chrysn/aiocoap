@@ -122,7 +122,7 @@ def pretty_print(message):
         formatted.append("%08x  " % offset + \
                 " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8)) + "  " + \
                 " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8, 16)) + "  |" + \
-                "".join(chr(x) if 32 <= x <= 127 else '.' for x in line) + \
+                "".join(chr(x) if 32 <= x < 127 else '.' for x in line) + \
                 "|\n")
 
         offset += len(line)
