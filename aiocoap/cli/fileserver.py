@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 # This file is part of the Python aiocoap library project.
 #
 # Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
@@ -8,7 +6,9 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""A demo that acts as a file server over CoAP"""
+"""A simple file server that serves the contents of a given directory in a
+read-only fashion via CoAP. It provides directory listings, and guesses the
+media type of files it serves."""
 
 import argparse
 import sys
@@ -151,17 +151,23 @@ class FileServerProgram(AsyncCLIDaemon):
 
         self.registerer = None
 
-        p = argparse.ArgumentParser()
+        p = self.build_parser()
+
+        opts = p.parse_args()
+        server_opts = extract_server_arguments(opts)
+
+        await self.start_with_options(**vars(opts), server_opts=server_opts)
+
+    @staticmethod
+    def build_parser():
+        p = argparse.ArgumentParser(description=__doc__)
         p.add_argument("-v", "--verbose", help="Be more verbose (repeat to debug)", action='count', dest="verbosity", default=0)
         p.add_argument("--register", help="Register with a Resource directory", metavar='RD-URI', nargs='?', default=False)
         p.add_argument("path", help="Root directory of the server", nargs="?", default=".", type=Path)
 
         add_server_arguments(p)
 
-        opts = p.parse_args()
-        server_opts = extract_server_arguments(opts)
-
-        await self.start_with_options(**vars(opts), server_opts=server_opts)
+        return p
 
     async def start_with_options(self, path, verbosity=0, register=False,
             server_opts=None):
@@ -201,6 +207,9 @@ class FileServerProgram(AsyncCLIDaemon):
             await self.registerer.shutdown()
         self.refreshes.cancel()
         await self.context.shutdown()
+
+# used by doc/aiocoap_index.py
+build_parser = FileServerProgram.build_parser
 
 if __name__ == "__main__":
     FileServerProgram.sync_main()

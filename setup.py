@@ -114,6 +114,9 @@ setup(
             'aiocoap-client = aiocoap.cli.client:sync_main',
             'aiocoap-proxy = aiocoap.cli.proxy:sync_main',
             'aiocoap-rd = aiocoap.cli.rd:sync_main [linkheader]',
+            # link header is no important dependency (only used for RD
+            # registration), but currently a hard one
+            'aiocoap-fileserver = aiocoap.cli.fileserver:FileServerProgram.sync_main [linkheader]',
             ]
         },
 
