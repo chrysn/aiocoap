@@ -192,3 +192,16 @@ class AnonymousHost(Error):
     is hosted on a CoAP-over-TCP or -WebSockets client: Such resources can be
     accessed for as long as the connection is active, but can not be used any
     more once it is closed or even by another system."""
+
+class NetworkError(Error):
+    """Base class for all "something went wrong with name resolution, sending
+    or receiving packages".
+
+    Errors of these kinds are raised towards client callers when things went
+    wrong network-side, or at context creation. They are often raised from
+    socket.gaierror or similar classes, but these are wrapped in order to make
+    catching them possible independently of the underlying transport."""
+
+class ResolutionError(NetworkError):
+    """Resolving the host component of a URI to a usable transport address was
+    not possible"""
