@@ -220,13 +220,16 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # populate the zone identifier of an IPv6 address, making it impossible
         # without a getaddrinfo (or manual mapping of the name to a number) to
         # bind to a specific link-local interface
-        bind = await loop.getaddrinfo(
-            bind[0],
-            bind[1],
-            family=socket.AF_INET6,
-            type=socket.SOCK_DGRAM,
-            flags=socket.AI_V4MAPPED,
-            )
+        try:
+            bind = await loop.getaddrinfo(
+                bind[0],
+                bind[1],
+                family=socket.AF_INET6,
+                type=socket.SOCK_DGRAM,
+                flags=socket.AI_V4MAPPED,
+                )
+        except socket.gaierror:
+            raise error.ResolutionError("No local bindable address found for %s" % bind[0])
         assert bind, "getaddrinfo returned zero-length list rather than erring out"
         (*_, bind), *additional = bind
         if additional:

@@ -7,6 +7,7 @@
 # described in the accompanying LICENSE file.
 
 import asyncio
+import socket
 
 from aiocoap import interfaces, optiontypes, error, util
 from aiocoap import COAP_PORT, Message
@@ -376,8 +377,11 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
             self._pool.add(c)
             return c
 
-        server = await loop.create_server(new_connection, bind[0], bind[1],
-                ssl=_server_context)
+        try:
+            server = await loop.create_server(new_connection, bind[0], bind[1],
+                    ssl=_server_context)
+        except socket.gaierror:
+            raise error.ResolutionError("No local bindable address found for %s" % bind[0])
         self.server = server
 
         return self
