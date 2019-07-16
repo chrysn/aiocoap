@@ -427,11 +427,16 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
         if (host, port) in self._pool:
             return self._pool[(host, port)]
 
-        _, protocol = await self.loop.create_connection(
-                lambda: TcpConnection(self, self.log, self.loop,
-                    hostinfo=util.hostportjoin(host, port)),
-                host, port,
-                ssl=self._ssl_context_factory())
+        try:
+            _, protocol = await self.loop.create_connection(
+                    lambda: TcpConnection(self, self.log, self.loop,
+                        hostinfo=util.hostportjoin(host, port)),
+                    host, port,
+                    ssl=self._ssl_context_factory())
+        except socket.gaierror:
+            raise error.ResolutionError("No address information found for requests to %r" % host)
+        except OSError:
+            raise error.NetworkError("Connection failed to %r" % host)
 
         self._pool[(host, port)] = protocol
 

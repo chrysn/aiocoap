@@ -267,9 +267,13 @@ async def single_request(args, context=None):
 
         try:
             response_data = await requester.response
-        except socket.gaierror as  e:
+        except aiocoap.error.ResolutionError as e:
             print("Name resolution error:", e, file=sys.stderr)
             sys.exit(1)
+        except aiocoap.error.NetworkError as e:
+            print("Network error:", e, file=sys.stderr)
+            sys.exit(1)
+        # Fallback while not all backends raise NetworkErrors
         except OSError as e:
             text = str(e)
             if not text:
