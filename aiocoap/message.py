@@ -200,7 +200,7 @@ class Message(object):
         except struct.error:
             raise error.UnparsableMessage("Incoming message too short for CoAP")
         version = (vttkl & 0xC0) >> 6
-        if version is not 1:
+        if version != 1:
             raise error.UnparsableMessage("Fatal Error: Protocol Version must be 1")
         mtype = (vttkl & 0x30) >> 4
         token_length = (vttkl & 0x0F)
