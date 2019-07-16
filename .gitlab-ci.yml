@@ -78,19 +78,13 @@ test:3.5:
   # plain python:3.5 (which is based on jessie) has too old OpenSSL to support
   # cryptography's AEAD, and python:3.5-stretch is not available from the
   # official docker hub python containers.
+  #
+  # Running only minimal tests here.
   image: "python:3.5-jessie"
   script:
-    - echo deb http://ftp.debian.org/debian jessie-backports main >> /etc/apt/sources.list
     - apt-get update
-    - apt-get -y -t jessie-backports install libssl-dev
     - echo Using cache:; ls .eggs/ || echo No cached .eggs found
     - AIOCOAP_TEST_EXTRAS= ./setup.py test
-    # see above
-    - pip3 install DTLSSocket
-    - ./setup.py test
-    # Workaround for https://github.com/chrysn/aiocoap/issues/118
-    - pip3 install 'uvloop < 0.11'
-    - AIOCOAP_TESTS_LOOP=uvloop ./setup.py test
   cache:
     key: python3.5
     paths:
