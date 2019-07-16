@@ -13,6 +13,7 @@ integration in a bigger project in general.
    aiocoap-client: A CoAP client that supports observations and proxying <module/aiocoap.cli.client>
    aiocoap-proxy: A command-line configurable forward and reverse proxy <module/aiocoap.cli.proxy>
    aiocoap-rd: A standalone resource directory server <module/aiocoap.cli.rd>
+   aiocoap-fileserver: A simple read-only file server with directory listings <module/aiocoap.cli.fileserver>
 
 Those utilities are installed by `setup.py` at the usual executable locations;
 during development or when working from a git checkout of the project, wrapper
@@ -33,10 +34,6 @@ for writing other tools; none of this is set in stone, though, so that area can
 serve as a noncommittal playground.
 
 These tools are currently present:
-
-* ``aiocoap-fileserver``: Serves the current directory's contents as CoAP
-  resources, implementing directory listing and observation. No write support
-  yet.
 
 * ``aiocoap-widgets``: Graphical software implementations of example CoAP
   devices as servers (eg. light bulb, switch). They should become an example of

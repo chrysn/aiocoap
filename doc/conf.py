@@ -191,4 +191,6 @@ autodoc_member_order = 'bysource'
 man_pages = [
         ('module/aiocoap.cli.client', 'aiocoap-client', 'query CoAP servers from the command line', '', 1),
         ('module/aiocoap.cli.proxy', 'aiocoap-proxy', 'forward and reverse proxy server for CoAP', '', 1),
+        ('module/aiocoap.cli.rd', 'aiocoap-rd', 'Resource Directory server', '', 1),
+        ('module/aiocoap.cli.fileserver', 'aiocoap-fileserver', 'File server for CoAP', '', 1),
         ]
