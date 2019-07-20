@@ -27,6 +27,7 @@ project, the suggested way of operation is getting a Git checkout of the
 project::
 
     $ git clone https://github.com/chrysn/aiocoap
+    $ cd aiocoap
 
 You can then use the project from that location, or install it with
 
