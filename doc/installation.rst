@@ -48,6 +48,18 @@ aiocoap and pip's `choice of checkout directories`_ is suitable for you.
 .. _`Python package index`: https://pypi.python.org/pypi/aiocoap/
 .. _`choice of checkout directories`: https://pip.pypa.io/en/stable/reference/pip_install/#vcs-support
 
+Common errors
+-------------
+
+When upstream libraries change, or when dependencies of used libraries are not
+there (eg. no C compiler, C libraries missing), the installation process can fail.
+
+In those cases, it is helpful to not install with all extras, but replace the
+``all`` with the extras you actually want from the list below. For example, if
+you see errors from DTLSSocket, rather than installing with ``[all,docs]``, you
+can leave out the ``tinydtls`` extra and install with
+``[linkheader,oscore,prettyprint,docs]``.
+
 Slimmer installations
 ---------------------
 
