@@ -25,7 +25,7 @@ from aiocoap.message import Message
 from aiocoap.util import secrets
 from aiocoap.numbers import POST, FETCH, CHANGED
 
-from cryptography.hazmat.primitives.ciphers.aead import AESCCM
+from cryptography.hazmat.primitives.ciphers import aead
 import cryptography.exceptions
 
 import hkdf
@@ -109,12 +109,12 @@ class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
 
     @classmethod
     def encrypt(cls, plaintext, aad, key, iv):
-        return AESCCM(key, cls.tag_bytes).encrypt(iv, plaintext, aad)
+        return aead.AESCCM(key, cls.tag_bytes).encrypt(iv, plaintext, aad)
 
     @classmethod
     def decrypt(cls, ciphertext_and_tag, aad, key, iv):
         try:
-            return AESCCM(key, cls.tag_bytes).decrypt(iv, ciphertext_and_tag, aad)
+            return aead.AESCCM(key, cls.tag_bytes).decrypt(iv, ciphertext_and_tag, aad)
         except cryptography.exceptions.InvalidTag:
             raise ProtectionInvalid("Tag invalid")
 
@@ -132,9 +132,28 @@ class AES_CCM_16_64_128(AES_CCM):
     iv_bytes = 13 # from L=16 column: 15 - L/8 = 13, and the description
     tag_bytes = 8 # 64 bit tag, the 'M' column
 
+class ChaCha20Poly1305(Algorithm):
+    # from RFC8152
+    value = 24
+    key_bytes = 32 # 256-bit key
+    tag_bytes = 16 # 128-bit tag
+    iv_bytes = 12 # 96-bit nonce
+
+    @classmethod
+    def encrypt(cls, plaintext, aad, key, iv):
+        return aead.ChaCha20Poly1305(key).encrypt(iv, plaintext, aad)
+
+    @classmethod
+    def decrypt(cls, ciphertext_and_tag, aad, key, iv):
+        try:
+            return aead.ChaCha20Poly1305(key).decrypt(iv, ciphertext_and_tag, aad)
+        except cryptography.exceptions.InvalidTag:
+            raise ProtectionInvalid("Tag invalid")
+
 algorithms = {
         'AES-CCM-16-64-128': AES_CCM_16_64_128(),
         'AES-CCM-64-64-128': AES_CCM_64_64_128(),
+        'ChaCha20/Poly1305': ChaCha20Poly1305(),
         }
 
 hashfunctions = {
