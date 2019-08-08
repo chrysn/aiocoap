@@ -132,6 +132,40 @@ class AES_CCM_16_64_128(AES_CCM):
     iv_bytes = 13 # from L=16 column: 15 - L/8 = 13, and the description
     tag_bytes = 8 # 64 bit tag, the 'M' column
 
+class AES_GCM(Algorithm, metaclass=abc.ABCMeta):
+    """AES-GCM implemented using the Python cryptography library"""
+
+    iv_bytes = 12 # 96 bits fixed size of the nonce
+
+    @classmethod
+    def encrypt(cls, plaintext, aad, key, iv):
+        return aead.AESGCM(key).encrypt(iv, plaintext, aad)
+
+    @classmethod
+    def decrypt(cls, ciphertext_and_tag, aad, key, iv):
+        try:
+            return aead.AESGCM(key).decrypt(iv, ciphertext_and_tag, aad)
+        except cryptography.exceptions.InvalidTag:
+            raise ProtectionInvalid("Tag invalid")
+
+class A128GCM(AES_GCM):
+    # from RFC8152
+    value = 1
+    key_bytes = 16 # 128-bit key
+    tag_bytes = 16 # 128-bit tag
+
+class A192GCM(AES_GCM):
+    # from RFC8152
+    value = 2
+    key_bytes = 24 # 192-bit key
+    tag_bytes = 16 # 128-bit tag
+
+class A256GCM(AES_GCM):
+    # from RFC8152
+    value = 3
+    key_bytes = 32 # 256-bit key
+    tag_bytes = 16 # 128-bit tag
+
 class ChaCha20Poly1305(Algorithm):
     # from RFC8152
     value = 24
@@ -154,6 +188,9 @@ algorithms = {
         'AES-CCM-16-64-128': AES_CCM_16_64_128(),
         'AES-CCM-64-64-128': AES_CCM_64_64_128(),
         'ChaCha20/Poly1305': ChaCha20Poly1305(),
+        'A128GCM': A128GCM(),
+        'A192GCM': A192GCM(),
+        'A256GCM': A256GCM(),
         }
 
 hashfunctions = {
