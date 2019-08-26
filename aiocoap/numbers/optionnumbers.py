@@ -80,7 +80,7 @@ class OptionNumber(ExtensibleIntEnum):
     PROXY_SCHEME = 39
     SIZE1 = 60
     NO_RESPONSE = 258
-    OBJECT_SECURITY = 9 # number used in the test vectors of object-security
+    OBJECT_SECURITY = 9
 
     def is_critical(self):
         return self & 0x01 == 0x01
