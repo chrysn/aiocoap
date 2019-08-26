@@ -16,7 +16,7 @@ This currently only implements the client side. To have a test server, run::
     $ ./autogen.sh
     $ ./configure --with-tinydtls --disable-shared
     $ make
-    $ ./examples/coap-server
+    $ ./examples/coap-server -k secretPSK
 
 (Using TinyDTLS in libcoap is important; with the default OpenSSL build, I've
 seen DTLS1.0 responses to DTLS1.3 requests, which are hard to debug.)
