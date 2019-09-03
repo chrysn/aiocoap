@@ -25,7 +25,7 @@ longdescription = __doc__
 extras_require = {
         'linkheader': ['LinkHeader'],
         'oscore': ['hkdf', 'cbor', 'cryptography (>= 2.0)'],
-        'tinydtls': ['DTLSSocket >= 0.1.0'],
+        'tinydtls': ['DTLSSocket >= 0.1.11a1'],
         'prettyprint': ['termcolor', 'cbor', 'LinkHeader', 'pygments'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         'all': [], # populated below, contains everything but documentation dependencies for easier installation

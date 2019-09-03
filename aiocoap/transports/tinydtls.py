@@ -14,9 +14,9 @@ This currently only implements the client side. To have a test server, run::
     $ git clone https://github.com/obgm/libcoap.git --recursive
     $ cd libcoap
     $ ./autogen.sh
-    $ ./configure --with-tinydtls --disable-shared
+    $ ./configure --with-tinydtls --disable-shared --disable-documentation
     $ make
-    $ ./examples/coap-server
+    $ ./examples/coap-server -k secretPSK
 
 (Using TinyDTLS in libcoap is important; with the default OpenSSL build, I've
 seen DTLS1.0 responses to DTLS1.3 requests, which are hard to debug.)
@@ -139,7 +139,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         self._pskId = pskId
         self._psk = psk
         self.coaptransport = coaptransport
-        self.hostinfo = hostportjoin(host, None if port is 684 else port)
+        self.hostinfo = hostportjoin(host, None if port == COAPS_PORT else port)
 
         self._task = asyncio.ensure_future(self._run(connect_immediately=True))
 
