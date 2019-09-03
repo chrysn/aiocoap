@@ -14,7 +14,7 @@ This currently only implements the client side. To have a test server, run::
     $ git clone https://github.com/obgm/libcoap.git --recursive
     $ cd libcoap
     $ ./autogen.sh
-    $ ./configure --with-tinydtls --disable-shared
+    $ ./configure --with-tinydtls --disable-shared --disable-documentation
     $ make
     $ ./examples/coap-server -k secretPSK
 
