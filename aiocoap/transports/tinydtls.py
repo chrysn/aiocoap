@@ -139,7 +139,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         self._pskId = pskId
         self._psk = psk
         self.coaptransport = coaptransport
-        self.hostinfo = hostportjoin(host, None if port is 684 else port)
+        self.hostinfo = hostportjoin(host, None if port == COAPS_PORT else port)
 
         self._task = asyncio.ensure_future(self._run(connect_immediately=True))
 
