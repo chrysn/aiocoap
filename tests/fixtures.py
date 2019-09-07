@@ -179,6 +179,19 @@ class Destructing(WithLogMonitoring):
                 # for the survivor, so it's already not in the list.
                 referrers = all_referrers
 
+            def _format_any(frame, survivor_id):
+                if str(type(frame)) == "<class 'frame'>":
+                    return _format_frame(frame, survivor_id)
+
+                if isinstance(frame, dict):
+                    # If it's a __dict__, it'd be really handy to know whose dict that is
+                    framerefs = gc.get_referrers(frame)
+                    owners = [o for o in framerefs if getattr(o, "__dict__", None) is frame]
+                    if owners:
+                        return pprint.pformat(frame) + "\n  ... which is the __dict__ of %s" % (owners,)
+
+                return pprint.pformat(frame)
+
             def _format_frame(frame, survivor_id):
                 return "%s as %s in %s" % (
                     frame,
@@ -190,7 +203,7 @@ class Destructing(WithLogMonitoring):
             # the details _format_frame can extract
             survivor_id = id(survivor)
             referrer_strings = [
-                    _format_frame(x, survivor_id) if str(type(x)) == "<class 'frame'>" else pprint.pformat(x) for x in
+                    _format_any(x, survivor_id) for x in
                     referrers]
             formatted_survivor = pprint.pformat(vars(survivor))
             return "Survivor found: %r\nReferrers of the survivor:\n*"\
