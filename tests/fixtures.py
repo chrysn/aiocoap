@@ -156,6 +156,12 @@ class Destructing(WithLogMonitoring):
         gc.collect()
 
         def snapshot():
+            # This object is created locally and held by the same referrers
+            # that also hold the now-recreated survivor.
+            #
+            # By comparing its referrers to the surviver's referrers, we can
+            # filter out this tool's entry in the already hard to read list of
+            # objects that kept the survivor alive.
             canary = object()
             survivor = weaksurvivor()
             if survivor is None:
@@ -163,8 +169,9 @@ class Destructing(WithLogMonitoring):
 
             all_referrers = gc.get_referrers(survivor)
             canary_referrers = gc.get_referrers(canary)
+            assert len(canary_referrers) > 0, "Optimization removed canary referrer"
             referrers = [r for r in all_referrers if r not in canary_referrers]
-            assert len(all_referrers) == len(referrers) + 1, "Canary to filter out the debugging tool's reference did not work"
+            assert len(all_referrers) == len(referrers) + 1, "Canary to filter out the debugging tool's reference did not work.\nReferrers:\n%s\ncanary_referrers:\n%s" % (pprint.pformat(all_referrers), pprint.pformat(canary_referrers))
 
             def _format_frame(frame, survivor_id):
                 return "%s as %s in %s" % (
