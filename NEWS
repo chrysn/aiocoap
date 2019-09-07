@@ -1,6 +1,21 @@
 Version next
 ------------
 
+Tools
+~~~~~
+
+* aiocoap-client can now re-format binary output (hex-dumping binary files,
+  showing CBOR files in JSON-like notation) and apply syntax highlighting. By
+  default, this is enabled if the output is a terminal. If output redirection
+  is used, data is passed on as-is.
+
+* aiocoap-fileserver is now provided as a standalone tool. It provides
+  directory listings in link format, guesses the content format of provided
+  files, and allows observation.
+
+* aiocoap-rd is now provided as a standalone tool and offers a simple CoRE
+  Resource Directory server.
+
 Breaking changes
 ~~~~~~~~~~~~~~~~
 
@@ -20,6 +35,91 @@ Breaking changes
   block2:2/x/x` request would be treated as a new operation and return the
   result of an empty request body rather than being aligned with an earlier
   `FETCH block1:x/x/x` operation.
+
+* fdc8b024: Support for Python 3.4 is dropped; minimum supported version is now
+  3.5.2.
+
+* 0124ad0e: The network dumping feature was removed, as it would have been
+  overly onerous to support it with the new more flexible transports.
+
+* 092cf49f, 89c2a2e0: The content type mapped to the content format 0 was
+  changed from "text/plain" (which was incorrect as it was just the bare media
+  type) to the actual content of the IANA registry,
+  'text/plain;charset="utf8"'. For looking up the content format, text/plain is
+  is still supported but deprecated.
+
+* 17d1de5a: Handling of the various components of a remote was unified into the
+  .remote property of messages. If you were previously setting unresolved
+  addresses or even a tuple-based remote manualy, please set them using the
+  `uri` pseudo-option now.
+
+* 47863a29: Re-raise transport specific errors as aiocoap errors as
+  aiocoap.error.ResolutionError or NetworkError. This allows API users to catch
+  them independently of the underlying transport.
+
+New features
+~~~~~~~~~~~~
+
+* 88f44a5d: TCP and TLS support added; TLS is currently limited to PKI
+  certificates. This includes support for preserving the URI scheme in
+  exchanges (0b0214db).
+* a50da1a8: The credentials module was added to dispatch DTLS and OSCORE credentials
+* f302da07: On the client side, OSCORE can now be used as a transport without
+  any manual protection steps. It is automatically used for URIs for which a
+  security context has been registered with the context's client credentials.
+* 5e5388ae: Support for PyPy
+* 0d09b2eb: NoResponse is now handled automatically. Handlers can override the
+  default handling by setting a No-Response option on their response
+  messages, whose value will them be examined by the library to decide whether
+  the message is actually sent; the No-Response option is stripped from the
+  outgoing message in the course of that (as it's actually not a response
+  option).
+* b048a50a: Some improvements on multicast handling. There is still no good
+  support for sending a request to multicast and receiving the individual
+  responses, but requests to multicast addresses are now unconditionally
+  handled under the rules of multicast CoAP, even if they're used over the
+  regular request interface (ie. sending to multicast but processing only the
+  first response).
+
+Deprecations
+~~~~~~~~~~~~
+
+* 0d09b2eb: Returning a NoResponse sentinel value is now deprecated.
+
+Assorted changes
+~~~~~~~~~~~~~~~~
+
+* Additions to the contrib/ collection of aiocoap based tools:
+  - widgets, kivy-widgets
+  - rd-relay
+* 95c681a5 and others: Internal interfaces were introduced for the various CoAP
+  sublayers.  This should largely not affect operation (though it does change
+  the choice of tokens or message IDs); where it does, it's noted above in the
+  breaking changes. 
+* 5e5388ae, 9e17180e, 60137bd8: Various fixes to the OSCORE implementation,
+  which is not considered experimental any more.
+* Various additions to the test suite
+* 61843d41: Asynchronous `recvmsg` calling (as used by the udp6 backend) was
+  reworked from monkey-patching into using asyncio's `add_reader` method, and
+  should thus now be usable on all asyncio implementations, including uvloop
+  and gbulb.
+* 3ab14c49: .well-known/core filtering will now properly filter by content
+  format (ct=) in the presence of multiple supported content types.
+* 9bd612de: Fix encoding of block size 16.
+* 029a8f0e: Don't enforce V4MAPPED addresses in the simple6 backend. This makes
+  the backend effectively a simple-any backend, as the address family can be
+  picked arbitrarily by the operating system.
+* 8e93eeb9: The simple6 backend now reuses the most recently used 64 sockets.
+* cb8743b6: Resolve the name given as binding server name. This enables
+  creating servers bound exclusively to a link-local address.
+* d6aa5f8c: TinyDTLS now pulls in a more recent version of DTLSSocket that has
+  its version negotiation fixed, and can thus interoperate with recent versions
+  of libcoap and RIOT's the pending support for DTLS on Gcoap.
+
+Bugfixes
+~~~~~~~~
+
+* 3d9613ab: Errors in URI encoding were fixed
 
 Version 0.4a1
 -------------
