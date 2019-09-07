@@ -143,6 +143,14 @@ class Destructing(WithLogMonitoring):
     def _del_to_be_sure(self, attribute):
         weaksurvivor = weakref.ref(getattr(self, attribute))
         delattr(self, attribute)
+
+        if not test_is_successful(self):
+            # An error was already logged, and that error's backtrace usually
+            # creates references that make any attempt to detect lingering
+            # references fuitile. It'll show an error anyway, no use in
+            # polluting the logs.
+            return
+
         # let everything that gets async-triggered by close() happen
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
         gc.collect()
@@ -179,13 +187,6 @@ class Destructing(WithLogMonitoring):
                         formatted_survivor)
 
         s = snapshot()
-
-        if not test_is_successful(self):
-            # An error was already logged, and that error's backtrace usually
-            # creates references that make any attempt to detect lingering
-            # references fuitile. It'll show an error anyway, no use in
-            # polluting the logs.
-            return
 
         if s is not None:
             original_s = s
