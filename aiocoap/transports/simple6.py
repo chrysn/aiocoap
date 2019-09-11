@@ -206,7 +206,7 @@ class _DatagramClientSocketpoolSimple6:
 
     async def shutdown(self):
         if self._sockets:
-            await asyncio.wait([s.shutdown() for s in self._sockets])
+            await asyncio.wait([s.shutdown() for s in self._sockets.values()])
         del self._sockets
 
 class MessageInterfaceSimple6(GenericMessageInterface):
