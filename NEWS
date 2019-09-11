@@ -80,6 +80,8 @@ New features
   handled under the rules of multicast CoAP, even if they're used over the
   regular request interface (ie. sending to multicast but processing only the
   first response).
+* c7ca0286: The software version used to run the server (by default, aiocoap's
+  version) is now shown in .well-known/core using the impl-info relation.
 
 Deprecations
 ~~~~~~~~~~~~
