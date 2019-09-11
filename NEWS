@@ -26,15 +26,15 @@ Breaking changes
   observation in the background. (See <https://github.com/chrysn/aiocoap/issues/104>)
 
 * Server resources that expect the library to do handle blockwise by returning
-  true to `needs_blockwise_assembly` do not allow random initial access any
+  true to ``needs_blockwise_assembly`` do not allow random initial access any
   more; this this is especially problematic with clients that use a different
   source port for every package.
 
   The old behavior was prone to triggering an action twice on non-safe methods,
-  and generating wrong results in block1+block2 scenarios when a later `FETCH
-  block2:2/x/x` request would be treated as a new operation and return the
+  and generating wrong results in block1+block2 scenarios when a later ``FETCH
+  block2:2/x/x`` request would be treated as a new operation and return the
   result of an empty request body rather than being aligned with an earlier
-  `FETCH block1:x/x/x` operation.
+  ``FETCH block1:x/x/x`` operation.
 
 * fdc8b024: Support for Python 3.4 is dropped; minimum supported version is now
   3.5.2.
@@ -51,7 +51,7 @@ Breaking changes
 * 17d1de5a: Handling of the various components of a remote was unified into the
   .remote property of messages. If you were previously setting unresolved
   addresses or even a tuple-based remote manualy, please set them using the
-  `uri` pseudo-option now.
+  ``uri`` pseudo-option now.
 
 * 47863a29: Re-raise transport specific errors as aiocoap errors as
   aiocoap.error.ResolutionError or NetworkError. This allows API users to catch
@@ -59,7 +59,7 @@ Breaking changes
 
 * f9824eb2: Plain strings as paths in add_resource are rejected. Applications
   that did this are very unlikely to have produced the intended behavior, and
-  if so can be easily fixed by passing in `tuple(s)` rather than `s`.
+  if so can be easily fixed by passing in ``tuple(s)`` rather than ``s``.
 
 New features
 ~~~~~~~~~~~~
@@ -107,8 +107,8 @@ Assorted changes
 * 5e5388ae, 9e17180e, 60137bd8: Various fixes to the OSCORE implementation,
   which is not considered experimental any more.
 * Various additions to the test suite
-* 61843d41: Asynchronous `recvmsg` calling (as used by the udp6 backend) was
-  reworked from monkey-patching into using asyncio's `add_reader` method, and
+* 61843d41: Asynchronous ``recvmsg`` calling (as used by the udp6 backend) was
+  reworked from monkey-patching into using asyncio's ``add_reader`` method, and
   should thus now be usable on all asyncio implementations, including uvloop
   and gbulb.
 * 3ab14c49: .well-known/core filtering will now properly filter by content
