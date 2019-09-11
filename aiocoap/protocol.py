@@ -282,7 +282,9 @@ class Context(interfaces.RequestProvider):
         for r in self._running_renderings:
             r.cancel()
 
-        await asyncio.wait([ri.shutdown() for ri in self.request_interfaces], timeout=3, loop=self.loop)
+        done, pending = await asyncio.wait([ri.shutdown() for ri in self.request_interfaces], timeout=3, loop=self.loop)
+        for item in done:
+            await item
 
     # FIXME: determine how official this should be, or which part of it is
     # public -- now that BlockwiseRequest uses it. (And formalize what can
