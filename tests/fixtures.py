@@ -143,11 +143,25 @@ class Destructing(WithLogMonitoring):
     def _del_to_be_sure(self, attribute):
         weaksurvivor = weakref.ref(getattr(self, attribute))
         delattr(self, attribute)
+
+        if not test_is_successful(self):
+            # An error was already logged, and that error's backtrace usually
+            # creates references that make any attempt to detect lingering
+            # references fuitile. It'll show an error anyway, no use in
+            # polluting the logs.
+            return
+
         # let everything that gets async-triggered by close() happen
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
         gc.collect()
 
         def snapshot():
+            # This object is created locally and held by the same referrers
+            # that also hold the now-recreated survivor.
+            #
+            # By comparing its referrers to the surviver's referrers, we can
+            # filter out this tool's entry in the already hard to read list of
+            # objects that kept the survivor alive.
             canary = object()
             survivor = weaksurvivor()
             if survivor is None:
@@ -155,8 +169,28 @@ class Destructing(WithLogMonitoring):
 
             all_referrers = gc.get_referrers(survivor)
             canary_referrers = gc.get_referrers(canary)
-            referrers = [r for r in all_referrers if r not in canary_referrers]
-            assert len(all_referrers) == len(referrers) + 1, "Canary to filter out the debugging tool's reference did not work"
+            if canary_referrers:
+                referrers = [r for r in all_referrers if r not in canary_referrers]
+                assert len(all_referrers) == len(referrers) + 1, "Canary to filter out the debugging tool's reference did not work.\nReferrers:\n%s\ncanary_referrers:\n%s" % (pprint.pformat(all_referrers), pprint.pformat(canary_referrers))
+            else:
+                # There is probably an optimization around that makes the
+                # current locals not show up as referrers. It is hoped (and
+                # least with the current Python it works) that this also works
+                # for the survivor, so it's already not in the list.
+                referrers = all_referrers
+
+            def _format_any(frame, survivor_id):
+                if str(type(frame)) == "<class 'frame'>":
+                    return _format_frame(frame, survivor_id)
+
+                if isinstance(frame, dict):
+                    # If it's a __dict__, it'd be really handy to know whose dict that is
+                    framerefs = gc.get_referrers(frame)
+                    owners = [o for o in framerefs if getattr(o, "__dict__", None) is frame]
+                    if owners:
+                        return pprint.pformat(frame) + "\n  ... which is the __dict__ of %s" % (owners,)
+
+                return pprint.pformat(frame)
 
             def _format_frame(frame, survivor_id):
                 return "%s as %s in %s" % (
@@ -169,7 +203,7 @@ class Destructing(WithLogMonitoring):
             # the details _format_frame can extract
             survivor_id = id(survivor)
             referrer_strings = [
-                    _format_frame(x, survivor_id) if str(type(x)) == "<class 'frame'>" else pprint.pformat(x) for x in
+                    _format_any(x, survivor_id) for x in
                     referrers]
             formatted_survivor = pprint.pformat(vars(survivor))
             return "Survivor found: %r\nReferrers of the survivor:\n*"\
@@ -179,13 +213,6 @@ class Destructing(WithLogMonitoring):
                         formatted_survivor)
 
         s = snapshot()
-
-        if not test_is_successful(self):
-            # An error was already logged, and that error's backtrace usually
-            # creates references that make any attempt to detect lingering
-            # references fuitile. It'll show an error anyway, no use in
-            # polluting the logs.
-            return
 
         if s is not None:
             original_s = s
