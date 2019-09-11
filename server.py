@@ -103,11 +103,11 @@ def main():
     # Resource tree creation
     root = resource.Site()
 
-    root.add_resource(('.well-known', 'core'),
+    root.add_resource(['.well-known', 'core'],
             resource.WKCResource(root.get_resources_as_linkheader))
-    root.add_resource(('time',), TimeResource())
-    root.add_resource(('other', 'block'), BlockResource())
-    root.add_resource(('other', 'separate'), SeparateLargeResource())
+    root.add_resource(['time'], TimeResource())
+    root.add_resource(['other', 'block'], BlockResource())
+    root.add_resource(['other', 'separate'], SeparateLargeResource())
 
     asyncio.Task(aiocoap.Context.create_server_context(root))
 

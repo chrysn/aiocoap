@@ -80,33 +80,33 @@ class ObservableFailure(ObservableResource):
         return aiocoap.Message(code=aiocoap.UNAUTHORIZED)
 
 class ObserveTestingSite(aiocoap.resource.Site):
-    prefix = ()
+    prefix = []
 
     def __init__(self):
         super(ObserveTestingSite, self).__init__()
 
-        self.add_resource(self.prefix + ('unobservable',), MultiRepresentationResource({
+        self.add_resource(self.prefix + ['unobservable'], MultiRepresentationResource({
             'text/plain;charset=utf-8': b'',
             }))
-        self.add_resource(self.prefix + ('count',), ObservableCounter())
-        self.add_resource(self.prefix + ('echo',), ObservableReplacingResource())
-        self.add_resource(self.prefix + ('notreally',), ObserveLateUnbloomer())
-        self.add_resource(self.prefix + ('failure',), ObservableFailure())
-        self.add_resource(self.prefix + ('large',), ObservableCounter(lambda x: (" %3d" % x) * 400))
+        self.add_resource(self.prefix + ['count'], ObservableCounter())
+        self.add_resource(self.prefix + ['echo'], ObservableReplacingResource())
+        self.add_resource(self.prefix + ['notreally'], ObserveLateUnbloomer())
+        self.add_resource(self.prefix + ['failure'], ObservableFailure())
+        self.add_resource(self.prefix + ['large'], ObservableCounter(lambda x: (" %3d" % x) * 400))
 
 class NestedSite(aiocoap.resource.Site):
     def __init__(self):
         super().__init__()
 
         # Not part of the test suite, but handy when running standalone
-        self.add_resource(('.well-known', 'core'), WKCResource(self.get_resources_as_linkheader))
+        self.add_resource(['.well-known', 'core'], WKCResource(self.get_resources_as_linkheader))
 
         self.subsite = ObserveTestingSite()
 
-        self.add_resource(('deep',), self.subsite)
+        self.add_resource(['deep'], self.subsite)
 
 class UnnestedSite(ObserveTestingSite):
-    prefix = ('deep',)
+    prefix = ['deep']
 
 class WithObserveTestServer(WithTestServer):
     def create_testing_site(self):

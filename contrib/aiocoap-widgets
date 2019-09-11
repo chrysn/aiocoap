@@ -82,8 +82,8 @@ class WidgetApplication(AsyncCLIDaemon):
         win.connect("delete-event", lambda *args: self.stop(0))
 
         site = resource.Site()
-        site.add_resource(('.well-known', 'core'), resource.WKCResource(site.get_resources_as_linkheader))
-        site.add_resource(('window-title',), WindowTitle(win))
+        site.add_resource(['.well-known', 'core'], resource.WKCResource(site.get_resources_as_linkheader))
+        site.add_resource(['window-title'], WindowTitle(win))
 
         # temporary show-all
         box = Gtk.VBox()
@@ -91,22 +91,22 @@ class WidgetApplication(AsyncCLIDaemon):
 
         rgb = RGBLight(None)
         box.add(rgb.widget)
-        site.add_resource(('spot', ), rgb)
+        site.add_resource(['spot'], rgb)
 
         switch = Switch(None)
         box.add(switch.widget)
-        site.add_resource(('switch',), switch)
+        site.add_resource(['switch'], switch)
 
         bulb = Bulb(None)
         box.add(bulb.widget)
-        site.add_resource(('bulb',), bulb)
+        site.add_resource(['bulb'], bulb)
 
         slider = Slider(None)
         box.add(slider.widget)
-        site.add_resource(('slider',), slider)
+        site.add_resource(['slider'], slider)
 
         bigbatch = SubsiteBatch(site)
-        site.add_resource((), bigbatch)
+        site.add_resource([], bigbatch)
 
         win.show_all()
 

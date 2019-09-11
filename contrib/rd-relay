@@ -132,7 +132,7 @@ class RDRelayProgram(AsyncCLIDaemon):
 
         site = Site()
         wkc = RelayingWKC()
-        site.add_resource(('.well-known', 'core'), wkc)
+        site.add_resource(['.well-known', 'core'], wkc)
 
         self.context = await server_context_from_arguments(site, opts)
         wkc.context = self.context

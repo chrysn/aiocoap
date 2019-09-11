@@ -500,7 +500,7 @@ class StandaloneResourceDirectory(Site):
         common_rd = CommonRD()
 
         self._simple_wkc = SimpleRegistrationWKC(self.get_resources_as_linkheader, common_rd=common_rd)
-        self.add_resource((".well-known", "core"), self._simple_wkc)
+        self.add_resource([".well-known", "core"], self._simple_wkc)
 
         self.add_resource(self.rd_path, RegistrationInterface(common_rd=common_rd))
         self.add_resource(self.ep_lookup_path, EndpointLookupInterface(common_rd=common_rd))

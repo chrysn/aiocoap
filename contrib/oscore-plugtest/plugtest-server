@@ -378,21 +378,21 @@ class PlugtestSite(ProtectedSite):
     def __init__(self, server_credentials):
         super().__init__(server_credentials=server_credentials)
 
-        self.add_resource(('.well-known', 'core'), resource.WKCResource(self.get_resources_as_linkheader))
-        self.add_resource(('oscore', 'hello', 'coap'), Hello())
-        self.add_protected_resource(('oscore', 'hello', '1'), Hello1())
-        self.add_protected_resource(('oscore', 'hello', '2'), Hello2())
-        self.add_protected_resource(('oscore', 'hello', '3'), Hello3())
-        self.add_protected_resource(('oscore', 'hello', '6'), Hello6())
-        self.add_protected_resource(('oscore', 'hello', '7'), Hello7())
-        self.add_protected_resource(('oscore', 'observe1',), Observe())
-        self.add_protected_resource(('oscore', 'observe2',), Observe())
-        self.add_protected_resource(('oscore', 'test',), DeleteResource())
+        self.add_resource(['.well-known', 'core'], resource.WKCResource(self.get_resources_as_linkheader))
+        self.add_resource(['oscore', 'hello', 'coap'], Hello())
+        self.add_protected_resource(['oscore', 'hello', '1'], Hello1())
+        self.add_protected_resource(['oscore', 'hello', '2'], Hello2())
+        self.add_protected_resource(['oscore', 'hello', '3'], Hello3())
+        self.add_protected_resource(['oscore', 'hello', '6'], Hello6())
+        self.add_protected_resource(['oscore', 'hello', '7'], Hello7())
+        self.add_protected_resource(['oscore', 'observe1'], Observe())
+        self.add_protected_resource(['oscore', 'observe2'], Observe())
+        self.add_protected_resource(['oscore', 'test'], DeleteResource())
 
-        self.add_protected_resource(('oscore', 'block', 'outer'), BlockResource())
-        self.add_protected_resource(('oscore', 'block', 'inner'), InnerBlockResource())
+        self.add_protected_resource(['oscore', 'block', 'outer'], BlockResource())
+        self.add_protected_resource(['oscore', 'block', 'inner'], InnerBlockResource())
 
-        self.add_resource(('sequence-numbers',), SeqnoManager(server_credentials))
+        self.add_resource(['sequence-numbers'], SeqnoManager(server_credentials))
 
 class PlugtestServerProgram(AsyncCLIDaemon):
     async def start(self):

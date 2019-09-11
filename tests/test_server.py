@@ -74,29 +74,29 @@ class TestingSite(aiocoap.resource.Site):
         super(TestingSite, self).__init__()
 
         # Not part of the test suite, but handy when running standalone
-        self.add_resource(('.well-known', 'core'), aiocoap.resource.WKCResource(self.get_resources_as_linkheader))
+        self.add_resource(['.well-known', 'core'], aiocoap.resource.WKCResource(self.get_resources_as_linkheader))
 
-        self.add_resource(('empty',), MultiRepresentationResource({
+        self.add_resource(['empty'], MultiRepresentationResource({
             'application/json': b'{}',
             'application/link-format': b'<>',
             'text/plain;charset=utf-8': b'',
             }))
-        self.add_resource(('answer',), MultiRepresentationResource({
+        self.add_resource(['answer'], MultiRepresentationResource({
             'application/json': b'{"answer": 42}',
             'application/cbor': b'\xa1\x66\x61\x6e\x73\x77\x65\x72\x18\x2a',
             'application/link-format': b'<data:text/plain;42>;rel="answer";anchor="https://en.wikipedia.org/wiki/Phrases_from_The_Hitchhiker%27s_Guide_to_the_Galaxy#Answer_to_the_Ultimate_Question_of_Life,_the_Universe,_and_Everything_(42)"',
             'text/plain;charset=utf-8': b'The answer to life, the universe, and everything is 42.',
             }))
-        self.add_resource(('slow',), SlowResource())
-        self.add_resource(('big',), BigResource())
-        self.add_resource(('slowbig',), SlowBigResource())
-        self.add_resource(('replacing',), self.Subsite())
-        self.add_resource((), RootResource())
+        self.add_resource(['slow'], SlowResource())
+        self.add_resource(['big'], BigResource())
+        self.add_resource(['slowbig'], SlowBigResource())
+        self.add_resource(['replacing'], self.Subsite())
+        self.add_resource([], RootResource())
 
     class Subsite(aiocoap.resource.Site):
         def __init__(self):
             super().__init__()
-            self.add_resource(('one',), ReplacingResource())
+            self.add_resource(['one'], ReplacingResource())
 
 
 class WithTestServer(WithAsyncLoop, Destructing):

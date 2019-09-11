@@ -41,9 +41,9 @@ class CoAPDisplay(App):
 
     async def main(self):
         site = Site()
-        site.add_resource(('text',), Text(self.root.ids.btn))
-        site.add_resource(('pressed',), PressState(self.root.ids.btn))
-        site.add_resource(('.well-known', 'core'),
+        site.add_resource(['text'], Text(self.root.ids.btn))
+        site.add_resource(['pressed'], PressState(self.root.ids.btn))
+        site.add_resource(['.well-known', 'core'],
                 WKCResource(site.get_resources_as_linkheader))
 
         self.context = await Context.create_server_context(site)

@@ -294,7 +294,7 @@ class Site(interfaces.ObservableResource, PathCapable):
     >>> batch.add_resource(["light2"], Resource())
     >>> batch.add_resource([], Resource())
     >>> s = Site()
-    >>> s.add_resource("batch", batch)
+    >>> s.add_resource(["batch"], batch)
 
     will have the three created resources rendered at </batch/light1>,
     </batch/light2> and </batch/>.

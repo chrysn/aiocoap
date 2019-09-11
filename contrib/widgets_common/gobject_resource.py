@@ -94,9 +94,9 @@ class RGBLight(resource.Site):
         self.channels = [RGBChannel(i) for i in range(3)]
 
         for c in self.channels:
-            self.add_resource((c.channel_name,), c)
+            self.add_resource([c.channel_name], c)
         rgbroot = RGBRoot(self)
-        self.add_resource((), RGBRoot(self))
+        self.add_resource([], RGBRoot(self))
 
         rgbroot.add_valuechange_callback(self.trigger_repaint)
 

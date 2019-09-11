@@ -61,9 +61,9 @@ class Light3(DemoResource):
 def build_site_node1():
     site = Site()
     temp = Temp()
-    site.add_resource(('sensors', 'temp'), temp)
+    site.add_resource(['sensors', 'temp'], temp)
     light = Light()
-    site.add_resource(('sensors', 'light'), light)
+    site.add_resource(['sensors', 'light'], light)
     for x in (temp, light):
         x.if_ = "sensor"
         x.ct = 41
@@ -74,16 +74,16 @@ def build_site_node1():
             if l.href == "/sensors/light":
                 l.attr_pairs.append(("anchor", "coap://spurious.example.com:5683"))
         return LinkFormat(links.links)
-    site.add_resource(('.well-known', 'core'), WKCResource(get_links))
+    site.add_resource(['.well-known', 'core'], WKCResource(get_links))
 
     return site
 
 def build_site_node2():
     site = Site()
     temp = Temp()
-    site.add_resource(('temp',), temp)
+    site.add_resource(['temp'], temp)
     light = Light()
-    site.add_resource(('light',), light)
+    site.add_resource(['light'], light)
     for x in (temp, light):
         x.ct = 0
 
@@ -92,15 +92,15 @@ def build_site_node2():
         links.links.append(Link("/t", anchor="sensors/temp", rel="alternate"))
         links.links.append(Link("http://www.example.com/sensors/t123", anchor="sensors/temp", rel="describedby"))
         return LinkFormat(links.links)
-    site.add_resource(('.well-known', 'core'), WKCResource(get_links))
+    site.add_resource(['.well-known', 'core'], WKCResource(get_links))
 
     return site
 
 def build_site_node3():
     site = Site()
     for x in 'left', 'middle', 'right':
-        site.add_resource(('light', x), Light3())
-    site.add_resource(('.well-known', 'core'), WKCResource(site.get_resources_as_linkheader))
+        site.add_resource(['light', x], Light3())
+    site.add_resource(['.well-known', 'core'], WKCResource(site.get_resources_as_linkheader))
     return site
 
 class RDRegistrant(AsyncCLIDaemon):
