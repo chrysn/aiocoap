@@ -55,7 +55,11 @@ Breaking changes
 
 * 47863a29: Re-raise transport specific errors as aiocoap errors as
   aiocoap.error.ResolutionError or NetworkError. This allows API users to catch
-  them independently of the underlying transport.
+ https://github.com/chrysn/aiocoap/issues/148 them independently of the underlying transport.
+
+* f9824eb2: Plain strings as paths in add_resource are rejected. Applications
+  that did this are very unlikely to have produced the intended behavior, and
+  if so can be easily fixed by passing in `tuple(s)` rather than `s`.
 
 New features
 ~~~~~~~~~~~~
