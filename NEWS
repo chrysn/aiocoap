@@ -92,8 +92,10 @@ Assorted changes
 ~~~~~~~~~~~~~~~~
 
 * Additions to the contrib/ collection of aiocoap based tools:
+
   - widgets, kivy-widgets
   - rd-relay
+
 * 95c681a5 and others: Internal interfaces were introduced for the various CoAP
   sublayers.  This should largely not affect operation (though it does change
   the choice of tokens or message IDs); where it does, it's noted above in the
@@ -117,10 +119,6 @@ Assorted changes
 * d6aa5f8c: TinyDTLS now pulls in a more recent version of DTLSSocket that has
   its version negotiation fixed, and can thus interoperate with recent versions
   of libcoap and RIOT's the pending support for DTLS on Gcoap.
-
-Bugfixes
-~~~~~~~~
-
 * 3d9613ab: Errors in URI encoding were fixed
 
 Version 0.4a1
