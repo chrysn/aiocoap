@@ -31,6 +31,7 @@ import hashlib
 import warnings
 
 from . import message
+from . import meta
 from . import error
 from . import interfaces
 from . import numbers
@@ -202,15 +203,26 @@ class WKCResource(Resource):
 
     The list to be rendered is obtained from a function passed into the
     constructor; typically, that function would be a bound
-    Site.get_resources_as_linkheader() method."""
+    Site.get_resources_as_linkheader() method.
+
+    This resource also provides server `implementation information link`_;
+    server authors are invited to override this by passing an own URI as the
+    `impl_info` parameter, and can disable it by passing None.
+
+    .. _`implementation information link`: https://tools.ietf.org/html/draft-bormann-t2trg-rel-impl-00"""
 
     ct = link_format_to_message.supported_ct
 
-    def __init__(self, listgenerator):
+    def __init__(self, listgenerator, impl_info=meta.library_uri):
         self.listgenerator = listgenerator
+        self.impl_info = impl_info
 
     async def render_get(self, request):
         links = self.listgenerator()
+
+        if self.impl_info is not None:
+            from .util.linkformat import Link
+            links.links = links.links + [Link(href=self.impl_info, rel="impl-info")]
 
         filters = []
         for q in request.opt.uri_query:
