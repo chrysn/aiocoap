@@ -377,6 +377,8 @@ class Site(interfaces.ObservableResource, PathCapable):
             pass
 
     def add_resource(self, path, resource):
+        if isinstance(path, str):
+            raise ValueError("Paths should be tuples or lists of strings")
         if isinstance(resource, PathCapable):
             self._subsites[tuple(path)] = resource
         else:
