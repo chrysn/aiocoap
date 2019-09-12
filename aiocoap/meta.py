@@ -11,7 +11,7 @@
 #: This is not supposed to be used in any decision-making process (use package
 #: dependencies for that) or workarounds, but used by command-line tools or the
 #: impl-info link to provide debugging information.
-version = "0.4a1.post0"
+version = "0.4b1"
 
 #: URI used to describe the current version of the library
 #:
