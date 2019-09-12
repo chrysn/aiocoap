@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+
+"""This script can be used to access the aiocoap file server
+when setup.py is not used to create an entry point for it (eg. when
+running from the source directory)."""
+
+import aiocoap.cli.fileserver
+
+aiocoap.cli.fileserver.FileServerProgram.sync_main()
