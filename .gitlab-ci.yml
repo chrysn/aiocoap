@@ -13,7 +13,7 @@ test:3.7:
     # this should be done locally by setup.py, but while pip installation
     # works, inside setup.py in doesn't -- still looking for all the details
     # for a bug report.
-    - pip3 install DTLSSocket
+    - "pip3 install 'DTLSSocket>=0.1.11a1'"
     - python3 -m coverage run --parallel ./setup.py test
     - pip3 install uvloop
     - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
@@ -49,7 +49,7 @@ test:3.6:
     # this should be done locally by setup.py, but while pip installation
     # works, inside setup.py in doesn't -- still looking for all the details
     # for a bug report.
-    - pip3 install DTLSSocket
+    - "pip3 install 'DTLSSocket>=0.1.11a1'"
     - python3 -m coverage run --parallel ./setup.py test
     - pip3 install uvloop
     - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
@@ -101,7 +101,7 @@ test:pypy:
     - AIOCOAP_TEST_EXTRAS= venv/bin/pypy3 ./setup.py test
     - apt-get -y install libssl-dev autoconf
     # see above
-    - venv/bin/pip3 install DTLSSocket
+    - "venv/bin/pip3 install 'DTLSSocket>=0.1.11a1'"
     - venv/bin/pypy3 ./setup.py test
   cache:
     key: pypy
