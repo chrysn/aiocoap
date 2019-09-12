@@ -1,9 +1,9 @@
 Notes to the maintainer on what to do during a release
 ======================================================
 
-* Bump versions in setup.py and doc/conf.py
+* Bump versions in setup.py, aiocoap/meta.py and doc/conf.py
 * git tag
-* git clean, or clone into a new directory (to avoid including uncommitted
+* git clean, or `git stash -u` (to avoid including uncommitted
   files)
 * ./setup.py sdist upload
 * push everything including tags
