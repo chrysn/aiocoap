@@ -86,7 +86,7 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         return self.sockaddr == other.sockaddr
 
     def __repr__(self):
-        return "<%s [%s]:%d%s>"%(type(self).__name__, self.sockaddr[0], self.sockaddr[1], " with local address" if self.pktinfo is not None else "")
+        return "<%s [%s]:%d%s>"%(type(self).__name__, self._plainaddress(), self.sockaddr[1], " with local address" if self.pktinfo is not None else "")
 
     @staticmethod
     def _strip_v4mapped(address):
@@ -99,6 +99,9 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         mapped, otherwise the plain v6 address including the interface
         identifier if set."""
 
+        if self.pktinfo is not None and self.sockaddr[0].startswith('fe80:'):
+            addr, interface = struct.Struct("16si").unpack_from(self.pktinfo)
+            return self.sockaddr[0] + '%' + socket.if_indextoname(interface)
         return self._strip_v4mapped(self.sockaddr[0])
 
     def _plainaddress_local(self):
