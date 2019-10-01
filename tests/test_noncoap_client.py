@@ -127,7 +127,9 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
             response = self.mocksock.recv(1024)
         self.assertEqual(response, bytes.fromhex("7000ffff"), "Unknown CON Response did not trigger RST")
 
-
+# Skipping the whole class when no multicast address was given (as otherwise
+# it'd try binding :: which is bound to fail with a simplesocketserver setting)
+@_skip_unless_defaultmcif
 class TestNoncoapMulticastClient(WithTestServer, WithMockSock):
     # This exposes the test server to traffic from the environment system for
     # some time; it's only run if a default multicast inteface is given
@@ -135,7 +137,6 @@ class TestNoncoapMulticastClient(WithTestServer, WithMockSock):
     serveraddress = '::'
 
     @no_warnings
-    @_skip_unless_defaultmcif
     @asynctest
     async def test_mutlicast_ping(self):
         # exactly like the unicast case -- just to verify we're actually reaching our server
@@ -146,7 +147,6 @@ class TestNoncoapMulticastClient(WithTestServer, WithMockSock):
         assert response == b'\x70\x00\x99\x9a'
 
     @no_warnings
-    @_skip_unless_defaultmcif
     @asynctest
     async def test_multicast_unknownresponse_noreset(self):
         self.mocksock.sendto(bytes.fromhex("4040ffff"), (aiocoap.numbers.constants.MCAST_IPV6_LINKLOCAL_ALLNODES, aiocoap.COAP_PORT, 0, socket.if_nametoindex(os.environ['AIOCOAP_TEST_MCIF'])))
