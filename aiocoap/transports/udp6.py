@@ -144,6 +144,15 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
     def is_multicast_locally(self):
         return ipaddress.ip_address(self._plainaddress_local()).is_multicast
 
+    def as_response_address(self):
+        if not self.is_multicast_locally:
+            return self
+
+        # Create a copy without pktinfo, as responses to messages received to
+        # multicast addresses can not have their request's destination address
+        # as source address
+        return type(self)(self.sockaddr, self.interface)
+
 
 class SockExtendedErr(namedtuple("_SockExtendedErr", "ee_errno ee_origin ee_type ee_code ee_pad ee_info ee_data")):
     _struct = struct.Struct("IbbbbII")
@@ -255,14 +264,8 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
     def send(self, message):
         ancdata = []
         if message.remote.pktinfo is not None:
-            if message.remote.is_multicast_locally:
-                # this is kind of a last-resort location; the `response.remote
-                # = request.remote` places should better consider this.
-                self.log.warn("Dropping pktinfo from ancdata because it" \
-                        " indicates a multicast address")
-            else:
-                ancdata.append((socket.IPPROTO_IPV6, socket.IPV6_PKTINFO,
-                    message.remote.pktinfo))
+            ancdata.append((socket.IPPROTO_IPV6, socket.IPV6_PKTINFO,
+                message.remote.pktinfo))
         self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
 
     async def recognize_remote(self, remote):

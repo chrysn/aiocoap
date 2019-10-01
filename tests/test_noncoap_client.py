@@ -13,10 +13,21 @@ import socket
 import asyncio
 import signal
 import contextlib
+import os
+import unittest
 
 import aiocoap
 
 from .test_server import WithTestServer, precise_warnings, no_warnings, asynctest
+
+# For some reasons site-local requests do not work on my test setup, resorting
+# to link-local; that means a link needs to be given, and while we never need
+# to find the default multicast interface to join MC groups, we need to know it
+# to address them. This needs support from outside the test suite right now.
+_skip_unless_defaultmcif = unittest.skipIf(
+        "AIOCOAP_TEST_MCIF" not in os.environ,
+        "Multicast tests require AIOCOAP_TEST_MCIF environment variable to tell"
+        " the default multicast interface")
 
 class TimeoutError(RuntimeError):
     """Raised when a non-async operation times out"""
@@ -34,17 +45,22 @@ class TimeoutError(RuntimeError):
         signal.alarm(0)
         signal.signal(signal.SIGALRM, old)
 
-class TestNoncoapClient(WithTestServer):
+class WithMockSock(unittest.TestCase):
     def setUp(self):
-        super(TestNoncoapClient, self).setUp()
+        super().setUp()
 
         self.mocksock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-        self.mocksock.connect((self.serveraddress, aiocoap.COAP_PORT))
 
     def tearDown(self):
         self.mocksock.close()
 
-        super(TestNoncoapClient, self).tearDown()
+        super().tearDown()
+
+class TestNoncoapClient(WithTestServer, WithMockSock):
+    def setUp(self):
+        super().setUp()
+
+        self.mocksock.connect((self.serveraddress, aiocoap.COAP_PORT))
 
     @precise_warnings(["Ignoring unparsable message from ..."])
     @asynctest
@@ -101,3 +117,44 @@ class TestNoncoapClient(WithTestServer):
             self.assertTrue(False, "Response was sent when No-Response should have suppressed it")
         except TimeoutError:
             pass
+
+    @no_warnings
+    @asynctest
+    async def test_unknownresponse_reset(self):
+        self.mocksock.send(bytes.fromhex("4040ffff"))
+        await asyncio.sleep(0.1)
+        with TimeoutError.after(1):
+            response = self.mocksock.recv(1024)
+        self.assertEqual(response, bytes.fromhex("7000ffff"), "Unknown CON Response did not trigger RST")
+
+# Skipping the whole class when no multicast address was given (as otherwise
+# it'd try binding :: which is bound to fail with a simplesocketserver setting)
+@_skip_unless_defaultmcif
+class TestNoncoapMulticastClient(WithTestServer, WithMockSock):
+    # This exposes the test server to traffic from the environment system for
+    # some time; it's only run if a default multicast inteface is given
+    # explicitly, though.
+    serveraddress = '::'
+
+    @no_warnings
+    @asynctest
+    async def test_mutlicast_ping(self):
+        # exactly like the unicast case -- just to verify we're actually reaching our server
+        self.mocksock.sendto(b'\x40\x00\x99\x9a', (aiocoap.numbers.constants.MCAST_IPV6_LINKLOCAL_ALLNODES, aiocoap.COAP_PORT, 0, socket.if_nametoindex(os.environ['AIOCOAP_TEST_MCIF'])))
+        await asyncio.sleep(0.1)
+        with TimeoutError.after(1):
+            response = self.mocksock.recv(1024)
+        assert response == b'\x70\x00\x99\x9a'
+
+    @no_warnings
+    @asynctest
+    async def test_multicast_unknownresponse_noreset(self):
+        self.mocksock.sendto(bytes.fromhex("4040ffff"), (aiocoap.numbers.constants.MCAST_IPV6_LINKLOCAL_ALLNODES, aiocoap.COAP_PORT, 0, socket.if_nametoindex(os.environ['AIOCOAP_TEST_MCIF'])))
+        await asyncio.sleep(0.1)
+        try:
+            with TimeoutError.after(1):
+                response = self.mocksock.recv(1024)
+        except TimeoutError:
+            pass
+        else:
+            self.assertEqual(False, "Message was sent back responding to CON response to multicast address")
