@@ -103,7 +103,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                 else:
                     self.log.info("Response not recognized - sending RST.")
                     rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload='')
-                    rst.remote = message.remote
+                    rst.remote = message.remote.as_response_address()
                     self._send_initially(rst)
         else:
             self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it."%(message.code, message.mtype, message.remote))
@@ -279,7 +279,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     def _process_ping(self, message):
         self.log.info('Received CoAP Ping from %s, replying with RST.'%(message.remote,))
         rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b'')
-        rst.remote = message.remote
+        rst.remote = message.remote.as_response_address()
         # not going via send_message because that would strip the mid, and we
         # already know that it can go straight to the wire
         self._send_initially(rst)
@@ -361,7 +361,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
 
                 if no_response:
                     new_message = Message(code=EMPTY, mid=mid, mtype=ACK)
-                    new_message.remote = message.remote
+                    new_message.remote = message.remote.as_response_address()
                     message = new_message
                     self.log.debug("Turning to-be-sent message into an empty ACK due to no_response option.")
                 else:
@@ -444,7 +444,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                 code=EMPTY,
                 payload=b"",
                 )
-        ack.remote = remote
+        ack.remote = remote.as_response_address()
         ack.mid = mid
         # not going via send_message because that would strip the mid, and we
         # already know that it can go straight to the wire
