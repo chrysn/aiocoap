@@ -286,12 +286,13 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
         try:
+            own_sock = self.transport.get_extra_info('socket')
             addrinfo = await self.loop.getaddrinfo(
                 host,
                 port,
-                family=self.transport.get_extra_info('socket').family,
-                type=0,
-                proto=self.transport.get_extra_info('socket').proto,
+                family=own_sock.family,
+                type=own_sock.type,
+                proto=own_sock.proto,
                 flags=socket.AI_V4MAPPED,
                 )
         except socket.gaierror:
