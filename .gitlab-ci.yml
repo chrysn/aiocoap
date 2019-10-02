@@ -30,6 +30,7 @@ test:3.7:
     - python3 -m coverage report --include=aiocoap/\*
     - mkdir collected-coverage/3.7/ -p
     - mv .coverage* collected-coverage/3.7/
+    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" ./setup.py test"
   artifacts:
     paths:
       - collected-coverage

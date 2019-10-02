@@ -145,6 +145,16 @@ class EndpointAddress(metaclass=abc.ABCMeta):
     message size when the block handlers can get serialization length
     predictions from the remote. Must be divisible by 1024."""
 
+    def as_response_address(self):
+        """Address to be assigned to a response to messages that arrived with
+        this message
+
+        This can (and does, by default) return self, but gives the protocol the
+        opportunity to react to create a modified copy to deal with variations
+        from multicast.
+        """
+        return self
+
 class MessageManager(metaclass=abc.ABCMeta):
     """The interface an entity that drives a MessageInterface provides towards
     the MessageInterface for callbacks and object acquisition."""

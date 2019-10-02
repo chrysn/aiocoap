@@ -127,7 +127,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                     m = ev.message
                     # FIXME: should this code warn if token or remote are set?
                     m.token = request.token
-                    m.remote = request.remote
+                    m.remote = request.remote.as_response_address()
                     self.token_interface.send_message(m)
                 else:
                     self.log.error("Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s", ev.exception)

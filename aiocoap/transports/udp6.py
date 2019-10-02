@@ -86,7 +86,7 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         return self.sockaddr == other.sockaddr
 
     def __repr__(self):
-        return "<%s [%s]:%d%s>"%(type(self).__name__, self._plainaddress(), self.sockaddr[1], " with local address" if self.pktinfo is not None else "")
+        return "<%s %s%s>"%(type(self).__name__, self.hostinfo, " with local address" if self.pktinfo is not None else "")
 
     @staticmethod
     def _strip_v4mapped(address):
@@ -99,10 +99,15 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         mapped, otherwise the plain v6 address including the interface
         identifier if set."""
 
-        if self.pktinfo is not None and self.sockaddr[0].startswith('fe80:'):
-            addr, interface = struct.Struct("16si").unpack_from(self.pktinfo)
-            return self.sockaddr[0] + '%' + socket.if_indextoname(interface)
-        return self._strip_v4mapped(self.sockaddr[0])
+        if self.sockaddr[3] != 0:
+            scopepart = "%" + socket.if_indextoname(self.sockaddr[3])
+        else:
+            scopepart = ""
+        if '%' in self.sockaddr[0]:
+            # Fix for Python 3.6 and earlier that reported the scope information
+            # in the IP literal (3.7 consistently expresses it in the tuple slot 3)
+            scopepart = ""
+        return self._strip_v4mapped(self.sockaddr[0]) + scopepart
 
     def _plainaddress_local(self):
         """Like _plainaddress, but on the address in the pktinfo. Unlike
@@ -146,6 +151,15 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
     @property
     def is_multicast_locally(self):
         return ipaddress.ip_address(self._plainaddress_local()).is_multicast
+
+    def as_response_address(self):
+        if not self.is_multicast_locally:
+            return self
+
+        # Create a copy without pktinfo, as responses to messages received to
+        # multicast addresses can not have their request's destination address
+        # as source address
+        return type(self)(self.sockaddr, self.interface)
 
 
 class SockExtendedErr(namedtuple("_SockExtendedErr", "ee_errno ee_origin ee_type ee_code ee_pad ee_info ee_data")):
@@ -258,14 +272,8 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
     def send(self, message):
         ancdata = []
         if message.remote.pktinfo is not None:
-            if message.remote.is_multicast_locally:
-                # this is kind of a last-resort location; the `response.remote
-                # = request.remote` places should better consider this.
-                self.log.warn("Dropping pktinfo from ancdata because it" \
-                        " indicates a multicast address")
-            else:
-                ancdata.append((socket.IPPROTO_IPV6, socket.IPV6_PKTINFO,
-                    message.remote.pktinfo))
+            ancdata.append((socket.IPPROTO_IPV6, socket.IPV6_PKTINFO,
+                message.remote.pktinfo))
         self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
 
     async def recognize_remote(self, remote):
@@ -289,12 +297,16 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
         try:
+            own_sock = self.transport.get_extra_info('socket')
             addrinfo = await self.loop.getaddrinfo(
                 host,
                 port,
-                family=self.transport.get_extra_info('socket').family,
-                type=0,
-                proto=self.transport.get_extra_info('socket').proto,
+                family=own_sock.family,
+                type=0, # Not setting the sock's proto as that fails up to
+                        # Python 3.6; setting that would make debugging around
+                        # here less confusing but otherwise has no effect
+                        # (unless maybe very exotic protocols show up).
+                proto=own_sock.proto,
                 flags=socket.AI_V4MAPPED,
                 )
         except socket.gaierror:
