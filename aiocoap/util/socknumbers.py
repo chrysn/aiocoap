@@ -20,7 +20,7 @@ would probably be including them in Python.
 
 try:
     from IN import IPV6_RECVERR, IP_RECVERR, IPV6_PKTINFO
-except ImportError:
+except (ImportError, NameError):
     IPV6_RECVERR = 25
     IP_RECVERR = 11
     IPV6_PKTINFO = 50
@@ -28,5 +28,5 @@ except ImportError:
 # for https://bitbucket.org/pypy/pypy/issues/2648/
 try:
     from socket import MSG_ERRQUEUE
-except ImportError:
+except (ImportError, NameError):
     MSG_ERRQUEUE = 8192
