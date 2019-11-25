@@ -237,7 +237,7 @@ class PlugtestClientProgram:
         unprotected_response = await self.ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
-        additional_verify("Code as expected", CREATED, unprotected_response.code)
+        additional_verify("Code as expected", CHANGED, unprotected_response.code)
         additional_verify("Options as expected", unprotected_response.opt, Message(content_format=0).opt)
         additional_verify("Payload as expected", unprotected_response.payload, b"\x4a")
 
@@ -250,8 +250,8 @@ class PlugtestClientProgram:
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", CHANGED, unprotected_response.code)
-        additional_verify("Options empty as expected", Message(content_format=0).opt, unprotected_response.opt)
-        additional_verify("Payload as expected", unprotected_response.payload, b"\x7a")
+        additional_verify("Options empty as expected", Message().opt, unprotected_response.opt)
+        additional_verify("Payload absent as expected", unprotected_response.payload, b"")
 
     @__implements_tests([10])
     async def test_put_nonmatch(self):

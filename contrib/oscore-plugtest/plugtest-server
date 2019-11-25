@@ -96,7 +96,7 @@ class Hello6(resource.Resource):
         additional_verify("Request options as expected", aiocoap.Message(content_format=0).opt, request.opt)
         additional_verify("Request payload as expected", request.payload, b"\x4a")
 
-        return aiocoap.Message(code=aiocoap.CREATED, payload=b"\x4a", content_format=0)
+        return aiocoap.Message(code=aiocoap.CHANGED, payload=b"\x4a", content_format=0)
 
 class Hello7(resource.Resource):
     async def render_put(self, request):
@@ -111,7 +111,7 @@ class Hello7(resource.Resource):
             additional_verify("Request options as expected", aiocoap.Message(content_format=0, if_match=[b"{"]).opt, request.opt)
             additional_verify("Request payload as expected", request.payload, b"z")
 
-            return aiocoap.Message(code=aiocoap.CHANGED, payload=b"\x7a", content_format=0)
+            return aiocoap.Message(code=aiocoap.CHANGED)
 
 class DeleteResource(resource.Resource):
     async def render_delete(self, request):
