@@ -46,11 +46,11 @@ from typing import Optional
 '''
 server: {
             'coaps://mysite/*': { 'dtls-psk' (or other granularity): { 'psk': 'abcd' }},
-            'coap://mysite/*': { 'oscore': { 'contextfile': 'my-contextfile/' (implied: 'role': 'server') } },
+            'coap://mysite/*': { 'oscore': { 'contextfile': 'my-contextfile/' } },
             'coap://myothersite/firmware': ':myotherkey',
             'coap://myothersite/reset': ':myotherkey',
             'coap://othersite*': { 'unprotected': true },
-            ':myotherkey': { 'oscore': { 'contextfile': 'my-contextfile/'} }
+            ':myotherkey': { 'oscore': { 'contextfile': 'my-contextfile/' } }
         }
 
 server can of course just say it doesn't want to have the Site handle it and
@@ -182,21 +182,10 @@ class DTLS(_Objectish):
     def as_dtls_psk(self):
         return (self.client_identity, self.psk)
 
-def construct_oscore(contextfile: str,
-                 role: str,
-                 server_sender_id: Optional[bytes]=None,
-                 client_sender_id: Optional[bytes]=None
-                 ):
+def construct_oscore(contextfile: str):
     from .oscore import FilesystemSecurityContext
 
-    if contextfile is not None:
-        if any(x is not None for x in (server_sender_id, client_sender_id)):
-            raise CredentialsLoadError("Arguments' contextfile' and sender IDs"
-                                       " are mutually exclusive")
-        if role is None:
-            raise CredentialsLoadError("Contextfile based OSCORE credentials require a role argument")
-
-        return FilesystemSecurityContext(contextfile, role)
+    return FilesystemSecurityContext(contextfile)
 
 construct_oscore.from_item = lambda value: _call_from_structureddata(construct_oscore, 'OSCORE', value)
 
