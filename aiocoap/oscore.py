@@ -36,11 +36,7 @@ MAX_SEQNO = 2**40 - 1
 # Relevant values from the IANA registry "CBOR Object Signing and Encryption (COSE)"
 COSE_KID = 4
 COSE_PIV = 6
-# No numeric value has been assigned yet; as we're only building the protected
-# and unprotected fields temporarily in untyped data structures and serializing
-# them through the compression, this can stay a string until a number is
-# assigned.
-COSE_KID_CONTEXT = 'TBD-draft-ietf-core-object-security-14'
+COSE_KID_CONTEXT = 10
 
 COMPRESSION_BITS_N = 0b111
 COMPRESSION_BIT_K = 0b1000
