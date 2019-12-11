@@ -238,9 +238,13 @@ algorithms = {
         'A256GCM': A256GCM(),
         }
 
+DEFAULT_ALGORITHM = 'AES-CCM-16-64-128'
+
 hashfunctions = {
         'sha256': hashlib.sha256,
         }
+
+DEFAULT_HASHFUNCTION = 'sha256'
 
 class SecurityContext:
     # FIXME: define an interface for that
@@ -723,8 +727,8 @@ class FilesystemSecurityContext(SecurityContext):
 
                 data[key] = value
 
-        self.algorithm = algorithms[data.get('algorithm', 'AES-CCM-64-64-128')]
-        self.hashfun = hashfunctions[data.get('kdf-hashfun', 'sha256')]
+        self.algorithm = algorithms[data.get('algorithm', DEFAULT_ALGORITHM)]
+        self.hashfun = hashfunctions[data.get('kdf-hashfun', DEFAULT_HASHFUNCTION)]
 
         self.sender_id = data['sender-id']
         self.recipient_id = data['recipient-id']
