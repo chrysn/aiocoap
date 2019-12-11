@@ -59,6 +59,10 @@ class DecodeError(ProtectionInvalid):
 class ReplayError(ProtectionInvalid):
     """Raised when verification of an OSCORE message fails because the sequence numbers was already used"""
 
+class ContextUnavailable(ValueError):
+    """Raised when a context is (currently or permanently) unavailable for
+    protecting or unprotecting a message"""
+
 class RequestIdentifiers:
     """A container for details that need to be passed along from the
     (un)protection of a request to the (un)protection of the response; these
@@ -246,7 +250,7 @@ hashfunctions = {
 
 DEFAULT_HASHFUNCTION = 'sha256'
 
-class SecurityContext:
+class SecurityContext(metaclass=abc.ABCMeta):
     # FIXME: define an interface for that
 
     # Indicates that in this context, when responding to a request, will always
@@ -570,16 +574,6 @@ class SecurityContext:
         protected_serialized, protected, unprotected = cls._uncompress(message.opt.object_security)
         return protected_serialized, protected, unprotected, message.payload
 
-    # sequence number handling
-
-    def new_sequence_number(self):
-        retval = self.sender_sequence_number
-        if retval >= MAX_SEQNO:
-            raise ValueError("Sequence number too large, context is exhausted.")
-        self.sender_sequence_number += 1
-        # FIXME maybe _store now?
-        return retval
-
     # context parameter setup
 
     def _kdf(self, master_salt, master_secret, role_id, out_type):
@@ -607,6 +601,28 @@ class SecurityContext:
 
         self.common_iv = self._kdf(master_salt, master_secret, b"", 'IV')
 
+    # sequence number handling
+
+    def new_sequence_number(self):
+        """Return a new sequence number; the implementation is responsible for
+        never returning the same value twice in a given security context.
+
+        May raise ContextUnavailable."""
+        retval = self.sender_sequence_number
+        if retval >= MAX_SEQNO:
+            raise ContextUnavailable("Sequence number too large, context is exhausted.")
+        self.sender_sequence_number += 1
+        self.post_seqnoincrease()
+        return retval
+
+    # implementation defined
+
+    @abc.abstractmethod
+    def post_seqnoincrease(self):
+        """Ensure that sender_sequence_number is stored"""
+        raise
+
+
 class ReplayWindow:
     # FIXME: interface, abc
     pass
@@ -620,7 +636,7 @@ class SimpleReplayWindow(ReplayWindow):
 
     This is not very efficient, but easy to understand and to serialize.
 
-    >>> w = SimpleReplayWindow()
+    >>> w = SimpleReplayWindow(lambda: None)
     >>> w.strike_out(5)
     >>> w.is_valid(3)
     True
@@ -638,11 +654,12 @@ class SimpleReplayWindow(ReplayWindow):
     """
     window_count = 64 # not a window size: window size would be size of a bit field, while this is the size of the ones
 
-    def __init__(self, seen=None):
+    def __init__(self, post_strike_out_callback, seen=None):
         if not seen: # including empty-list case
             self.seen = [-1]
         else:
             self.seen = sorted(seen)
+        self.post_strikeout_callback = post_strike_out_callback
 
     def is_valid(self, number):
         if number < self.seen[0]:
@@ -666,6 +683,8 @@ class SimpleReplayWindow(ReplayWindow):
                 self.seen[0] + 1 == self.seen[1]
                 ):
             self.seen.pop(0)
+
+        self.post_strikeout_callback()
 
 class FilesystemSecurityContext(SecurityContext):
     """Security context stored in a directory as distinct files containing
@@ -747,10 +766,10 @@ class FilesystemSecurityContext(SecurityContext):
                 sequence = json.load(f)
         except FileNotFoundError:
             self.sender_sequence_number = 0
-            self.recipient_replay_window = SimpleReplayWindow([])
+            self.recipient_replay_window = SimpleReplayWindow(self._store, [])
         else:
             self.sender_sequence_number = int(sequence['used'])
-            self.recipient_replay_window = SimpleReplayWindow([int(x) for x in
+            self.recipient_replay_window = SimpleReplayWindow(self._store, [int(x) for x in
                 sequence['seen']])
 
     # This is called internally whenever a new sequence number is taken or
@@ -772,6 +791,9 @@ class FilesystemSecurityContext(SecurityContext):
                 self.recipient_replay_window.seen))
 
         os.rename(tmpnam, os.path.join(self.basedir, 'sequence.json'))
+
+    def post_seqnoincrease(self):
+        self._store()
 
 def verify_start(message):
     """Extract a sender ID and ID context (if present, otherwise None) from a

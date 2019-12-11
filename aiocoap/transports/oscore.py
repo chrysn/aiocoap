@@ -125,8 +125,6 @@ class TransportOSCORE(interfaces.RequestProvider):
 
         protected, original_request_seqno = secctx.protect(msg)
         protected.remote = msg.remote.underlying_address
-        # FIXME where should this be called from?
-        secctx._store()
 
         wire_request = self._wire.request(protected)
 
@@ -151,7 +149,6 @@ class TransportOSCORE(interfaces.RequestProvider):
         try:
             protected_response = await wire_request.response
             unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)
-            secctx._store()
 
             unprotected_response.remote = OSCOREAddress(self, secctx, protected_response.remote)
             # FIXME: if i could tap into the underlying PlumbingRequest, that'd
@@ -166,7 +163,6 @@ class TransportOSCORE(interfaces.RequestProvider):
 
             async for protected_response in wire_request.observation:
                 unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)
-                secctx._store()
 
                 more = protected_response.opt.observe is not None
                 more = _check(more, unprotected_response)
