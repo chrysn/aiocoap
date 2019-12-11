@@ -409,8 +409,8 @@ class PlugtestServerProgram(AsyncCLIDaemon):
 
 
         server_credentials = CredentialsMap()
-        server_credentials[':ab'] = get_security_context('ab', 'server', opts.contextdir / "ab")
-        server_credentials[':cd'] = get_security_context('cd', 'server', opts.contextdir / "cd")
+        server_credentials[':b'] = get_security_context('b', opts.contextdir / "b")
+        server_credentials[':d'] = get_security_context('d', opts.contextdir / "d")
 
         self.context = await server_context_from_arguments(PlugtestSite(server_credentials), opts)
 

@@ -10,7 +10,7 @@ from aiocoap import oscore
 
 contextdir = Path(__file__).parent / 'common-context'
 
-def get_security_context(contextname, role, contextcopy: Path):
+def get_security_context(contextname, contextcopy: Path):
     """Copy the base context (disambiguated by contextname in "ab", "cd") onto
     the path in contextcopy if it does not already exist, and load the
     resulting context with the given role. The context will be monkey-patched
@@ -21,7 +21,7 @@ def get_security_context(contextname, role, contextcopy: Path):
 
         print("Context %s copied to %s" % (contextname, contextcopy))
 
-    secctx = oscore.FilesystemSecurityContext(contextcopy.as_posix(), role=role)
+    secctx = oscore.FilesystemSecurityContext(contextcopy.as_posix())
 
     original_extract_external_aad = secctx._extract_external_aad
     def _extract_extenal_aad(message, i_am_sender, request_partiv=None):

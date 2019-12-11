@@ -667,7 +667,7 @@ class FilesystemSecurityContext(SecurityContext):
     """Security context stored in a directory as distinct files containing
     containing
 
-    * Master secret, master salt, the sender IDs of the participants, and
+    * Master secret, master salt, sender and recipient ID,
       optionally algorithm, the KDF hash function, and replay window size
       (settings.json and secrets.json, where the latter is typically readable
       only for the user)
@@ -677,15 +677,6 @@ class FilesystemSecurityContext(SecurityContext):
     The static parameters can all either be placed in settings.json or
     secrets.json, but must not be present in both; the presence of either file
     is sufficient.
-
-    The static files are phrased in a way that allows using the same files for
-    server and client; only by passing "client" or "server" as role parameter
-    at load time, the IDs are are assigned to the context as sender or
-    recipient ID. (The sequence number file is set up in a similar way in
-    preparation for multicast operation; but is not yet usable from a directory
-    shared between server and client; when multicast is actually explored, the
-    sequence file might be renamed to contain the sender ID for shared use of a
-    directory).
 
     Note that the sequence number file is updated in an atomic fashion which
     requires file creation privileges in the directory. If privilege separation
@@ -700,14 +691,14 @@ class FilesystemSecurityContext(SecurityContext):
         """Exception raised with a descriptive message when trying to load a
         faulty security context"""
 
-    def __init__(self, basedir, role):
+    def __init__(self, basedir):
         self.basedir = basedir
         try:
-            self._load(role)
+            self._load()
         except KeyError as k:
             raise self.LoadError("Configuration key missing: %s"%(k.args[0],))
 
-    def _load(self, my_role):
+    def _load(self):
         # doesn't check for KeyError on every occasion, relies on __init__ to
         # catch that
 
@@ -735,14 +726,8 @@ class FilesystemSecurityContext(SecurityContext):
         self.algorithm = algorithms[data.get('algorithm', 'AES-CCM-64-64-128')]
         self.hashfun = hashfunctions[data.get('kdf-hashfun', 'sha256')]
 
-        if my_role == 'server':
-            self.sender_id = data['server-sender-id']
-            self.recipient_id = data['client-sender-id']
-        elif my_role == 'client':
-            self.sender_id = data['client-sender-id']
-            self.recipient_id = data['server-sender-id']
-        else:
-            raise self.LoadError("Unknown role")
+        self.sender_id = data['sender-id']
+        self.recipient_id = data['recipient-id']
 
         if max(len(self.sender_id), len(self.recipient_id)) > self.algorithm.iv_bytes - 6:
             raise self.LoadError("Sender or Recipient ID too long (maximum length %s for this algorithm)" % (self.algorithm.iv_bytes - 6))
@@ -760,68 +745,29 @@ class FilesystemSecurityContext(SecurityContext):
             self.sender_sequence_number = 0
             self.recipient_replay_window = SimpleReplayWindow([])
         else:
-            sender_hex = binascii.hexlify(self.sender_id).decode('ascii')
-            recipient_hex = binascii.hexlify(self.recipient_id).decode('ascii')
-            self.sender_sequence_number = int(sequence['used'][sender_hex])
+            self.sender_sequence_number = int(sequence['used'])
             self.recipient_replay_window = SimpleReplayWindow([int(x) for x in
-                sequence['seen'][recipient_hex]])
-            if len(sequence['used']) != 1 or len(sequence['seen']) != 1:
-                warnings.warn("Sequence files shared between roles are "
-                        "currently not supported.")
+                sequence['seen']])
 
-    # FIXME when/how will this be called?
+    # This is called internally whenever a new sequence number is taken or
+    # crossed out from the window, and blocks a lot; B.1 mode mitigates that.
     #
-    # it might be practical to make sender_sequence_number and recipient_replay_window
-    # properties private, and provide access to them in a way that triggers
-    # store or at least a delayed store.
+    # Making it async and block in a threadpool would mitigate the blocking of
+    # other messages, but the more visible effect of this will be that no
+    # matter if sync or async, a reply will need to wait for a file sync
+    # operation to conclude.
     def _store(self):
         tmphand, tmpnam = tempfile.mkstemp(dir=self.basedir,
                 prefix='.sequence-', suffix='.json', text=True)
 
-        sender_hex = binascii.hexlify(self.sender_id).decode('ascii')
-        recipient_hex = binascii.hexlify(self.recipient_id).decode('ascii')
-
         with os.fdopen(tmphand, 'w') as tmpfile:
             tmpfile.write('{\n'
-                '  "used": {"%s": %d},\n'
-                '  "seen": {"%s": %s}\n}'%(
-                sender_hex, self.sender_sequence_number,
-                recipient_hex, self.recipient_replay_window.seen))
+                '  "used": %d,\n'
+                '  "seen": %s\n}'%(
+                self.sender_sequence_number,
+                self.recipient_replay_window.seen))
 
         os.rename(tmpnam, os.path.join(self.basedir, 'sequence.json'))
-
-    @classmethod
-    def generate(cls, basedir):
-        """Create a security context directory from default parameters and a
-        random key; it is an error if that directory already exists.
-
-        No SecurityContext object is returned immediately, as it is expected
-        that the generated context can't be used immediately but first needs to
-        be copied to another party and then can be opened in either the sender
-        or the recipient role."""
-        # shorter would probably be OK too (that token might be suitable to
-        # even skip extraction), but for the purpose of generating conformant
-        # example contexts.
-        master_secret = secrets.token_bytes(nbytes=32)
-
-        os.makedirs(basedir)
-        with open(os.path.join(basedir, 'settings.json'), 'w') as settingsfile:
-            settingsfile.write("{\n"
-                    '  "server-id_hex": "00",\n'
-                    '  "client-id_hex": "01",\n'
-                    '  "algorithm": "AES-CCM-16-64-128",\n'
-                    '  "kdf-hashfun": "sha256"\n'
-                    '}')
-
-        # atomicity is not really required as this is a new directory, but the
-        # readable-by-us-only property is easily achieved with mkstemp
-        tmphand, tmpnam = tempfile.mkstemp(dir=basedir, prefix='.secret-',
-                suffix='.json', text=True)
-        with os.fdopen(tmphand, 'w') as secretfile:
-            secretfile.write("{\n"
-                    '  "secret_hex": "%s"\n'
-                    '}'%binascii.hexlify(master_secret).decode('ascii'))
-        os.rename(tmpnam, os.path.join(basedir, 'secret.json'))
 
 def verify_start(message):
     """Extract a sender ID and ID context (if present, otherwise None) from a
