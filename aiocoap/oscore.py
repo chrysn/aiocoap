@@ -31,6 +31,8 @@ import cryptography.exceptions
 import hkdf
 import cbor
 
+import filelock
+
 MAX_SEQNO = 2**40 - 1
 
 # Relevant values from the IANA registry "CBOR Object Signing and Encryption (COSE)"
@@ -701,6 +703,16 @@ class FilesystemSecurityContext(SecurityContext):
     secrets.json, but must not be present in both; the presence of either file
     is sufficient.
 
+    .. warning::
+
+        Security contexts must never be copied around and used after another
+        copy was used. They should only ever be moved, and if they are copied
+        (eg. as a part of a system backup), restored contexts must not be used
+        again; they need to be replaced with freshly created ones.
+
+    An additional file named `lock` is created to prevent the accidental use of
+    a context by to concurrent programs.
+
     Note that the sequence number file is updated in an atomic fashion which
     requires file creation privileges in the directory. If privilege separation
     between settings/key changes and sequence number changes is desired, one
@@ -716,6 +728,16 @@ class FilesystemSecurityContext(SecurityContext):
 
     def __init__(self, basedir):
         self.basedir = basedir
+
+        self.lockfile = filelock.FileLock(os.path.join(basedir, 'lock'))
+        # 0.001: Just fail if it can't be acquired
+        try:
+            self.lockfile.acquire(timeout=0.001)
+        except:
+            # No lock, no loading, no need to fail in __del__
+            self.lockfile = None
+            raise
+
         try:
             self._load()
         except KeyError as k:
@@ -794,6 +816,24 @@ class FilesystemSecurityContext(SecurityContext):
 
     def post_seqnoincrease(self):
         self._store()
+
+    def _destroy(self):
+        """Release the lock file, and ensure tha he objec has become
+        unusable
+
+        This is split out from __del__ to later become useful when a context
+        can be shut down for storing the non-B.1.1'd sequence number"""
+        del self.sender_key
+        del self.recipient_key
+
+        os.unlink(self.lockfile.lock_file)
+        self.lockfile.release()
+
+        self.lockfile = None
+
+    def __del__(self):
+        if self.lockfile is not None:
+            self._destroy()
 
 def verify_start(message):
     """Extract a sender ID and ID context (if present, otherwise None) from a
