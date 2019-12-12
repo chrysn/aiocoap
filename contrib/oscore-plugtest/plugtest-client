@@ -66,15 +66,15 @@ class PlugtestClientProgram:
             while True:
                 # Yes this is blocking, but since the tests usually terminate
                 # by themselves ... *shrug*
-                while True:
-                    try:
-                        next = input("Enter a test number (empty input runs %s, q to quit): " % next_testno)
-                    except (KeyboardInterrupt, EOFError):
-                        sys.exit()
-                    if next == "q":
-                        sys.exit()
-                    if next == "":
-                        break
+                try:
+                    next = input("Enter a test number (empty input runs %s, q to quit): " % next_testno)
+                except (KeyboardInterrupt, EOFError):
+                    keeprunning = False
+                    break
+                if next == "q":
+                    keeprunning = False
+                    break
+                if next:
                     try:
                         as_int = int(next)
                     except ValueError:
@@ -86,7 +86,6 @@ class PlugtestClientProgram:
                             # but otherwise do something sane
                             delta = as_int - next_testno + delta
                         next_testno = as_int
-                        break
 
                 print("Running test %s" % next_testno)
                 await self.run_test(next_testno)
