@@ -831,7 +831,7 @@ class FilesystemSecurityContext(SecurityContext):
             self.sender_sequence_number = 0
             self.recipient_replay_window.initialize_empty()
         else:
-            self.sender_sequence_number = int(sequence['used'])
+            self.sender_sequence_number = int(sequence['next-to-send'])
             self.recipient_replay_window.initialize_from_persisted(sequence['received'])
 
     # This is called internally whenever a new sequence number is taken or
@@ -847,7 +847,7 @@ class FilesystemSecurityContext(SecurityContext):
 
         with os.fdopen(tmphand, 'w') as tmpfile:
             tmpfile.write('{\n'
-                '  "used": %d,\n'
+                '  "next-to-send": %d,\n'
                 '  "received": %s\n}'%(
                 self.sender_sequence_number,
                 json.dumps(self.recipient_replay_window.persist())))
