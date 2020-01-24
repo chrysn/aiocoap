@@ -876,11 +876,19 @@ class FilesystemSecurityContext(SecurityContext):
             assert self.sender_sequence_number <= self.sequence_number_persisted
 
     def _destroy(self):
-        """Release the lock file, and ensure tha he objec has become
-        unusable
+        """Release the lock file, and ensure tha he object has become
+        unusable.
 
-        This is split out from __del__ to later become useful when a context
-        can be shut down for storing the non-B.1.1'd sequence number"""
+        If sequence numbers are left unused from B.1.1, the actually used
+        number gets written back to the file to allow resumption without
+        wasting digits.
+        """
+        # FIXME: Arrange for a more controlled shutdown through the credentials
+
+        if self.sender_sequence_number < self.sequence_number_persisted:
+            self.sequence_number_persisted = self.sender_sequence_number
+            self._store()
+
         del self.sender_key
         del self.recipient_key
 
