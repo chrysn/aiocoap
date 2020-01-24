@@ -753,15 +753,18 @@ class FilesystemSecurityContext(SecurityContext):
     seqence number in steps of `k`). That value is passed as the
     `sequence_number_chunksize` parameter, and defaults to an automatically
     determined value (starting at k=10, exponentially growing up to k=10_0000).
-    Either way, when the pool of usable numbers is 90% exhausted, the next step
-    is committed to the file system.
     """
 
     class LoadError(ValueError):
         """Exception raised with a descriptive message when trying to load a
         faulty security context"""
 
-    def __init__(self, basedir):
+    def __init__(
+            self,
+            basedir,
+            sequence_number_chunksize_start=10,
+            sequence_number_chunksize_limit=10000,
+            ):
         self.basedir = basedir
 
         self.lockfile = filelock.FileLock(os.path.join(basedir, 'lock'))
@@ -778,6 +781,12 @@ class FilesystemSecurityContext(SecurityContext):
             self._load()
         except KeyError as k:
             raise self.LoadError("Configuration key missing: %s"%(k.args[0],))
+
+        self.sequence_number_chunksize_start = sequence_number_chunksize_start
+        self.sequence_number_chunksize_limit = sequence_number_chunksize_limit
+        self.sequence_number_chunksize = sequence_number_chunksize_start
+
+        self.sequence_number_persisted = self.sender_sequence_number
 
     def _load(self):
         # doesn't check for KeyError on every occasion, relies on __init__ to
@@ -849,13 +858,22 @@ class FilesystemSecurityContext(SecurityContext):
             tmpfile.write('{\n'
                 '  "next-to-send": %d,\n'
                 '  "received": %s\n}'%(
-                self.sender_sequence_number,
+                self.sequence_number_persisted,
                 json.dumps(self.recipient_replay_window.persist())))
 
         os.rename(tmpnam, os.path.join(self.basedir, 'sequence.json'))
 
     def post_seqnoincrease(self):
-        self._store()
+        if self.sender_sequence_number > self.sequence_number_persisted:
+            self.sequence_number_persisted += self.sequence_number_chunksize
+
+            self.sequence_number_chunksize = min(self.sequence_number_chunksize * 2, self.sequence_number_chunksize_limit)
+            # FIXME: this blocks -- see https://github.com/chrysn/aiocoap/issues/178
+            self._store()
+
+            # The = case would only happen if someone deliberately sets all
+            # numbers to 1 to force persisting on every step
+            assert self.sender_sequence_number <= self.sequence_number_persisted
 
     def _destroy(self):
         """Release the lock file, and ensure tha he objec has become
