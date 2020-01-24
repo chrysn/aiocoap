@@ -252,6 +252,8 @@ hashfunctions = {
 
 DEFAULT_HASHFUNCTION = 'sha256'
 
+DEFAULT_WINDOWSIZE = 32
+
 class SecurityContext(metaclass=abc.ABCMeta):
     # FIXME: define an interface for that
 
@@ -626,67 +628,92 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
 
 class ReplayWindow:
-    # FIXME: interface, abc
-    pass
+    """A regular replay window of a fixed size.
 
-# FIXME: This is not a default DTLS replay window, and it should not be
-# expected that this can be used in any security context.
-class SimpleReplayWindow(ReplayWindow):
-    """A ReplayWindow that keeps its seen sequence numbers in a sorted list;
-    all entries of the list and all numbers smaller than the first entry are
-    considered seen.
+    It is implemented as an index and a bitfield (represented by an integer)
+    whose least significant bit represents the seqyence number of the index,
+    and a 1 indicates that a number was seen. No shenanigans around implicit
+    leading ones (think floating point normalization) happen.
 
-    This is not very efficient, but easy to understand and to serialize.
-
-    >>> w = SimpleReplayWindow(lambda: None)
+    >>> w = ReplayWindow(32, lambda: None)
+    >>> w.initialize_empty()
     >>> w.strike_out(5)
     >>> w.is_valid(3)
     True
     >>> w.is_valid(5)
     False
     >>> w.strike_out(0)
-    >>> print(w.seen)
-    [0, 5]
     >>> w.strike_out(1)
     >>> w.strike_out(2)
-    >>> print(w.seen)
-    [2, 5]
     >>> w.is_valid(1)
     False
-    """
-    window_count = 64 # not a window size: window size would be size of a bit field, while this is the size of the ones
 
-    def __init__(self, post_strike_out_callback, seen=None):
-        if not seen: # including empty-list case
-            self.seen = [-1]
-        else:
-            self.seen = sorted(seen)
-        self.post_strikeout_callback = post_strike_out_callback
+    Jumping ahead by the window size invalidates older numbers:
+
+    >>> w.is_valid(4)
+    True
+    >>> w.strike_out(35)
+    >>> w.is_valid(4)
+    True
+    >>> w.strike_out(36)
+    >>> w.is_valid(4)
+    False
+
+    Usage safety
+    ------------
+
+    For every key, the replay window can only be initielized empty once. On
+    later uses, it needs to be persisted by storing the output of
+    self.persist() somewhere and loaded from that persisted data.
+
+    It is acceptable to store persistance data in the strike_out_callback, but
+    that must then ensure that the data is written (flushed to a file or
+    committed to a database), but that is usually inefficient.
+
+    Stability
+    ---------
+
+    This class is not considered for stabilization yet and an implementation
+    detail of the SecurityContext implementation(s).
+    """
+
+    def __init__(self, size, strike_out_callback):
+        self._size = size
+        self.strike_out_callback = strike_out_callback
+
+    def initialize_empty(self):
+        self._index = 0
+        self._bitfield = 0
+
+    def initialize_from_persisted(self, persisted):
+        self._index = persisted['index']
+        self._bitfield = persisted['bitfield']
 
     def is_valid(self, number):
-        if number < self.seen[0]:
+        if number < self._index:
             return False
-        return number not in self.seen
+        if number >= self._index + self._size:
+            return True
+        return (self._bitfield >> (number - self._index)) & 1 == 0
 
     def strike_out(self, number):
         if not self.is_valid(number):
             raise ValueError("Sequence number is not valid any more and "
                     "thus can't be removed from the window")
-        for i, n in enumerate(self.seen):
-            if n > number:
-                break
-        else:
-            i = i + 1
-        self.seen.insert(i, number)
-        assert self.seen == sorted(self.seen)
-        # cleanup
-        while len(self.seen) > 1 and (
-                len(self.seen) > self.window_count or
-                self.seen[0] + 1 == self.seen[1]
-                ):
-            self.seen.pop(0)
+        overshoot = number - (self._index + self._size - 1)
+        if overshoot > 0:
+            self._index += overshoot
+            self._bitfield >>= overshoot
+        assert self.is_valid(number)
+        self._bitfield |= 1 << (number - self._index)
 
-        self.post_strikeout_callback()
+        self.strike_out_callback()
+
+    def persist(self):
+        """Return a dict containing internal state which can be passed to init
+        to recreated the replay window."""
+
+        return {'index': self._index, 'bitfield': self._bitfield}
 
 class FilesystemSecurityContext(SecurityContext):
     """Security context stored in a directory as distinct files containing
@@ -720,6 +747,14 @@ class FilesystemSecurityContext(SecurityContext):
     write permissions on the directory and setting the sticky bit on the
     directory, thus forbidding the user to remove the settings/secret files not
     owned by him.
+
+    Writes due to sent sequence numbers are reduced by applying a variation on
+    the mechanism of RFC8613 Appendix B.1.1 (incrementing the persisted sender
+    seqence number in steps of `k`). That value is passed as the
+    `sequence_number_chunksize` parameter, and defaults to an automatically
+    determined value (starting at k=10, exponentially growing up to k=10_0000).
+    Either way, when the pool of usable numbers is 90% exhausted, the next step
+    is committed to the file system.
     """
 
     class LoadError(ValueError):
@@ -771,6 +806,10 @@ class FilesystemSecurityContext(SecurityContext):
         self.algorithm = algorithms[data.get('algorithm', DEFAULT_ALGORITHM)]
         self.hashfun = hashfunctions[data.get('kdf-hashfun', DEFAULT_HASHFUNCTION)]
 
+        windowsize = data.get('window', DEFAULT_WINDOWSIZE)
+        if not isinstance(windowsize, int):
+            raise self.LoadError("Non-integer replay window")
+
         self.sender_id = data['sender-id']
         self.recipient_id = data['recipient-id']
 
@@ -783,16 +822,16 @@ class FilesystemSecurityContext(SecurityContext):
 
         self.derive_keys(master_salt, master_secret)
 
+        self.recipient_replay_window = ReplayWindow(windowsize, self._store)
         try:
             with open(os.path.join(self.basedir, 'sequence.json')) as f:
                 sequence = json.load(f)
         except FileNotFoundError:
             self.sender_sequence_number = 0
-            self.recipient_replay_window = SimpleReplayWindow(self._store, [])
+            self.recipient_replay_window.initialize_empty()
         else:
             self.sender_sequence_number = int(sequence['used'])
-            self.recipient_replay_window = SimpleReplayWindow(self._store, [int(x) for x in
-                sequence['seen']])
+            self.recipient_replay_window.initialize_from_persisted(sequence['received'])
 
     # This is called internally whenever a new sequence number is taken or
     # crossed out from the window, and blocks a lot; B.1 mode mitigates that.
@@ -808,9 +847,9 @@ class FilesystemSecurityContext(SecurityContext):
         with os.fdopen(tmphand, 'w') as tmpfile:
             tmpfile.write('{\n'
                 '  "used": %d,\n'
-                '  "seen": %s\n}'%(
+                '  "received": %s\n}'%(
                 self.sender_sequence_number,
-                self.recipient_replay_window.seen))
+                json.dumps(self.recipient_replay_window.persist())))
 
         os.rename(tmpnam, os.path.join(self.basedir, 'sequence.json'))
 
