@@ -766,6 +766,7 @@ class FilesystemSecurityContext(SecurityContext):
 
         self.lockfile = filelock.FileLock(os.path.join(basedir, 'lock'))
         # 0.001: Just fail if it can't be acquired
+        # See https://github.com/benediktschmitt/py-filelock/issues/57
         try:
             self.lockfile.acquire(timeout=0.001)
         except:
