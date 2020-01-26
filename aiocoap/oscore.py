@@ -490,19 +490,19 @@ class SecurityContext(metaclass=abc.ABCMeta):
         else:
             partial_iv_short = unprotected[COSE_PIV]
 
-            seqno = int.from_bytes(partial_iv_short, 'big')
-
-            if not self.recipient_replay_window.is_valid(seqno):
-                # If here we ever implement something that accepts memory loss
-                # as in 7.5.2 ("Losing Part of the Context State" / "Replay
-                # window"), or an optimization that accepts replays to avoid
-                # storing responses for EXCHANGE_LIFETIM, can_reuse_nonce a few
-                # lines down needs to take that into consideration.
-                raise ReplayError("Sequence number was re-used")
-
             nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
             if request_id is None: # ie. we're unprotecting a request
+                seqno = int.from_bytes(partial_iv_short, 'big')
+
+                if not self.recipient_replay_window.is_valid(seqno):
+                    # If here we ever implement something that accepts memory loss
+                    # as in 7.5.2 ("Losing Part of the Context State" / "Replay
+                    # window"), or an optimization that accepts replays to avoid
+                    # storing responses for EXCHANGE_LIFETIM, can_reuse_nonce a few
+                    # lines down needs to take that into consideration.
+                    raise ReplayError("Sequence number was re-used")
+
                 request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=self.is_unicast)
 
         # FIXME is it an error for additional data to be present in unprotected?
