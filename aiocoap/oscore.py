@@ -677,9 +677,19 @@ class ReplayWindow:
     detail of the SecurityContext implementation(s).
     """
 
+    _index = None
+    """Sequence number represented by the least significant bit of _bitfield"""
+    _bitfield = None
+    """Integer interpreted as a bitfield, self._size wide. A digit 1 at any bit
+    indicates that the bit's index (its power of 2) plus self._index was
+    already seen."""
+
     def __init__(self, size, strike_out_callback):
         self._size = size
         self.strike_out_callback = strike_out_callback
+
+    def is_initialized(self):
+        return self._index is not None
 
     def initialize_empty(self):
         self._index = 0
@@ -764,6 +774,7 @@ class FilesystemSecurityContext(SecurityContext):
             basedir,
             sequence_number_chunksize_start=10,
             sequence_number_chunksize_limit=10000,
+            echo_recovery=True,
             ):
         self.basedir = basedir
 
@@ -776,6 +787,8 @@ class FilesystemSecurityContext(SecurityContext):
             # No lock, no loading, no need to fail in __del__
             self.lockfile = None
             raise
+
+        self.echo_recovery = echo_recovery
 
         try:
             self._load()
@@ -832,16 +845,34 @@ class FilesystemSecurityContext(SecurityContext):
 
         self.derive_keys(master_salt, master_secret)
 
-        self.recipient_replay_window = ReplayWindow(windowsize, self._store)
+        self.recipient_replay_window = ReplayWindow(windowsize, self._replay_window_changed)
         try:
             with open(os.path.join(self.basedir, 'sequence.json')) as f:
                 sequence = json.load(f)
         except FileNotFoundError:
             self.sender_sequence_number = 0
             self.recipient_replay_window.initialize_empty()
+            self.replay_window_persisted = False
         else:
             self.sender_sequence_number = int(sequence['next-to-send'])
-            self.recipient_replay_window.initialize_from_persisted(sequence['received'])
+            received = sequence['received']
+            if received == "unknown":
+                # The replay window will stay uninitialized, which triggers
+                # Echo recovery
+                self.replay_window_persisted = False
+            else:
+                try:
+                    self.recipient_replay_window.initialize_from_persisted(received)
+                except (ValueError, TypeError, KeyError):
+                    # Not being particularly careful about what could go wrong: If
+                    # someone tampers with the replay data, we're already in *big*
+                    # trouble, of which I fail to see how it would become worse
+                    # than a crash inside the application around "failure to
+                    # right-shift a string" or that like; at worst it'd result in
+                    # nonce reuse which tampering with the replay window file
+                    # already does.
+                    raise self.LoadError("Persisted replay window state was not understood")
+                self.replay_window_persisted = True
 
     # This is called internally whenever a new sequence number is taken or
     # crossed out from the window, and blocks a lot; B.1 mode mitigates that.
@@ -854,14 +885,25 @@ class FilesystemSecurityContext(SecurityContext):
         tmphand, tmpnam = tempfile.mkstemp(dir=self.basedir,
                 prefix='.sequence-', suffix='.json', text=True)
 
+        data = {"next-to-send": self.sequence_number_persisted}
+        if self.echo_recovery:
+            data['received'] = 'unknown'
+        else:
+            data['received'] = self.recipient_replay_window.persist()
+        self.replay_window_persisted = not self.echo_recovery
+
         with os.fdopen(tmphand, 'w') as tmpfile:
-            tmpfile.write('{\n'
-                '  "next-to-send": %d,\n'
-                '  "received": %s\n}'%(
-                self.sequence_number_persisted,
-                json.dumps(self.recipient_replay_window.persist())))
+            json.dump(data, tmpfile)
 
         os.rename(tmpnam, os.path.join(self.basedir, 'sequence.json'))
+
+    def _replay_window_changed(self):
+        if self.echo_recovery:
+            if self.replay_window_persisted:
+                # Just remove the sequence numbers once from the file
+                self._store()
+        else:
+            self._store()
 
     def post_seqnoincrease(self):
         if self.sender_sequence_number > self.sequence_number_persisted:
@@ -879,13 +921,14 @@ class FilesystemSecurityContext(SecurityContext):
         """Release the lock file, and ensure tha he object has become
         unusable.
 
-        If sequence numbers are left unused from B.1.1, the actually used
-        number gets written back to the file to allow resumption without
-        wasting digits.
+        If there is unpersisted state from B.1 operation, the actually used
+        number and replay window gets written back to the file to allow
+        resumption without wasting digits or round-trips.
         """
         # FIXME: Arrange for a more controlled shutdown through the credentials
 
-        if self.sender_sequence_number < self.sequence_number_persisted:
+        if self.sender_sequence_number < self.sequence_number_persisted or self.echo_recovery:
+            self.echo_recovery = False
             self.sequence_number_persisted = self.sender_sequence_number
             self._store()
 
