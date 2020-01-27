@@ -406,6 +406,7 @@ class PlugtestServerProgram(AsyncCLIDaemon):
         p = argparse.ArgumentParser(description="Server for the OSCORE plug test. Requires a test number to be present.")
         p.add_argument("contextdir", help="Directory name where to persist sequence numbers", type=Path)
         p.add_argument('--verbose', help="Increase log level", action='store_true')
+        p.add_argument('--state-was-lost', help="Lose memory of the replay window, forcing B.1.2 recovery", action='store_true')
         add_server_arguments(p)
         opts = p.parse_args()
 
@@ -416,8 +417,8 @@ class PlugtestServerProgram(AsyncCLIDaemon):
 
 
         server_credentials = CredentialsMap()
-        server_credentials[':b'] = get_security_context('b', opts.contextdir / "b")
-        server_credentials[':d'] = get_security_context('d', opts.contextdir / "d")
+        server_credentials[':b'] = get_security_context('b', opts.contextdir / "b", opts.state_was_lost)
+        server_credentials[':d'] = get_security_context('d', opts.contextdir / "d", opts.state_was_lost)
 
         self.context = await server_context_from_arguments(PlugtestSite(server_credentials), opts)
 

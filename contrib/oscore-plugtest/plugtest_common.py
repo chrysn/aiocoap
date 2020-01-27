@@ -16,18 +16,27 @@ class LoggingFilesystemSecurityContext(oscore.FilesystemSecurityContext):
         print("Verify: External AAD: bytes.fromhex(%r), %r"%(result.hex(), cbor.loads(result)))
         return result
 
-def get_security_context(contextname, contextcopy: Path):
+def get_security_context(contextname, contextcopy: Path, simulate_unclean_shutdown=False):
     """Copy the base context (disambiguated by contextname in "ab", "cd") onto
     the path in contextcopy if it does not already exist, and load the
     resulting context with the given role. The context will be monkey-patched
-    for debugging purposes."""
+    for debugging purposes.
+
+    With the simulate_unclean_shutdown aprameter set to True, any existing
+    replay window is removed from the loaded state."""
     if not contextcopy.exists():
         contextcopy.parent.mkdir(parents=True, exist_ok=True)
         shutil.copytree((contextdir / contextname).as_posix(), contextcopy.as_posix())
 
         print("Context %s copied to %s" % (contextname, contextcopy))
 
-    return LoggingFilesystemSecurityContext(contextcopy.as_posix())
+    secctx =  LoggingFilesystemSecurityContext(contextcopy.as_posix())
+
+    if simulate_unclean_shutdown:
+        secctx.recipient_replay_window._index = None
+        secctx.recipient_replay_window._bitfield = None
+
+    return secctx
 
 def additional_verify(description, lhs, rhs):
     if lhs == rhs:
