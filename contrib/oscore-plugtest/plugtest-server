@@ -317,6 +317,13 @@ class ProtectedSite(resource.Site):
 
         try:
             unprotected, seqno = sc.unprotect(request)
+        except error.RenderableError as e:
+            # Primarily used for the Echo recovery 4.01 reply; the below could
+            # be migrated there, but the behavior (at least as currently
+            # encoded) is not exactly the one a no_response=26 would show, as
+            # we want full responses to CONs but no responses to NONs, wheras
+            # no_response=26 only flushes out an empty ACK and nothing more
+            return e.to_message()
         except oscore.ReplayError:
             if request.mtype == aiocoap.CON:
                 return aiocoap.Message(code=aiocoap.UNAUTHORIZED, max_age=0, payload=b"Replay detected")

@@ -23,7 +23,8 @@ import abc
 
 from aiocoap.message import Message
 from aiocoap.util import secrets
-from aiocoap.numbers import POST, FETCH, CHANGED
+from aiocoap.numbers import POST, FETCH, CHANGED, UNAUTHORIZED
+from aiocoap import error
 
 from cryptography.hazmat.primitives.ciphers import aead
 import cryptography.exceptions
@@ -60,6 +61,24 @@ class DecodeError(ProtectionInvalid):
 
 class ReplayError(ProtectionInvalid):
     """Raised when verification of an OSCORE message fails because the sequence numbers was already used"""
+
+class ReplayErrorWithEcho(ProtectionInvalid, error.RenderableError):
+    """Raised when verification of an OSCORE message fails because the
+    recipient replay window is uninitialized, but a 4.01 Echo can be
+    constructed with the data in the exception that can lead to the client
+    assisting in replay window recovery"""
+    def __init__(self, secctx, request_id, echo):
+        self.secctx = secctx
+        self.request_id = request_id
+        self.echo = echo
+
+    def to_message(self):
+        inner = Message(
+                code=UNAUTHORIZED,
+                echo=self.echo,
+                )
+        outer, _ = self.secctx.protect(inner, request_id=self.request_id)
+        return outer
 
 class ContextUnavailable(ValueError):
     """Raised when a context is (currently or permanently) unavailable for
@@ -261,6 +280,11 @@ class SecurityContext(metaclass=abc.ABCMeta):
     # be the *only* context that does. (This is primarily a reminder to stop
     # reusing nonces once multicast is implemented).
     is_unicast = True
+
+    # Unless None, this is the value by which the running process recognizes
+    # that the second phase of a B.1.2 replay window recovery Echo option comes
+    # from the current process, and thus its sequence number is fresh
+    echo_recovery = None
 
     # message processing
 
@@ -467,6 +491,11 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
     def unprotect(self, protected_message, request_id=None):
         assert (request_id is not None) == protected_message.code.is_response()
+        is_response = protected_message.code.is_response()
+
+        # Set to a raisable exception on replay check failures; it will be
+        # raised, but the package may still be processed in the course of Echo handling.
+        replay_error = None
 
         protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message)
 
@@ -482,7 +511,7 @@ class SecurityContext(metaclass=abc.ABCMeta):
             raise ProtectionInvalid("Sender ID does not match")
 
         if COSE_PIV not in unprotected:
-            if request_id is None:
+            if not is_response:
                 raise ProtectionInvalid("No sequence number provided in request")
 
             nonce = request_id.nonce
@@ -492,18 +521,19 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
             nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
-            if request_id is None: # ie. we're unprotecting a request
-                seqno = int.from_bytes(partial_iv_short, 'big')
+            seqno = int.from_bytes(partial_iv_short, 'big')
 
-                if not self.recipient_replay_window.is_valid(seqno):
-                    # If here we ever implement something that accepts memory loss
-                    # as in 7.5.2 ("Losing Part of the Context State" / "Replay
-                    # window"), or an optimization that accepts replays to avoid
-                    # storing responses for EXCHANGE_LIFETIM, can_reuse_nonce a few
-                    # lines down needs to take that into consideration.
-                    raise ReplayError("Sequence number was re-used")
+            if not is_response:
+                if not self.recipient_replay_window.is_initialized():
+                    replay_error = ReplayError("Sequence number check unavailable")
+                elif not self.recipient_replay_window.is_valid(seqno):
+                    replay_error = ReplayError("Sequence number was re-used")
 
-                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=self.is_unicast)
+                if replay_error is not None and self.echo_recovery is None:
+                    # Don't even try decoding if there is no reason to
+                    raise replay_error
+
+                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=self.is_unicast and replay_error is None)
 
         # FIXME is it an error for additional data to be present in unprotected?
 
@@ -515,13 +545,43 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
         plaintext = self.algorithm.decrypt(ciphertext, aad, self.recipient_key, nonce)
 
-        if seqno is not None:
+        if not is_response and seqno is not None and replay_error is None:
             self.recipient_replay_window.strike_out(seqno)
 
         # FIXME add options from unprotected
 
         unprotected_message = Message(code=plaintext[0])
         unprotected_message.payload = unprotected_message.opt.decode(plaintext[1:])
+
+        try_initialize = not self.recipient_replay_window.is_initialized() and \
+                self.echo_recovery is not None
+        if try_initialize:
+            if protected_message.code.is_request():
+                # Either accept into replay window and clear replay error, or raise
+                # something that can turn into a 4.01,Echo response
+                if unprotected_message.opt.echo == self.echo_recovery:
+                    self.recipient_replay_window.initialize_from_freshlyseen(seqno)
+                    replay_error = None
+                else:
+                    raise ReplayErrorWithEcho(secctx=self, request_id=request_id, echo=self.echo_recovery)
+            else:
+                # We can initialize the replay window from a response as well.
+                # The response is guaranteed fresh as it was AEAD-decoded to
+                # match a request sent by this process.
+                #
+                # This is rare, as it only works when the server uses an own
+                # sequence number, eg. when sending a notification or when
+                # acting again on a retransmitted safe request whose response
+                # it did not cache.
+                #
+                # Nothing bad happens if we can't make progress -- we just
+                # don't initialize the replay window that wouldn't have been
+                # checked for a response anyway.
+                if seqno is not None:
+                    self.recipient_replay_window.initialize_from_freshlyseen(seqno)
+
+        if replay_error is not None:
+            raise replay_error
 
         if unprotected_message.code.is_request():
             if protected_message.opt.observe != 0:
@@ -699,6 +759,15 @@ class ReplayWindow:
         self._index = persisted['index']
         self._bitfield = persisted['bitfield']
 
+    def initialize_from_freshlyseen(self, seen):
+        """Initialize the replay window with a particular value that is just
+        being observed in a fresh (ie. generated by the peer later than any
+        messages processed before state was lost here) message. This marks the
+        seen sequence number and all preceding it as invalid, and and all later
+        ones as valid."""
+        self._index = seen
+        self._bitfield = 1
+
     def is_valid(self, number):
         if number < self._index:
             return False
@@ -788,7 +857,7 @@ class FilesystemSecurityContext(SecurityContext):
             self.lockfile = None
             raise
 
-        self.echo_recovery = echo_recovery
+        self.echo_recovery = secrets.token_bytes(8) if echo_recovery else None
 
         try:
             self._load()
@@ -886,11 +955,11 @@ class FilesystemSecurityContext(SecurityContext):
                 prefix='.sequence-', suffix='.json', text=True)
 
         data = {"next-to-send": self.sequence_number_persisted}
-        if self.echo_recovery:
+        if self.echo_recovery is not None:
             data['received'] = 'unknown'
         else:
             data['received'] = self.recipient_replay_window.persist()
-        self.replay_window_persisted = not self.echo_recovery
+        self.replay_window_persisted = self.echo_recovery is None
 
         with os.fdopen(tmphand, 'w') as tmpfile:
             json.dump(data, tmpfile)
@@ -898,7 +967,7 @@ class FilesystemSecurityContext(SecurityContext):
         os.rename(tmpnam, os.path.join(self.basedir, 'sequence.json'))
 
     def _replay_window_changed(self):
-        if self.echo_recovery:
+        if self.echo_recovery is not None:
             if self.replay_window_persisted:
                 # Just remove the sequence numbers once from the file
                 self._store()
@@ -927,8 +996,8 @@ class FilesystemSecurityContext(SecurityContext):
         """
         # FIXME: Arrange for a more controlled shutdown through the credentials
 
-        if self.sender_sequence_number < self.sequence_number_persisted or self.echo_recovery:
-            self.echo_recovery = False
+        if self.sender_sequence_number < self.sequence_number_persisted or self.echo_recovery is not None:
+            self.echo_recovery = None
             self.sequence_number_persisted = self.sender_sequence_number
             self._store()
 
