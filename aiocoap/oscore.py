@@ -829,9 +829,11 @@ class FilesystemSecurityContext(SecurityContext):
 
     Writes due to sent sequence numbers are reduced by applying a variation on
     the mechanism of RFC8613 Appendix B.1.1 (incrementing the persisted sender
-    seqence number in steps of `k`). That value is passed as the
-    `sequence_number_chunksize` parameter, and defaults to an automatically
-    determined value (starting at k=10, exponentially growing up to k=10_0000).
+    seqence number in steps of `k`). That value is automatically grown from
+    sequence_number_chunksize_start up to sequence_number_chunksize_limit.
+    At runtime, the receive window is not stored but kept indeterminate. In
+    case of an abnormal shutdown, the server uses the mechanism described in
+    Appendix B.1.2 to recover.
     """
 
     class LoadError(ValueError):
@@ -843,7 +845,6 @@ class FilesystemSecurityContext(SecurityContext):
             basedir,
             sequence_number_chunksize_start=10,
             sequence_number_chunksize_limit=10000,
-            echo_recovery=True,
             ):
         self.basedir = basedir
 
@@ -857,7 +858,9 @@ class FilesystemSecurityContext(SecurityContext):
             self.lockfile = None
             raise
 
-        self.echo_recovery = secrets.token_bytes(8) if echo_recovery else None
+        # Always enabled as committing to a file for every received request
+        # would be a terrible burden.
+        self.echo_recovery = secrets.token_bytes(8)
 
         try:
             self._load()
@@ -921,7 +924,7 @@ class FilesystemSecurityContext(SecurityContext):
         except FileNotFoundError:
             self.sender_sequence_number = 0
             self.recipient_replay_window.initialize_empty()
-            self.replay_window_persisted = False
+            self.replay_window_persisted = True
         else:
             self.sender_sequence_number = int(sequence['next-to-send'])
             received = sequence['received']
@@ -955,11 +958,10 @@ class FilesystemSecurityContext(SecurityContext):
                 prefix='.sequence-', suffix='.json', text=True)
 
         data = {"next-to-send": self.sequence_number_persisted}
-        if self.echo_recovery is not None:
+        if not self.replay_window_persisted:
             data['received'] = 'unknown'
         else:
             data['received'] = self.recipient_replay_window.persist()
-        self.replay_window_persisted = self.echo_recovery is None
 
         with os.fdopen(tmphand, 'w') as tmpfile:
             json.dump(data, tmpfile)
@@ -967,10 +969,10 @@ class FilesystemSecurityContext(SecurityContext):
         os.rename(tmpnam, os.path.join(self.basedir, 'sequence.json'))
 
     def _replay_window_changed(self):
-        if self.echo_recovery is not None:
-            if self.replay_window_persisted:
-                # Just remove the sequence numbers once from the file
-                self._store()
+        if self.replay_window_persisted:
+            # Just remove the sequence numbers once from the file
+            self.replay_window_persisted = False
+            self._store()
         else:
             self._store()
 
@@ -996,10 +998,9 @@ class FilesystemSecurityContext(SecurityContext):
         """
         # FIXME: Arrange for a more controlled shutdown through the credentials
 
-        if self.sender_sequence_number < self.sequence_number_persisted or self.echo_recovery is not None:
-            self.echo_recovery = None
-            self.sequence_number_persisted = self.sender_sequence_number
-            self._store()
+        self.replay_window_persisted = True
+        self.sequence_number_persisted = self.sender_sequence_number
+        self._store()
 
         del self.sender_key
         del self.recipient_key

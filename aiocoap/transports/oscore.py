@@ -21,6 +21,11 @@ dedicated URI scheme, but purely relies on preconfigured contexts.
 So far, this transport only deals with outgoing requests, and does not help in
 building an OSCORE server. (Some code that could be used here in future resides
 in `contrib/oscore-plugtest/plugtest-server` as the `ProtectedSite` class.
+
+In outgoing request, this transport automatically handles Echo options that
+appear to come from RFC8613 Appendix B.1.2 style servers. They indicate that
+the server could not process the request initially, but could do so if the
+client retransmits it with an appropriate Echo value.
 """
 
 from collections import namedtuple
