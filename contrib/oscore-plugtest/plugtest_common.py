@@ -16,6 +16,26 @@ class LoggingFilesystemSecurityContext(oscore.FilesystemSecurityContext):
         print("Verify: External AAD: bytes.fromhex(%r), %r"%(result.hex(), cbor.loads(result)))
         return result
 
+class NotifyingPlugtestSecurityContext(oscore.FilesystemSecurityContext):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.notification_hooks = []
+
+    def notify(self):
+        for x in self.notification_hooks:
+            x()
+
+    def post_seqnoincrease(self):
+        super().post_seqnoincrease()
+        self.notify()
+
+    def _replay_window_changed(self):
+        super()._replay_window_changed()
+        self.notify()
+
+class PlugtestFilesystemSecurityContext(LoggingFilesystemSecurityContext, NotifyingPlugtestSecurityContext):
+    pass
+
 def get_security_context(contextname, contextcopy: Path, simulate_unclean_shutdown=False):
     """Copy the base context (disambiguated by contextname in "ab", "cd") onto
     the path in contextcopy if it does not already exist, and load the
@@ -30,7 +50,7 @@ def get_security_context(contextname, contextcopy: Path, simulate_unclean_shutdo
 
         print("Context %s copied to %s" % (contextname, contextcopy))
 
-    secctx =  LoggingFilesystemSecurityContext(contextcopy.as_posix())
+    secctx = PlugtestFilesystemSecurityContext(contextcopy.as_posix())
 
     if simulate_unclean_shutdown:
         secctx.recipient_replay_window._index = None

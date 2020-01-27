@@ -151,22 +151,32 @@ class SeqnoManager(resource.ObservableResource):
         super().__init__()
         self.contextmap = contextmap
 
+        for c in self.contextmap.values():
+            c.notification_hooks.append(self.updated_state)
+
     async def render_get(self, request):
         text = ""
-        for name in ('ab', 'cd'):
+        for name in ('b', 'd'):
             the_context = self.contextmap[':' + name]
-
-            if not hasattr(the_context, "_SeqnoManager__patched"):
-                the_context.__patched = True
-                the_context._store = lambda oldstore=the_context._store: (oldstore(), self.updated_state())
 
             # this direct access is technically outside the interface for a
             # SecurityContext, but then again, there isn't one yet
-            text += """In context %s, next seqno is: %d\n""" % (name.upper(), the_context.sender_sequence_number)
-            text += """I've seen all sequence numbers up to including %d%s.""" % (
-                    the_context.recipient_replay_window.seen[0],
-                    ", and also %s" % the_context.recipient_replay_window.seen[1:] if len(the_context.recipient_replay_window.seen) > 1 else ""
-                    )
+            text += """In context %s, next seqno is %d (persisted up to %d)\n""" % (name.upper(), the_context.sender_sequence_number, the_context.sequence_number_persisted)
+            if the_context.recipient_replay_window.is_initialized():
+                index = the_context.recipient_replay_window._index
+                bitfield = the_context.recipient_replay_window._bitfield
+                # Useless for the internal representation, but much more readable
+                while bitfield & 1:
+                    bitfield >>= 1
+                    index += 1
+                print(index, bitfield)
+                bitfield_values = [i + index for (i, v) in enumerate(bin(bitfield)[2:][::-1]) if v == '1']
+                text += """I've seen all sequence numbers lower than %d%s.""" % (
+                        index,
+                        ", and also %s" % bitfield_values if bitfield else ""
+                        )
+            else:
+                text += "The replay window is uninitialized"
             text += "\n"
         return aiocoap.Message(payload=text.encode('utf-8'), content_format=0)
 
@@ -274,9 +284,6 @@ class ProtectedSite(resource.Site):
 
                 protected, _ = self._original_response_context.protect(response, self._original_request_seqno)
 
-                # FIXME who should trigger this?
-                self._original_response_context._store()
-
                 if not response.code.is_successful():
                     is_last = True
                 self._serverobservation.trigger(protected, is_last=is_last)
@@ -375,9 +382,6 @@ class ProtectedSite(resource.Site):
         self.log.debug("Will encrypt message as response: %s", response)
 
         protected_response, _ = sc.protect(response, seqno)
-
-        # FIXME who should trigger this?
-        sc._store()
 
         return protected_response
 
