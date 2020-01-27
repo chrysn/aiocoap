@@ -10,6 +10,12 @@ from aiocoap import oscore
 
 contextdir = Path(__file__).parent / 'common-context'
 
+class LoggingFilesystemSecurityContext(oscore.FilesystemSecurityContext):
+    def _extract_external_aad(self, message, i_am_sender, request_partiv=None):
+        result = super()._extract_external_aad(message, i_am_sender, request_partiv)
+        print("Verify: External AAD: bytes.fromhex(%r), %r"%(result.hex(), cbor.loads(result)))
+        return result
+
 def get_security_context(contextname, contextcopy: Path):
     """Copy the base context (disambiguated by contextname in "ab", "cd") onto
     the path in contextcopy if it does not already exist, and load the
@@ -21,16 +27,7 @@ def get_security_context(contextname, contextcopy: Path):
 
         print("Context %s copied to %s" % (contextname, contextcopy))
 
-    secctx = oscore.FilesystemSecurityContext(contextcopy.as_posix())
-
-    original_extract_external_aad = secctx._extract_external_aad
-    def _extract_extenal_aad(message, i_am_sender, request_partiv=None):
-        result = original_extract_external_aad(message, i_am_sender, request_partiv)
-        print("Verify: External AAD: bytes.fromhex(%r), %r"%(result.hex(), cbor.loads(result)))
-        return result
-    secctx._extract_external_aad = _extract_extenal_aad
-
-    return secctx
+    return LoggingFilesystemSecurityContext(contextcopy.as_posix())
 
 def additional_verify(description, lhs, rhs):
     if lhs == rhs:
