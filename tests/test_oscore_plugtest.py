@@ -121,9 +121,10 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         self.process.close()
 
     def tearDown(self):
-        super().tearDown()
-
+        # Don't leave this over, even if anything is raised during teardown
         self.process.terminate()
+
+        super().tearDown()
 
         out, err = self.loop.run_until_complete(self.__done)
 
@@ -141,6 +142,8 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
             self.assertNoFaillines(out, '"failed" showed up in plugtest server stdout')
             self.assertNoFaillines(err, '"failed" showed up in plugtest server stderr')
 
+        # Unlike the server process termination, leaving those around can be
+        # helpful and barely does any harm.
         shutil.rmtree(self.contextdir)
 
 class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
