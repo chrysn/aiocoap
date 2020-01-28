@@ -165,7 +165,7 @@ OptionNumber.OBSERVE.format = optiontypes.UintOption
 
 OptionNumber.NO_RESPONSE.format = optiontypes.UintOption
 
-# draft-ietf-core-object-security
+# RFC 8613
 
 OptionNumber.OBJECT_SECURITY.format = optiontypes.OpaqueOption
 

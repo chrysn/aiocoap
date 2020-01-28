@@ -47,8 +47,7 @@ This library supports the following standards in full or partially:
   server is provided along with a library function to register at one. They
   lack support for groups and security considerations, and are generally rather
   simplistic.
-* RFC8613_ (OSCORE, formerly OSCOAP): Full support
-  client-side (except handling the Echo option); protected servers can be
+* RFC8613_ (OSCORE): Full support client-side; protected servers can be
   implemented based on it but are not automatic yet.
 
 If something described by one of the standards but not implemented, it is
