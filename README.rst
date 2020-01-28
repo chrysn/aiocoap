@@ -114,8 +114,8 @@ available.
 .. _PEP8: http://legacy.python.org/dev/peps/pep-0008/
 .. _sphinx: http://sphinx-doc.org/
 .. _`github issue tracker`: https://github.com/chrysn/aiocoap/issues
-.. _`CI suite at gitlab`: https://gitlab.com/energyharvesting/aiocoap/commits/master
-.. _`coverage reports`: https://energyharvesting.gitlab.io/aiocoap/
+.. _`CI suite at gitlab`: https://gitlab.com/aiocoap/aiocoap/commits/master
+.. _`coverage reports`: https://aiocoap.gitlab.io/aiocoap/
 
 Relevant URLs
 -------------
