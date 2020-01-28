@@ -87,7 +87,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         transport, protocol = await loop.create_datagram_endpoint(
                 lambda: cls(ready.set_result, new_message_callback, new_error_callback, log),
                 local_addr=bind,
-                reuse_address=True,
+                reuse_port=True,
                 )
 
         # Conveniently, we only bind to a single port (because we need to know
