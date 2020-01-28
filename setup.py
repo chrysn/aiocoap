@@ -17,7 +17,7 @@ from distutils.core import Command
 import os
 
 name = "aiocoap"
-version = "0.4b1.post0" # Don't forget meta.version
+version = "0.4b2" # Don't forget meta.version and doc/conf.py
 description = "Python CoAP library"
 longdescription = __doc__
 
