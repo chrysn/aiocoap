@@ -180,7 +180,7 @@ class TestOSCOREPlugtestWithRecovery(TestOSCOREPlugtestBase):
     SERVER = SERVER + ['--state-was-lost']
 
 for x in range(0, 17):
-    for cls in (TestOSCOREPlugtestWithRecovery, TestOSCOREPlugtestWithRecovery):
+    for cls in (TestOSCOREPlugtestWithRecovery, TestOSCOREPlugtestWithoutRecovery):
         test = lambda self, x=x: self._test_plugtestclient(x)
         if x == 16:
             # That test can not succeed against a regular plugtest server
