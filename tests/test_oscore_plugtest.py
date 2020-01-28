@@ -191,7 +191,7 @@ for x in range(0, 17):
             # Funnily, this only bites in Python 3.5; 3.6+'s asyncio seems to be
             # more GC friendly.
             test = unittest.expectedFailure(test)
-        if x in (5, 6) and cls is TestOSCOREPlugtestWithRecovery and 'PyPy' not in sys.version:
+        if x in (5, 6) and cls is TestOSCOREPlugtestWithRecovery and 'PyPy' not in sys.version and 'simple6' not in aiocoap.defaults.get_default_clienttransports():
             # Something in cleanup is still wrong here, and a task gets lost.
             # Needs further investigation, see https://github.com/chrysn/aiocoap/issues/180
             test = unittest.expectedFailure(test)
