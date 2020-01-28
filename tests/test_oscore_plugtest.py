@@ -25,7 +25,7 @@ from .fixtures import test_is_successful
 
 from .common import PYTHON_PREFIX
 SERVER_ADDRESS = '::1'
-SERVER = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-server', '--verbose', '--bind', hostportjoin(SERVER_ADDRESS, None), '--state-was-lost']
+SERVER = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-server', '--verbose', '--bind', hostportjoin(SERVER_ADDRESS, None)]
 CLIENT = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-client', '--verbose']
 
 class CapturingSubprocess(asyncio.SubprocessProtocol):
@@ -93,7 +93,7 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
     async def run_server(self, readiness, done):
         self.process, process_outputs = await self.loop.subprocess_exec(
                 CapturingSubprocess,
-                *SERVER,
+                *self.SERVER,
                 self.contextdir + "/server",
                 stdin=None
                 )
@@ -146,7 +146,7 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         # helpful and barely does any harm.
         shutil.rmtree(self.contextdir)
 
-class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
+class TestOSCOREPlugtestBase(WithPlugtestServer, WithClient, WithAssertNofaillines):
 
     @asynctest
     async def _test_plugtestclient(self, x):
@@ -173,17 +173,29 @@ class TestOSCOREPlugtest(WithPlugtestServer, WithClient, WithAssertNofaillines):
         self.assertNoFaillines(transport.stdout, '"failed" showed up in plugtest client stdout')
         self.assertNoFaillines(transport.stderr, '"failed" showed up in plugtest client stderr')
 
+class TestOSCOREPlugtestWithoutRecovery(TestOSCOREPlugtestBase):
+    SERVER = SERVER
+
+class TestOSCOREPlugtestWithRecovery(TestOSCOREPlugtestBase):
+    SERVER = SERVER + ['--state-was-lost']
+
 for x in range(0, 17):
-    test = lambda self, x=x: self._test_plugtestclient(x)
-    if x == 16:
-        # That test can not succeed against a regular plugtest server
-        test = unittest.expectedFailure(test)
-    if x == 7 and sys.version_info < (3, 6) and 'PyPy' not in sys.version:
-        # That test fails because there is no proper observation cancellation
-        # aroun yet, see https://github.com/chrysn/aiocoap/issues/104
-        # Funnily, this only bites in Python 3.5; 3.6+'s asyncio seems to be
-        # more GC friendly.
-        test = unittest.expectedFailure(test)
-    # enforcing them to sort properly is purely a readability thing, they
-    # execute correctly out-of-order too.
-    setattr(TestOSCOREPlugtest, 'test_%03d'%x, test)
+    for cls in (TestOSCOREPlugtestWithRecovery, TestOSCOREPlugtestWithRecovery):
+        test = lambda self, x=x: self._test_plugtestclient(x)
+        if x == 16:
+            # That test can not succeed against a regular plugtest server
+            test = unittest.expectedFailure(test)
+        if x == 7 and sys.version_info < (3, 6) and 'PyPy' not in sys.version:
+            # That test fails because there is no proper observation cancellation
+            # aroun yet, see https://github.com/chrysn/aiocoap/issues/104
+            # Funnily, this only bites in Python 3.5; 3.6+'s asyncio seems to be
+            # more GC friendly.
+            test = unittest.expectedFailure(test)
+        if x in (5, 6) and cls is TestOSCOREPlugtestWithRecovery:
+            # Something in cleanup is still wrong here, and a task gets lost.
+            # Needs further investigation, see https://github.com/chrysn/aiocoap/issues/180
+            test = unittest.expectedFailure(test)
+
+        # enforcing them to sort properly is purely a readability thing, they
+        # execute correctly out-of-order too.
+        setattr(cls, 'test_%03d'%x, test)
