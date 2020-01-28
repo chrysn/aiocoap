@@ -23,7 +23,8 @@ import abc
 
 from aiocoap.message import Message
 from aiocoap.util import secrets
-from aiocoap.numbers import POST, FETCH, CHANGED
+from aiocoap.numbers import POST, FETCH, CHANGED, UNAUTHORIZED
+from aiocoap import error
 
 from cryptography.hazmat.primitives.ciphers import aead
 import cryptography.exceptions
@@ -31,16 +32,14 @@ import cryptography.exceptions
 import hkdf
 import cbor
 
+import filelock
+
 MAX_SEQNO = 2**40 - 1
 
 # Relevant values from the IANA registry "CBOR Object Signing and Encryption (COSE)"
 COSE_KID = 4
 COSE_PIV = 6
-# No numeric value has been assigned yet; as we're only building the protected
-# and unprotected fields temporarily in untyped data structures and serializing
-# them through the compression, this can stay a string until a number is
-# assigned.
-COSE_KID_CONTEXT = 'TBD-draft-ietf-core-object-security-14'
+COSE_KID_CONTEXT = 10
 
 COMPRESSION_BITS_N = 0b111
 COMPRESSION_BIT_K = 0b1000
@@ -62,6 +61,28 @@ class DecodeError(ProtectionInvalid):
 
 class ReplayError(ProtectionInvalid):
     """Raised when verification of an OSCORE message fails because the sequence numbers was already used"""
+
+class ReplayErrorWithEcho(ProtectionInvalid, error.RenderableError):
+    """Raised when verification of an OSCORE message fails because the
+    recipient replay window is uninitialized, but a 4.01 Echo can be
+    constructed with the data in the exception that can lead to the client
+    assisting in replay window recovery"""
+    def __init__(self, secctx, request_id, echo):
+        self.secctx = secctx
+        self.request_id = request_id
+        self.echo = echo
+
+    def to_message(self):
+        inner = Message(
+                code=UNAUTHORIZED,
+                echo=self.echo,
+                )
+        outer, _ = self.secctx.protect(inner, request_id=self.request_id)
+        return outer
+
+class ContextUnavailable(ValueError):
+    """Raised when a context is (currently or permanently) unavailable for
+    protecting or unprotecting a message"""
 
 class RequestIdentifiers:
     """A container for details that need to be passed along from the
@@ -242,17 +263,28 @@ algorithms = {
         'A256GCM': A256GCM(),
         }
 
+DEFAULT_ALGORITHM = 'AES-CCM-16-64-128'
+
 hashfunctions = {
         'sha256': hashlib.sha256,
         }
 
-class SecurityContext:
+DEFAULT_HASHFUNCTION = 'sha256'
+
+DEFAULT_WINDOWSIZE = 32
+
+class SecurityContext(metaclass=abc.ABCMeta):
     # FIXME: define an interface for that
 
     # Indicates that in this context, when responding to a request, will always
     # be the *only* context that does. (This is primarily a reminder to stop
     # reusing nonces once multicast is implemented).
     is_unicast = True
+
+    # Unless None, this is the value by which the running process recognizes
+    # that the second phase of a B.1.2 replay window recovery Echo option comes
+    # from the current process, and thus its sequence number is fresh
+    echo_recovery = None
 
     # message processing
 
@@ -459,6 +491,11 @@ class SecurityContext:
 
     def unprotect(self, protected_message, request_id=None):
         assert (request_id is not None) == protected_message.code.is_response()
+        is_response = protected_message.code.is_response()
+
+        # Set to a raisable exception on replay check failures; it will be
+        # raised, but the package may still be processed in the course of Echo handling.
+        replay_error = None
 
         protected_serialized, protected, unprotected, ciphertext = self._extract_encrypted0(protected_message)
 
@@ -474,7 +511,7 @@ class SecurityContext:
             raise ProtectionInvalid("Sender ID does not match")
 
         if COSE_PIV not in unprotected:
-            if request_id is None:
+            if not is_response:
                 raise ProtectionInvalid("No sequence number provided in request")
 
             nonce = request_id.nonce
@@ -482,20 +519,21 @@ class SecurityContext:
         else:
             partial_iv_short = unprotected[COSE_PIV]
 
-            seqno = int.from_bytes(partial_iv_short, 'big')
-
-            if not self.recipient_replay_window.is_valid(seqno):
-                # If here we ever implement something that accepts memory loss
-                # as in 7.5.2 ("Losing Part of the Context State" / "Replay
-                # window"), or an optimization that accepts replays to avoid
-                # storing responses for EXCHANGE_LIFETIM, can_reuse_nonce a few
-                # lines down needs to take that into consideration.
-                raise ReplayError("Sequence number was re-used")
-
             nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
-            if request_id is None: # ie. we're unprotecting a request
-                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=self.is_unicast)
+            seqno = int.from_bytes(partial_iv_short, 'big')
+
+            if not is_response:
+                if not self.recipient_replay_window.is_initialized():
+                    replay_error = ReplayError("Sequence number check unavailable")
+                elif not self.recipient_replay_window.is_valid(seqno):
+                    replay_error = ReplayError("Sequence number was re-used")
+
+                if replay_error is not None and self.echo_recovery is None:
+                    # Don't even try decoding if there is no reason to
+                    raise replay_error
+
+                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=self.is_unicast and replay_error is None)
 
         # FIXME is it an error for additional data to be present in unprotected?
 
@@ -507,13 +545,43 @@ class SecurityContext:
 
         plaintext = self.algorithm.decrypt(ciphertext, aad, self.recipient_key, nonce)
 
-        if seqno is not None:
+        if not is_response and seqno is not None and replay_error is None:
             self.recipient_replay_window.strike_out(seqno)
 
         # FIXME add options from unprotected
 
         unprotected_message = Message(code=plaintext[0])
         unprotected_message.payload = unprotected_message.opt.decode(plaintext[1:])
+
+        try_initialize = not self.recipient_replay_window.is_initialized() and \
+                self.echo_recovery is not None
+        if try_initialize:
+            if protected_message.code.is_request():
+                # Either accept into replay window and clear replay error, or raise
+                # something that can turn into a 4.01,Echo response
+                if unprotected_message.opt.echo == self.echo_recovery:
+                    self.recipient_replay_window.initialize_from_freshlyseen(seqno)
+                    replay_error = None
+                else:
+                    raise ReplayErrorWithEcho(secctx=self, request_id=request_id, echo=self.echo_recovery)
+            else:
+                # We can initialize the replay window from a response as well.
+                # The response is guaranteed fresh as it was AEAD-decoded to
+                # match a request sent by this process.
+                #
+                # This is rare, as it only works when the server uses an own
+                # sequence number, eg. when sending a notification or when
+                # acting again on a retransmitted safe request whose response
+                # it did not cache.
+                #
+                # Nothing bad happens if we can't make progress -- we just
+                # don't initialize the replay window that wouldn't have been
+                # checked for a response anyway.
+                if seqno is not None:
+                    self.recipient_replay_window.initialize_from_freshlyseen(seqno)
+
+        if replay_error is not None:
+            raise replay_error
 
         if unprotected_message.code.is_request():
             if protected_message.opt.observe != 0:
@@ -570,16 +638,6 @@ class SecurityContext:
         protected_serialized, protected, unprotected = cls._uncompress(message.opt.object_security)
         return protected_serialized, protected, unprotected, message.payload
 
-    # sequence number handling
-
-    def new_sequence_number(self):
-        retval = self.sender_sequence_number
-        if retval >= MAX_SEQNO:
-            raise ValueError("Sequence number too large, context is exhausted.")
-        self.sender_sequence_number += 1
-        # FIXME maybe _store now?
-        return retval
-
     # context parameter setup
 
     def _kdf(self, master_salt, master_secret, role_id, out_type):
@@ -607,71 +665,140 @@ class SecurityContext:
 
         self.common_iv = self._kdf(master_salt, master_secret, b"", 'IV')
 
+    # sequence number handling
+
+    def new_sequence_number(self):
+        """Return a new sequence number; the implementation is responsible for
+        never returning the same value twice in a given security context.
+
+        May raise ContextUnavailable."""
+        retval = self.sender_sequence_number
+        if retval >= MAX_SEQNO:
+            raise ContextUnavailable("Sequence number too large, context is exhausted.")
+        self.sender_sequence_number += 1
+        self.post_seqnoincrease()
+        return retval
+
+    # implementation defined
+
+    @abc.abstractmethod
+    def post_seqnoincrease(self):
+        """Ensure that sender_sequence_number is stored"""
+        raise
+
+
 class ReplayWindow:
-    # FIXME: interface, abc
-    pass
+    """A regular replay window of a fixed size.
 
-# FIXME: This is not a default DTLS replay window, and it should not be
-# expected that this can be used in any security context.
-class SimpleReplayWindow(ReplayWindow):
-    """A ReplayWindow that keeps its seen sequence numbers in a sorted list;
-    all entries of the list and all numbers smaller than the first entry are
-    considered seen.
+    It is implemented as an index and a bitfield (represented by an integer)
+    whose least significant bit represents the seqyence number of the index,
+    and a 1 indicates that a number was seen. No shenanigans around implicit
+    leading ones (think floating point normalization) happen.
 
-    This is not very efficient, but easy to understand and to serialize.
-
-    >>> w = SimpleReplayWindow()
+    >>> w = ReplayWindow(32, lambda: None)
+    >>> w.initialize_empty()
     >>> w.strike_out(5)
     >>> w.is_valid(3)
     True
     >>> w.is_valid(5)
     False
     >>> w.strike_out(0)
-    >>> print(w.seen)
-    [0, 5]
     >>> w.strike_out(1)
     >>> w.strike_out(2)
-    >>> print(w.seen)
-    [2, 5]
     >>> w.is_valid(1)
     False
-    """
-    window_count = 64 # not a window size: window size would be size of a bit field, while this is the size of the ones
 
-    def __init__(self, seen=None):
-        if not seen: # including empty-list case
-            self.seen = [-1]
-        else:
-            self.seen = sorted(seen)
+    Jumping ahead by the window size invalidates older numbers:
+
+    >>> w.is_valid(4)
+    True
+    >>> w.strike_out(35)
+    >>> w.is_valid(4)
+    True
+    >>> w.strike_out(36)
+    >>> w.is_valid(4)
+    False
+
+    Usage safety
+    ------------
+
+    For every key, the replay window can only be initielized empty once. On
+    later uses, it needs to be persisted by storing the output of
+    self.persist() somewhere and loaded from that persisted data.
+
+    It is acceptable to store persistance data in the strike_out_callback, but
+    that must then ensure that the data is written (flushed to a file or
+    committed to a database), but that is usually inefficient.
+
+    Stability
+    ---------
+
+    This class is not considered for stabilization yet and an implementation
+    detail of the SecurityContext implementation(s).
+    """
+
+    _index = None
+    """Sequence number represented by the least significant bit of _bitfield"""
+    _bitfield = None
+    """Integer interpreted as a bitfield, self._size wide. A digit 1 at any bit
+    indicates that the bit's index (its power of 2) plus self._index was
+    already seen."""
+
+    def __init__(self, size, strike_out_callback):
+        self._size = size
+        self.strike_out_callback = strike_out_callback
+
+    def is_initialized(self):
+        return self._index is not None
+
+    def initialize_empty(self):
+        self._index = 0
+        self._bitfield = 0
+
+    def initialize_from_persisted(self, persisted):
+        self._index = persisted['index']
+        self._bitfield = persisted['bitfield']
+
+    def initialize_from_freshlyseen(self, seen):
+        """Initialize the replay window with a particular value that is just
+        being observed in a fresh (ie. generated by the peer later than any
+        messages processed before state was lost here) message. This marks the
+        seen sequence number and all preceding it as invalid, and and all later
+        ones as valid."""
+        self._index = seen
+        self._bitfield = 1
 
     def is_valid(self, number):
-        if number < self.seen[0]:
+        if number < self._index:
             return False
-        return number not in self.seen
+        if number >= self._index + self._size:
+            return True
+        return (self._bitfield >> (number - self._index)) & 1 == 0
 
     def strike_out(self, number):
         if not self.is_valid(number):
             raise ValueError("Sequence number is not valid any more and "
                     "thus can't be removed from the window")
-        for i, n in enumerate(self.seen):
-            if n > number:
-                break
-        else:
-            i = i + 1
-        self.seen.insert(i, number)
-        assert self.seen == sorted(self.seen)
-        # cleanup
-        while len(self.seen) > 1 and (
-                len(self.seen) > self.window_count or
-                self.seen[0] + 1 == self.seen[1]
-                ):
-            self.seen.pop(0)
+        overshoot = number - (self._index + self._size - 1)
+        if overshoot > 0:
+            self._index += overshoot
+            self._bitfield >>= overshoot
+        assert self.is_valid(number)
+        self._bitfield |= 1 << (number - self._index)
+
+        self.strike_out_callback()
+
+    def persist(self):
+        """Return a dict containing internal state which can be passed to init
+        to recreated the replay window."""
+
+        return {'index': self._index, 'bitfield': self._bitfield}
 
 class FilesystemSecurityContext(SecurityContext):
     """Security context stored in a directory as distinct files containing
     containing
 
-    * Master secret, master salt, the sender IDs of the participants, and
+    * Master secret, master salt, sender and recipient ID,
       optionally algorithm, the KDF hash function, and replay window size
       (settings.json and secrets.json, where the latter is typically readable
       only for the user)
@@ -682,14 +809,15 @@ class FilesystemSecurityContext(SecurityContext):
     secrets.json, but must not be present in both; the presence of either file
     is sufficient.
 
-    The static files are phrased in a way that allows using the same files for
-    server and client; only by passing "client" or "server" as role parameter
-    at load time, the IDs are are assigned to the context as sender or
-    recipient ID. (The sequence number file is set up in a similar way in
-    preparation for multicast operation; but is not yet usable from a directory
-    shared between server and client; when multicast is actually explored, the
-    sequence file might be renamed to contain the sender ID for shared use of a
-    directory).
+    .. warning::
+
+        Security contexts must never be copied around and used after another
+        copy was used. They should only ever be moved, and if they are copied
+        (eg. as a part of a system backup), restored contexts must not be used
+        again; they need to be replaced with freshly created ones.
+
+    An additional file named `lock` is created to prevent the accidental use of
+    a context by to concurrent programs.
 
     Note that the sequence number file is updated in an atomic fashion which
     requires file creation privileges in the directory. If privilege separation
@@ -698,20 +826,54 @@ class FilesystemSecurityContext(SecurityContext):
     write permissions on the directory and setting the sticky bit on the
     directory, thus forbidding the user to remove the settings/secret files not
     owned by him.
+
+    Writes due to sent sequence numbers are reduced by applying a variation on
+    the mechanism of RFC8613 Appendix B.1.1 (incrementing the persisted sender
+    seqence number in steps of `k`). That value is automatically grown from
+    sequence_number_chunksize_start up to sequence_number_chunksize_limit.
+    At runtime, the receive window is not stored but kept indeterminate. In
+    case of an abnormal shutdown, the server uses the mechanism described in
+    Appendix B.1.2 to recover.
     """
 
     class LoadError(ValueError):
         """Exception raised with a descriptive message when trying to load a
         faulty security context"""
 
-    def __init__(self, basedir, role):
+    def __init__(
+            self,
+            basedir,
+            sequence_number_chunksize_start=10,
+            sequence_number_chunksize_limit=10000,
+            ):
         self.basedir = basedir
+
+        self.lockfile = filelock.FileLock(os.path.join(basedir, 'lock'))
+        # 0.001: Just fail if it can't be acquired
+        # See https://github.com/benediktschmitt/py-filelock/issues/57
         try:
-            self._load(role)
+            self.lockfile.acquire(timeout=0.001)
+        except:
+            # No lock, no loading, no need to fail in __del__
+            self.lockfile = None
+            raise
+
+        # Always enabled as committing to a file for every received request
+        # would be a terrible burden.
+        self.echo_recovery = secrets.token_bytes(8)
+
+        try:
+            self._load()
         except KeyError as k:
             raise self.LoadError("Configuration key missing: %s"%(k.args[0],))
 
-    def _load(self, my_role):
+        self.sequence_number_chunksize_start = sequence_number_chunksize_start
+        self.sequence_number_chunksize_limit = sequence_number_chunksize_limit
+        self.sequence_number_chunksize = sequence_number_chunksize_start
+
+        self.sequence_number_persisted = self.sender_sequence_number
+
+    def _load(self):
         # doesn't check for KeyError on every occasion, relies on __init__ to
         # catch that
 
@@ -736,17 +898,15 @@ class FilesystemSecurityContext(SecurityContext):
 
                 data[key] = value
 
-        self.algorithm = algorithms[data.get('algorithm', 'AES-CCM-64-64-128')]
-        self.hashfun = hashfunctions[data.get('kdf-hashfun', 'sha256')]
+        self.algorithm = algorithms[data.get('algorithm', DEFAULT_ALGORITHM)]
+        self.hashfun = hashfunctions[data.get('kdf-hashfun', DEFAULT_HASHFUNCTION)]
 
-        if my_role == 'server':
-            self.sender_id = data['server-sender-id']
-            self.recipient_id = data['client-sender-id']
-        elif my_role == 'client':
-            self.sender_id = data['client-sender-id']
-            self.recipient_id = data['server-sender-id']
-        else:
-            raise self.LoadError("Unknown role")
+        windowsize = data.get('window', DEFAULT_WINDOWSIZE)
+        if not isinstance(windowsize, int):
+            raise self.LoadError("Non-integer replay window")
+
+        self.sender_id = data['sender-id']
+        self.recipient_id = data['recipient-id']
 
         if max(len(self.sender_id), len(self.recipient_id)) > self.algorithm.iv_bytes - 6:
             raise self.LoadError("Sender or Recipient ID too long (maximum length %s for this algorithm)" % (self.algorithm.iv_bytes - 6))
@@ -757,75 +917,102 @@ class FilesystemSecurityContext(SecurityContext):
 
         self.derive_keys(master_salt, master_secret)
 
+        self.recipient_replay_window = ReplayWindow(windowsize, self._replay_window_changed)
         try:
             with open(os.path.join(self.basedir, 'sequence.json')) as f:
                 sequence = json.load(f)
         except FileNotFoundError:
             self.sender_sequence_number = 0
-            self.recipient_replay_window = SimpleReplayWindow([])
+            self.recipient_replay_window.initialize_empty()
+            self.replay_window_persisted = True
         else:
-            sender_hex = binascii.hexlify(self.sender_id).decode('ascii')
-            recipient_hex = binascii.hexlify(self.recipient_id).decode('ascii')
-            self.sender_sequence_number = int(sequence['used'][sender_hex])
-            self.recipient_replay_window = SimpleReplayWindow([int(x) for x in
-                sequence['seen'][recipient_hex]])
-            if len(sequence['used']) != 1 or len(sequence['seen']) != 1:
-                warnings.warn("Sequence files shared between roles are "
-                        "currently not supported.")
+            self.sender_sequence_number = int(sequence['next-to-send'])
+            received = sequence['received']
+            if received == "unknown":
+                # The replay window will stay uninitialized, which triggers
+                # Echo recovery
+                self.replay_window_persisted = False
+            else:
+                try:
+                    self.recipient_replay_window.initialize_from_persisted(received)
+                except (ValueError, TypeError, KeyError):
+                    # Not being particularly careful about what could go wrong: If
+                    # someone tampers with the replay data, we're already in *big*
+                    # trouble, of which I fail to see how it would become worse
+                    # than a crash inside the application around "failure to
+                    # right-shift a string" or that like; at worst it'd result in
+                    # nonce reuse which tampering with the replay window file
+                    # already does.
+                    raise self.LoadError("Persisted replay window state was not understood")
+                self.replay_window_persisted = True
 
-    # FIXME when/how will this be called?
+    # This is called internally whenever a new sequence number is taken or
+    # crossed out from the window, and blocks a lot; B.1 mode mitigates that.
     #
-    # it might be practical to make sender_sequence_number and recipient_replay_window
-    # properties private, and provide access to them in a way that triggers
-    # store or at least a delayed store.
+    # Making it async and block in a threadpool would mitigate the blocking of
+    # other messages, but the more visible effect of this will be that no
+    # matter if sync or async, a reply will need to wait for a file sync
+    # operation to conclude.
     def _store(self):
         tmphand, tmpnam = tempfile.mkstemp(dir=self.basedir,
                 prefix='.sequence-', suffix='.json', text=True)
 
-        sender_hex = binascii.hexlify(self.sender_id).decode('ascii')
-        recipient_hex = binascii.hexlify(self.recipient_id).decode('ascii')
+        data = {"next-to-send": self.sequence_number_persisted}
+        if not self.replay_window_persisted:
+            data['received'] = 'unknown'
+        else:
+            data['received'] = self.recipient_replay_window.persist()
 
         with os.fdopen(tmphand, 'w') as tmpfile:
-            tmpfile.write('{\n'
-                '  "used": {"%s": %d},\n'
-                '  "seen": {"%s": %s}\n}'%(
-                sender_hex, self.sender_sequence_number,
-                recipient_hex, self.recipient_replay_window.seen))
+            json.dump(data, tmpfile)
 
         os.rename(tmpnam, os.path.join(self.basedir, 'sequence.json'))
 
-    @classmethod
-    def generate(cls, basedir):
-        """Create a security context directory from default parameters and a
-        random key; it is an error if that directory already exists.
+    def _replay_window_changed(self):
+        if self.replay_window_persisted:
+            # Just remove the sequence numbers once from the file
+            self.replay_window_persisted = False
+            self._store()
+        else:
+            self._store()
 
-        No SecurityContext object is returned immediately, as it is expected
-        that the generated context can't be used immediately but first needs to
-        be copied to another party and then can be opened in either the sender
-        or the recipient role."""
-        # shorter would probably be OK too (that token might be suitable to
-        # even skip extraction), but for the purpose of generating conformant
-        # example contexts.
-        master_secret = secrets.token_bytes(nbytes=32)
+    def post_seqnoincrease(self):
+        if self.sender_sequence_number > self.sequence_number_persisted:
+            self.sequence_number_persisted += self.sequence_number_chunksize
 
-        os.makedirs(basedir)
-        with open(os.path.join(basedir, 'settings.json'), 'w') as settingsfile:
-            settingsfile.write("{\n"
-                    '  "server-id_hex": "00",\n'
-                    '  "client-id_hex": "01",\n'
-                    '  "algorithm": "AES-CCM-16-64-128",\n'
-                    '  "kdf-hashfun": "sha256"\n'
-                    '}')
+            self.sequence_number_chunksize = min(self.sequence_number_chunksize * 2, self.sequence_number_chunksize_limit)
+            # FIXME: this blocks -- see https://github.com/chrysn/aiocoap/issues/178
+            self._store()
 
-        # atomicity is not really required as this is a new directory, but the
-        # readable-by-us-only property is easily achieved with mkstemp
-        tmphand, tmpnam = tempfile.mkstemp(dir=basedir, prefix='.secret-',
-                suffix='.json', text=True)
-        with os.fdopen(tmphand, 'w') as secretfile:
-            secretfile.write("{\n"
-                    '  "secret_hex": "%s"\n'
-                    '}'%binascii.hexlify(master_secret).decode('ascii'))
-        os.rename(tmpnam, os.path.join(basedir, 'secret.json'))
+            # The = case would only happen if someone deliberately sets all
+            # numbers to 1 to force persisting on every step
+            assert self.sender_sequence_number <= self.sequence_number_persisted
+
+    def _destroy(self):
+        """Release the lock file, and ensure tha he object has become
+        unusable.
+
+        If there is unpersisted state from B.1 operation, the actually used
+        number and replay window gets written back to the file to allow
+        resumption without wasting digits or round-trips.
+        """
+        # FIXME: Arrange for a more controlled shutdown through the credentials
+
+        self.replay_window_persisted = True
+        self.sequence_number_persisted = self.sender_sequence_number
+        self._store()
+
+        del self.sender_key
+        del self.recipient_key
+
+        os.unlink(self.lockfile.lock_file)
+        self.lockfile.release()
+
+        self.lockfile = None
+
+    def __del__(self):
+        if self.lockfile is not None:
+            self._destroy()
 
 def verify_start(message):
     """Extract a sender ID and ID context (if present, otherwise None) from a

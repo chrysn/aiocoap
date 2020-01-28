@@ -21,12 +21,18 @@ dedicated URI scheme, but purely relies on preconfigured contexts.
 So far, this transport only deals with outgoing requests, and does not help in
 building an OSCORE server. (Some code that could be used here in future resides
 in `contrib/oscore-plugtest/plugtest-server` as the `ProtectedSite` class.
+
+In outgoing request, this transport automatically handles Echo options that
+appear to come from RFC8613 Appendix B.1.2 style servers. They indicate that
+the server could not process the request initially, but could do so if the
+client retransmits it with an appropriate Echo value.
 """
 
 from collections import namedtuple
 from functools import wraps
 
 from .. import interfaces, credentials, oscore
+from ..numbers import UNAUTHORIZED
 
 class OSCOREAddress(
         namedtuple("_OSCOREAddress", ["transport", "security_context", "underlying_address"]),
@@ -119,22 +125,30 @@ class TransportOSCORE(interfaces.RequestProvider):
             return False
 
     def request(self, request):
+        t = self.loop.create_task(self._request(request))
+        self._tasks.add(t)
+        t.add_done_callback(lambda _, _tasks=self._tasks, _t=t: _tasks.remove(_t))
+
+    async def _request(self, request):
         msg = request.request
 
         secctx = msg.remote.security_context
 
-        protected, original_request_seqno = secctx.protect(msg)
-        protected.remote = msg.remote.underlying_address
-        # FIXME where should this be called from?
-        secctx._store()
+        def protect(echo):
+            if echo is None:
+                msg_to_protect = msg
+            else:
+                if msg.opt.echo:
+                    self.log.warning("Overwriting the requested Echo value with the one to answer a 4.01 Unauthorized")
+                msg_to_protect = msg.copy(echo=echo)
+            protected, original_request_seqno = secctx.protect(msg_to_protect)
+            protected.remote = msg.remote.underlying_address
 
-        wire_request = self._wire.request(protected)
+            wire_request = self._wire.request(protected)
 
-        t = self.loop.create_task(self._request(request, wire_request, secctx, original_request_seqno))
-        self._tasks.add(t)
-        t.add_done_callback(lambda _, _tasks=self._tasks, _t=t: _tasks.remove(_t))
+            return (wire_request, original_request_seqno)
 
-    async def _request(self, request, wire_request, secctx, original_request_seqno):
+        wire_request, original_request_seqno = protect(None)
 
         # tempting as it would be, we can't access the request as a
         # PlumbingRequest here, because it is a BlockwiseRequest to handle
@@ -151,7 +165,15 @@ class TransportOSCORE(interfaces.RequestProvider):
         try:
             protected_response = await wire_request.response
             unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)
-            secctx._store()
+
+            if unprotected_response.code == UNAUTHORIZED and unprotected_response.opt.echo is not None:
+                # Assist the server in B.1.2 Echo receive window recovery
+                self.log.info("Answering the server's 4.01 Unauthorized / Echo as part of OSCORE B.1.2 recovery")
+
+                wire_request, original_request_seqno = protect(unprotected_response.opt.echo)
+
+                protected_response = await wire_request.response
+                unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)
 
             unprotected_response.remote = OSCOREAddress(self, secctx, protected_response.remote)
             # FIXME: if i could tap into the underlying PlumbingRequest, that'd
@@ -166,7 +188,6 @@ class TransportOSCORE(interfaces.RequestProvider):
 
             async for protected_response in wire_request.observation:
                 unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)
-                secctx._store()
 
                 more = protected_response.opt.observe is not None
                 more = _check(more, unprotected_response)
