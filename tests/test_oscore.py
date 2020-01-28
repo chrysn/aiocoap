@@ -34,13 +34,14 @@ if not oscore_modules:
     default_algorithm = aiocoap.oscore.AES_CCM_16_64_128
     default_hashfun = aiocoap.oscore.hashfunctions['sha256']
 
-_skip_unless_oscore = unittest.skipIf(oscore_modules, "Modules missing for running OSCORE tests: %s" % (oscore_modules,))
+    import aiocoap.oscore
+    class NonsavingSecurityContext(aiocoap.oscore.SecurityContext):
+        def post_seqnoincrease(self):
+            # obviously, don't use this anywhere else, especially not with secret
+            # keys
+            pass
 
-class NonsavingSecurityContext(aiocoap.oscore.SecurityContext):
-    def post_seqnoincrease(self):
-        # obviously, don't use this anywhere else, especially not with secret
-        # keys
-        pass
+_skip_unless_oscore = unittest.skipIf(oscore_modules, "Modules missing for running OSCORE tests: %s" % (oscore_modules,))
 
 @_skip_unless_oscore
 class TestOSCOAPStatic(unittest.TestCase):
