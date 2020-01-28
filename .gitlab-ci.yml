@@ -14,6 +14,10 @@ test:3.7:
     # works, inside setup.py in doesn't -- still looking for all the details
     # for a bug report.
     - "pip3 install 'DTLSSocket>=0.1.11a1'"
+    # For unknown reasons the plugtest server doesn't find plugtest_common.py
+    # in the GitLab runner, even though it does find it in all other versions
+    # and locally. Try removing the next line whenever this is next touched.
+    - export PYTHONPATH=./contrib/oscore-plugtest/:$PYTHONPATH
     - python3 -m coverage run --parallel ./setup.py test
     - pip3 install uvloop
     - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
