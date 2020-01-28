@@ -79,8 +79,7 @@ currently open `platform issues`_. Alternative main loops like uvloop_ or
 gbulb_ can be used without restriction.
 
 If your library depends on aiocoap, it should pick the required extras (as per
-installation_) and declare a dependency like ``aiocoap[linkheader,oscore] >=
-0.4a1``.
+installation_) and declare a dependency like ``aiocoap[linkheader,oscore] >= 0.4b2``.
 
 .. _Python: https://www.python.org/
 .. _PyPy3: http://pypy.org/
