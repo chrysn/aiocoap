@@ -965,6 +965,8 @@ class FilesystemSecurityContext(SecurityContext):
 
         with os.fdopen(tmphand, 'w') as tmpfile:
             json.dump(data, tmpfile)
+            tmpfile.flush()
+            os.fsync(tmpfile.fileno())
 
         os.rename(tmpnam, os.path.join(self.basedir, 'sequence.json'))
 
