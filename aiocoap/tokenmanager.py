@@ -133,7 +133,8 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                     self.log.error("Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s", ev.exception)
                 if ev.is_last:
                     break
-            # no cleanup to do here: any piggybackable ack was already flushed
+            del self.incoming_requests[key]
+            # no further cleanup to do here: any piggybackable ack was already flushed
             # out by the first response, and if there was not even a
             # NoResponse, something went wrong above (and we can't tell easily
             # here).
