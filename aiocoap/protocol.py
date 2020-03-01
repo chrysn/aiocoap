@@ -34,7 +34,7 @@ from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
         SERVICE_UNAVAILABLE, CONTINUE, REQUEST_ENTITY_INCOMPLETE,
-        OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT)
+        OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT, MULTICAST_REQUEST_TIMEOUT)
 from .numbers.optionnumbers import OptionNumber
 
 import warnings
@@ -302,6 +302,20 @@ class Context(interfaces.RequestProvider):
 
         plumbing_request = PlumbingRequest(request_message)
         result = Request(plumbing_request, self.loop, self.log)
+
+        async def send():
+            try:
+                request_interface = await self.find_remote_and_interface(request_message)
+                request_interface.request(plumbing_request)
+            except Exception as e:
+                plumbing_request.add_exception(e)
+                return
+        self.loop.create_task(send())
+        return result
+
+    def multicast_request(self, request_message, timeout=MULTICAST_REQUEST_TIMEOUT):
+        plumbing_request = PlumbingRequest(request_message)
+        result = MulticastRequest(plumbing_request, self.loop, self.log, timeout)
 
         async def send():
             try:
@@ -689,6 +703,54 @@ class Request(interfaces.Request, BaseUnicastRequest):
                 return
 
 
+class MulticastRequest(interfaces.Request):
+    def __init__(self, plumbing_request, loop, log, timeout=MULTICAST_REQUEST_TIMEOUT):
+
+        r = plumbing_request.request
+        if r.mtype != NON or r.code != GET or r.payload:
+            raise ValueError("Multicast currently only has support for NON GET requests")
+
+        if r.opt.observe == 0:
+            raise ValueError("Multicast currently does not support Observe requests")
+
+        self._plumbing_request = plumbing_request
+        self._timeout_value = timeout
+        self._loop = loop
+
+        self.responses = MulticastResponse()
+
+        loop.create_task(self._run())
+
+        self.log = log
+
+    @staticmethod
+    def _add_response_properties(response, request):
+        response.request = request
+
+    def _timeout(self):
+        self._plumbing_request.stop_interest()
+        self.responses.error(error.WaitingForClientTimedOut())
+        self.responses.cancel()
+        self._plumbing_request._events.put_noawait(self._plumbing_request.Event(None, None, None))
+
+    async def _run(self):
+        self._loop.call_later(self._timeout_value, self._timeout)
+
+        while True:
+            event = await self._plumbing_request._events.get()
+            if self.responses.cancelled:
+                self._plumbing_request.stop_interest()
+                return
+
+            if event.exception is not None:
+                self.responses.error(event.exception)
+                return
+
+            self._add_response_properties(event.message, self._plumbing_request.request)
+
+            self.responses.callback(event.message)
+
+
 class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
     def __init__(self, protocol, app_request):
         self.protocol = protocol
@@ -1057,6 +1119,8 @@ class ClientObservation:
 
     def __repr__(self):
         return '<%s %s at %#x>'%(type(self).__name__, "(cancelled)" if self.cancelled else "(%s call-, %s errback(s))"%(len(self.callbacks), len(self.errbacks)), id(self))
+
+MulticastResponse = ClientObservation
 
 class ServerObservation:
     def __init__(self):

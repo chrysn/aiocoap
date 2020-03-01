@@ -164,7 +164,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         # Still, it would be an option not to send an is_last here and *always*
         # have the higher-level code indicate loss of interest in that exchange
         # when it detects that no more observations will follow.
-        final = not (request.request.opt.observe == 0 and response.opt.observe is not None)
+        final = not ((request.request.opt.observe == 0 and response.opt.observe is not None) or (request.request.remote.is_multicast))
 
         if final:
             self.outgoing_requests.pop(key)
@@ -224,7 +224,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         # response and otherwise behave quite like an anycast request (which is
         # probably intended).
         if msg.remote.is_multicast:
-            self.log.warning("Sending request to multicast via unicast request method")
+            self.log.warning("Experimental multicast support")
             key = (msg.token, None)
         else:
             key = (msg.token, msg.remote)
