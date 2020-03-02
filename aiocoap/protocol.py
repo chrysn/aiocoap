@@ -34,7 +34,7 @@ from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
         SERVICE_UNAVAILABLE, CONTINUE, REQUEST_ENTITY_INCOMPLETE,
-        OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT, MULTICAST_REQUEST_TIMEOUT)
+        OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT, MULTICAST_REQUEST_TIMEOUT, NON, GET)
 from .numbers.optionnumbers import OptionNumber
 
 import warnings
