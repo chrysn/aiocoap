@@ -728,10 +728,7 @@ class MulticastRequest(interfaces.Request):
         response.request = request
 
     def _timeout(self):
-        self._plumbing_request.stop_interest()
-        self.responses.error(error.WaitingForClientTimedOut())
-        self.responses.cancel()
-        self._plumbing_request._events.put_noawait(self._plumbing_request.Event(None, None, None))
+        self._plumbing_request._events.put_nowait(self._plumbing_request.Event(None, None, None))
 
     async def _run(self):
         self._loop.call_later(self._timeout_value, self._timeout)
@@ -739,6 +736,10 @@ class MulticastRequest(interfaces.Request):
         while True:
             event = await self._plumbing_request._events.get()
             if self.responses.cancelled:
+                self._plumbing_request.stop_interest()
+                return
+            if not event.message:
+                self.responses.error(error.WaitingForClientTimedOut())
                 self._plumbing_request.stop_interest()
                 return
 
