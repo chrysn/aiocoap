@@ -109,7 +109,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it."%(message.code, message.mtype, message.remote))
 
     def dispatch_error(self, errno, remote):
-        self.log.debug("Incoming error %d from %r", errno, remote)
+        self.log.debug("Incoming error %s from %r", errno, remote)
 
         # cancel requests first, and then exchanges: cancelling the pending
         # exchange would trigger enqueued requests to be transmitted
