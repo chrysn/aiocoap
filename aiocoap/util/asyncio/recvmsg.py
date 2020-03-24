@@ -72,19 +72,20 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
             self.close()
 
     def _read_ready(self):
-        try:
-            data, ancdata, flags, addr = self.__sock.recvmsg(self.max_size, 1024, socknumbers.MSG_ERRQUEUE)
-        except (BlockingIOError, InterruptedError):
-            pass
-        except OSError as exc:
-            if repr(exc) == "OSError('received malformed or improperly truncated ancillary data',)":
-                pass # workaround for https://bitbucket.org/pypy/pypy/issues/2649/recvmsg-with-empty-err-queue-raises-odd
+        if socknumbers.HAS_RECVERR:
+            try:
+                data, ancdata, flags, addr = self.__sock.recvmsg(self.max_size, 1024, socknumbers.MSG_ERRQUEUE)
+            except (BlockingIOError, InterruptedError):
+                pass
+            except OSError as exc:
+                if repr(exc) == "OSError('received malformed or improperly truncated ancillary data',)":
+                    pass # workaround for https://bitbucket.org/pypy/pypy/issues/2649/recvmsg-with-empty-err-queue-raises-odd
+                else:
+                    self._protocol.error_received(exc)
+            except Exception as exc:
+                self._fatal_error(exc, 'Fatal read error on datagram transport')
             else:
-                self._protocol.error_received(exc)
-        except Exception as exc:
-            self._fatal_error(exc, 'Fatal read error on datagram transport')
-        else:
-            self._protocol.datagram_errqueue_received(data, ancdata, flags, addr)
+                self._protocol.datagram_errqueue_received(data, ancdata, flags, addr)
 
         # copied and modified from _SelectorDatagramTransport
         try:

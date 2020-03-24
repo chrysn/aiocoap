@@ -1,3 +1,48 @@
+Version 0.4b2
+-------------
+
+New features
+~~~~~~~~~~~~
+
+* OSCORE: Implement Appendix B.1 recovery. This allows the aiocoap program to
+  run OSCORE without writing sequence numbers and replay windows to disk all
+  the time. Instead, they write pessimistic values to disk that are rarely
+  updated, write the last values on shutdown. In the event of an unclean
+  shutdown, the sender sequence number is advanced by some, and the first
+  request from a client is sent back for another roundtrip using the Echo
+  option.
+
+  An aiocoap client now also contains the code required to transparently
+  resubmit requests if a server is in such a recovery situation.
+
+* OSCORE: Security contexts are now protected against simultaneous use by
+  multiple aiocoap processes. This incurs an additional dependency on the
+  ``filelock`` package.
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+* OSCORE: The file format of security context descriptions is changed. Instead
+  of the previous roles concept, they now carry explicit sender and recipient
+  IDs, and consequently do not take a role parameter in the credentials file
+  any more.
+
+  The sequence number format has changed incompatibly.
+
+  No automatic conversion is available. It is recommended to replace old
+  security contexts with new keys.
+
+Minor fixes
+~~~~~~~~~~~
+
+* b4540f9: Fix workaround for missing definitions, restoring Python 3.5 support
+  on non-amd64 platforms.
+* b4b886d: Fix regression in the display of zone identifiers in IPv6 addresses.
+* 5055bd5: The server now does not send RSTs in response to multicasts any
+  more.
+* OSCORE: The replay window used is now the prescribed 32bit large DTLS-like
+  window.
+
 Version 0.4b1
 -------------
 

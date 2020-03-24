@@ -50,12 +50,12 @@ class PlugtestClientProgram:
         else:
             logging.basicConfig(level=logging.WARNING)
 
-        security_context_ab = get_security_context('ab', 'client', opts.contextdir / "ab")
-        security_context_cd = get_security_context('cd', 'client', opts.contextdir / "cd")
+        security_context_a = get_security_context('a', opts.contextdir / "a")
+        security_context_c = get_security_context('c', opts.contextdir / "c")
 
         self.ctx = await Context.create_client_context()
-        self.ctx.client_credentials[":ab"] = security_context_ab
-        self.ctx.client_credentials[":cd"] = security_context_cd
+        self.ctx.client_credentials[":ab"] = security_context_a
+        self.ctx.client_credentials[":cd"] = security_context_c
 
         if opts.testno is not None:
             await self.run_test(opts.testno)
@@ -66,15 +66,15 @@ class PlugtestClientProgram:
             while True:
                 # Yes this is blocking, but since the tests usually terminate
                 # by themselves ... *shrug*
-                while True:
-                    try:
-                        next = input("Enter a test number (empty input runs %s, q to quit): " % next_testno)
-                    except (KeyboardInterrupt, EOFError):
-                        sys.exit()
-                    if next == "q":
-                        sys.exit()
-                    if next == "":
-                        break
+                try:
+                    next = input("Enter a test number (empty input runs %s, q to quit): " % next_testno)
+                except (KeyboardInterrupt, EOFError):
+                    keeprunning = False
+                    break
+                if next == "q":
+                    keeprunning = False
+                    break
+                if next:
                     try:
                         as_int = int(next)
                     except ValueError:
@@ -86,7 +86,6 @@ class PlugtestClientProgram:
                             # but otherwise do something sane
                             delta = as_int - next_testno + delta
                         next_testno = as_int
-                        break
 
                 print("Running test %s" % next_testno)
                 await self.run_test(next_testno)
@@ -237,7 +236,7 @@ class PlugtestClientProgram:
         unprotected_response = await self.ctx.request(request).response
 
         print("Unprotected response:", unprotected_response)
-        additional_verify("Code as expected", CREATED, unprotected_response.code)
+        additional_verify("Code as expected", CHANGED, unprotected_response.code)
         additional_verify("Options as expected", unprotected_response.opt, Message(content_format=0).opt)
         additional_verify("Payload as expected", unprotected_response.payload, b"\x4a")
 
@@ -250,8 +249,8 @@ class PlugtestClientProgram:
 
         print("Unprotected response:", unprotected_response)
         additional_verify("Code as expected", CHANGED, unprotected_response.code)
-        additional_verify("Options empty as expected", Message(content_format=0).opt, unprotected_response.opt)
-        additional_verify("Payload as expected", unprotected_response.payload, b"\x7a")
+        additional_verify("Options empty as expected", Message().opt, unprotected_response.opt)
+        additional_verify("Payload absent as expected", unprotected_response.payload, b"")
 
     @__implements_tests([10])
     async def test_put_nonmatch(self):

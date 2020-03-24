@@ -1,0 +1,8 @@
+{
+  "algorithm": "AES-CCM-16-64-128",
+
+  "sender-id_hex": "",
+  "recipient-id_hex": "01",
+
+  "id-context_hex": "37cbf3210017a2d3"
+}

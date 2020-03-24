@@ -84,7 +84,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         for key, request in self.outgoing_requests.items():
             (token, request_remote) = key
             if request_remote == remote:
-                request.add_exception(OSError(errno, os.strerror(errno)))
+                request.add_exception(OSError(errno, "no details" if errno is None else os.strerror(errno)))
                 keys_for_removal.append(key)
         for k in keys_for_removal:
             self.outgoing_requests.pop(k)
@@ -133,7 +133,8 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                     self.log.error("Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s", ev.exception)
                 if ev.is_last:
                     break
-            # no cleanup to do here: any piggybackable ack was already flushed
+            del self.incoming_requests[key]
+            # no further cleanup to do here: any piggybackable ack was already flushed
             # out by the first response, and if there was not even a
             # NoResponse, something went wrong above (and we can't tell easily
             # here).

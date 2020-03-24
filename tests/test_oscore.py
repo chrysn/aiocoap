@@ -34,12 +34,19 @@ if not oscore_modules:
     default_algorithm = aiocoap.oscore.AES_CCM_16_64_128
     default_hashfun = aiocoap.oscore.hashfunctions['sha256']
 
+    import aiocoap.oscore
+    class NonsavingSecurityContext(aiocoap.oscore.SecurityContext):
+        def post_seqnoincrease(self):
+            # obviously, don't use this anywhere else, especially not with secret
+            # keys
+            pass
+
 _skip_unless_oscore = unittest.skipIf(oscore_modules, "Modules missing for running OSCORE tests: %s" % (oscore_modules,))
 
 @_skip_unless_oscore
 class TestOSCOAPStatic(unittest.TestCase):
     def test_c1_1(self):
-        secctx = aiocoap.oscore.SecurityContext()
+        secctx = NonsavingSecurityContext()
         secctx.algorithm = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b""
@@ -59,7 +66,7 @@ class TestOSCOAPStatic(unittest.TestCase):
         self.assertEqual(recipient_nonce_0, h('4722d4dd6d944169eefb54987c'), "Recipient nonce disagrees with test vector")
 
     def test_c1_2(self):
-        secctx = aiocoap.oscore.SecurityContext()
+        secctx = NonsavingSecurityContext()
         secctx.algorithm = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x01"
@@ -79,7 +86,7 @@ class TestOSCOAPStatic(unittest.TestCase):
         self.assertEqual(recipient_nonce_0, h('4622d4dd6d944168eefb54987c'), "Recipient nonce disagrees with test vector")
 
     def test_c2_1(self):
-        secctx = aiocoap.oscore.SecurityContext()
+        secctx = NonsavingSecurityContext()
         secctx.algorithm = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x00"
@@ -101,7 +108,7 @@ class TestOSCOAPStatic(unittest.TestCase):
     # skipping the server side for c.2.2 as it is very redundant
 
     def test_c3_1(self):
-        secctx = aiocoap.oscore.SecurityContext()
+        secctx = NonsavingSecurityContext()
         secctx.algorithm = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b""
@@ -122,7 +129,7 @@ class TestOSCOAPStatic(unittest.TestCase):
 
 
     def test_c4(self):
-        secctx = aiocoap.oscore.SecurityContext()
+        secctx = NonsavingSecurityContext()
         secctx.algorithm = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b""
@@ -144,7 +151,7 @@ class TestOSCOAPStatic(unittest.TestCase):
         self.assertEqual(encoded, h('44025d1f00003974396c6f63616c686f7374620914ff612f1092f1776f1c1668b3825e'), "Encoded message differs")
 
     def test_c5(self):
-        secctx = aiocoap.oscore.SecurityContext()
+        secctx = NonsavingSecurityContext()
         secctx.algorithm = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x00"
@@ -166,7 +173,7 @@ class TestOSCOAPStatic(unittest.TestCase):
         self.assertEqual(encoded, h('440271c30000b932396c6f63616c686f737463091400ff4ed339a5a379b0b8bc731fffb0'), "Encoded message differs")
 
     def test_c6(self):
-        secctx = aiocoap.oscore.SecurityContext()
+        secctx = NonsavingSecurityContext()
         secctx.algorithm = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b""
@@ -190,7 +197,7 @@ class TestOSCOAPStatic(unittest.TestCase):
 
 
     def test_c7(self):
-        secctx = aiocoap.oscore.SecurityContext()
+        secctx = NonsavingSecurityContext()
         secctx.algorithm = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x01"
@@ -214,7 +221,7 @@ class TestOSCOAPStatic(unittest.TestCase):
         self.assertEqual(encoded, h('64445d1f0000397490ffdbaad1e9a7e7b2a813d3c31524378303cdafae119106'), "Encoded message differs")
 
     def test_c8(self):
-        secctx = aiocoap.oscore.SecurityContext()
+        secctx = NonsavingSecurityContext()
         secctx.algorithm = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x01"

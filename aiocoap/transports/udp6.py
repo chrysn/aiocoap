@@ -15,16 +15,21 @@ traffic, to support server and client behavior at the same time, and to work
 correctly even when multiple IPv6 and IPv4 (using V4MAPPED addresses)
 interfaces are present, and any of the interfaces has multiple addresses.
 
-This requires using a plethorea of standardized but not necessarily widely
-ported features: ``AI_V4MAPPED`` to support IPv4 without resorting to less
+This requires using some standardized but not necessarily widely ported
+features: ``AI_V4MAPPED`` to support IPv4 without resorting to less
 standardized mechanisms for later options, ``IPV6_RECVPKTINFO`` to determine
 incoming packages' destination addresses (was it multicast) and to return
-packages from the same address, ``IPV6_RECVERR`` to receive ICMP errors even on
-sockets that are not connected, ``IPV6_JOIN_GROUP`` for multicast membership
-management, and ``recvmsg`` and ``MSG_ERRQUEUE`` to obtain the data configured
-with the above options.
+packages from the same address, ``IPV6_JOIN_GROUP`` for multicast
+membership management and ``recvmsg`` to obtain data configured with the above
+options.
 
-There are, if at all, only little attempts made to fall back to a
+To the author's knowledge, there is no standardized mechanism for receiving
+ICMP errors in such a setup. On Linux, ``IPV6_RECVERR`` and ``MSG_ERRQUEUE``
+are used to receive ICMP errors from the socket; on other platforms, a warning
+is emitted that ICMP errors are ignored. Using a :mod:`.simple6` for clients is
+recommended for those when working as a client only.
+
+Exceeding for the above error handling, no attempts are made to fall back to a
 kind-of-correct or limited-functionality behavior if these options are
 unavailable, for the resulting code would be hard to maintain ("``ifdef``
 hell") or would cause odd bugs at users (eg. servers that stop working when an
@@ -187,11 +192,17 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
     @classmethod
     async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=False):
-        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
-        sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1)
-        # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
-        # it clear that i don't care about the ip version as long as everything looks the same?
-        sock.setsockopt(socket.IPPROTO_IP, socknumbers.IP_RECVERR, 1)
+        try:
+            sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVPKTINFO, 1)
+        except NameError:
+            raise RuntimeError("RFC3542 PKTINFO flags are unavailable, unable to create a udp6 transport.")
+        if socknumbers.HAS_RECVERR:
+            sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1)
+            # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
+            # it clear that i don't care about the ip version as long as everything looks the same?
+            sock.setsockopt(socket.IPPROTO_IP, socknumbers.IP_RECVERR, 1)
+        else:
+            log.warning("Transport udp6 set up on platform without RECVERR capability. ICMP errors will be ignored.")
 
         if multicast:
             # FIXME this all registers only for one interface, doesn't it?
@@ -272,7 +283,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
     def send(self, message):
         ancdata = []
         if message.remote.pktinfo is not None:
-            ancdata.append((socket.IPPROTO_IPV6, socket.IPV6_PKTINFO,
+            ancdata.append((socket.IPPROTO_IPV6, socknumbers.IPV6_PKTINFO,
                 message.remote.pktinfo))
         self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
 
@@ -329,7 +340,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         """Implementation of the RecvmsgDatagramProtocol interface, called by the transport."""
         pktinfo = None
         for cmsg_level, cmsg_type, cmsg_data in ancdata:
-            if cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == socket.IPV6_PKTINFO:
+            if cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == socknumbers.IPV6_PKTINFO:
                 pktinfo = cmsg_data
             else:
                 self.log.info("Received unexpected ancillary data to recvmsg: level %d, type %d, data %r", cmsg_level, cmsg_type, cmsg_data)

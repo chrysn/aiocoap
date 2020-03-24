@@ -47,8 +47,7 @@ This library supports the following standards in full or partially:
   server is provided along with a library function to register at one. They
   lack support for groups and security considerations, and are generally rather
   simplistic.
-* RFC8613_ (OSCORE, formerly OSCOAP): Full support
-  client-side (except handling the Echo option); protected servers can be
+* RFC8613_ (OSCORE): Full support client-side; protected servers can be
   implemented based on it but are not automatic yet.
 
 If something described by one of the standards but not implemented, it is
@@ -80,8 +79,7 @@ currently open `platform issues`_. Alternative main loops like uvloop_ or
 gbulb_ can be used without restriction.
 
 If your library depends on aiocoap, it should pick the required extras (as per
-installation_) and declare a dependency like ``aiocoap[linkheader,oscore] >=
-0.4a1``.
+installation_) and declare a dependency like ``aiocoap[linkheader,oscore] >= 0.4b2``.
 
 .. _Python: https://www.python.org/
 .. _PyPy3: http://pypy.org/
@@ -115,8 +113,8 @@ available.
 .. _PEP8: http://legacy.python.org/dev/peps/pep-0008/
 .. _sphinx: http://sphinx-doc.org/
 .. _`github issue tracker`: https://github.com/chrysn/aiocoap/issues
-.. _`CI suite at gitlab`: https://gitlab.com/energyharvesting/aiocoap/commits/master
-.. _`coverage reports`: https://energyharvesting.gitlab.io/aiocoap/
+.. _`CI suite at gitlab`: https://gitlab.com/aiocoap/aiocoap/commits/master
+.. _`coverage reports`: https://aiocoap.gitlab.io/aiocoap/
 
 Relevant URLs
 -------------

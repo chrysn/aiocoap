@@ -85,7 +85,14 @@ def pretty_print(message):
             # opposed to JSON which might not round-trip well). The repr for
             # tags might still not be parsable, but I think chances of good
             # highlighting are best this way
-            formatted = pprint.pformat(parsed)
+            #
+            # Not sorting dicts to give a more faithful representation of the
+            # original CBOR message
+            if sys.version_info >= (3, 8):
+                printer = pprint.PrettyPrinter(sort_dicts=False)
+            else:
+                printer = pprint.PrettyPrinter()
+            formatted = printer.pformat(parsed)
             return (infos, 'text/x-python3', formatted)
 
     elif subtype == 'json' or subtype.endswith('+json'):

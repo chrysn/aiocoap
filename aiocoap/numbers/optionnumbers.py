@@ -81,6 +81,9 @@ class OptionNumber(ExtensibleIntEnum):
     SIZE1 = 60
     NO_RESPONSE = 258
     OBJECT_SECURITY = 9
+    # picked for draft-ietf-core-echo-request-tag-09
+    ECHO = 248
+    REQUEST_TAG = 292
 
     def is_critical(self):
         return self & 0x01 == 0x01
@@ -162,6 +165,11 @@ OptionNumber.OBSERVE.format = optiontypes.UintOption
 
 OptionNumber.NO_RESPONSE.format = optiontypes.UintOption
 
-# draft-ietf-core-object-security
+# RFC 8613
 
 OptionNumber.OBJECT_SECURITY.format = optiontypes.OpaqueOption
+
+# draft-ietf-core-echo-request-tag
+
+OptionNumber.ECHO.format = optiontypes.OpaqueOption
+OptionNumber.REQUEST_TAG.format = optiontypes.OpaqueOption

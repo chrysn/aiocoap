@@ -37,6 +37,11 @@ class PleaseUseOscore(error.ConstructionRenderableError):
     code = aiocoap.UNAUTHORIZED
     message = "This is an OSCORE plugtest, please use option %d"%aiocoap.numbers.optionnumbers.OptionNumber.OBJECT_SECURITY
 
+def additional_verify_request_options(reference, request):
+    if request.opt.echo is not None:
+        # Silently accepting Echo as that's an artefact of B.1.2 recovery
+        reference.opt.echo = request.opt.echo
+    additional_verify("Request options as expected", reference.opt, request.opt)
 
 class PlugtestResource(resource.Resource):
     options = {}
@@ -47,7 +52,7 @@ class PlugtestResource(resource.Resource):
         if request.opt.observe is not None and 'observe' not in self.expected_options:
             # workaround for test 4 hitting on Hello1
             reference.opt.observe = request.opt.observe
-        additional_verify("Request options as expected", reference.opt, request.opt)
+        additional_verify_request_options(reference, request)
 
         return aiocoap.Message(payload=self.message.encode('ascii'), **self.options)
 
@@ -93,29 +98,29 @@ class Observe(PlugtestResource, aiocoap.interfaces.ObservableResource):
 
 class Hello6(resource.Resource):
     async def render_post(self, request):
-        additional_verify("Request options as expected", aiocoap.Message(content_format=0).opt, request.opt)
+        additional_verify_request_options(aiocoap.Message(content_format=0), request)
         additional_verify("Request payload as expected", request.payload, b"\x4a")
 
-        return aiocoap.Message(code=aiocoap.CREATED, payload=b"\x4a", content_format=0)
+        return aiocoap.Message(code=aiocoap.CHANGED, payload=b"\x4a", content_format=0)
 
 class Hello7(resource.Resource):
     async def render_put(self, request):
         if request.opt.if_none_match:
             print("This looks like test 10b")
-            additional_verify("Request options as expected", aiocoap.Message(content_format=0, if_none_match=True).opt, request.opt)
+            additional_verify_request_options(aiocoap.Message(content_format=0, if_none_match=True), request)
             additional_verify("Request payload as expected", request.payload, b"\x8a")
 
             return aiocoap.Message(code=aiocoap.PRECONDITION_FAILED)
         else:
             print("This looks like test 9b")
-            additional_verify("Request options as expected", aiocoap.Message(content_format=0, if_match=[b"{"]).opt, request.opt)
+            additional_verify_request_options(aiocoap.Message(content_format=0, if_match=[b"{"]), request)
             additional_verify("Request payload as expected", request.payload, b"z")
 
-            return aiocoap.Message(code=aiocoap.CHANGED, payload=b"\x7a", content_format=0)
+            return aiocoap.Message(code=aiocoap.CHANGED)
 
 class DeleteResource(resource.Resource):
     async def render_delete(self, request):
-        additional_verify("Request options empty as expected", aiocoap.Message().opt, request.opt)
+        additional_verify_request_options(aiocoap.Message(), request)
         return aiocoap.Message(code=aiocoap.DELETED)
 
 class BlockResource(PlugtestResource):
@@ -151,22 +156,32 @@ class SeqnoManager(resource.ObservableResource):
         super().__init__()
         self.contextmap = contextmap
 
+        for c in self.contextmap.values():
+            c.notification_hooks.append(self.updated_state)
+
     async def render_get(self, request):
         text = ""
-        for name in ('ab', 'cd'):
+        for name in ('b', 'd'):
             the_context = self.contextmap[':' + name]
-
-            if not hasattr(the_context, "_SeqnoManager__patched"):
-                the_context.__patched = True
-                the_context._store = lambda oldstore=the_context._store: (oldstore(), self.updated_state())
 
             # this direct access is technically outside the interface for a
             # SecurityContext, but then again, there isn't one yet
-            text += """In context %s, next seqno is: %d\n""" % (name.upper(), the_context.sender_sequence_number)
-            text += """I've seen all sequence numbers up to including %d%s.""" % (
-                    the_context.recipient_replay_window.seen[0],
-                    ", and also %s" % the_context.recipient_replay_window.seen[1:] if len(the_context.recipient_replay_window.seen) > 1 else ""
-                    )
+            text += """In context %s, next seqno is %d (persisted up to %d)\n""" % (name.upper(), the_context.sender_sequence_number, the_context.sequence_number_persisted)
+            if the_context.recipient_replay_window.is_initialized():
+                index = the_context.recipient_replay_window._index
+                bitfield = the_context.recipient_replay_window._bitfield
+                # Useless for the internal representation, but much more readable
+                while bitfield & 1:
+                    bitfield >>= 1
+                    index += 1
+                print(index, bitfield)
+                bitfield_values = [i + index for (i, v) in enumerate(bin(bitfield)[2:][::-1]) if v == '1']
+                text += """I've seen all sequence numbers lower than %d%s.""" % (
+                        index,
+                        ", and also %s" % bitfield_values if bitfield else ""
+                        )
+            else:
+                text += "The replay window is uninitialized"
             text += "\n"
         return aiocoap.Message(payload=text.encode('utf-8'), content_format=0)
 
@@ -274,9 +289,6 @@ class ProtectedSite(resource.Site):
 
                 protected, _ = self._original_response_context.protect(response, self._original_request_seqno)
 
-                # FIXME who should trigger this?
-                self._original_response_context._store()
-
                 if not response.code.is_successful():
                     is_last = True
                 self._serverobservation.trigger(protected, is_last=is_last)
@@ -317,6 +329,13 @@ class ProtectedSite(resource.Site):
 
         try:
             unprotected, seqno = sc.unprotect(request)
+        except error.RenderableError as e:
+            # Primarily used for the Echo recovery 4.01 reply; the below could
+            # be migrated there, but the behavior (at least as currently
+            # encoded) is not exactly the one a no_response=26 would show, as
+            # we want full responses to CONs but no responses to NONs, wheras
+            # no_response=26 only flushes out an empty ACK and nothing more
+            return e.to_message()
         except oscore.ReplayError:
             if request.mtype == aiocoap.CON:
                 return aiocoap.Message(code=aiocoap.UNAUTHORIZED, max_age=0, payload=b"Replay detected")
@@ -369,9 +388,6 @@ class ProtectedSite(resource.Site):
 
         protected_response, _ = sc.protect(response, seqno)
 
-        # FIXME who should trigger this?
-        sc._store()
-
         return protected_response
 
 class PlugtestSite(ProtectedSite):
@@ -399,6 +415,7 @@ class PlugtestServerProgram(AsyncCLIDaemon):
         p = argparse.ArgumentParser(description="Server for the OSCORE plug test. Requires a test number to be present.")
         p.add_argument("contextdir", help="Directory name where to persist sequence numbers", type=Path)
         p.add_argument('--verbose', help="Increase log level", action='store_true')
+        p.add_argument('--state-was-lost', help="Lose memory of the replay window, forcing B.1.2 recovery", action='store_true')
         add_server_arguments(p)
         opts = p.parse_args()
 
@@ -409,8 +426,8 @@ class PlugtestServerProgram(AsyncCLIDaemon):
 
 
         server_credentials = CredentialsMap()
-        server_credentials[':ab'] = get_security_context('ab', 'server', opts.contextdir / "ab")
-        server_credentials[':cd'] = get_security_context('cd', 'server', opts.contextdir / "cd")
+        server_credentials[':b'] = get_security_context('b', opts.contextdir / "b", opts.state_was_lost)
+        server_credentials[':d'] = get_security_context('d', opts.contextdir / "d", opts.state_was_lost)
 
         self.context = await server_context_from_arguments(PlugtestSite(server_credentials), opts)
 
