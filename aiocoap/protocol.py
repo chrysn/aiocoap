@@ -594,9 +594,15 @@ class Request(interfaces.Request, BaseUnicastRequest):
         else:
             self.observation = None
 
-        loop.create_task(self._run())
+        self._runner = loop.create_task(self._run())
 
         self.log = log
+
+        self.response.add_done_callback(self._response_cancellation_handler)
+
+    def _response_cancellation_handler(self, response):
+        if self.response.cancelled() and not self._runner.cancelled():
+            self._runner.cancel()
 
     @staticmethod
     def _add_response_properties(response, request):
