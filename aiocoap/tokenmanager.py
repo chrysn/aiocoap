@@ -153,7 +153,10 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         try:
             request = self.outgoing_requests[key]
         except KeyError:
+            self.log.info("Response %r could not be matched to any request", response)
             return False
+        else:
+            self.log.debug("Response %r matched to request %r", response, request)
 
         # FIXME: there's a multicast aspect to that as well
         #

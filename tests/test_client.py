@@ -94,3 +94,40 @@ class TestClientOther(WithTestServer, WithClient):
         request = aiocoap.Message(code=aiocoap.GET, uri="coap://cant.resolve.this.example./empty")
         response = await self.client.request(request).response_nonraising
         self.assertEqual(response.code, aiocoap.INTERNAL_SERVER_ERROR)
+
+    @no_warnings
+    @asynctest
+    async def test_freeoncancel(self):
+        # As there's no programmatic feedback about what actually gets sent,
+        # looking at the logs is the easiest option, even though it will
+        # require occasional adjustment when logged messages change.
+        #
+        # FIXME Currently, this *only* checks for whether later responses are
+        # rejected, it does *not* check for whether the response runner is
+        # freed as well (primarily because that'd need _del_to_be_sure to be
+        # useable in an async context).
+
+        # With immediate cancellation, nothing is sent. Note that we don't
+        # ensure this per documentation, but still it's good to see when this
+        # changes.
+        loglength = len(self.handler.list)
+        request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/empty")
+        self.resp = self.client.request(request).response
+        self.resp.cancel()
+        self.assertEqual(loglength, len(self.handler.list), "Something was logged during request creation and immediate cancellation: %r" % (self.handler.list[loglength:],))
+
+        # With a NON, the response should take long. (Not trying to race the
+        # "I'm taking too long"-ACK by making the sleep short enough).
+        # Note that the test server decides to send responses as CON, which is
+        # convenient as it allows us to peek into the internals of aiocoap by
+        # looking at wehter it returns a RST or an ACK.
+        request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/slow", mtype=aiocoap.NON)
+        self.resp = self.client.request(request).response
+        await asyncio.sleep(0.001)
+        # Now the request was sent, let's look at what happens during and after the cancellation
+        loglength = len(self.handler.list)
+        self.resp.cancel()
+        await asyncio.sleep(0.3) # server takes 0.2 to respond
+        logmsgs = self.handler.list[loglength:]
+        unmatched_msgs = [l for l in logmsgs if "could not be matched to any request" in l.getMessage()]
+        self.assertEqual(len(unmatched_msgs), 1, "The incoming response was not treated as unmatched")

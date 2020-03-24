@@ -603,6 +603,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
     def _response_cancellation_handler(self, response):
         if self.response.cancelled() and not self._runner.cancelled():
             self._runner.cancel()
+            self._plumbing_request.stop_interest()
 
     @staticmethod
     def _add_response_properties(response, request):

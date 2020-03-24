@@ -211,7 +211,11 @@ class RequestProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def request(self, request_message):
         """Create and act on a a :class:`Request` object that will be handled
-        according to the provider's implementation."""
+        according to the provider's implementation.
+
+        Note that the request is not necessarily sent on the wire immediately;
+        it may (but, depend on the transport does not necessarily) rely on the
+        response to be waited for."""
 
 class Request(metaclass=abc.ABCMeta):
     """A CoAP request, initiated by sending a message. Typically, this is not
