@@ -34,7 +34,8 @@ from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
         SERVICE_UNAVAILABLE, CONTINUE, REQUEST_ENTITY_INCOMPLETE,
-        OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT)
+        OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT,
+        NON, EMPTY)
 from .numbers.optionnumbers import OptionNumber
 
 import warnings
@@ -609,10 +610,21 @@ class Request(interfaces.Request, BaseUnicastRequest):
     def _add_response_properties(response, request):
         response.request = request
 
+    def request_timeout(self, msg):
+        if msg.mtype == NON and msg.opt.no_response == 26:
+            return 1
+        return None
+
     async def _run(self):
         # FIXME: check that responses come from the same remmote as long as we're assuming unicast
 
-        first_event = await self._plumbing_request._events.get()
+        timeout = self.request_timeout(self._plumbing_request.request)
+
+        try:
+            first_event = await asyncio.wait_for(self._plumbing_request._events.get(), timeout=timeout)
+        except asyncio.TimeoutError:
+            self.response.set_result(Message(code=EMPTY))
+            return
 
         if first_event.message is not None:
             self._add_response_properties(first_event.message, self._plumbing_request.request)
