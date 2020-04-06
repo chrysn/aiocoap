@@ -177,11 +177,19 @@ class SockExtendedErr(namedtuple("_SockExtendedErr", "ee_errno ee_origin ee_type
         return cls(*cls._struct.unpack_from(data))
 
 class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface):
-    def __init__(self, ctx: interfaces.MessageManager, log, loop, multicastif):
+    def __init__(self, ctx: interfaces.MessageManager, log, loop, multicastif, local):
         self._ctx = ctx
         self.log = log
         self.loop = loop
         self.multicastif = multicastif
+
+        self.local = {}
+        local = local or []
+        if isinstance(local, str):
+            local = [local]
+        for addr in local:
+            category, ip = self._normalize_local(addr)
+            self.local[category] = ip
 
         self._shutting_down = None #: Future created and used in the .shutdown() method.
 
@@ -192,6 +200,19 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # to force the OS to decide on a port. Right now, this reports wrong
         # results while the first message has not been sent yet.
         return self.transport.get_extra_info('socket').getsockname()[1]
+
+    @classmethod
+    def _normalize_local(cls, addr: str):
+        ip = ipaddress.ip_address(addr)
+        if ip.version == 4:
+            return '4', '::ffff:' + addr
+        elif ip.version == 6 and ip.ipv4_mapped:
+            return '4', addr
+        elif ip.version == 6 and ip.is_link_local:
+            return '6ll', addr
+        elif ip.version == 6 and ip.is_global:
+            return '6', addr
+        return None, None
 
     @classmethod
     def _join_ipv4_multicast(cls, log, sock, multicast: str, interface: str):
@@ -226,7 +247,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             log.warning("Could not join IPv6 multicast group {} on interface {}; possibly, there is no network connection available.".format(multicast, interface))
 
     @classmethod
-    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicastif):
+    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicastif, local):
         try:
             sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVPKTINFO, 1)
         except NameError:
@@ -248,7 +269,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                 cls._join_ipv6_multicast(log, sock, a, ifname)
 
         transport, protocol = await create_recvmsg_datagram_endpoint(
-            loop, lambda: cls(ctx, log=log, loop=loop, multicastif=multicastif),
+            loop, lambda: cls(ctx, log=log, loop=loop, multicastif=multicastif, local=local),
             sock=sock)
 
         await protocol.ready
@@ -256,14 +277,14 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         return protocol
 
     @classmethod
-    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop):
+    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, local):
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
-        return await cls._create_transport_endpoint(sock, ctx, log, loop, multicastif=None)
+        return await cls._create_transport_endpoint(sock, ctx, log, loop, multicastif=None, local=local)
 
     @classmethod
-    async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, bind, multicastif):
+    async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, bind, multicastif, local):
         bind = bind or ('::', None)
         bind = (bind[0] or '::', bind[1] or COAP_PORT)
 
@@ -294,7 +315,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.bind(bind)
 
-        return (await cls._create_transport_endpoint(sock, ctx, log, loop, multicastif=multicastif))
+        return (await cls._create_transport_endpoint(sock, ctx, log, loop, multicastif=multicastif, local=local))
 
     async def shutdown(self):
         self._shutting_down = asyncio.Future()
@@ -333,7 +354,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
         if '%' in host:
-            if host[:5] == 'ff02:':
+            if host.startswith('ff02:'):
                 hostif = host.split('%')[1]
             else:
                 host, hostif = host.split('%')
@@ -356,17 +377,19 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             raise error.ResolutionError("No address information found for requests to %r" % host)
 
         pktinfo = None
+        ifindex = 0
         if hostif:
-            if addrinfo[0][-1][0][:7] == '::ffff:':
-                pktinfo = struct.pack(
-                    '16sI',
-                    socket.inet_pton(socket.AF_INET6, '::ffff:0.0.0.0'),
-                    socket.if_nametoindex(hostif))
-            else:
-                pktinfo = struct.pack(
-                    '16sI',
-                    socket.inet_pton(socket.AF_INET6, '::'),
-                    socket.if_nametoindex(hostif))
+            ifindex = socket.if_nametoindex(hostif)
+
+        if request.local:
+            source = request.local
+        elif addrinfo[0][-1][0].startswith('::ffff:') and '.' in addrinfo[0][-1][0]:
+            source = self.local.get('4', '::ffff:0.0.0.0')
+        elif addrinfo[0][-1][0].startswith('fe80::'):
+            source = self.local.get('6ll', '::')
+        else:
+            source = self.local.get('6', '::')
+        pktinfo = struct.pack('16sI', socket.inet_pton(socket.AF_INET6, source), ifindex)
         return UDP6EndpointAddress(addrinfo[0][-1], self, pktinfo=pktinfo)
 
     #

@@ -127,7 +127,7 @@ class Message(object):
         * Some options or even the payload may differ if a proxy was involved.
     """
 
-    def __init__(self, *, mtype=None, mid=None, code=None, payload=b'', token=b'', uri=None, **kwargs):
+    def __init__(self, *, mtype=None, mid=None, code=None, payload=b'', token=b'', uri=None, local=None, **kwargs):
         self.version = 1
         if mtype is None:
             # leave it unspecified for convenience, sending functions will know what to do
@@ -145,6 +145,7 @@ class Message(object):
         self.opt = Options()
 
         self.remote = None
+        self.local = local
 
         # deprecation error, should go away roughly after 0.2 release
         if self.payload is None:
