@@ -160,7 +160,7 @@ class Context(interfaces.RequestProvider):
         self.request_interfaces.append(tman)
 
     @classmethod
-    async def create_client_context(cls, *, loggername="coap", loop=None):
+    async def create_client_context(cls, *, loggername="coap", loop=None, local=None):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get a context suitable for sending client
@@ -177,7 +177,7 @@ class Context(interfaces.RequestProvider):
             if transportname == 'udp6':
                 from .transports.udp6 import MessageInterfaceUDP6
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
+                    lambda mman: MessageInterfaceUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop, local=local))
             elif transportname == 'simple6':
                 from .transports.simple6 import MessageInterfaceSimple6
                 await self._append_tokenmanaged_messagemanaged_transport(
@@ -205,7 +205,7 @@ class Context(interfaces.RequestProvider):
         return self
 
     @classmethod
-    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicastif=None):
+    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicastif=None, local=None):
         """Create a context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -222,7 +222,7 @@ class Context(interfaces.RequestProvider):
                 from .transports.udp6 import MessageInterfaceUDP6
 
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, bind=bind, multicastif=multicastif))
+                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, bind=bind, multicastif=multicastif, local=local))
             # FIXME this is duplicated from the client version, as those are client-only anyway
             elif transportname == 'simple6':
                 from .transports.simple6 import MessageInterfaceSimple6
