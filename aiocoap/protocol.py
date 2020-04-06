@@ -206,7 +206,7 @@ class Context(interfaces.RequestProvider):
         return self
 
     @classmethod
-    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None):
+    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicastif=None):
         """Create a context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -223,7 +223,7 @@ class Context(interfaces.RequestProvider):
                 from .transports.udp6 import MessageInterfaceUDP6
 
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, bind=bind))
+                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, bind=bind, multicastif=multicastif))
             # FIXME this is duplicated from the client version, as those are client-only anyway
             elif transportname == 'simple6':
                 from .transports.simple6 import MessageInterfaceSimple6

@@ -42,6 +42,8 @@ except NameError:
     # Not attempting to make any guesses for other platforms; the udp6 module
     # will fail to import where it needs the specifics
 
+IP_PKTINFO = 8
+
 try:
     from IN import IPV6_RECVERR, IP_RECVERR
 except (ImportError, NameError):
