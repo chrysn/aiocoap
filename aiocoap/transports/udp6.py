@@ -45,6 +45,8 @@ import struct
 import weakref
 from collections import namedtuple
 
+import netifaces
+
 from ..message import Message
 from ..numbers import constants
 from .. import error
@@ -175,10 +177,11 @@ class SockExtendedErr(namedtuple("_SockExtendedErr", "ee_errno ee_origin ee_type
         return cls(*cls._struct.unpack_from(data))
 
 class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface):
-    def __init__(self, ctx: interfaces.MessageManager, log, loop):
+    def __init__(self, ctx: interfaces.MessageManager, log, loop, multicastif):
         self._ctx = ctx
         self.log = log
         self.loop = loop
+        self.multicastif = multicastif
 
         self._shutting_down = None #: Future created and used in the .shutdown() method.
 
@@ -191,7 +194,39 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         return self.transport.get_extra_info('socket').getsockname()[1]
 
     @classmethod
-    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=False):
+    def _join_ipv4_multicast(cls, log, sock, multicast: str, interface: str):
+        if not interface:
+            ifaddr = '0.0.0.0'
+        else:
+            result = netifaces.ifaddresses(interface)
+            ifaddr = result.get(netifaces.AF_INET, [{}])[0].get('addr', '0.0.0.0')
+
+        s = struct.pack('4s4si',
+                        socket.inet_aton(multicast),
+                        socket.inet_aton(ifaddr), 0)
+        try:
+            sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s)
+        except OSError:
+            log.warning("Could not join IPv4 multicast group {} on interface {} with ip {}; possibly, there is no network connection available.".format(multicast, interface, ifaddr))
+
+    @classmethod
+    def _join_ipv6_multicast(cls, log, sock, multicast: str, interface: str):
+        if not interface:
+            ifindex = 0
+        else:
+            ifindex = socket.if_nametoindex(interface)
+
+        s = struct.pack('16si',
+                        socket.inet_pton(socket.AF_INET6, multicast),
+                        ifindex)
+        try:
+            sock.setsockopt(socket.IPPROTO_IPV6,
+                    socket.IPV6_JOIN_GROUP, s)
+        except OSError:
+            log.warning("Could not join IPv6 multicast group {} on interface {}; possibly, there is no network connection available.".format(multicast, interface))
+
+    @classmethod
+    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicastif):
         try:
             sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVPKTINFO, 1)
         except NameError:
@@ -204,28 +239,17 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         else:
             log.warning("Transport udp6 set up on platform without RECVERR capability. ICMP errors will be ignored.")
 
-        if multicast:
-            # FIXME this all registers only for one interface, doesn't it?
-            s = struct.pack('4s4si',
-                    socket.inet_aton(constants.MCAST_IPV4_ALLCOAPNODES),
-                    socket.inet_aton("0.0.0.0"), 0)
-            try:
-                sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s)
-            except OSError:
-                log.warning("Could not join IPv4 multicast group; possibly, there is no network connection available.")
-            for a in constants.MCAST_IPV6_ALL:
-                s = struct.pack('16si',
-                        socket.inet_pton(socket.AF_INET6, a),
-                        0)
-                try:
-                    sock.setsockopt(socket.IPPROTO_IPV6,
-                            socket.IPV6_JOIN_GROUP, s)
-                except OSError:
-                    log.warning("Could not join IPv6 multicast group; possibly, there is no network connection available.")
+        # FIXME this all registers only for one interface, doesn't it?
+        for ifname in multicastif:
+            print('multicast-if', ifname)
+            cls._join_ipv4_multicast(log, sock, constants.MCAST_IPV4_ALLCOAPNODES, ifname)
 
-        transport, protocol = await create_recvmsg_datagram_endpoint(loop,
-                lambda: cls(ctx, log=log, loop=loop),
-                sock=sock)
+            for a in constants.MCAST_IPV6_ALL:
+                cls._join_ipv6_multicast(log, sock, a, ifname)
+
+        transport, protocol = await create_recvmsg_datagram_endpoint(
+            loop, lambda: cls(ctx, log=log, loop=loop, multicastif=multicastif),
+            sock=sock)
 
         await protocol.ready
 
@@ -236,13 +260,14 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
-        return await cls._create_transport_endpoint(sock, ctx, log, loop, multicast=False)
+        return await cls._create_transport_endpoint(sock, ctx, log, loop, multicastif=None)
 
     @classmethod
-    async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, bind):
+    async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, bind, multicastif):
         bind = bind or ('::', None)
-        bind = (bind[0], bind[1] or COAP_PORT)
+        bind = (bind[0] or '::', bind[1] or COAP_PORT)
 
+        multicastif = multicastif or [None]
         # The later bind() does most of what getaddr info usually does
         # (including resolving names), but is missing out subtly: It does not
         # populate the zone identifier of an IPv6 address, making it impossible
@@ -269,7 +294,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.bind(bind)
 
-        return (await cls._create_transport_endpoint(sock, ctx, log, loop, multicast=True))
+        return (await cls._create_transport_endpoint(sock, ctx, log, loop, multicastif=multicastif))
 
     async def shutdown(self):
         self._shutting_down = asyncio.Future()
@@ -284,7 +309,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         ancdata = []
         if message.remote.pktinfo is not None:
             ancdata.append((socket.IPPROTO_IPV6, socknumbers.IPV6_PKTINFO,
-                message.remote.pktinfo))
+                           message.remote.pktinfo))
         self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
 
     async def recognize_remote(self, remote):
@@ -307,6 +332,13 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
 
+        if '%' in host:
+            if host[:5] == 'ff02:':
+                hostif = host.split('%')[1]
+            else:
+                host, hostif = host.split('%')
+        else:
+            hostif = None
         try:
             own_sock = self.transport.get_extra_info('socket')
             addrinfo = await self.loop.getaddrinfo(
@@ -322,7 +354,20 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                 )
         except socket.gaierror:
             raise error.ResolutionError("No address information found for requests to %r" % host)
-        return UDP6EndpointAddress(addrinfo[0][-1], self)
+
+        pktinfo = None
+        if hostif:
+            if addrinfo[0][-1][0][:7] == '::ffff:':
+                pktinfo = struct.pack(
+                    '16sI',
+                    socket.inet_pton(socket.AF_INET6, '::ffff:0.0.0.0'),
+                    socket.if_nametoindex(hostif))
+            else:
+                pktinfo = struct.pack(
+                    '16sI',
+                    socket.inet_pton(socket.AF_INET6, '::'),
+                    socket.if_nametoindex(hostif))
+        return UDP6EndpointAddress(addrinfo[0][-1], self, pktinfo=pktinfo)
 
     #
     # implementing the typical DatagramProtocol interfaces.
