@@ -82,6 +82,13 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         self.pktinfo = pktinfo
         self._interface = weakref.ref(interface)
 
+        if pktinfo:
+            source, ifindex = struct.unpack('16si', pktinfo)
+            self.dstip = socket.inet_ntop(socket.AF_INET6, source)
+            self.dst_is_multicast = ipaddress.ip_address(self.dstip.split('%', 1)[0]).is_multicast
+            self.srcif = socket.if_indextoname(ifindex)
+            self.srcifindex = ifindex
+
     scheme = 'coap'
 
     interface = property(lambda self: self._interface())
@@ -281,7 +288,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
-        return await cls._create_transport_endpoint(sock, ctx, log, loop, multicastif=None, local=local)
+        return await cls._create_transport_endpoint(sock, ctx, log, loop, multicastif=[None], local=local)
 
     @classmethod
     async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, bind, multicastif, local):
