@@ -82,13 +82,6 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         self.pktinfo = pktinfo
         self._interface = weakref.ref(interface)
 
-        if pktinfo:
-            source, ifindex = struct.unpack('16si', pktinfo)
-            self.dstip = socket.inet_ntop(socket.AF_INET6, source)
-            self.dst_is_multicast = ipaddress.ip_address(self.dstip.split('%', 1)[0]).is_multicast
-            self.srcif = socket.if_indextoname(ifindex)
-            self.srcifindex = ifindex
-
     scheme = 'coap'
 
     interface = property(lambda self: self._interface())
@@ -123,12 +116,14 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
             scopepart = ""
         return self._strip_v4mapped(self.sockaddr[0]) + scopepart
 
+    def _decode_pktinfo(self):
+        return struct.Struct("16si").unpack_from(self.pktinfo)
+
     def _plainaddress_local(self):
         """Like _plainaddress, but on the address in the pktinfo. Unlike
         _plainaddress, this does not contain the interface identifier."""
 
-        addr, interface = struct.Struct("16si").unpack_from(self.pktinfo)
-
+        addr, interface = self._decode_pktinfo()
         return self._strip_v4mapped(socket.inet_ntop(socket.AF_INET6, addr))
 
     @property
@@ -149,6 +144,16 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         if port == COAP_PORT:
             port = None
         return hostportjoin(host, port)
+
+    @property
+    def hostingo_local_ifindex(self):
+        addr, interface = self._decode_pktinfo()
+        return interface
+
+    @property
+    def hostinfo_local_interface(self):
+        addr, interface = self._decode_pktinfo()
+        return socket.if_indextoname(interface)
 
     @property
     def uri_base(self):
