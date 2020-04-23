@@ -91,7 +91,7 @@ class TimeResource(resource.ObservableResource):
 
     async def render_get(self, request):
         payload = datetime.datetime.now().\
-                strftime("%Y-%m-%d %H:%M").encode('ascii')
+                strftime("%Y-%m-%d %H:%M:%S").encode('ascii')
         return aiocoap.Message(payload=payload)
 
 # logging setup

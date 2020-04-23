@@ -160,7 +160,7 @@ class Context(interfaces.RequestProvider):
         self.request_interfaces.append(tman)
 
     @classmethod
-    async def create_client_context(cls, *, loggername="coap", loop=None):
+    async def create_client_context(cls, site=None, *, loggername="coap", loop=None):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get a context suitable for sending client
@@ -170,7 +170,7 @@ class Context(interfaces.RequestProvider):
         if loop is None:
             loop = asyncio.get_event_loop()
 
-        self = cls(loop=loop, serversite=None, loggername=loggername)
+        self = cls(loop=loop, serversite=site, loggername=loggername)
 
         # FIXME make defaults overridable (postponed until they become configurable too)
         for transportname in defaults.get_default_clienttransports(loop=loop):
