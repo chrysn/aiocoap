@@ -101,7 +101,8 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
             return address[7:]
         return address
 
-    def _plainaddress(self):
+    @property
+    def plainaddress(self):
         """Return the IP adress part of the sockaddr in IPv4 notation if it is
         mapped, otherwise the plain v6 address including the interface
         identifier if set."""
@@ -119,7 +120,8 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
     def _decode_pktinfo(self):
         return struct.Struct("16si").unpack_from(self.pktinfo)
 
-    def _plainaddress_local(self):
+    @property
+    def plainaddress_local(self):
         """Like _plainaddress, but on the address in the pktinfo. Unlike
         _plainaddress, this does not contain the interface identifier."""
 
@@ -133,11 +135,11 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
             port = None
 
         # plainaddress: don't assume other applications can deal with v4mapped addresses
-        return hostportjoin(self._plainaddress(), port)
+        return hostportjoin(self.plainaddress, port)
 
     @property
     def hostinfo_local(self):
-        host = self._plainaddress_local()
+        host = self.plainaddress_local
         port = self.interface._local_port()
         if port == 0:
             raise ValueError("Local port read before socket has bound itself")
@@ -146,7 +148,7 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         return hostportjoin(host, port)
 
     @property
-    def hostingo_local_ifindex(self):
+    def hostinfo_local_ifindex(self):
         addr, interface = self._decode_pktinfo()
         return interface
 
@@ -165,11 +167,11 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
 
     @property
     def is_multicast(self):
-        return ipaddress.ip_address(self._plainaddress().split('%', 1)[0]).is_multicast
+        return ipaddress.ip_address(self.plainaddress.split('%', 1)[0]).is_multicast
 
     @property
     def is_multicast_locally(self):
-        return ipaddress.ip_address(self._plainaddress_local()).is_multicast
+        return ipaddress.ip_address(self.plainaddress_local).is_multicast
 
     def as_response_address(self):
         if not self.is_multicast_locally:
