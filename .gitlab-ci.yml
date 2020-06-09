@@ -4,6 +4,7 @@
 test:3.7:
   image: "python:3.7"
   script:
+    - env
     - echo Using cache:; ls .eggs/ || echo No cached .eggs found
     - rm -f .coverage* collected-coverage/3.7/
     - pip3 install coverage
