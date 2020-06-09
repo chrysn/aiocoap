@@ -1,5 +1,3 @@
-# installation of cython is a workaround for tinydtls-cython that should be avoided there
-#
 # running tests twice, so if something breaks when optional dependencies are
 # missing, it still shows up. (full coverage would mean running each
 # combination, but let's not blow the test matrix out of proportion).
