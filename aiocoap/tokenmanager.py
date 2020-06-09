@@ -14,6 +14,10 @@ import random
 
 from . import error
 from . import interfaces
+# To be used sparingly here: This deals with request / responses on the token
+# layer. But the layer below won't even know that messages are responses, so it
+# can't make the informed decisions we make here.
+from .numbers.types import NON
 
 class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
     def __init__(self, context):
@@ -128,6 +132,11 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                     # FIXME: should this code warn if token or remote are set?
                     m.token = request.token
                     m.remote = request.remote.as_response_address()
+
+                    if m.mtype is None and request.mtype is NON:
+                        # Default to sending NON to NON requests; rely on the
+                        # default (CON if stand-alone else ACK) otherwise.
+                        m.mtype = NON
                     self.token_interface.send_message(m)
                 else:
                     self.log.error("Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s", ev.exception)
