@@ -109,10 +109,13 @@ test:pypy:
       - bitbucket.org/
 
 pages:
-  image: "python:3.6-stretch"
+  image: "debian"
   stage: deploy
   dependencies:
+    - test:3.5
     - test:3.6
+    - test:3.7
+    - test:pypy
   script:
     - pip3 install coverage
     - rm -f .coverage* public
