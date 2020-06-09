@@ -94,18 +94,15 @@ test:3.5:
       - .eggs/
 
 test:pypy:
-  image: "ubuntu:16.04"
+  image: debian:buster
   script:
     - apt-get update
-    - apt-get -y install wget ca-certificates bzip2 libexpat1 python-pip python-virtualenv
-    - '[ -e bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2 ] || wget -S -m https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2'
-    - tar xf bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
-    - virtualenv -p pypy3-v6.0.0-linux64/bin/pypy3 venv
-    - AIOCOAP_TEST_EXTRAS= venv/bin/pypy3 ./setup.py test
+    - apt-get -y install pypy3 python3-setuptools python3-pip
+    - AIOCOAP_TEST_EXTRAS= pypy3 ./setup.py test
     - apt-get -y install libssl-dev autoconf
     # see above
-    - "venv/bin/pip3 install 'DTLSSocket>=0.1.11a1'"
-    - venv/bin/pypy3 ./setup.py test
+    - "pypy3 -m pip install 'DTLSSocket>=0.1.11a1'"
+    - pypy3 ./setup.py test
   cache:
     key: pypy
     paths:
