@@ -35,7 +35,12 @@ class MultiRepresentationResource(aiocoap.resource.Resource):
 class SlowResource(aiocoap.resource.Resource):
     async def render_get(self, request):
         await asyncio.sleep(0.2)
-        return aiocoap.Message()
+        # Marking the response as confirmable overrides the default behavior of
+        # sending NON responses to NON requests.
+        #
+        # This is done to aid the test_freeoncancel test, and should revert to
+        # the default behavior once that has better control over the environment.
+        return aiocoap.Message(mtype=aiocoap.CON)
 
 class BigResource(aiocoap.resource.Resource):
     async def render_get(self, request):

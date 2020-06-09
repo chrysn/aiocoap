@@ -118,8 +118,8 @@ class TestClientOther(WithTestServer, WithClient):
 
         # With a NON, the response should take long. (Not trying to race the
         # "I'm taking too long"-ACK by making the sleep short enough).
-        # Note that the test server decides to send responses as CON, which is
-        # convenient as it allows us to peek into the internals of aiocoap by
+        # Note that the resource implementation deliberately sends responses as CON,
+        # as to allow us to peek into the internals of aiocoap by
         # looking at wehter it returns a RST or an ACK.
         request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/slow", mtype=aiocoap.NON)
         self.resp = self.client.request(request).response
