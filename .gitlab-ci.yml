@@ -47,6 +47,9 @@ test:pypy:
     - apt-get -y install libssl-dev autoconf
     # see above
     - "pypy3 -m pip install 'DTLSSocket>=0.1.11a1'"
+    # In what appears to be a similar issue, cryptography needs an extra
+    # invitation to be installed. (See also the tox --notest lines).
+    - "pypy3 -m pip install cryptography || pypy3 -m pip install cryptography"
     - pypy3 ./setup.py test
   cache:
     key: pypy
