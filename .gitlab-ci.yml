@@ -57,12 +57,24 @@ test:pypy:
     paths:
       - bitbucket.org/
 
+test:tox:
+  image: debian:bullseye
+  script:
+    - apt-get update
+    - apt-get -y install tox build-essential python3-dev libssl-dev autoconf pypy3 pypy3-dev python3-setuptools python3-pip
+    # The 'cryptography` package, somewhere around its pep517 dependency, only
+    # manages to set itself up on the second run
+    - tox --notest || true
+    - tox --notest
+    - tox
+
 pages:
   image: "debian"
   stage: deploy
   dependencies:
     - test:3.7
     - test:pypy
+    - test:tox
   script:
     - pip3 install coverage
     - rm -f .coverage* public
