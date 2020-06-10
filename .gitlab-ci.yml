@@ -42,58 +42,6 @@ test:3.7:
     paths:
       - .eggs/
 
-# Notes about the 3.7 cases apply here as well
-test:3.6:
-  image: "python:3.6-stretch"
-  script:
-    - echo Using cache:; ls .eggs/ || echo No cached .eggs found
-    - rm -f .coverage* collected-coverage/3.6/
-    - pip3 install coverage
-    - AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test
-    # this should be done locally by setup.py, but while pip installation
-    # works, inside setup.py in doesn't -- still looking for all the details
-    # for a bug report.
-    - "pip3 install 'DTLSSocket>=0.1.11a1'"
-    - python3 -m coverage run --parallel ./setup.py test
-    - pip3 install uvloop
-    - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
-    # Could just as well do this on the default main loop, but AFAIR uvloop
-    # required occasional workarounds
-    - AIOCOAP_TESTS_LOOP=uvloop AIOCOAP_CLIENT_TRANSPORT=oscore:simple6 AIOCOAP_SERVER_TRANSPORT=oscore:simplesocketserver python3 -m coverage run --parallel ./setup.py test
-    # Not installing python3-gi directly, as Debian's dist-modules is not in
-    # docker image's Python path
-    - apt-get update
-    - apt-get -y install libgirepository1.0-dev
-    - pip3 install pygobject gbulb
-    - AIOCOAP_TESTS_LOOP=gbulb python3 -m coverage run --parallel ./setup.py test || echo Letting failing gbulb test slide
-    - python3 -m coverage combine
-    - python3 -m coverage report --include=aiocoap/\*
-    - mkdir collected-coverage/3.6/ -p
-    - mv .coverage* collected-coverage/3.6/
-  artifacts:
-    paths:
-      - collected-coverage
-  cache:
-    key: python3.6
-    paths:
-      - .eggs/
-
-test:3.5:
-  # plain python:3.5 (which is based on jessie) has too old OpenSSL to support
-  # cryptography's AEAD, and python:3.5-stretch is not available from the
-  # official docker hub python containers.
-  #
-  # Running only minimal tests here.
-  image: "python:3.5-jessie"
-  script:
-    - apt-get update
-    - echo Using cache:; ls .eggs/ || echo No cached .eggs found
-    - AIOCOAP_TEST_EXTRAS= ./setup.py test
-  cache:
-    key: python3.5
-    paths:
-      - .eggs/
-
 test:pypy:
   image: debian:buster
   script:
@@ -113,8 +61,6 @@ pages:
   image: "debian"
   stage: deploy
   dependencies:
-    - test:3.5
-    - test:3.6
     - test:3.7
     - test:pypy
   script:
