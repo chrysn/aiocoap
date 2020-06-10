@@ -26,6 +26,11 @@ from aiocoap import *
 from aiocoap import interfaces
 from aiocoap import credentials
 
+# In some nested combinations of unittest and coverage, the usually
+# provided-by-default inclusion of local files does not work. Ensuring the
+# local plugtest_common *can* be included.
+import os.path
+sys.path.append(os.path.dirname(__file__))
 from plugtest_common import *
 
 
