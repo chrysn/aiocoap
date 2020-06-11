@@ -1,23 +1,18 @@
-# installation of cython is a workaround for tinydtls-cython that should be avoided there
-#
 # running tests twice, so if something breaks when optional dependencies are
 # missing, it still shows up. (full coverage would mean running each
 # combination, but let's not blow the test matrix out of proportion).
 test:3.7:
   image: "python:3.7"
   script:
+    - env
     - echo Using cache:; ls .eggs/ || echo No cached .eggs found
-    - rm -f .coverage* collected-coverage/3.7/
+    - rm -f .coverage* collected-coverage
     - pip3 install coverage
     - AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test
     # this should be done locally by setup.py, but while pip installation
     # works, inside setup.py in doesn't -- still looking for all the details
     # for a bug report.
     - "pip3 install 'DTLSSocket>=0.1.11a1'"
-    # For unknown reasons the plugtest server doesn't find plugtest_common.py
-    # in the GitLab runner, even though it does find it in all other versions
-    # and locally. Try removing the next line whenever this is next touched.
-    - export PYTHONPATH=./contrib/oscore-plugtest/:$PYTHONPATH
     - python3 -m coverage run --parallel ./setup.py test
     - pip3 install uvloop
     - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
@@ -30,98 +25,64 @@ test:3.7:
     - apt-get -y install libgirepository1.0-dev
     - pip3 install pygobject gbulb
     - AIOCOAP_TESTS_LOOP=gbulb python3 -m coverage run --parallel ./setup.py test || echo Letting failing gbulb test slide
-    - python3 -m coverage combine
-    - python3 -m coverage report --include=aiocoap/\*
     - mkdir collected-coverage/3.7/ -p
     - mv .coverage* collected-coverage/3.7/
     - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" ./setup.py test"
   artifacts:
     paths:
-      - collected-coverage
+      - collected-coverage/3.7/
   cache:
     key: python3.7
     paths:
       - .eggs/
 
-# Notes about the 3.7 cases apply here as well
-test:3.6:
-  image: "python:3.6-stretch"
+test:pypy:
+  image: debian:buster
   script:
-    - echo Using cache:; ls .eggs/ || echo No cached .eggs found
-    - rm -f .coverage* collected-coverage/3.6/
-    - pip3 install coverage
-    - AIOCOAP_TEST_EXTRAS= python3 -m coverage run --parallel ./setup.py test
-    # this should be done locally by setup.py, but while pip installation
-    # works, inside setup.py in doesn't -- still looking for all the details
-    # for a bug report.
-    - "pip3 install 'DTLSSocket>=0.1.11a1'"
-    - python3 -m coverage run --parallel ./setup.py test
-    - pip3 install uvloop
-    - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
-    # Could just as well do this on the default main loop, but AFAIR uvloop
-    # required occasional workarounds
-    - AIOCOAP_TESTS_LOOP=uvloop AIOCOAP_CLIENT_TRANSPORT=oscore:simple6 AIOCOAP_SERVER_TRANSPORT=oscore:simplesocketserver python3 -m coverage run --parallel ./setup.py test
-    # Not installing python3-gi directly, as Debian's dist-modules is not in
-    # docker image's Python path
+    - rm -f .coverage* collected-coverage
     - apt-get update
-    - apt-get -y install libgirepository1.0-dev
-    - pip3 install pygobject gbulb
-    - AIOCOAP_TESTS_LOOP=gbulb python3 -m coverage run --parallel ./setup.py test || echo Letting failing gbulb test slide
-    - python3 -m coverage combine
-    - python3 -m coverage report --include=aiocoap/\*
-    - mkdir collected-coverage/3.6/ -p
-    - mv .coverage* collected-coverage/3.6/
+    - apt-get -y install pypy3 python3-setuptools python3-pip python3-coverage
+    # The dependencies for the extras fail to install on this installation of
+    # pypy; tox tests them anyway though.
+    - AIOCOAP_TEST_EXTRAS= pypy3 -m coverage run --parallel ./setup.py test
+    - mkdir collected-coverage/pypy/ -p
+    - mv .coverage* collected-coverage/pypy/
   artifacts:
     paths:
-      - collected-coverage
-  cache:
-    key: python3.6
-    paths:
-      - .eggs/
+      - collected-coverage/pypy/
 
-test:3.5:
-  # plain python:3.5 (which is based on jessie) has too old OpenSSL to support
-  # cryptography's AEAD, and python:3.5-stretch is not available from the
-  # official docker hub python containers.
-  #
-  # Running only minimal tests here.
-  image: "python:3.5-jessie"
+test:tox:
+  image: debian:bullseye
   script:
+    - rm -f .coverage* collected-coverage
     - apt-get update
-    - echo Using cache:; ls .eggs/ || echo No cached .eggs found
-    - AIOCOAP_TEST_EXTRAS= ./setup.py test
-  cache:
-    key: python3.5
+    - apt-get -y install tox build-essential python3-dev libssl-dev autoconf pypy3 pypy3-dev python3-setuptools python3-pip
+    # Work around the trouble installing cryptography on bullseye's pypy using
+    # bullseye's pip; see https://bugs.debian.org/962654
+    - python3 -m virtualenv --python pypy3 /tmp/pypy3env && bash -x -c 'source /tmp/pypy3env/bin/activate; pip install --force-reinstall pip; pip install cryptography'
+    # Separate run so I don't waste time telling errors in setup apart from errors at runtime
+    - tox --notest
+    - tox
+    - mkdir collected-coverage/tox/ -p
+    - mv .coverage* collected-coverage/tox/
+  artifacts:
     paths:
-      - .eggs/
-
-test:pypy:
-  image: "ubuntu:16.04"
-  script:
-    - apt-get update
-    - apt-get -y install wget ca-certificates bzip2 libexpat1 python-pip python-virtualenv
-    - '[ -e bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2 ] || wget -S -m https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2'
-    - tar xf bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
-    - virtualenv -p pypy3-v6.0.0-linux64/bin/pypy3 venv
-    - AIOCOAP_TEST_EXTRAS= venv/bin/pypy3 ./setup.py test
-    - apt-get -y install libssl-dev autoconf
-    # see above
-    - "venv/bin/pip3 install 'DTLSSocket>=0.1.11a1'"
-    - venv/bin/pypy3 ./setup.py test
-  cache:
-    key: pypy
-    paths:
-      - bitbucket.org/
+      - collected-coverage/tox/
 
 pages:
-  image: "python:3.6-stretch"
+  image: "debian"
   stage: deploy
   dependencies:
-    - test:3.6
+    - test:3.7
+    - test:pypy
+    - test:tox
   script:
-    - pip3 install coverage
+    - apt-get update
+    - apt-get -y install python3-coverage
     - rm -f .coverage* public
     - mv collected-coverage/*/.coverage* .
+    - python3 -m coverage combine
+    - python3 -m coverage report --include=aiocoap/\*
     - python3 -m coverage html --include=aiocoap/\*
     - mv htmlcov public
   artifacts:
