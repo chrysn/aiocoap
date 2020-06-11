@@ -123,11 +123,13 @@ class TestClientOther(WithTestServer, WithClient):
         # looking at wehter it returns a RST or an ACK.
         request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/slow", mtype=aiocoap.NON)
         self.resp = self.client.request(request).response
-        await asyncio.sleep(0.001)
+        # Wait for the request to actually be sent
+        while not any('Sending request' in l.getMessage() for l in self.handler.list):
+            await asyncio.sleep(0.001)
         # Now the request was sent, let's look at what happens during and after the cancellation
         loglength = len(self.handler.list)
         self.resp.cancel()
-        await asyncio.sleep(0.6) # server takes 0.2 to respond
+        await asyncio.sleep(0.4) # server takes 0.2 to respond
         logmsgs = self.handler.list[loglength:]
         unmatched_msgs = [l for l in logmsgs if "could not be matched to any request" in l.getMessage()]
         self.assertEqual(len(unmatched_msgs), 1, "The incoming response was not treated as unmatched")
