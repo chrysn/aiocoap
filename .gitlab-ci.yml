@@ -41,7 +41,11 @@ test:pypy:
   script:
     - rm -f .coverage* collected-coverage
     - apt-get update
-    - apt-get -y install pypy3 python3-setuptools python3-pip python3-coverage
+    - apt-get -y install pypy3 python3-setuptools python3-pip wget ca-certificates
+    # pypy and pip don't appear to work together on buster at all
+    - wget https://files.pythonhosted.org/packages/fe/4d/3d892bdd21acba6c9e9bec6dc93fbe619883a0967c62f976122f2c6366f3/coverage-5.1.tar.gz
+    - tar xzf coverage-5.1.tar.gz
+    - (cd coverage-5.1 && pypy3 ./setup.py install --user)
     # The dependencies for the extras fail to install on this installation of
     # pypy; tox tests them anyway though.
     - AIOCOAP_TEST_EXTRAS= pypy3 -m coverage run --parallel ./setup.py test
@@ -78,7 +82,8 @@ pages:
     - test:tox
   script:
     - apt-get update
-    - apt-get -y install python3-coverage
+    - apt-get -y install python3-pip
+    - python3 -m pip install coverage
     - rm -f .coverage* public
     - mv collected-coverage/*/.coverage* .
     - python3 -m coverage combine
