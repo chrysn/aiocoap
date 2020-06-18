@@ -119,7 +119,7 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         """Like _plainaddress, but on the address in the pktinfo. Unlike
         _plainaddress, this does not contain the interface identifier."""
 
-        addr, interface = struct.Struct("16si").unpack_from(self.pktinfo)
+        addr, interface = struct.Struct("16sI").unpack_from(self.pktinfo)
 
         return self._strip_v4mapped(socket.inet_ntop(socket.AF_INET6, addr))
 
