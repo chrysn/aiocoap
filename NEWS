@@ -1,3 +1,40 @@
+Version 0.4b3
+-------------
+
+Behavioral changes
+~~~~~~~~~~~~~~~~~~
+
+* Responses to NON requests are now sent as NON.
+
+Portability
+~~~~~~~~~~~
+
+* All uses of SO_REUSEPORT were changed to SO_REUSEADDR, as REUSEPORT is
+  considered dangerous by some and removed from newer Python versions.
+
+  On platoforms without support for that option, it is not set. Automatic
+  load-balancing by running parallel servers is not supported there.
+
+* The udp6 module is now usable on platforms without MSG_ERRQUEUE (ie. anything
+  but Linux). This comes with caveats, so it is still only enabled by default
+  on Linux.
+
+  The required constants are now shipped with aiocoap for macOS for the benefit
+  of Python versions less than 3.9.
+
+Minor fixes
+~~~~~~~~~~~
+
+* More effort is made to sync OSCORE persistence files to disk.
+* Memory leakage fixes on server and client side.
+* Option numbers for Echo and Request-Tag were updated according to the latest
+  draft version.
+
+Testing
+~~~~~~~
+
+* With `./setup.py test` being phased out, tests are now run via tox.
+
 Version 0.4b2
 -------------
 
