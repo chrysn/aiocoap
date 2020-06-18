@@ -39,5 +39,6 @@ if __name__ == "__main__":
     print("Selected server transports: %s" % ":".join(get_default_servertransports()))
     print("Default client transports:  %s" % ":".join(get_default_clienttransports(use_env=False)))
     print("Selected client transports: %s" % ":".join(get_default_clienttransports()))
+    print("SO_REUSEPORT available (default, selected): %s, %s" % (has_reuse_port(use_env=False), has_reuse_port()))
 
     sys.exit(error)

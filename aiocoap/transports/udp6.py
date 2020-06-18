@@ -47,6 +47,7 @@ from collections import namedtuple
 
 from ..message import Message
 from ..numbers import constants
+from .. import defaults
 from .. import error
 from .. import interfaces
 from ..numbers import COAP_PORT
@@ -264,8 +265,10 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             log.warning("Multiple addresses to bind to, ")
 
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
-        # FIXME: SO_REUSEPORT should be safer when available (no port hijacking), and the test suite should work with it just as well (even without). why doesn't it?
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if defaults.has_reuse_port():
+            # I doubt that there is any platform that supports RECVPKTINFO but
+            # not REUSEPORT, but why take chances.
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.bind(bind)
 

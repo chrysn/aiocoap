@@ -23,6 +23,7 @@ suite to decide which tests to skip.
 """
 
 import os
+import socket
 import sys
 import asyncio
 
@@ -108,6 +109,17 @@ def get_default_servertransports(*, loop=None, use_env=True):
     # that should be managable in udp6 too.
     yield 'udp6'
     return
+
+def has_reuse_port(*, use_env=True):
+    """Return true if the platform indicates support for SO_REUSEPORT.
+
+    Can be overridden by explicitly setting ``AIOCOAP_REUSE_PORT`` to 1 or
+    0."""
+
+    if use_env and os.environ.get('AIOCOAP_REUSE_PORT'):
+        return bool(int(os.environ['AIOCOAP_REUSE_PORT']))
+
+    return hasattr(socket, 'SO_REUSEPORT')
 
 # FIXME: If there were a way to check for the extras defined in setup.py, or to link these lists to what is descibed there, that'd be great.
 
