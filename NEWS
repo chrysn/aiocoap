@@ -30,9 +30,10 @@ Minor fixes
 * Option numbers for Echo and Request-Tag were updated according to the latest
   draft version.
 
-Testing
-~~~~~~~
+Other
+~~~~~
 
+* FAQ section started in the documentation.
 * With `./setup.py test` being phased out, tests are now run via tox.
 
 Version 0.4b2
