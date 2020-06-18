@@ -210,7 +210,11 @@ class Context(interfaces.RequestProvider):
         otherwise specified in the ``bind`` argument).
 
         This is the easiest way to get a context suitable both for sending
-        client and accepting server requests."""
+        client and accepting server requests.
+
+        The ``bind`` argument, if given, needs to be a 2-tuple of IP address
+        string and port number, where the port number can be None to use the default port.
+        """
 
         if loop is None:
             loop = asyncio.get_event_loop()

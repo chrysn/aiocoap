@@ -10,5 +10,6 @@
 
    examples
    tools
+   faq
    news
    LICENSE

@@ -20,8 +20,19 @@ Shortcomings
 ------------
 
 * This implementation does not receive ICMP errors. This violates the CoAP
-    standard and can lead to unnecessary network traffic, bad user experience
-    (when used for client requests) or even network attack amplification.
+  standard and can lead to unnecessary network traffic, bad user experience
+  (when used for client requests) or even network attack amplification.
+
+* The server can not be used with the "any-address" (``::``, ``0.0.0.0``).
+  If it were allowed to bind there, it would not receive any indication from the operating system
+  as to which of its own addresses a request was sent,
+  and could not send the response with the appropriate sender address.
+
+  (The :mod:`udp6<aiocoap.transports.udp6>` transport does not suffer that shortcoming,
+  simplesocketserver is typically only used when that is unavailable).
+
+  With simplesocketserver, you need to explicitly give the IP address of your server
+  in the ``bind`` argument of :meth:`aiocoap.protocol.Context.create_server_context`.
 
 * This transport is experimental and likely to change.
 """
