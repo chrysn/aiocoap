@@ -34,7 +34,8 @@ from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
         SERVICE_UNAVAILABLE, CONTINUE, REQUEST_ENTITY_INCOMPLETE,
-        OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT)
+        OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT,
+        NON, EMPTY)
 from .numbers.optionnumbers import OptionNumber
 
 import warnings
@@ -160,7 +161,7 @@ class Context(interfaces.RequestProvider):
         self.request_interfaces.append(tman)
 
     @classmethod
-    async def create_client_context(cls, *, loggername="coap", loop=None):
+    async def create_client_context(cls, *, loggername="coap", loop=None, local=None):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get a context suitable for sending client
@@ -177,7 +178,7 @@ class Context(interfaces.RequestProvider):
             if transportname == 'udp6':
                 from .transports.udp6 import MessageInterfaceUDP6
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
+                    lambda mman: MessageInterfaceUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop, local=local))
             elif transportname == 'simple6':
                 from .transports.simple6 import MessageInterfaceSimple6
                 await self._append_tokenmanaged_messagemanaged_transport(
@@ -205,7 +206,7 @@ class Context(interfaces.RequestProvider):
         return self
 
     @classmethod
-    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None):
+    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicastif=None, local=None):
         """Create a context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -226,7 +227,7 @@ class Context(interfaces.RequestProvider):
                 from .transports.udp6 import MessageInterfaceUDP6
 
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, bind=bind))
+                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, bind=bind, multicastif=multicastif, local=local))
             # FIXME this is duplicated from the client version, as those are client-only anyway
             elif transportname == 'simple6':
                 from .transports.simple6 import MessageInterfaceSimple6
@@ -613,10 +614,21 @@ class Request(interfaces.Request, BaseUnicastRequest):
     def _add_response_properties(response, request):
         response.request = request
 
+    def request_timeout(self, msg):
+        if msg.mtype == NON and msg.opt.no_response == 26:
+            return 1
+        return None
+
     async def _run(self):
         # FIXME: check that responses come from the same remmote as long as we're assuming unicast
 
-        first_event = await self._plumbing_request._events.get()
+        timeout = self.request_timeout(self._plumbing_request.request)
+
+        try:
+            first_event = await asyncio.wait_for(self._plumbing_request._events.get(), timeout=timeout)
+        except asyncio.TimeoutError:
+            self.response.set_result(Message(code=EMPTY))
+            return
 
         if first_event.message is not None:
             self._add_response_properties(first_event.message, self._plumbing_request.request)
