@@ -26,7 +26,7 @@ import os
 import sys
 import asyncio
 
-def get_default_clienttransports(*, loop=None):
+def get_default_clienttransports(*, loop=None, use_env=True):
     """Return a list of transports that should be connected when a client
     context is created.
 
@@ -38,7 +38,7 @@ def get_default_clienttransports(*, loop=None):
     full udp6 transport is known to work.
     """
 
-    if 'AIOCOAP_CLIENT_TRANSPORT' in os.environ:
+    if use_env and 'AIOCOAP_CLIENT_TRANSPORT' in os.environ:
         yield from os.environ['AIOCOAP_CLIENT_TRANSPORT'].split(':')
         return
 
@@ -66,7 +66,7 @@ def get_default_clienttransports(*, loop=None):
     yield 'udp6'
     return
 
-def get_default_servertransports(*, loop=None):
+def get_default_servertransports(*, loop=None, use_env=True):
     """Return a list of transports that should be connected when a server
     context is created.
 
@@ -81,7 +81,7 @@ def get_default_servertransports(*, loop=None):
     at.
     """
 
-    if 'AIOCOAP_SERVER_TRANSPORT' in os.environ:
+    if use_env and 'AIOCOAP_SERVER_TRANSPORT' in os.environ:
         yield from os.environ['AIOCOAP_SERVER_TRANSPORT'].split(':')
         return
 
@@ -89,11 +89,7 @@ def get_default_servertransports(*, loop=None):
         yield 'oscore'
 
     # no server support yet, but doesn't hurt either
-    try:
-        from DTLSSocket import dtls # noqa: F401
-    except ImportError:
-        pass
-    else:
+    if not dtls_missing_modules():
         yield 'tinydtls'
 
     yield 'tcpserver'
@@ -114,6 +110,19 @@ def get_default_servertransports(*, loop=None):
     return
 
 # FIXME: If there were a way to check for the extras defined in setup.py, or to link these lists to what is descibed there, that'd be great.
+
+def dtls_missing_modules():
+    """Return a list of modules that are missing in order to use the DTLS
+    transport, or a false value if everything is present"""
+
+    missing = []
+
+    try:
+        from DTLSSocket import dtls # noqa: F401
+    except ImportError:
+        missing.append("DTLSSocket")
+
+    return missing
 
 def oscore_missing_modules():
     """Return a list of modules that are missing in order to use OSCORE, or a
