@@ -12,6 +12,7 @@ import socket
 from aiocoap import interfaces, optiontypes, error, util
 from aiocoap import COAP_PORT, Message
 from aiocoap.numbers.codes import CSM, PING, PONG, RELEASE, ABORT
+from aiocoap import defaults
 
 def _extract_message_size(data: bytes):
     """Read out the full length of a CoAP messsage represented by data.
@@ -379,7 +380,7 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
 
         try:
             server = await loop.create_server(new_connection, bind[0], bind[1],
-                    ssl=_server_context)
+                    ssl=_server_context, reuse_port=defaults.has_reuse_port())
         except socket.gaierror:
             raise error.ResolutionError("No local bindable address found for %s" % bind[0])
         self.server = server
