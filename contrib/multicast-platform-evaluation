@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+
+"""This script does not do anything really CoAP-related, but is a testing tool
+for multicast messages.
+
+It binds to multicast addresses of different scopes (ff02::1:2, ff05::1:5) on different
+ports (2002 and 2005), tries sending with different settings (zone set in
+source or destination), and reports the findings.
+
+It was written to verify observations made with `ping` -- namely, that for
+link-local addresses it is sufficient to give the zone identifier in the target
+(`ping ff02::1%eth0` works), but that for wider scopes like site-local, the
+zone identifier must be on the source address, even if that's empty (`ping
+ff05::1 -I eth0`).
+
+On Linux, it is required to set a source address for at least the ff05 class of
+addresses (and that working mental model is reflected in any error messages);
+FreeBSD behaves in a way that appears more sane and accepts a zone identifier
+even in the destination address.
+"""
+
+import argparse
+import socket
+import struct
+import time
+
+in6_pktinfo = struct.Struct("16sI")
+
+p = argparse.ArgumentParser(description=__doc__)
+p.add_argument("ifname", help="Network interface name to bind to and try to send to")
+p.add_argument("bindaddr", help="Address to bind to on the interface (default: %(default)s)", default="::", nargs="?")
+p.add_argument("unicast_addr", help="Address to send the initial unicast test messages to (default: %(default)s)", default="::1", nargs="?")
+args = p.parse_args()
+
+ifindex = socket.if_nametoindex(args.ifname)
+
+listen2 = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
+listen2.bind((args.bindaddr, 2002))
+s = struct.pack('16si', socket.inet_pton(socket.AF_INET6, 'ff02::1:2'), ifindex)
+listen2.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, s)
+
+listen5 = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
+listen5.bind((args.bindaddr, 2005))
+s = struct.pack('16si', socket.inet_pton(socket.AF_INET6, 'ff05::1:5'), ifindex)
+listen5.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, s)
+
+sender = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
+sender.sendmsg([b"Test1"], [], 0, ('::1', 2002))
+sender.sendmsg([b"Test2"], [], 0, ('::1', 2005))
+
+time.sleep(0.2)
+assert listen2.recv(1024, socket.MSG_DONTWAIT) == b"Test1"
+assert listen5.recv(1024, socket.MSG_DONTWAIT) == b"Test2"
+print("Unicast tests passed")
+
+
+# Setting no interface index
+#
+# ff02: On FreeBSD this fails on send with OSError, on Linux only at receiving
+# ff05 fails on Linux and works on FreeBSD, but that could be an artefact of default routes.
+
+print("Sending to ff02::2".format(args.ifname))
+try:
+    sender.sendmsg([b"Test3"], [], 0, ('ff02::1:2', 2002, 0, 0))
+    time.sleep(0.2)
+    assert listen2.recv(1024, socket.MSG_DONTWAIT) == b"Test3"
+except (OSError, BlockingIOError) as e:
+    print("Erred with %r, as expected" % e)
+else:
+    print("That was not expected to work!")
+
+print("Sending to ff05::5".format(args.ifname))
+try:
+    sender.sendmsg([b"Test4"], [], 0, ('ff05::1:5', 2005, 0, ifindex))
+    time.sleep(0.2)
+    assert listen5.recv(1024, socket.MSG_DONTWAIT) == b"Test4"
+except (OSError, BlockingIOError) as e:
+    print("Erred with %r, as expected" % e)
+else:
+    print("That was not expected to work!")
+
+
+# Setting the ifindex in the destination only works for ff02 and not for ff05
+
+print("Sending to ff02::2%{}".format(args.ifname))
+sender.sendmsg([b"Test5"], [], 0, ('ff02::1:2', 2002, 0, ifindex))
+time.sleep(0.2)
+assert listen2.recv(1024, socket.MSG_DONTWAIT) == b"Test5"
+
+print("Sending to ff05::5%{}".format(args.ifname))
+sender.sendmsg([b"Test6"], [], 0, ('ff05::1:5', 2005, 0, ifindex))
+time.sleep(0.2)
+try:
+    assert listen5.recv(1024, socket.MSG_DONTWAIT) == b"Test6"
+except BlockingIOError:
+    pass
+else:
+    print("That was not expected to work!")
+
+
+# Setting the ifindex in the source works for both
+
+print("Sending to ff02::2 from ::%{}".format(args.ifname))
+dest = in6_pktinfo.pack(socket.inet_pton(socket.AF_INET6, '::'), ifindex)
+sender.sendmsg([b"Test7"], [(socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, dest)], 0, ('ff02::1:2', 2002, 0, 0))
+time.sleep(0.2)
+assert listen2.recv(1024, socket.MSG_DONTWAIT) == b"Test7"
+
+print("Sending to ff05::5 from {}".format(args.ifname))
+dest = in6_pktinfo.pack(socket.inet_pton(socket.AF_INET6, '::'), ifindex)
+sender.sendmsg([b"Test8"], [(socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, dest)], 0, ('ff05::1:5', 2005, 0, 0))
+time.sleep(0.2)
+assert listen5.recv(1024, socket.MSG_DONTWAIT) == b"Test8"
+
+
+# Setting both works on both (unlike when testing this with ping)
+
+print("Sending to ff02::2%{} from ::%{}".format(args.ifname, args.ifname))
+dest = in6_pktinfo.pack(socket.inet_pton(socket.AF_INET6, '::'), ifindex)
+sender.sendmsg([b"Test9"], [(socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, dest)], 0, ('ff02::1:2', 2002, 0, ifindex))
+time.sleep(0.2)
+assert listen2.recv(1024, socket.MSG_DONTWAIT) == b"Test9"
+
+print("Sending to ff05::5%{} from {}".format(args.ifname, args.ifname))
+dest = in6_pktinfo.pack(socket.inet_pton(socket.AF_INET6, '::'), ifindex)
+sender.sendmsg([b"Test10"], [(socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, dest)], 0, ('ff05::1:5', 2005, 0, ifindex))
+time.sleep(0.2)
+assert listen5.recv(1024, socket.MSG_DONTWAIT) == b"Test10"
