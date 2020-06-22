@@ -30,6 +30,7 @@ p = argparse.ArgumentParser(description=__doc__)
 p.add_argument("ifname", help="Network interface name to bind to and try to send to")
 p.add_argument("bindaddr", help="Address to bind to on the interface (default: %(default)s)", default="::", nargs="?")
 p.add_argument("unicast_addr", help="Address to send the initial unicast test messages to (default: %(default)s)", default="::1", nargs="?")
+p.add_argument("nonlocal_multicast", help="Address to use for the zone-free multicast test (default: %(default)s", default="ff35:30:2001:db8::1", nargs="?")
 args = p.parse_args()
 
 ifindex = socket.if_nametoindex(args.ifname)
@@ -93,7 +94,7 @@ time.sleep(0.2)
 try:
     assert listen5.recv(1024, socket.MSG_DONTWAIT) == b"Test6"
 except BlockingIOError:
-    pass
+    print("Failed as expected for Linux")
 else:
     print("That was not expected to work!")
 
@@ -126,3 +127,75 @@ dest = in6_pktinfo.pack(socket.inet_pton(socket.AF_INET6, '::'), ifindex)
 sender.sendmsg([b"Test10"], [(socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, dest)], 0, ('ff05::1:5', 2005, 0, ifindex))
 time.sleep(0.2)
 assert listen5.recv(1024, socket.MSG_DONTWAIT) == b"Test10"
+
+
+# global addresses shouldn't need a thing (there's routability), but still do
+
+print("Binding to {} on {}".format(args.nonlocal_multicast, args.ifname))
+listendb8 = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
+listendb8.bind((args.bindaddr, 2008))
+s = struct.pack('16si', socket.inet_pton(socket.AF_INET6, args.nonlocal_multicast), ifindex)
+listendb8.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, s)
+
+print("Sending to {}%{}".format(args.nonlocal_multicast, args.ifname))
+sender.sendmsg([b"Test11"], [], 0, (args.nonlocal_multicast, 2008, 0, ifindex))
+time.sleep(0.2)
+try:
+    assert listendb8.recv(1024, socket.MSG_DONTWAIT) == b"Test11"
+except BlockingIOError:
+    print("Failed as expected for Linux")
+else:
+    print("That was not expected to work!")
+
+print("Sending to {} from {}".format(args.nonlocal_multicast, args.ifname))
+dest = in6_pktinfo.pack(socket.inet_pton(socket.AF_INET6, '::'), ifindex)
+sender.sendmsg([b"Test12"], [(socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, dest)], 0, (args.nonlocal_multicast, 2008, 0, 0))
+time.sleep(0.2)
+assert listendb8.recv(1024, socket.MSG_DONTWAIT) == b"Test12"
+
+print("Sending to {} without interface".format(args.nonlocal_multicast))
+sender.sendmsg([b"Test13"], [], 0, (args.nonlocal_multicast, 2008, 0, 0))
+time.sleep(0.2)
+try:
+    assert listendb8.recv(1024, socket.MSG_DONTWAIT) == b"Test13"
+except BlockingIOError:
+    print("Failed as expected for Linux")
+else:
+    print("That was not expected to work!")
+
+print("Now binding to {} without interface specification".format(args.nonlocal_multicast, args.ifname))
+listendb8any = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
+listendb8any.bind((args.bindaddr, 2018))
+s = struct.pack('16si', socket.inet_pton(socket.AF_INET6, args.nonlocal_multicast), 0)
+listendb8any.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, s)
+
+print("Sending to {}%{}".format(args.nonlocal_multicast, args.ifname))
+sender.sendmsg([b"Test14"], [], 0, (args.nonlocal_multicast, 2018, 0, ifindex))
+time.sleep(0.2)
+try:
+    assert listendb8.recv(1024, socket.MSG_DONTWAIT) == b"Test14"
+except BlockingIOError:
+    print("Failed as expected")
+else:
+    print("That was not expected to work!")
+
+print("Sending to {} from {}".format(args.nonlocal_multicast, args.ifname))
+dest = in6_pktinfo.pack(socket.inet_pton(socket.AF_INET6, '::'), ifindex)
+sender.sendmsg([b"Test15"], [(socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, dest)], 0, (args.nonlocal_multicast, 2018, 0, 0))
+time.sleep(0.2)
+try:
+    assert listendb8.recv(1024, socket.MSG_DONTWAIT) == b"Test15"
+except BlockingIOError:
+    print("Failed as expected")
+else:
+    print("That was not expected to work!")
+
+print("Sending to {} without interface".format(args.nonlocal_multicast))
+sender.sendmsg([b"Test16"], [], 0, (args.nonlocal_multicast, 2018, 0, 0))
+time.sleep(0.2)
+try:
+    assert listendb8.recv(1024, socket.MSG_DONTWAIT) == b"Test16"
+except BlockingIOError:
+    print("Failed as expected")
+else:
+    print("That was not expected to work!")
