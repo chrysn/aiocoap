@@ -140,7 +140,7 @@ class TestNoncoapMulticastClient(WithTestServer, WithMockSock):
     @asynctest
     async def test_mutlicast_ping(self):
         # exactly like the unicast case -- just to verify we're actually reaching our server
-        self.mocksock.sendto(b'\x40\x00\x99\x9a', (aiocoap.numbers.constants.MCAST_IPV6_LINKLOCAL_ALLNODES, aiocoap.COAP_PORT, 0, socket.if_nametoindex(os.environ['AIOCOAP_TEST_MCIF'])))
+        self.mocksock.sendto(b'\x40\x00\x99\x9a', (aiocoap.numbers.constants.MCAST_IPV6_LINKLOCAL_ALLCOAPNODES, aiocoap.COAP_PORT, 0, socket.if_nametoindex(os.environ['AIOCOAP_TEST_MCIF'])))
         await asyncio.sleep(0.1)
         with TimeoutError.after(1):
             response = self.mocksock.recv(1024)
@@ -149,7 +149,7 @@ class TestNoncoapMulticastClient(WithTestServer, WithMockSock):
     @no_warnings
     @asynctest
     async def test_multicast_unknownresponse_noreset(self):
-        self.mocksock.sendto(bytes.fromhex("4040ffff"), (aiocoap.numbers.constants.MCAST_IPV6_LINKLOCAL_ALLNODES, aiocoap.COAP_PORT, 0, socket.if_nametoindex(os.environ['AIOCOAP_TEST_MCIF'])))
+        self.mocksock.sendto(bytes.fromhex("4040ffff"), (aiocoap.numbers.constants.MCAST_IPV6_LINKLOCAL_ALLCOAPNODES, aiocoap.COAP_PORT, 0, socket.if_nametoindex(os.environ['AIOCOAP_TEST_MCIF'])))
         await asyncio.sleep(0.1)
         try:
             with TimeoutError.after(1):
