@@ -24,3 +24,22 @@ while it is not clear where to better put them).
 
   For your platform, the ``simplesocketserver`` module was selected.
   See :mod:`the simplesocketserver documentation<aiocoap.transports.simplesocketserver>` for why it can not bind to that address.
+
+* **How is multicast supported?**
+
+  Support for multicast is currently limited.
+
+  On the server side, things are mostly ready.
+  Groups are joined :meth:`at server creation<aiocoap.protocol.Context.create_server_context>`.
+
+  On the client side, requests to multicast addresses can be sent,
+  and while they are treated adaequately on the protocol level (eg. will not send CON requests),
+  the :meth:`request interface<aiocoap.protocol.Context.request>` only exposes the first response.
+  Thus, it can be used in discovery situations as long as only one response is processed,
+  but not yet to its full power of obtaining data from multiple devices.
+
+  Note that multicast requests often require specification of an interface,
+  as otherwise the request is underspecified.
+  Thus, a typical command line request might look like this::
+
+     ./aiocoap-client coap://'[ff02::fd%eth0]'/.well-known/core --non

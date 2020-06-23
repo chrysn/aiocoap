@@ -66,7 +66,7 @@ test:tox:
     - python3 -m virtualenv --python pypy3 /tmp/pypy3env && bash -x -c 'source /tmp/pypy3env/bin/activate; pip install --force-reinstall pip; pip install cryptography'
     # Separate run so I don't waste time telling errors in setup apart from errors at runtime
     - tox --notest
-    - tox
+    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
     - mkdir collected-coverage/tox/ -p
     - mv .coverage* collected-coverage/tox/
   artifacts:

@@ -9,6 +9,7 @@
 import doctest
 import aiocoap.defaults
 import os
+import sys
 
 def load_tests(loader, tests, ignore):
     for root, dn, fn in os.walk('aiocoap'):
@@ -21,6 +22,9 @@ def load_tests(loader, tests, ignore):
             if 'resourcedirectory' in p or 'fileserver' in p or p in ('aiocoap/cli/rd.py', 'aiocoap/util/linkformat.py') and aiocoap.defaults.linkheader_missing_modules():
                 continue
             if p in ('aiocoap/util/prettyprint.py', 'aiocoap/util/linkformat_pygments.py') and aiocoap.defaults.prettyprint_missing_modules():
+                continue
+            if 'udp6' in p and 'PyPy' in sys.version:
+                # due to https://foss.heptapod.net/pypy/pypy/issues/3249
                 continue
             tests.addTests(doctest.DocTestSuite(p[:-3].replace('/', '.')))
     return tests

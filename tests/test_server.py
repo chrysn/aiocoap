@@ -12,6 +12,7 @@ import aiocoap
 import aiocoap.resource
 import unittest
 import logging
+import os
 
 from . import common
 from .fixtures import (WithLogMonitoring, no_warnings, precise_warnings,
@@ -114,7 +115,9 @@ class WithTestServer(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithTestServer, self).setUp()
 
-        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site(), bind=(self.serveraddress, None)))
+        multicastif = os.environ['AIOCOAP_TEST_MCIF'].split(':') if 'AIOCOAP_TEST_MCIF' in os.environ else []
+
+        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site(), bind=(self.serveraddress, None), multicast=multicastif))
 
     def tearDown(self):
         # let the server receive the acks we just sent

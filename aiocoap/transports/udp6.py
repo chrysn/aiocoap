@@ -55,17 +55,40 @@ from ..util.asyncio.recvmsg import RecvmsgDatagramProtocol, create_recvmsg_datag
 from ..util import hostportjoin, hostportsplit
 from ..util import socknumbers
 
+"""The `struct in6_pktinfo` from RFC3542"""
+_in6_pktinfo = struct.Struct("16sI")
+
+_ipv6_unspecified = socket.inet_pton(socket.AF_INET6, '::')
+_ipv4_unspecified = socket.inet_pton(socket.AF_INET6, '::ffff:0.0.0.0')
+
+class InterfaceOnlyPktinfo(bytes):
+    """A thin wrapper over bytes that represent a pktinfo built just to select
+    an outgoing interface.
+
+    This must not be treated any different than a regular pktinfo, and is just
+    tagged for better debug output. (Ie. if this is replaced everywhere with
+    plain `bytes`, things must still work)."""
+
 class UDP6EndpointAddress(interfaces.EndpointAddress):
     """Remote address type for :cls:`MessageInterfaceUDP6`. Remote address is
     stored in form of a socket address; local address can be roundtripped by
     opaque pktinfo data.
 
+    For purposes of equality (and thus hashing), the local address is *not*
+    checked. Neither is the scopeid that is part of the socket address.
+
     >>> interface = type("FakeMessageInterface", (), {})
+    >>> if1_name = socket.if_indextoname(1)
     >>> local = UDP6EndpointAddress(socket.getaddrinfo('127.0.0.1', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1], interface)
     >>> local.is_multicast
     False
     >>> local.hostinfo
     '127.0.0.1'
+    >>> all_coap_link1 = UDP6EndpointAddress(socket.getaddrinfo('ff02:0:0:0:0:0:0:fd%1', 1234, type=socket.SOCK_DGRAM, family=socket.AF_INET6)[0][-1], interface)
+    >>> all_coap_link1.is_multicast
+    True
+    >>> all_coap_link1.hostinfo == '[ff02::fd%{}]:1234'.format(if1_name)
+    True
     >>> all_coap_site = UDP6EndpointAddress(socket.getaddrinfo('ff05:0:0:0:0:0:0:fd', 1234, type=socket.SOCK_DGRAM, family=socket.AF_INET6)[0][-1], interface)
     >>> all_coap_site.is_multicast
     True
@@ -86,19 +109,26 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
     interface = property(lambda self: self._interface())
 
     def __hash__(self):
-        return hash(self.sockaddr)
+        return hash(self.sockaddr[:-1])
 
     def __eq__(self, other):
-        return self.sockaddr == other.sockaddr
+        return self.sockaddr[:-1] == other.sockaddr[:-1]
 
     def __repr__(self):
-        return "<%s %s%s>"%(type(self).__name__, self.hostinfo, " with local address" if self.pktinfo is not None else "")
+        return "<%s %s%s>"%(type(self).__name__, self.hostinfo, " with zone identifier" if isinstance(self.pktinfo, InterfaceOnlyPktinfo) else " with local address" if self.pktinfo is not None else "")
 
     @staticmethod
     def _strip_v4mapped(address):
-        if address.startswith('::ffff:') and '.' in address:
-            return address[7:]
-        return address
+        """Turn anything that's a valid input to ipaddress.IPv6Address into a
+        user-friendly string that's either an IPv6 or an IPv4 address.
+
+        This also compresses (normalizes) the IPv6 address as a convenient side
+        effect."""
+        address = ipaddress.IPv6Address(address)
+        mapped = address.ipv4_mapped
+        if mapped is not None:
+            return str(mapped)
+        return str(address)
 
     def _plainaddress(self):
         """Return the IP adress part of the sockaddr in IPv4 notation if it is
@@ -119,9 +149,17 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         """Like _plainaddress, but on the address in the pktinfo. Unlike
         _plainaddress, this does not contain the interface identifier."""
 
-        addr, interface = struct.Struct("16sI").unpack_from(self.pktinfo)
+        addr, interface = _in6_pktinfo.unpack_from(self.pktinfo)
 
-        return self._strip_v4mapped(socket.inet_ntop(socket.AF_INET6, addr))
+        return self._strip_v4mapped(addr)
+
+    @property
+    def netif(self):
+        """Textual interface identifier of the explicitly configured remote
+        interface, or the interface identifier reported in an incoming
+        link-local message. None if not set."""
+        index = self.sockaddr[3]
+        return socket.if_indextoname(index) if index else None
 
     @property
     def hostinfo(self):
@@ -192,7 +230,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         return self.transport.get_extra_info('socket').getsockname()[1]
 
     @classmethod
-    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=False):
+    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=[]):
         try:
             sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVPKTINFO, 1)
         except NameError:
@@ -205,24 +243,35 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         else:
             log.warning("Transport udp6 set up on platform without RECVERR capability. ICMP errors will be ignored.")
 
-        if multicast:
-            # FIXME this all registers only for one interface, doesn't it?
-            s = struct.pack('4s4si',
-                    socket.inet_aton(constants.MCAST_IPV4_ALLCOAPNODES),
-                    socket.inet_aton("0.0.0.0"), 0)
-            try:
-                sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s)
-            except OSError:
-                log.warning("Could not join IPv4 multicast group; possibly, there is no network connection available.")
-            for a in constants.MCAST_IPV6_ALL:
+        for (address, interface) in sum(map(
+                    # Expand shortcut of "interface name means default CoAP all-nodes addresses"
+                    lambda i: [(a, i) for a in constants.MCAST_ALL] if isinstance(i, str) else [i],
+                    multicast
+                ), []):
+            address = ipaddress.ip_address(address)
+            interface = socket.if_nametoindex(interface)
+
+            if isinstance(address, ipaddress.IPv4Address):
+                s = struct.pack('4s4si',
+                        address.packed,
+                        socket.inet_aton("0.0.0.0"), interface)
+                try:
+                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s)
+                except OSError:
+                    log.warning("Could not join IPv4 multicast group")
+
+            elif isinstance(address, ipaddress.IPv6Address):
                 s = struct.pack('16si',
-                        socket.inet_pton(socket.AF_INET6, a),
-                        0)
+                        address.packed,
+                        interface)
                 try:
                     sock.setsockopt(socket.IPPROTO_IPV6,
                             socket.IPV6_JOIN_GROUP, s)
                 except OSError:
-                    log.warning("Could not join IPv6 multicast group; possibly, there is no network connection available.")
+                    log.warning("Could not join IPv6 multicast group")
+
+            else:
+                raise RuntimeError("Unknown address format")
 
         transport, protocol = await create_recvmsg_datagram_endpoint(loop,
                 lambda: cls(ctx, log=log, loop=loop),
@@ -237,10 +286,10 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
-        return await cls._create_transport_endpoint(sock, ctx, log, loop, multicast=False)
+        return await cls._create_transport_endpoint(sock, ctx, log, loop)
 
     @classmethod
-    async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, bind):
+    async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, bind, multicast):
         bind = bind or ('::', None)
         bind = (bind[0], bind[1] or COAP_PORT)
 
@@ -272,7 +321,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.bind(bind)
 
-        return (await cls._create_transport_endpoint(sock, ctx, log, loop, multicast=True))
+        return (await cls._create_transport_endpoint(sock, ctx, log, loop, multicast))
 
     async def shutdown(self):
         self._shutting_down = asyncio.Future()
@@ -298,9 +347,6 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         if request.requested_scheme not in ('coap', None):
             return None
 
-        ## @TODO this is very rudimentary; happy-eyeballs or
-        # similar could be employed.
-
         if request.unresolved_remote is not None:
             host, port = hostportsplit(request.unresolved_remote)
             port = port or COAP_PORT
@@ -309,6 +355,20 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             port = request.opt.uri_port or COAP_PORT
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
+
+        # Take aside the zone identifier. While it can pass through getaddrinfo
+        # in some situations (eg. 'fe80::1234%eth0' will give 'fe80::1234'
+        # scope eth0, and similar for ff02:: addresses), in others (eg. ff05::)
+        # it gives 'Name or service not known'.
+
+        if '%' in host:
+            host, zone = host.split('%', 1)
+            try:
+                zone = socket.if_nametoindex(zone)
+            except OSError:
+                raise error.ResolutionError("Invalid zone identifier %s" % zone)
+        else:
+            zone = None
 
         try:
             own_sock = self.transport.get_extra_info('socket')
@@ -325,7 +385,45 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                 )
         except socket.gaierror:
             raise error.ResolutionError("No address information found for requests to %r" % host)
-        return UDP6EndpointAddress(addrinfo[0][-1], self)
+
+        ## @TODO this is very rudimentary; happy-eyeballs or
+        # similar could be employed.
+
+        sockaddr = addrinfo[0][-1]
+
+        ip, port, flowinfo, scopeid = sockaddr
+
+        if zone is not None:
+            # Still trying to preserve the information returned (libc can't do
+            # it as described at
+            # <https://unix.stackexchange.com/questions/174767/ipv6-zone-id-in-etc-hosts>)
+            # in case something sane does come out of that.
+            if scopeid != 0 and scopeid != zone:
+                self.log.warning("Resolved address of %s came with zone ID %d whereas explicit ID %d takes precedence"  % (host, scopeid, zone))
+            scopeid = zone
+
+        # We could be done here and return UDP6EndpointAddress(the reassembled
+        # sockaddr, self), but:
+        #
+        # Linux (unlike FreeBSD) takes the sockaddr's scope ID only for
+        # link-local scopes (as per ipv6(7), and discards it otherwise. It does
+        # need the information of the selected interface, though, in order to
+        # pick the right outgoing interface. Thus, we provide it in the local
+        # portion.
+
+        if scopeid:
+            # "Any" does not include "even be it IPv4" -- the underlying family
+            # unfortunately needs to be set, or Linux will refuse to send.
+            if ipaddress.IPv6Address(ip).ipv4_mapped is None:
+                local_source = _ipv6_unspecified
+            else:
+                local_source = _ipv4_unspecified
+            local = InterfaceOnlyPktinfo(_in6_pktinfo.pack(local_source, scopeid))
+        else:
+            local = None
+
+        sockaddr = ip, port, flowinfo, scopeid
+        return UDP6EndpointAddress(sockaddr, self, pktinfo=local)
 
     #
     # implementing the typical DatagramProtocol interfaces.

@@ -205,7 +205,7 @@ class Context(interfaces.RequestProvider):
         return self
 
     @classmethod
-    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None):
+    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicast=[]):
         """Create a context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -214,6 +214,16 @@ class Context(interfaces.RequestProvider):
 
         The ``bind`` argument, if given, needs to be a 2-tuple of IP address
         string and port number, where the port number can be None to use the default port.
+
+        If ``multicast`` is given, it needs to be a list of (multicast address,
+        interface name) tuples, which will all be joined. (The IPv4 style of
+        selecting the interface by a local address is not supported; users may
+        want to use the netifaces package to arrive at an interface name for an
+        address).
+
+        As a shortcut, the list may also contain interface names alone. Those
+        will be joined for the 'all CoAP nodes' groups of IPv4 and IPv6 (with
+        scopes 2 and 5).
         """
 
         if loop is None:
@@ -221,12 +231,15 @@ class Context(interfaces.RequestProvider):
 
         self = cls(loop=loop, serversite=site, loggername=loggername)
 
+        multicast_done = not multicast
+
         for transportname in defaults.get_default_servertransports(loop=loop):
             if transportname == 'udp6':
                 from .transports.udp6 import MessageInterfaceUDP6
 
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, bind=bind))
+                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, bind=bind, multicast=multicast))
+                multicast_done = True
             # FIXME this is duplicated from the client version, as those are client-only anyway
             elif transportname == 'simple6':
                 from .transports.simple6 import MessageInterfaceSimple6
@@ -265,6 +278,9 @@ class Context(interfaces.RequestProvider):
                 self.request_interfaces.append(oscoretransport)
             else:
                 raise RuntimeError("Transport %r not know for server context creation"%transportname)
+
+        if not multicast_done:
+            self.log.warning("Multicast was requested, but no multicast capable transport was selected.")
 
         return self
 
