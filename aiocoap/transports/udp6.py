@@ -55,10 +55,24 @@ from ..util.asyncio.recvmsg import RecvmsgDatagramProtocol, create_recvmsg_datag
 from ..util import hostportjoin, hostportsplit
 from ..util import socknumbers
 
+"""The `struct in6_pktinfo` from RFC3542"""
+_in6_pktinfo = struct.Struct("16sI")
+
+class InterfaceOnlyPktinfo(bytes):
+    """A thin wrapper over bytes that represent a pktinfo built just to select
+    an outgoing interface.
+
+    This must not be treated any different than a regular pktinfo, and is just
+    tagged for better debug output. (Ie. if this is replaced everywhere with
+    plain `bytes`, things must still work)."""
+
 class UDP6EndpointAddress(interfaces.EndpointAddress):
     """Remote address type for :cls:`MessageInterfaceUDP6`. Remote address is
     stored in form of a socket address; local address can be roundtripped by
     opaque pktinfo data.
+
+    For purposes of equality (and thus hashing), the local address is *not*
+    checked. Neither is the scopeid that is part of the socket address.
 
     >>> interface = type("FakeMessageInterface", (), {})
     >>> local = UDP6EndpointAddress(socket.getaddrinfo('127.0.0.1', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1], interface)
@@ -86,13 +100,13 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
     interface = property(lambda self: self._interface())
 
     def __hash__(self):
-        return hash(self.sockaddr)
+        return hash(self.sockaddr[:-1])
 
     def __eq__(self, other):
-        return self.sockaddr == other.sockaddr
+        return self.sockaddr[:-1] == other.sockaddr[:-1]
 
     def __repr__(self):
-        return "<%s %s%s>"%(type(self).__name__, self.hostinfo, " with local address" if self.pktinfo is not None else "")
+        return "<%s %s%s>"%(type(self).__name__, self.hostinfo, " with zone identifier" if isinstance(self.pktinfo, InterfaceOnlyPktinfo) else " with local address" if self.pktinfo is not None else "")
 
     @staticmethod
     def _strip_v4mapped(address):
@@ -119,7 +133,7 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         """Like _plainaddress, but on the address in the pktinfo. Unlike
         _plainaddress, this does not contain the interface identifier."""
 
-        addr, interface = struct.Struct("16sI").unpack_from(self.pktinfo)
+        addr, interface = _in6_pktinfo.unpack_from(self.pktinfo)
 
         return self._strip_v4mapped(socket.inet_ntop(socket.AF_INET6, addr))
 
@@ -298,9 +312,6 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         if request.requested_scheme not in ('coap', None):
             return None
 
-        ## @TODO this is very rudimentary; happy-eyeballs or
-        # similar could be employed.
-
         if request.unresolved_remote is not None:
             host, port = hostportsplit(request.unresolved_remote)
             port = port or COAP_PORT
@@ -309,6 +320,20 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             port = request.opt.uri_port or COAP_PORT
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
+
+        # Take aside the zone identifier. While it can pass through getaddrinfo
+        # in some situations (eg. 'fe80::1234%eth0' will give 'fe80::1234'
+        # scope eth0, and similar for ff02:: addresses), in others (eg. ff05::)
+        # it gives 'Name or service not known'.
+
+        if '%' in host:
+            host, zone = host.split('%', 1)
+            try:
+                zone = socket.if_nametoindex(zone)
+            except OSError:
+                raise error.ResolutionError("Invalid zone identifier %s" % zone)
+        else:
+            zone = None
 
         try:
             own_sock = self.transport.get_extra_info('socket')
@@ -325,7 +350,39 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                 )
         except socket.gaierror:
             raise error.ResolutionError("No address information found for requests to %r" % host)
-        return UDP6EndpointAddress(addrinfo[0][-1], self)
+
+        ## @TODO this is very rudimentary; happy-eyeballs or
+        # similar could be employed.
+
+        sockaddr = addrinfo[0][-1]
+
+        ip, port, flowinfo, scopeid = sockaddr
+
+        if zone is not None:
+            # Still trying to preserve the information returned (libc can't do
+            # it as described at
+            # <https://unix.stackexchange.com/questions/174767/ipv6-zone-id-in-etc-hosts>)
+            # in case something sane does come out of that.
+            if scopeid != 0 and scopeid != zone:
+                self.log.warning("Resolved address of %s came with zone ID %d whereas explicit ID %d takes precedence"  % (host, scopeid, zone))
+            scopeid = zone
+
+        # We could be done here and return UDP6EndpointAddress(the reassembled
+        # sockaddr, self), but:
+        #
+        # Linux (unlike FreeBSD) takes the sockaddr's scope ID only for
+        # link-local scopes (as per ipv6(7), and discards it otherwise. It does
+        # need the information of the selected interface, though, in order to
+        # pick the right outgoing interface. Thus, we provide it in the local
+        # portion.
+
+        if scopeid:
+            local = InterfaceOnlyPktinfo(_in6_pktinfo.pack(socket.inet_pton(socket.AF_INET6, '::'), scopeid))
+        else:
+            local = None
+
+        sockaddr = ip, port, flowinfo, scopeid
+        return UDP6EndpointAddress(sockaddr, self, pktinfo=local)
 
     #
     # implementing the typical DatagramProtocol interfaces.
