@@ -110,9 +110,16 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
 
     @staticmethod
     def _strip_v4mapped(address):
-        if address.startswith('::ffff:') and '.' in address:
-            return address[7:]
-        return address
+        """Turn anything that's a valid input to ipaddress.IPv6Address into a
+        user-friendly string that's either an IPv6 or an IPv4 address.
+
+        This also compresses (normalizes) the IPv6 address as a convenient side
+        effect."""
+        address = ipaddress.IPv6Address(address)
+        mapped = address.ipv4_mapped
+        if mapped is not None:
+            return str(mapped)
+        return str(address)
 
     def _plainaddress(self):
         """Return the IP adress part of the sockaddr in IPv4 notation if it is
@@ -135,7 +142,7 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
 
         addr, interface = _in6_pktinfo.unpack_from(self.pktinfo)
 
-        return self._strip_v4mapped(socket.inet_ntop(socket.AF_INET6, addr))
+        return self._strip_v4mapped(addr)
 
     @property
     def hostinfo(self):
