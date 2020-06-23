@@ -78,11 +78,17 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
     checked. Neither is the scopeid that is part of the socket address.
 
     >>> interface = type("FakeMessageInterface", (), {})
+    >>> if1_name = socket.if_indextoname(1)
     >>> local = UDP6EndpointAddress(socket.getaddrinfo('127.0.0.1', 5683, type=socket.SOCK_DGRAM, family=socket.AF_INET6, flags=socket.AI_V4MAPPED)[0][-1], interface)
     >>> local.is_multicast
     False
     >>> local.hostinfo
     '127.0.0.1'
+    >>> all_coap_link1 = UDP6EndpointAddress(socket.getaddrinfo('ff02:0:0:0:0:0:0:fd%1', 1234, type=socket.SOCK_DGRAM, family=socket.AF_INET6)[0][-1], interface)
+    >>> all_coap_link1.is_multicast
+    True
+    >>> all_coap_link1.hostinfo == '[ff02::fd%{}]:1234'.format(if1_name)
+    True
     >>> all_coap_site = UDP6EndpointAddress(socket.getaddrinfo('ff05:0:0:0:0:0:0:fd', 1234, type=socket.SOCK_DGRAM, family=socket.AF_INET6)[0][-1], interface)
     >>> all_coap_site.is_multicast
     True
@@ -146,6 +152,14 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         addr, interface = _in6_pktinfo.unpack_from(self.pktinfo)
 
         return self._strip_v4mapped(addr)
+
+    @property
+    def netif(self):
+        """Textual interface identifier of the explicitly configured remote
+        interface, or the interface identifier reported in an incoming
+        link-local message. None if not set."""
+        index = self.sockaddr[3]
+        return socket.if_indextoname(index) if index else None
 
     @property
     def hostinfo(self):
