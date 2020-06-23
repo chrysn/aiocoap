@@ -58,6 +58,9 @@ from ..util import socknumbers
 """The `struct in6_pktinfo` from RFC3542"""
 _in6_pktinfo = struct.Struct("16sI")
 
+_ipv6_unspecified = socket.inet_pton(socket.AF_INET6, '::')
+_ipv4_unspecified = socket.inet_pton(socket.AF_INET6, '::ffff:0.0.0.0')
+
 class InterfaceOnlyPktinfo(bytes):
     """A thin wrapper over bytes that represent a pktinfo built just to select
     an outgoing interface.
@@ -384,7 +387,13 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # portion.
 
         if scopeid:
-            local = InterfaceOnlyPktinfo(_in6_pktinfo.pack(socket.inet_pton(socket.AF_INET6, '::'), scopeid))
+            # "Any" does not include "even be it IPv4" -- the underlying family
+            # unfortunately needs to be set, or Linux will refuse to send.
+            if ipaddress.IPv6Address(ip).ipv4_mapped is None:
+                local_source = _ipv6_unspecified
+            else:
+                local_source = _ipv4_unspecified
+            local = InterfaceOnlyPktinfo(_in6_pktinfo.pack(local_source, scopeid))
         else:
             local = None
 
