@@ -230,7 +230,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         return self.transport.get_extra_info('socket').getsockname()[1]
 
     @classmethod
-    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=False):
+    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=[]):
         try:
             sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVPKTINFO, 1)
         except NameError:
@@ -243,24 +243,35 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         else:
             log.warning("Transport udp6 set up on platform without RECVERR capability. ICMP errors will be ignored.")
 
-        if multicast:
-            # FIXME this all registers only for one interface, doesn't it?
-            s = struct.pack('4s4si',
-                    socket.inet_aton(constants.MCAST_IPV4_ALLCOAPNODES),
-                    socket.inet_aton("0.0.0.0"), 0)
-            try:
-                sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s)
-            except OSError:
-                log.warning("Could not join IPv4 multicast group; possibly, there is no network connection available.")
-            for a in constants.MCAST_IPV6_ALL:
+        for (address, interface) in sum(map(
+                    # Expand shortcut of "interface name means default CoAP all-nodes addresses"
+                    lambda i: [(a, i) for a in constants.MCAST_ALL] if isinstance(i, str) else [i],
+                    multicast
+                ), []):
+            address = ipaddress.ip_address(address)
+            interface = socket.if_nametoindex(interface)
+
+            if isinstance(address, ipaddress.IPv4Address):
+                s = struct.pack('4s4si',
+                        address.packed,
+                        socket.inet_aton("0.0.0.0"), interface)
+                try:
+                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s)
+                except OSError:
+                    log.warning("Could not join IPv4 multicast group")
+
+            elif isinstance(address, ipaddress.IPv6Address):
                 s = struct.pack('16si',
-                        socket.inet_pton(socket.AF_INET6, a),
-                        0)
+                        address.packed,
+                        interface)
                 try:
                     sock.setsockopt(socket.IPPROTO_IPV6,
                             socket.IPV6_JOIN_GROUP, s)
                 except OSError:
-                    log.warning("Could not join IPv6 multicast group; possibly, there is no network connection available.")
+                    log.warning("Could not join IPv6 multicast group")
+
+            else:
+                raise RuntimeError("Unknown address format")
 
         transport, protocol = await create_recvmsg_datagram_endpoint(loop,
                 lambda: cls(ctx, log=log, loop=loop),
@@ -275,10 +286,10 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
-        return await cls._create_transport_endpoint(sock, ctx, log, loop, multicast=False)
+        return await cls._create_transport_endpoint(sock, ctx, log, loop)
 
     @classmethod
-    async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, bind):
+    async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, bind, multicast):
         bind = bind or ('::', None)
         bind = (bind[0], bind[1] or COAP_PORT)
 
@@ -310,7 +321,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
         sock.bind(bind)
 
-        return (await cls._create_transport_endpoint(sock, ctx, log, loop, multicast=True))
+        return (await cls._create_transport_endpoint(sock, ctx, log, loop, multicast))
 
     async def shutdown(self):
         self._shutting_down = asyncio.Future()
