@@ -29,6 +29,15 @@ This transport is experimental, likely to change, and not fully tested yet
 (because the test suite is not yet ready to matrix-test the same tests with
 different transport implementations, and because it still fails in proxy
 blockwise tests).
+
+For one particular use case, this may be usable for servers in a sense: If (and
+only if) all incoming requests are only ever sent from clients that were
+previously addressed as servers by the running instance. (This is generally
+undesirable as it greatly limits the usefulness of the server, but is used in
+LwM2M setups). As such a setup makes demands on the peer that are not justified
+by the CoAP specification (in particular, that it send requests from a
+particular port), this should still only be used for cases where the udp6
+transport is unavailable due to platform limitations.
 """
 
 import asyncio
@@ -81,8 +90,19 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
 
     @property
     def hostinfo_local(self):
-        # FIXME: make it available *if* it can be obtained
-        raise RuntimeError("Simple6 can not access local host info")
+        # This can only be done on a best-effort base here. Unlike the below
+        # hostinfo (see comments there), there is no easy way around this, so
+        # if there are still implementations out that don't do the extras,
+        # that's it and the calling site should reconsider whether they need
+        # something that can not be determined. (Some more effort could go into
+        # falling back to get_extra_info('socket').getsockname(), but that
+        # should really be fixed in the transport provider).
+        if not hasattr(self, '_transport'):
+            raise RuntimeError("Simple6 does not have defined local host info in current stage %s" % self._stage)
+        sockname = self._transport.get_extra_info('sockname')
+        if sockname is None:
+            raise RuntimeError("Simple6 can not determine local address from the underlying UDP implementation")
+        return hostportjoin(*sockname[:2])
     uri_base_local = property(lambda self: 'coap://' + self.hostinfo_local)
 
 # fully disabled because some implementations of asyncio don't make the
