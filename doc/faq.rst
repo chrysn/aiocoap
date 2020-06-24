@@ -4,6 +4,32 @@ Frequently Answered Questions
 (Not *actually* asked frequently -- actually, this is a bunch of notes that users of the library should probably see at some point,
 while it is not clear where to better put them).
 
+* **Which platforms are supported?**
+
+  aiocoap requires Python 3.5.2 (with 3.5 being phased out; 3.7 is the next targeted version)
+  as well as recent versions of PyPy,
+  and should run on all operating systems supported by Python.
+
+  Development and automated tests run on Linux, and this is where all listed features are supported.
+
+  aiocoap generally runs on FreeBSD, Windows and macOS as well.
+  Tests on FreeBSD are conducted manually;
+  for Windows and macOS it's all largely relying on user feedback
+  tracked in the `bug tracker for portability issues <https://github.com/chrysn/aiocoap/labels/platform%20support>`_.
+
+  Note that the main CoAP-over-UDP transport :mod:`udp6<aiocoap.transports.udp6>` is only on-by-default on Linux
+  because other platforms have no way of receiving network errors from an unconnected socket.
+  The simpler UDP transports used on the other platforms do not support all features,
+  and in particular lack multicast support.
+
+  aiocoap is agnostic of the backing asyncio implementation
+  as long as it implements the functionality required by the transport
+  (``add_reader`` for udp6, ``sockname`` extra for role reversal on simple6).
+  It is known to work with uvloop_ and gbulb_.
+
+.. _uvloop: https://uvloop.readthedocs.io/
+.. _gbulb: https://github.com/nathan-hoad/gbulb
+
 * **How can a server be scaled up to use multiple cores?**
 
   Python is often considered weak around threading.

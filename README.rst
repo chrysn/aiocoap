@@ -70,25 +70,16 @@ Basic aiocoap works out of the box on Python_ 3.5.2 or newer (also works on
 PyPy3_). For full support (DTLS, OSCORE and link-format handling) follow the
 installation_ instructions as these require additional libraries.
 
-aiocoap provides different network backends for different platforms. The
-udp6_ module is most full-featured, but ties into the default asyncio loop
-and requires full POSIX network interfaces only available on Linux and possibly
-some BSDs. On Windows and macOS, more constrained server_ and client_
-transports with some caveats of their own are used; for more details, see the
-currently open `platform issues`_. Alternative main loops like uvloop_ or
-gbulb_ can be used without restriction.
+aiocoap provides different network backends for different platforms. The most
+featureful backend is available for Linux, but most operations work on BSDs,
+Windows and macOS as well. See the FAQ_ for more details.
 
 If your library depends on aiocoap, it should pick the required extras (as per
 installation_) and declare a dependency like ``aiocoap[linkheader,oscore] >= 0.4b2``.
 
 .. _Python: https://www.python.org/
 .. _PyPy3: http://pypy.org/
-.. _udp6: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.udp6.html
-.. _uvloop: https://uvloop.readthedocs.io/
-.. _gbulb: https://github.com/nathan-hoad/gbulb
-.. _`platform issues`: https://github.com/chrysn/aiocoap/issues?q=is%3Aissue+is%3Aopen+label%3A%22platform+support%22
-.. _server: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.simplesocketserver.html
-.. _client: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.transports.simple6.html
+.. _FAQ: http://aiocoap.readthedocs.io/en/latest/faq.html
 
 Development
 -----------
