@@ -30,7 +30,7 @@ from cryptography.hazmat.primitives.ciphers import aead
 import cryptography.exceptions
 
 import hkdf
-import cbor
+import cbor2 as cbor
 
 import filelock
 

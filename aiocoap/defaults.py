@@ -141,9 +141,9 @@ def oscore_missing_modules():
     false value if everything is present"""
     missing = []
     try:
-        import cbor # noqa: F401
+        import cbor2 # noqa: F401
     except ImportError:
-        missing.append('cbor')
+        missing.append('cbor2')
     try:
         import hkdf # noqa: F401
     except ImportError:
@@ -181,9 +181,9 @@ def prettyprint_missing_modules():
     except ImportError:
         missing.append('LinkHeader')
     try:
-        import cbor
+        import cbor2
     except ImportError:
-        missing.append('cbor')
+        missing.append('cbor2')
     try:
         import termcolor
     except ImportError:

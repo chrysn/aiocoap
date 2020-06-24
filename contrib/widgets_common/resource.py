@@ -6,7 +6,7 @@ import inspect
 import abc
 
 import json
-import cbor
+import cbor2 as cbor
 
 from aiocoap import resource, numbers, interfaces
 from aiocoap import GET, PUT, POST, Message, CONTENT, CHANGED

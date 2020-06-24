@@ -240,7 +240,7 @@ async def single_request(args, context=None):
         else:
             if aiocoap.numbers.media_types.get(request.opt.content_format, "").startswith("application/cbor"):
                 try:
-                    import cbor
+                    import cbor2 as cbor
                 except ImportError as e:
                     raise parser.error("CBOR recoding not available (%s)" % e)
                 import json

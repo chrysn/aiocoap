@@ -37,7 +37,7 @@ class LinkFormat(link_header.LinkHeader):
         return ','.join(str(link) for link in self.links)
 
     def as_cbor_bytes(self):
-        import cbor
+        import cbor2 as cbor
 
         return cbor.dumps([l.as_cbor_data() for l in self.links])
 
@@ -60,7 +60,7 @@ class LinkFormat(link_header.LinkHeader):
 
     @classmethod
     def from_cbor_bytes(cls, encoded):
-        import cbor
+        import cbor2 as cbor
 
         try:
             # FIXME: don't silently accept trailing bytes

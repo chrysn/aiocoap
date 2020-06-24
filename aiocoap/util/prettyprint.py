@@ -13,7 +13,7 @@ import sys
 import pprint
 import re
 
-import cbor
+import cbor2 as cbor
 import pygments, pygments.lexers, pygments.formatters
 
 from aiocoap.numbers import media_types

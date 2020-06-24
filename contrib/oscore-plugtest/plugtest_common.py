@@ -4,7 +4,7 @@ from pathlib import Path
 # When Python 3.5 support is dropped (and PyPy has evolved beyond that
 # point), .as_posix() can be dropped
 
-import cbor
+import cbor2 as cbor
 
 from aiocoap import oscore
 
