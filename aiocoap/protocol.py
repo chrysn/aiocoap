@@ -223,7 +223,7 @@ class Context(interfaces.RequestProvider):
 
         As a shortcut, the list may also contain interface names alone. Those
         will be joined for the 'all CoAP nodes' groups of IPv4 and IPv6 (with
-        scopes 2 and 5).
+        scopes 2 and 5) as well as the respective 'all nodes' groups in IPv6.
         """
 
         if loop is None:
