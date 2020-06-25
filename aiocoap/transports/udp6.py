@@ -115,7 +115,7 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         return self.sockaddr[:-1] == other.sockaddr[:-1]
 
     def __repr__(self):
-        return "<%s %s%s>"%(type(self).__name__, self.hostinfo, " with zone identifier" if isinstance(self.pktinfo, InterfaceOnlyPktinfo) else " with local address" if self.pktinfo is not None else "")
+        return "<%s %s%s>"%(type(self).__name__, self.hostinfo, " (locally %s)" % self._repr_pktinfo() if self.pktinfo is not None else "")
 
     @staticmethod
     def _strip_v4mapped(address):
@@ -144,6 +144,19 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
             # in the IP literal (3.7 consistently expresses it in the tuple slot 3)
             scopepart = ""
         return self._strip_v4mapped(self.sockaddr[0]) + scopepart
+
+    def _repr_pktinfo(self):
+        """What repr(self.pktinfo) would be if that were not a plain untyped bytestring"""
+        addr, interface = _in6_pktinfo.unpack_from(self.pktinfo)
+        if interface == 0:
+            interface = ""
+        else:
+            try:
+                interface = "%" + socket.if_indextoname(interface)
+            except Exception as e:
+                interface = "%%%d(%s)" % (interface, e)
+
+        return "%s%s" % (self._strip_v4mapped(addr), interface)
 
     def _plainaddress_local(self):
         """Like _plainaddress, but on the address in the pktinfo. Unlike
