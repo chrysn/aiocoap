@@ -473,7 +473,9 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         for cmsg_level, cmsg_type, cmsg_data in ancdata:
             assert cmsg_level == socket.IPPROTO_IPV6
             if cmsg_type == socknumbers.IPV6_RECVERR:
-                errno = SockExtendedErr.load(cmsg_data).ee_errno
+                extended_err = SockExtendedErr.load(cmsg_data)
+                self.log.debug("Socket error recevied, details: %s", extended_err);
+                errno = extended_err.ee_errno
             elif cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == socknumbers.IPV6_PKTINFO:
                 pktinfo = cmsg_data
             else:
