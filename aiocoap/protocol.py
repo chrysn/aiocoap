@@ -369,7 +369,18 @@ class Context(interfaces.RequestProvider):
         except error.RenderableError as e:
             # the repr() here is quite imporant for garbage collection
             self.log.info("Render request raised a renderable error (%s), responding accordingly.", repr(e))
-            plumbing_request.add_response(e.to_message(), is_last=True)
+            try:
+                msg = e.to_message()
+                if msg is None:
+                    # This deserves a separate check because the ABC checks
+                    # that should ensure that the default to_message method is
+                    # never used in concrete classes fails due to the metaclass
+                    # conflict between ABC and Exceptions
+                    raise ValueError("Exception to_message failed to produce a message on %r" % e)
+            except Exception as e2:
+                self.log.error("Rending the renderable message failed: %r", e2, exc_info=e2)
+                msg = Message(code=INTERNAL_SERVER_ERROR)
+            plumbing_request.add_response(msg, is_last=True)
         except asyncio.CancelledError:
             self.log.info("Rendering was interrupted, informing client")
             plumbing_request.add_response(Message(code=SERVICE_UNAVAILABLE), is_last=True)
