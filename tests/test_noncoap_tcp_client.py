@@ -24,8 +24,7 @@ class TestNoncoapTCPClient(WithTestServer):
         self.mock_r, self.mock_w = self.loop.run_until_complete(
                 asyncio.open_connection(
                     self.serveraddress,
-                    aiocoap.COAP_PORT,
-                    loop=self.loop))
+                    aiocoap.COAP_PORT))
 
     def tearDown(self):
         self.mock_w.close()

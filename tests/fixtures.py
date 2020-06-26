@@ -49,7 +49,7 @@ def asynctest(method):
                 method(self, *args, **kwargs),
                 loop=self.loop
             )
-        for f in asyncio.as_completed([task], loop=self.loop,
+        for f in asyncio.as_completed([task],
                 timeout=ASYNCTEST_TIMEOUT):
             try:
                 return self.loop.run_until_complete(f)
