@@ -158,6 +158,10 @@ def oscore_missing_modules():
             AESCCM(b"x" * 16, 8)
         except (cryptography.exceptions.UnsupportedAlgorithm, ImportError):
             missing.append('a version of OpenSSL that supports AES-CCM')
+    try:
+        import filelock # noqa: F401
+    except ImportError:
+        missing.append('filelock')
 
     return missing
 
