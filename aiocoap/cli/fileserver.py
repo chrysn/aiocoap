@@ -28,18 +28,18 @@ from aiocoap.cli.common import (add_server_arguments,
     server_context_from_arguments, extract_server_arguments)
 from aiocoap.resourcedirectory.client.register import Registerer
 
-class InvalidPathError(error.RenderableError):
+class InvalidPathError(error.ConstructionRenderableError):
     code = codes.BAD_REQUEST
 
-class TrailingSlashMissingError(error.RenderableError):
+class TrailingSlashMissingError(error.ConstructionRenderableError):
     code = codes.BAD_REQUEST
     message = "Error: Not a file (add trailing slash)"
 
-class AbundantTrailingSlashError(error.RenderableError):
+class AbundantTrailingSlashError(error.ConstructionRenderableError):
     code = codes.BAD_REQUEST
     message = "Error: Not a directory (strip the trailing slash)"
 
-class NoSuchFile(error.NoResource): # just for the better error msg
+class NoSuchFile(error.NotFound): # just for the better error msg
     message = "Error: File not found!"
 
 class FileServer(Resource, aiocoap.interfaces.ObservableResource):
