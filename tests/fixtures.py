@@ -116,6 +116,16 @@ class WithLogMonitoring(unittest.TestCase):
             self.list = []
 
         def emit(self, record):
+            if record.args:
+                # Resolving this early to ensure that nothing in here offends _del_to_be_sure
+                # (This *is* the behavior of regular handlers -- we're just not
+                # formatting it all the way down yet to retain the ability to
+                # use assertWarned etc)
+                record.msg = record.msg % record.args
+                record.args = None
+            if record.exc_info:
+                # Leaving this around would certainly result in failure in _del_to_be_sure
+                record.exc_info = None
             self.list.append(record)
 
         def __iter__(self):
