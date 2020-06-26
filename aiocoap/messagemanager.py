@@ -77,7 +77,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         """Feed a message through the message-id, message-type and message-code
         sublayers of CoAP"""
 
-        self.log.debug("Incoming message %r" % message)
+        self.log.debug("Incoming message %r", message)
         if self._deduplicate_message(message) is True:
             return
 
@@ -106,7 +106,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                     rst.remote = message.remote.as_response_address()
                     self._send_initially(rst)
         else:
-            self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it."%(message.code, message.mtype, message.remote))
+            self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it.", message.code, message.mtype, message.remote)
 
     def dispatch_error(self, errno, remote):
         self.log.debug("Incoming error %s from %r", errno, remote)
@@ -186,7 +186,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         next_retransmission = self._schedule_retransmit(message, timeout, 0)
         self._active_exchanges[key] = (exchange_monitor, next_retransmission)
 
-        self.log.debug("Exchange added, message ID: %d." % message.mid)
+        self.log.debug("Exchange added, message ID: %d.", message.mid)
 
     def _remove_exchange(self, message):
         """Remove exchange from active exchanges and cancel the timeout to next
@@ -204,7 +204,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                 exchange_monitor.rst()
             else:
                 exchange_monitor.response(message)
-        self.log.debug("Exchange removed, message ID: %d." % message.mid)
+        self.log.debug("Exchange removed, message ID: %d.", message.mid)
 
         self._continue_backlog(message.remote)
 
@@ -257,7 +257,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         next_retransmission.cancel()
 
         if retransmission_counter < MAX_RETRANSMIT:
-            self.log.info("Retransmission, Message ID: %d." % message.mid)
+            self.log.info("Retransmission, Message ID: %d.", message.mid)
             self._send_via_transport(message)
             retransmission_counter += 1
             timeout *= 2
@@ -277,7 +277,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     #
 
     def _process_ping(self, message):
-        self.log.info('Received CoAP Ping from %s, replying with RST.'%(message.remote,))
+        self.log.info('Received CoAP Ping from %s, replying with RST.', message.remote)
         rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b'')
         rst.remote = message.remote.as_response_address()
         # not going via send_message because that would strip the mid, and we
@@ -315,7 +315,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         depending on mtype), and False if it was not expected (and should be
         RST'd)."""
 
-        self.log.debug("Received Response: %r" % response)
+        self.log.debug("Received Response: %r", response)
 
         return self.token_manager.process_response(response)
 
@@ -398,7 +398,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             message.mid = self._next_message_id()
 
         if message.mtype == CON and message.remote in self._backlogs:
-            self.log.debug("Message to %s put into backlog"%(message.remote,))
+            self.log.debug("Message to %s put into backlog", message.remote)
             if exchange_monitor is not None:
                 exchange_monitor.enqueued()
             self._backlogs[message.remote].append((message, exchange_monitor))
@@ -408,7 +408,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     def _send_initially(self, message, exchange_monitor=None):
         """Put the message on the wire for the first time, starting retransmission timeouts"""
 
-        self.log.debug("Sending message %r" % message)
+        self.log.debug("Sending message %r", message)
 
         if message.mtype is CON:
             self._add_exchange(message, exchange_monitor)
@@ -438,7 +438,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         last block1 has been transferred and the first block2 is not ready
         yet."""
 
-        self.log.debug("Sending empty ACK: %s" % reason)
+        self.log.debug("Sending empty ACK: %s", reason)
         ack = Message(
                 mtype=ACK,
                 code=EMPTY,

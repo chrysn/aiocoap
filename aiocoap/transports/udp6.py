@@ -415,7 +415,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             # <https://unix.stackexchange.com/questions/174767/ipv6-zone-id-in-etc-hosts>)
             # in case something sane does come out of that.
             if scopeid != 0 and scopeid != zone:
-                self.log.warning("Resolved address of %s came with zone ID %d whereas explicit ID %d takes precedence"  % (host, scopeid, zone))
+                self.log.warning("Resolved address of %s came with zone ID %d whereas explicit ID %d takes precedence", host, scopeid, zone)
             scopeid = zone
 
         # We could be done here and return UDP6EndpointAddress(the reassembled
@@ -464,7 +464,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         try:
             message = Message.decode(data, UDP6EndpointAddress(address, self, pktinfo=pktinfo))
         except error.UnparsableMessage:
-            self.log.warning("Ignoring unparsable message from %s"%(address,))
+            self.log.warning("Ignoring unparsable message from %s", address)
             return
 
         self._ctx.dispatch_message(message)
@@ -495,13 +495,13 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
     def error_received(self, exc):
         """Implementation of the DatagramProtocol interface, called by the transport."""
         # TODO: what can we do about errors we *only* receive here? (eg. sending to 127.0.0.0)
-        self.log.error("Error received and ignored in this codepath: %s"%exc)
+        self.log.error("Error received and ignored in this codepath: %s", exc)
 
     def connection_lost(self, exc):
         # TODO better error handling -- find out what can cause this at all
         # except for a shutdown
         if exc is not None:
-            self.log.error("Connection lost: %s"%exc)
+            self.log.error("Connection lost: %s", exc)
 
         if self._shutting_down is None:
             self.log.error("Connection loss was not expected.")

@@ -383,7 +383,7 @@ class ProtectedSite(resource.Site):
             response = err.to_message()
         except Exception as err:
             response = aiocoap.Message(code=aiocoap.INTERNAL_SERVER_ERROR)
-            self.log.error("An exception occurred while rendering a protected resource: %r"%err, exc_info=err)
+            self.log.error("An exception occurred while rendering a protected resource: %r", err, exc_info=err)
 
         if unprotected.opt.observe is not None and oscobs._accepted:
             # value won't be transmitted anyway, but protecter needs to know

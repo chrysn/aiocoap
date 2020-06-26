@@ -237,7 +237,7 @@ class Destructing(WithLogMonitoring):
                     gc.collect()
                     s = snapshot()
                     if s is None:
-                        logging.root.info("Survivor vanished after %r iterations" % i+1)
+                        logging.root.info("Survivor vanished after %r iterations", i + 1)
                         break
                 snapshotsmessage = "Before extended grace period:\n" + original_s + "\n\nAfter extended grace period:\n" + ("the same" if s == original_s else s)
             else:

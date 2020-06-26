@@ -226,7 +226,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         try:
             message = Message.decode(data, self)
         except error.UnparsableMessage:
-            self.log.warning("Ignoring unparsable message from %s"%(sender,))
+            self.log.warning("Ignoring unparsable message from %s", sender)
             return len(data)
 
         self.coaptransport.ctx.dispatch_message(message)

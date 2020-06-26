@@ -953,7 +953,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             try:
                 assembled_response._append_response_block(last_response)
             except error.Error as e:
-                log.error("Error assembling blockwise response, passing on error %r"%e)
+                log.error("Error assembling blockwise response, passing on error %r", e)
                 raise
 
             if block2.more is False:

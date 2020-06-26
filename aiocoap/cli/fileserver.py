@@ -73,7 +73,7 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
                     new_stat = False
                 relevant = lambda s: (s.st_ino, s.st_dev, s.st_size, s.st_mtime, s.st_ctime)
                 if relevant(new_stat) != relevant(last_stat):
-                    self.log.info("New stat for %s"%path)
+                    self.log.info("New stat for %s", path)
                     data[0] = new_stat
                     for cb in callbacks: cb()
 
@@ -110,7 +110,7 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         if request.opt.uri_path and request.opt.uri_path[-1] != '':
             raise TrailingSlashMissingError()
 
-        self.log.info("Serving directory %s"%path)
+        self.log.info("Serving directory %s", path)
 
         response = ""
         for f in path.iterdir():
@@ -125,7 +125,7 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         if request.opt.uri_path and request.opt.uri_path[-1] == '':
             raise AbundantTrailingSlashError()
 
-        self.log.info("Serving file %s"%path)
+        self.log.info("Serving file %s", path)
 
         block_in = request.opt.block2 or aiocoap.optiontypes.BlockOption.BlockwiseTuple(0, 0, 6)
 

@@ -139,7 +139,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                         m.mtype = NON
                     self.token_interface.send_message(m)
                 else:
-                    self.log.error("Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s", ev.exception)
+                    self.log.error("Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s", ev)
                 if ev.is_last:
                     break
             del self.incoming_requests[key]
@@ -204,7 +204,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         # for observations if many short ones are already in-flight
         msg.token = self.next_token()
 
-        self.log.debug("Sending request - Token: %s, Remote: %s" % (msg.token.hex(), msg.remote))
+        self.log.debug("Sending request - Token: %s, Remote: %s", msg.token.hex(), msg.remote)
 
         try:
             send_canceller = self.token_interface.send_message(msg)

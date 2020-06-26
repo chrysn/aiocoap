@@ -38,7 +38,7 @@ class GenericMessageInterface(interfaces.MessageInterface):
         try:
             message = Message.decode(datagram, remote=address)
         except error.UnparsableMessage:
-            self._log.warning("Ignoring unparsable message from %s"%(address,))
+            self._log.warning("Ignoring unparsable message from %s", address)
             return
 
         self._ctx.dispatch_message(message)

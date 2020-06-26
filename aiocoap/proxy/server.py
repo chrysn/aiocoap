@@ -142,7 +142,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
             obs.response.add_done_callback(when_first_request_done)
 
             def cb(incoming_message, obs=obs):
-                self.log.info("Received incoming message %r, relaying it to %d clients"%(incoming_message, len(obs.__users)))
+                self.log.info("Received incoming message %r, relaying it to %d clients", incoming_message, len(obs.__users))
                 obs.__latest_response = incoming_message
                 for observationserver in set(obs.__users):
                     observationserver.trigger(incoming_message.copy())
@@ -154,13 +154,13 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
                     if isinstance(exception, error.RenderableError):
                         code = exception.code
                         payload = exception.message.encode('ascii')
-                    self.log.debug("Received error %r, which did not lead to unregistration of the clients. Actively deregistering them with %s %r."%(exception, code, payload))
+                    self.log.debug("Received error %r, which did not lead to unregistration of the clients. Actively deregistering them with %s %r.", exception, code, payload)
                     for u in list(obs.__users):
                         u.trigger(message.Message(code=code, payload=payload))
                     if obs.__users:
                         self.log.error("Observations survived sending them an error message.")
                 else:
-                    self.log.debug("Received error %r, but that seems to have been passed on cleanly to the observers as they are gone by now."%(exception,))
+                    self.log.debug("Received error %r, but that seems to have been passed on cleanly to the observers as they are gone by now.", exception)
             obs.observation.register_errback(eb)
 
         return obs
@@ -207,13 +207,13 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
             clientobservationrequest = self._peek_observation_for(redirected_request)
         except (KeyError, CanNotRedirect) as e:
             if not isinstance(e, CanNotRedirect) and request.opt.observe is not None:
-                self.log.warning("No matching observation found: request is %r (cache key %r), outgoing observations %r"%(redirected_request, self._cache_key(redirected_request), self._outgoing_observations))
+                self.log.warning("No matching observation found: request is %r (cache key %r), outgoing observations %r", redirected_request, self._cache_key(redirected_request), self._outgoing_observations)
 
                 return message.Message(code=numbers.codes.BAD_OPTION, payload="Observe option can not be proxied without active observation.".encode('utf8'))
             self.log.debug("Request is not an observation or can't be proxied, passing it on to regular proxying mechanisms.")
             return await super(ProxyWithPooledObservations, self).render(request)
         else:
-            self.log.info("Serving request using latest cached response of %r"%clientobservationrequest)
+            self.log.info("Serving request using latest cached response of %r", clientobservationrequest)
             await clientobservationrequest.response
             cached_response = clientobservationrequest.__latest_response
             cached_response.mid = None
