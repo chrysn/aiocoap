@@ -351,7 +351,7 @@ class Context(interfaces.RequestProvider):
         # will receive a result in the finally, so the observation's
         # cancellation callback can just be hooked into that rather than
         # catching CancellationError here
-        cancellation_future = asyncio.Future()
+        cancellation_future = self.loop.create_future()
 
         def cleanup(cancellation_future=cancellation_future):
             if not cancellation_future.done():
@@ -539,7 +539,7 @@ class Context(interfaces.RequestProvider):
             # test_observe.py: A later triggering could have replaced
             # servobs._trigger in the meantime.
             response = servobs._trigger.result()
-            servobs._trigger = asyncio.Future()
+            servobs._trigger = self.loop.create_future()
 
             if response is None:
                 response = await self.serversite.render(request)
@@ -607,7 +607,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
     def __init__(self, plumbing_request, loop, log):
         self._plumbing_request = plumbing_request
 
-        self.response = asyncio.Future()
+        self.response = loop.create_future()
 
         if plumbing_request.request.opt.observe == 0:
             self.observation = ClientObservation()
@@ -721,7 +721,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         self.protocol = protocol
         self.log = self.protocol.log.getChild("blockwise-requester")
 
-        self.response = asyncio.Future()
+        self.response = protocol.loop.create_future()
 
         if app_request.opt.observe is not None:
             self.observation = ClientObservation()
@@ -884,7 +884,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             if obs is None:
                 lower_observation.cancel()
                 return
-            future_weak_observation = asyncio.Future() # packing this up because its destroy callback needs to reference the subtask
+            future_weak_observation = protocol.loop.create_future() # packing this up because its destroy callback needs to reference the subtask
             subtask = asyncio.Task(cls._run_observation(app_request, lower_observation, future_weak_observation, protocol, log))
             future_weak_observation.set_result(weakref.ref(obs, lambda obs: subtask.cancel()))
             obs.on_cancel(subtask.cancel)
@@ -979,17 +979,17 @@ class ClientObservation:
 
     class _Iterator:
         def __init__(self):
-            self._future = asyncio.Future()
+            self._future = asyncio.get_event_loop().create_future()
 
         def push(self, item):
             if self._future.done():
                 # we don't care whether we overwrite anything, this is a lossy queue as observe is lossy
-                self._future = asyncio.Future()
+                self._future = asyncio.get_event_loop().create_future()
             self._future.set_result(item)
 
         def push_err(self, e):
             if self._future.done():
-                self._future = asyncio.Future()
+                self._future = asyncio.get_event_loop().create_future()
             self._future.set_exception(e)
 
         async def __anext__(self):
@@ -1000,7 +1000,7 @@ class ClientObservation:
                 # the original future not yield the first future's result when
                 # a quick second future comes in in a push?
                 if f is self._future:
-                    self._future = asyncio.Future()
+                    self._future = asyncio.get_event_loop().create_future()
                 return result
             except (error.NotObservable, error.ObservationCancelled):
                 # only exit cleanly when the server -- right away or later --
@@ -1088,7 +1088,7 @@ class ClientObservation:
 class ServerObservation:
     def __init__(self):
         self._accepted = False
-        self._trigger = asyncio.Future()
+        self._trigger = asyncio.get_event_loop().create_future()
         # A deregistration is "early" if it happens before the response message
         # is actually sent; calling deregister() in that time (typically during
         # `render()`) will not send an unsuccessful response message but just
@@ -1126,5 +1126,5 @@ class ServerObservation:
             self._late_deregister = True
         if self._trigger.done():
             # we don't care whether we overwrite anything, this is a lossy queue as observe is lossy
-            self._trigger = asyncio.Future()
+            self._trigger = asyncio.get_event_loop().create_future()
         self._trigger.set_result(response)
