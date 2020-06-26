@@ -18,7 +18,10 @@ import argparse
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--expect-all", help="Exit with an error unless all subsystems are available", action='store_true')
+    # Allow passing this in as AIOCOAP_DEFAULTS_EXPECT_ALL=1 via the
+    # environment, as that's easier to set in tox
+    p.add_argument("--expect-all", help="Exit with an error unless all subsystems are available",
+            action='store_true', default=os.environ.get('AIOCOAP_DEFAULTS_EXPECT_ALL') == '1')
     p.add_argument('--version', action='version', version=version)
     args = p.parse_args()
 
