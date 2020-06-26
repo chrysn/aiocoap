@@ -75,6 +75,26 @@ class RootResource(aiocoap.resource.Resource):
     async def render_get(self, request):
         return aiocoap.Message(code=aiocoap.CONTENT, payload=b"Welcome to the test server")
 
+class GenericErrorResource(aiocoap.resource.Resource):
+    async def render_get(self, request):
+        raise RuntimeError()
+
+class PrettyErrorResource(aiocoap.resource.Resource):
+    async def render_get(self, request):
+        raise self.MyError()
+
+    class MyError(aiocoap.error.ConstructionRenderableError):
+        code = aiocoap.NOT_FOUND
+        message = "I'm sorry nothing is here"
+
+class DoubleErrorResource(aiocoap.resource.Resource):
+    async def render_get(self, request):
+        raise self.MyError()
+
+    class MyError(aiocoap.error.RenderableError):
+        def to_message(self):
+            raise RuntimeError()
+
 class TestingSite(aiocoap.resource.Site):
     def __init__(self):
         super(TestingSite, self).__init__()
@@ -97,6 +117,9 @@ class TestingSite(aiocoap.resource.Site):
         self.add_resource(['big'], BigResource())
         self.add_resource(['slowbig'], SlowBigResource())
         self.add_resource(['replacing'], self.Subsite())
+        self.add_resource(['error', 'generic'], GenericErrorResource())
+        self.add_resource(['error', 'pretty'], PrettyErrorResource())
+        self.add_resource(['error', 'double'], DoubleErrorResource())
         self.add_resource([], RootResource())
 
     class Subsite(aiocoap.resource.Site):
@@ -271,6 +294,25 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Replacing resource could not be POSTed to successfully")
         self.assertEqual(response.payload, testpattern.replace(b"0", b"O"), "Replacing resource did not replace as expected when POSTed")
+
+    def test_error_resources(self):
+        request = self.build_request()
+        request.opt.uri_path = ['error', 'generic']
+        response = self.fetch_response(request)
+        self.assertEqual(response.code, aiocoap.INTERNAL_SERVER_ERROR, "Runtime error possibly leaking information")
+        self.assertEqual(response.payload, b'', "Runtime error possibly leaking information")
+
+        request = self.build_request()
+        request.opt.uri_path = ['error', 'pretty']
+        response = self.fetch_response(request)
+        self.assertEqual(response.code, aiocoap.NOT_FOUND, "Runtime error possibly leaking information")
+        self.assertTrue(response.payload.decode('ascii').startswith("I'm sorry"), "Runtime error possibly leaking information")
+
+        request = self.build_request()
+        request.opt.uri_path = ['error', 'double']
+        response = self.fetch_response(request)
+        self.assertEqual(response.code, aiocoap.INTERNAL_SERVER_ERROR, "Runtime double error possibly leaking information")
+        self.assertEqual(response.payload, b'', "Runtime double error possibly leaking information")
 
     @no_warnings
     def test_root_resource(self):
