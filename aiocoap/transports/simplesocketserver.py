@@ -151,7 +151,11 @@ class MessageInterfaceSimpleServer(GenericMessageInterface):
     async def create_server(cls, bind, ctx: interfaces.MessageManager, log, loop):
         self = cls(ctx, log, loop)
         bind = bind or ('::', None)
-        bind = (bind[0], bind[1] or COAP_PORT)
+        # Interpret None as 'default port', but still allow to bind to 0 for
+        # servers that want a random port (eg. when the service URLs are
+        # advertised out-of-band anyway). LwM2M clients should use simple6
+        # instead as outlined there.
+        bind = (bind[0], COAP_PORT if bind[1] is None else bind[1])
 
         self._pool = await _DatagramServerSocketSimple.create(bind, log, self._loop, self._received_datagram, self._received_exception)
 

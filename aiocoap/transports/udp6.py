@@ -304,7 +304,10 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
     @classmethod
     async def create_server_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, bind, multicast):
         bind = bind or ('::', None)
-        bind = (bind[0], bind[1] or COAP_PORT)
+        # Interpret None as 'default port', but still allow to bind to 0 for
+        # servers that want a random port (eg. when the service URLs are
+        # advertised out-of-band anyway, or in LwM2M clients)
+        bind = (bind[0], COAP_PORT if bind[1] is None else bind[1])
 
         # The later bind() does most of what getaddr info usually does
         # (including resolving names), but is missing out subtly: It does not
