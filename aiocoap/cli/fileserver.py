@@ -81,7 +81,8 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         return self.root / "/".join(path)
 
     async def needs_blockwise_assembly(self, request):
-        return False
+        # Yes for directory listings, no for everything else
+        return not request.opt.uri_path or request.opt.uri_path[-1] == ''
 
     async def render_get(self, request):
         if request.opt.uri_path == ('.well-known', 'core'):
