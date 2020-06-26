@@ -47,6 +47,14 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
 
         self._observations = {} # path -> [last_stat, [callbacks]]
 
+    # While we don't have a .well-known/core resource that would need this, we
+    # still allow registration at an RD and thus need something in here.
+    #
+    # As we can't possibly register all files in here, we're just registering a
+    # single link to the index.
+    def get_resources_as_linkheader(self):
+        return '</>;ct=40'
+
     async def check_files_for_refreshes(self):
         while True:
             await asyncio.sleep(10)
@@ -77,7 +85,10 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
 
     async def render_get(self, request):
         if request.opt.uri_path == ('.well-known', 'core'):
-            return aiocoap.Message(payload=b"</>;ct=40", content_format=40)
+            return aiocoap.Message(
+                    payload=str(self.get_resources_as_linkheader()).encode('utf8'),
+                    content_format=40
+                    )
 
         path = self.request_to_localpath(request)
         try:
