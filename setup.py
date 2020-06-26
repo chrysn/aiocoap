@@ -24,7 +24,7 @@ longdescription = __doc__
 # When introducing something new, make sure to update doc/installation.rst
 extras_require = {
         'linkheader': ['LinkHeader'],
-        'oscore': ['hkdf', 'cbor2', 'cryptography (>= 2.0)', 'filelock'],
+        'oscore': ['cbor2', 'cryptography (>= 2.0)', 'filelock'],
         'tinydtls': ['DTLSSocket >= 0.1.11a1'],
         'prettyprint': ['termcolor', 'cbor2', 'LinkHeader', 'pygments'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below

@@ -13,7 +13,6 @@ and unprotection of messages. It does not touch on the integration of OSCORE in
 the larger aiocoap stack of having a context or requests; that's what
 :mod:`aiocoap.transports.osore` is for.`"""
 
-import hashlib
 import json
 import binascii
 import os, os.path
@@ -27,9 +26,11 @@ from aiocoap.numbers import POST, FETCH, CHANGED, UNAUTHORIZED
 from aiocoap import error
 
 from cryptography.hazmat.primitives.ciphers import aead
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
+import cryptography.hazmat.backends
 import cryptography.exceptions
 
-import hkdf
 import cbor2 as cbor
 
 import filelock
@@ -265,8 +266,9 @@ algorithms = {
 
 DEFAULT_ALGORITHM = 'AES-CCM-16-64-128'
 
+_hash_backend = cryptography.hazmat.backends.default_backend()
 hashfunctions = {
-        'sha256': hashlib.sha256,
+        'sha256': hashes.SHA256(),
         }
 
 DEFAULT_HASHFUNCTION = 'sha256'
@@ -650,9 +652,14 @@ class SecurityContext(metaclass=abc.ABCMeta):
             out_type,
             out_bytes
             ])
-        extracted = hkdf.hkdf_extract(master_salt, master_secret, hash=self.hashfun)
-        expanded = hkdf.hkdf_expand(extracted, info=info, hash=self.hashfun,
-                length=out_bytes)
+        hkdf = HKDF(
+                algorithm=self.hashfun,
+                length=out_bytes,
+                salt=master_salt,
+                info=info,
+                backend=_hash_backend,
+                )
+        expanded = hkdf.derive(master_secret)
         return expanded
 
     def derive_keys(self, master_salt, master_secret):
