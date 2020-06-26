@@ -559,6 +559,29 @@ class Context(interfaces.RequestProvider):
                                  " application probably violates protocol.",
                                  response.code)
 
+            # FIXME: this whole block is copy-pasted from the first response
+            if needs_blockwise and (
+                len(response.payload) > (
+                    request.remote.maximum_payload_size
+                    if request.opt.block2 is None
+                    else request.opt.block2.size)):
+                if block_key in self._block2_assemblies:
+                    _, canceler = self._block2_assemblies.pop(block_key)
+                    canceler()
+
+                canceler = self.loop.call_later(
+                        MAX_TRANSMIT_WAIT, # FIXME: introduce an actual parameter here
+                        functools.partial(self._block2_assemblies.pop, block_key)
+                        ).cancel
+
+                self._block2_assemblies[block_key] = (response, canceler)
+
+                szx = request.opt.block2.size_exponent if request.opt.block2 is not None \
+                        else request.remote.maximum_block_size_exp
+                # if a requested block2 number were not 0, the code would have
+                # diverted earlier to serve from active operations
+                response = response._extract_block(0, szx, request.remote.maximum_payload_size)
+
             can_continue = response.code.is_successful() and \
                     not servobs._late_deregister
 
