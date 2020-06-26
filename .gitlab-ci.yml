@@ -70,7 +70,7 @@ test:tox:
     # pypy3 environment when it first failed silently. The other packages need
     # to be listed separately in that case then, because whatever made tox fail
     # there stopped at the first trouble.
-    # - bash -x -c ". .tox/pypy3-allextras/bin/activate; pip install 'cryptography == 2.3.1' cbor2 hkdf LinkHeader termcolor pygments DTLSSocket"
+    # - bash -x -c ". .tox/pypy3-allextras/bin/activate; pip install 'cryptography == 2.3.1' cbor2 LinkHeader termcolor pygments DTLSSocket"
     - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
     - mkdir collected-coverage/tox/ -p
     - mv .coverage* collected-coverage/tox/

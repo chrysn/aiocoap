@@ -145,10 +145,6 @@ def oscore_missing_modules():
     except ImportError:
         missing.append('cbor2')
     try:
-        import hkdf # noqa: F401
-    except ImportError:
-        missing.append('hkdf')
-    try:
         import cryptography # noqa: F401
     except ImportError:
         missing.append('cryptography')
