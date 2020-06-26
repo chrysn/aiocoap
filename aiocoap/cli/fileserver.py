@@ -35,6 +35,10 @@ class TrailingSlashMissingError(error.RenderableError):
     code = codes.BAD_REQUEST
     message = "Error: Not a file (add trailing slash)"
 
+class AbundantTrailingSlashError(error.RenderableError):
+    code = codes.BAD_REQUEST
+    message = "Error: Not a directory (strip the trailing slash)"
+
 class NoSuchFile(error.NoResource): # just for the better error msg
     message = "Error: File not found!"
 
@@ -118,6 +122,9 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         return aiocoap.Message(payload=response[:-1].encode('utf8'), content_format=40)
 
     async def render_get_file(self, request, path):
+        if request.opt.uri_path and request.opt.uri_path[-1] == '':
+            raise AbundantTrailingSlashError()
+
         self.log.info("Serving file %s"%path)
 
         block_in = request.opt.block2 or aiocoap.optiontypes.BlockOption.BlockwiseTuple(0, 0, 6)
