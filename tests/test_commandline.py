@@ -72,7 +72,7 @@ class TestCommandlineClient(WithTestServer):
         if not aiocoap.defaults.prettyprint_missing_modules():
             json_formatted = subprocess.check_output(AIOCOAP_CLIENT + ['coap://' + self.servernetloc + '/answer', '--accept', 'application/json', '--pretty-print'])
             # Concrete formatting may vary, but it should be indented
-            self.assertEqual(json_formatted, b'{\n    "answer": 42\n}')
+            self.assertEqual(json_formatted.replace(b'\r', b''), b'{\n    "answer": 42\n}')
 
             json_colorformatted = subprocess.check_output(AIOCOAP_CLIENT + ['coap://' + self.servernetloc + '/answer', '--accept', 'application/json', '--pretty-print', '--color'])
             self.assertTrue(b'\x1b[' in json_colorformatted, "No color indication in pretty-printed JSON")
