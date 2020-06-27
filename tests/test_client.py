@@ -52,8 +52,11 @@ class TestClientWithSetHost(WithTestServer, WithClient):
         try:
             # give the request some time to finish getaddrinfo
             result = await asyncio.as_completed([resp], timeout=0.1).__next__()
-        except OSError as e:
-            self.assertEqual(e.errno, errno.ECONNREFUSED)
+        except aiocoap.error.NetworkError as e:
+            # This is a bit stricter than what the API indicates, but hey, we
+            # can still relax the tests.
+            self.assertTrue(isinstance(e.__cause__, OSError))
+            self.assertEqual(e.__cause__.errno, errno.ECONNREFUSED)
         except asyncio.TimeoutError:
             self.fail("Request to non-opened port did not come back with 'Connection Refused' immediately")
         else:

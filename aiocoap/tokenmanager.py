@@ -85,10 +85,15 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
 
     def dispatch_error(self, errno, remote):
         keys_for_removal = []
+        # dispatch_error may want to migrate to passing around actual exceptions
+        original_error = OSError(errno, "no details" if errno is None else os.strerror(errno))
+        exception = error.NetworkError(str(original_error))
+        exception.__cause__ = original_error
+
         for key, request in self.outgoing_requests.items():
             (token, request_remote) = key
             if request_remote == remote:
-                request.add_exception(OSError(errno, "no details" if errno is None else os.strerror(errno)))
+                request.add_exception(exception)
                 keys_for_removal.append(key)
         for k in keys_for_removal:
             self.outgoing_requests.pop(k)
