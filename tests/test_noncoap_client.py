@@ -9,6 +9,7 @@
 """Confront an aiocoap server with a client that speaks so bad protocol it is
 easier to mock with sending byte sequences than with aiocoap"""
 
+import sys
 import socket
 import asyncio
 import signal
@@ -28,6 +29,13 @@ _skip_unless_defaultmcif = unittest.skipIf(
         "AIOCOAP_TEST_MCIF" not in os.environ,
         "Multicast tests require AIOCOAP_TEST_MCIF environment variable to tell"
         " the default multicast interface")
+
+# Windows has no SIGALRM and thus can't do the timeouts. Only when the mocksock
+# becomes async, those can be tested.
+_skip_on_win32 = unittest.skipIf(
+        sys.platform == 'win32',
+        "Mock socket needs platform support for SIGALRM"
+        )
 
 class TimeoutError(RuntimeError):
     """Raised when a non-async operation times out"""
@@ -80,6 +88,7 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
         self.mocksock.send(b'\x80\x01\x99\x98')
         await asyncio.sleep(0.1)
 
+    @_skip_on_win32
     @no_warnings
     @asynctest
     async def test_duplicate(self):
@@ -97,6 +106,7 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
         self.assertEqual(r1, r2, "Duplicate GETs gave different responses")
         self.assertTrue(r1 is not None, "No responses received to duplicate GET")
 
+    @_skip_on_win32
     @no_warnings
     @asynctest
     async def test_ping(self):
@@ -106,6 +116,7 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
             response = self.mocksock.recv(1024)
         assert response == b'\x70\x00\x99\x9a'
 
+    @_skip_on_win32
     @no_warnings
     @asynctest
     async def test_noresponse(self):
@@ -118,6 +129,7 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
         except TimeoutError:
             pass
 
+    @_skip_on_win32
     @no_warnings
     @asynctest
     async def test_unknownresponse_reset(self):
