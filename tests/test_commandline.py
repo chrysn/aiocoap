@@ -15,6 +15,7 @@ aiocoap-rd might need to get tested in a similar way to -proxy."""
 import subprocess
 import asyncio
 import unittest
+import os
 
 import aiocoap.defaults
 
@@ -99,7 +100,7 @@ class TestCommandlineClient(WithTestServer):
 
         replace_file = subprocess.check_output(AIOCOAP_CLIENT + [
             'coap://' + self.servernetloc + '/replacing/one',
-            '-m', 'post', '--payload', '@/dev/null'
+            '-m', 'post', '--payload', '@' + os.devnull
             ])
         self.assertEqual(replace_file, b'')
 
