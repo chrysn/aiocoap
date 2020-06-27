@@ -17,14 +17,15 @@ def load_tests(loader, tests, ignore):
             if not f.endswith('.py'):
                 continue
             p = os.path.join(root, f)
+            p = p[:-3].replace(os.sep, '.')
             if 'oscore' in p and aiocoap.defaults.oscore_missing_modules():
                 continue
-            if 'resourcedirectory' in p or 'fileserver' in p or p in ('aiocoap/cli/rd.py', 'aiocoap/util/linkformat.py') and aiocoap.defaults.linkheader_missing_modules():
+            if 'resourcedirectory' in p or 'fileserver' in p or p in ('aiocoap.cli.rd', 'aiocoap.util.linkformat') and aiocoap.defaults.linkheader_missing_modules():
                 continue
-            if p in ('aiocoap/util/prettyprint.py', 'aiocoap/util/linkformat_pygments.py') and aiocoap.defaults.prettyprint_missing_modules():
+            if p in ('aiocoap.util.prettyprint', 'aiocoap.util.linkformat_pygments') and aiocoap.defaults.prettyprint_missing_modules():
                 continue
             if 'udp6' in p and 'PyPy' in sys.version:
                 # due to https://foss.heptapod.net/pypy/pypy/issues/3249
                 continue
-            tests.addTests(doctest.DocTestSuite(p[:-3].replace('/', '.')))
+            tests.addTests(doctest.DocTestSuite(p))
     return tests
