@@ -975,7 +975,7 @@ class FilesystemSecurityContext(SecurityContext):
             tmpfile.flush()
             os.fsync(tmpfile.fileno())
 
-        os.rename(tmpnam, os.path.join(self.basedir, 'sequence.json'))
+        os.replace(tmpnam, os.path.join(self.basedir, 'sequence.json'))
 
     def _replay_window_changed(self):
         if self.replay_window_persisted:
