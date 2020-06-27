@@ -47,14 +47,14 @@ COMPRESSION_BIT_K = 0b1000
 COMPRESSION_BIT_H = 0b10000
 COMPRESSION_BITS_RESERVED = 0b11100000
 
-class NotAProtectedMessage(ValueError):
+class NotAProtectedMessage(error.Error, ValueError):
     """Raised when verification is attempted on a non-OSCORE message"""
 
     def __init__(self, message, plain_message):
         super().__init__(message)
         self.plain_message = plain_message
 
-class ProtectionInvalid(ValueError):
+class ProtectionInvalid(error.Error, ValueError):
     """Raised when verification of an OSCORE message fails"""
 
 class DecodeError(ProtectionInvalid):
@@ -81,7 +81,7 @@ class ReplayErrorWithEcho(ProtectionInvalid, error.RenderableError):
         outer, _ = self.secctx.protect(inner, request_id=self.request_id)
         return outer
 
-class ContextUnavailable(ValueError):
+class ContextUnavailable(error.Error, ValueError):
     """Raised when a context is (currently or permanently) unavailable for
     protecting or unprotecting a message"""
 
