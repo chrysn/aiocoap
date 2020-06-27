@@ -24,8 +24,12 @@ def load_tests(loader, tests, ignore):
                 continue
             if p in ('aiocoap.util.prettyprint', 'aiocoap.util.linkformat_pygments') and aiocoap.defaults.prettyprint_missing_modules():
                 continue
-            if 'udp6' in p and 'PyPy' in sys.version:
-                # due to https://foss.heptapod.net/pypy/pypy/issues/3249
+            if 'udp6' in p and (
+                    # due to https://foss.heptapod.net/pypy/pypy/issues/3249
+                    'PyPy' in sys.version
+                    # if_indextoname etc introduced only in 3.8
+                    or (sys.platform == 'win32' and sys.version_info < (3, 8))
+                    ):
                 continue
             tests.addTests(doctest.DocTestSuite(p))
     return tests
