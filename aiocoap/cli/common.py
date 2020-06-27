@@ -55,7 +55,19 @@ class _HelpBind(argparse.Action):
 def add_server_arguments(parser):
     """Add the --bind option to an argparse parser"""
 
-    parser.add_argument('--bind', help="Host and/or port to bind to (see --help-bind for details)", type=hostportsplit, default=None)
+    def hostportsplit_helper(arg):
+        """Wrapper around hostportsplit that gives better error messages than
+        'invalid hostportsplit value'"""
+
+        try:
+            return hostportsplit(arg)
+        except ValueError:
+            raise parser.error("Invalid argument to --bind." +
+                    " Did you mean --bind '[%s]'?" % arg
+                    if arg.count(':') >= 2 and '[' not in arg
+                    else " See --help-bind for details.")
+
+    parser.add_argument('--bind', help="Host and/or port to bind to (see --help-bind for details)", type=hostportsplit_helper, default=None)
 
     parser.add_argument('--tls-server-certificate', help="TLS certificate (chain) to present to connecting clients (in PEM format)", metavar="CRT")
     parser.add_argument('--tls-server-key', help="TLS key to load that supports the server certificate", metavar="KEY")
