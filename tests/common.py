@@ -52,11 +52,25 @@ def _find_loopbacknames():
             if results and all(x[4] == ('127.0.0.1', 1234) for x in results):
                 v4.append(c)
         try:
-            results = socket.getaddrinfo(c, 1234, family=socket.AF_INET6)
+            # Not probing for AF_INET6 because Windows applies its regular
+            # resolution rules (that appear to be "give out V6 addresses to
+            # unspecified families only when a V6 route is available") even to
+            # 'ip6-loopback' (while 'localhost' is exempt and returns both).
+            #
+            # If we probed AF_INET6 here, on win32 we'd see ip6-localhost as a
+            # usable address, but when the simple6 client transport later asks
+            # getaddrinf unspecified (because it's really generic, despite its
+            # name), that would come up empty when no route is availasble.
+            #
+            # (An alternative here would be to query V6 in the first place,
+            # check `all` instead of `any` againt com and before appending do
+            # another check on whether it still returns something to an
+            # unspecified query)
+            results = socket.getaddrinfo(c, 1234)
         except socket.gaierror:
             pass
         else:
-            if results and all(x[4][:2] == ('::1', 1234) for x in results):
+            if results and any(x[4][:2] == ('::1', 1234) for x in results):
                 v6.append(c)
 
     v4only = [c for c in v4 if c not in v6]
