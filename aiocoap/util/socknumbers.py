@@ -28,7 +28,7 @@ import sys
 
 try:
     from socket import IPV6_PKTINFO, IPV6_RECVPKTINFO
-except NameError:
+except ImportError:
     if sys.platform == 'linux':
         # Not sure if here are any Linux builds at all where this is
         # unavailable
@@ -44,7 +44,7 @@ except NameError:
 
 try:
     from IN import IPV6_RECVERR, IP_RECVERR
-except (ImportError, NameError):
+except ImportError:
     if sys.platform == 'linux':
         IPV6_RECVERR = 25
         IP_RECVERR = 11
@@ -52,7 +52,7 @@ except (ImportError, NameError):
 # for https://bitbucket.org/pypy/pypy/issues/2648/
 try:
     from socket import MSG_ERRQUEUE
-except (ImportError, NameError):
+except ImportError:
     if sys.platform == 'linux':
         MSG_ERRQUEUE = 8192
 
