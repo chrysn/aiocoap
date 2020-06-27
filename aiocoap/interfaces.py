@@ -223,7 +223,13 @@ class Request(metaclass=abc.ABCMeta):
     method."""
 
     response = """A future that is present from the creation of the object and \
-        fullfilled with the response message."""
+        fullfilled with the response message.
+
+        When legitimate errors occur, this becomes an aiocoap.Error. (Eg. on
+        any kind of network failure, encryption trouble, or protocol
+        violations). Any other kind of exception raised from this is a bug in
+        aiocoap, and should better stop the whole application.
+        """
 
 class Resource(metaclass=abc.ABCMeta):
     """Interface that is expected by a :class:`.protocol.Context` to be present
