@@ -56,7 +56,8 @@ class TestClientWithSetHost(WithTestServer, WithClient):
             # This is a bit stricter than what the API indicates, but hey, we
             # can still relax the tests.
             self.assertTrue(isinstance(e.__cause__, OSError))
-            self.assertEqual(e.__cause__.errno, errno.ECONNREFUSED)
+            # ECONNREFUSED: linux; ECONNRESET: win32
+            self.assertTrue(e.__cause__.errno in (errno.ECONNREFUSED, errno.ECONNRESET))
         except asyncio.TimeoutError:
             self.fail("Request to non-opened port did not come back with 'Connection Refused' immediately")
         else:
