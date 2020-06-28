@@ -197,10 +197,19 @@ class TestMessageOptionConstruction(unittest.TestCase):
         self.assertEqual(message.opt.uri_port, None)
         self.assertEqual(message.opt.uri_path, ("some", "path", ""))
 
-    def test_opt_construction(self):
-        message = aiocoap.Message(content_format=40, observe=0, uri_path=())
+    def test_opt_roundtripping(self):
+        message = aiocoap.Message()
+        message.opt.content_format = 40
+        message.opt.etag = b'1234'
+        message.opt.uri_path = ()
         self.assertEqual(message.opt.content_format, 40)
-        self.assertEqual(message.opt.observe, 0)
+        self.assertEqual(message.opt.etag, b'1234')
+        self.assertEqual(message.opt.uri_path, ())
+
+    def test_opt_construction(self):
+        message = aiocoap.Message(content_format=40, observe=b'1234', uri_path=())
+        self.assertEqual(message.opt.content_format, 40)
+        self.assertEqual(message.opt.observe, b'1234')
         self.assertEqual(message.opt.uri_path, ())
 
     def test_copy(self):
