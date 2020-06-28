@@ -1,13 +1,24 @@
 Installing aiocoap
 ==================
 
-In most situations, it is recommended to install the latest released version of
-aiocoap. If you do not use a distribution that has aiocoap packaged, or if you
-use Python's virtual environments, this is done with
+.. note::
 
-::
+  The commands here will install aiocoap in your current environment.
+  By default, that is your platform's user install directory.
+
+  To keep that clean, or to use different sets or versions of libraries for different purposes,
+  you may want to look into the `venv documentation`_,
+  which explains both the concept of virtual environments
+  and how they are used on different platforms.
+
+  .. _`venv documentation`:  https://docs.python.org/3/library/venv
+
+In most situations, it is recommended to install the latest released version of
+aiocoap. This is done using a simple::
 
     $ pip3 install --upgrade "aiocoap[all]"
+
+(In some cases, the program is called ``pip`` only).
 
 If ``pip3`` is not available on your platform, you can manually download and
 unpack the latest ``.tar.gz`` file from the `Python package index`_ and run
