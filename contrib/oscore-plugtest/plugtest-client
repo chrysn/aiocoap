@@ -93,7 +93,10 @@ class PlugtestClientProgram:
                         next_testno = as_int
 
                 print("Running test %s" % next_testno)
-                await self.run_test(next_testno)
+                try:
+                    await self.run_test(next_testno)
+                except error.Error as e:
+                    print("Test failed with an exception:", e)
                 print()
                 next_testno += delta
 
