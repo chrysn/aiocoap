@@ -1,3 +1,65 @@
+Version 0.4b4
+-------------
+
+Multicast improvements
+~~~~~~~~~~~~~~~~~~~~~~
+
+* Multicast groups are not joined by default any more. Instead, groups and
+  interfaces on which to join need to be specified explicitly. The previous
+  mechanism was unreliable, and only joined on one (more or less random)
+  interface.
+
+* Network interfaces can now be specified in remotes of larger than link-local
+  scope.
+
+* In udp6, network interface are selected via PKTINFO now. They used to be
+  selected using the socket address tuple, but that was limited to link-local
+  addresses, but PKTINFO worked just as well for link-local addresses.
+
+* Remote addresses in udp6 now have a `netif` property.
+
+New features
+~~~~~~~~~~~~
+
+* The simple6 transport can now indicate the local address when supported by
+  the platoforrm. This makes it a viable candidate for LwM2M clients as they
+  often operate using role reversal.
+
+Dependencies
+~~~~~~~~~~~~
+
+* The cbor library dependency was replaced with the cbor2 library.
+* The dependency on the hkdf library was removed.
+
+Portability
+~~~~~~~~~~~
+
+* Several small adjustments were made to accomodate execution on Windows.
+* FreeBSD was added to the list of supported systems (without any need for changes).
+
+Fixes possibly breaking applications
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Some cases of OSError were previously raised in responses. Those are now all
+  expressed as an aiocoap.error.NetworkError, so that an application only need
+  to catch aiocoap.error.Error for anything that's expected to go wrong.
+
+  The original error cause is available in a chained exception.
+
+Minor fixes
+~~~~~~~~~~~
+
+* The repr of udp6 addresses now shows all address components.
+* Debug information output was increased in several spots.
+* The `loop=` parameter was removed where it is deprecated by Python 3.8.
+* asyncio Futures are created using create_future in some places.
+* Binding to port 0 works again.
+* The file server's registration at an RD was fixed.
+* File server directories can now use block-wise transfer.
+* Server errors from rendering exceptions to messages are now caught.
+* Notifications now respect the block size limit.
+* Several improvements to the test infrastructure.
+
 Version 0.4b3
 -------------
 
