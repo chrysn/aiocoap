@@ -53,6 +53,7 @@ Modules with stable components
    module/aiocoap.resource
    module/aiocoap.util
    module/aiocoap.util.asyncio
+   module/aiocoap.util.contenttype
    module/aiocoap.util.cli
    module/aiocoap.util.socknumbers
    module/aiocoap.util.secrets

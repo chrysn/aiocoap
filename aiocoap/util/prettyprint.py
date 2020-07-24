@@ -17,7 +17,7 @@ import cbor2 as cbor
 import pygments, pygments.lexers, pygments.formatters
 
 from aiocoap.numbers import media_types
-from aiocoap.util import linkformat
+from aiocoap.util import linkformat, contenttype
 
 from aiocoap.util.linkformat_pygments import _register
 
@@ -57,14 +57,12 @@ def pretty_print(message):
     info = lambda m: infos.append(m)
 
     cf = message.opt.content_format
-    mime_type = media_types.get(cf, "type %s" % cf)
-
-    mime_type, *parameters = mime_type.split(';')
-    type, _, subtype = mime_type.partition('/')
+    content_type = media_types.get(cf, "type %s" % cf)
+    category = contenttype.categorize(content_type)
 
     show_hex = None
 
-    if linkformat is not None and mime_type == 'application/link-format':
+    if linkformat is not None and category == 'link-format':
         try:
             parsed = linkformat.link_header.parse(message.payload.decode('utf8'))
         except ValueError:
@@ -74,7 +72,7 @@ def pretty_print(message):
             prettyprinted = ",\n".join(str(l) for l in parsed.links)
             return (infos, 'application/link-format', prettyprinted)
 
-    elif subtype == 'cbor' or subtype.endswith('+cbor'):
+    elif category == 'cbor':
         try:
             parsed = cbor.loads(message.payload)
         except ValueError:
@@ -95,7 +93,7 @@ def pretty_print(message):
             formatted = printer.pformat(parsed)
             return (infos, 'text/x-python3', formatted)
 
-    elif subtype == 'json' or subtype.endswith('+json'):
+    elif category == 'json':
         try:
             parsed = json.loads(message.payload.decode('utf8'))
         except ValueError:
@@ -116,7 +114,7 @@ def pretty_print(message):
             return (infos, 'text/plain;charset=utf8', text)
 
     info("Showing hex dump of %s payload%s" % (
-        mime_type if cf is not None else "untyped",
+        content_type if cf is not None else "untyped",
         ": " + show_hex if show_hex is not None else ""))
     data = message.payload
     # Not the most efficient hex dumper, but we won't stream video over

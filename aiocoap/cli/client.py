@@ -28,6 +28,7 @@ import aiocoap
 import aiocoap.defaults
 import aiocoap.meta
 import aiocoap.proxy.client
+from aiocoap.util import contenttype
 from aiocoap.util.cli import ActionNoYes
 from aiocoap.numbers import media_types
 
@@ -238,7 +239,7 @@ async def single_request(args, context=None):
             except OSError as e:
                 raise parser.error("File could not be opened: %s"%e)
         else:
-            if aiocoap.numbers.media_types.get(request.opt.content_format, "").startswith("application/cbor"):
+            if contenttype.categorize(aiocoap.numbers.media_types.get(request.opt.content_format, "")) == 'cbor':
                 try:
                     import cbor2 as cbor
                 except ImportError as e:
