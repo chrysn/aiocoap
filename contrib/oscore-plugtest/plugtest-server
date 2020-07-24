@@ -27,8 +27,6 @@ import aiocoap.resource as resource
 from aiocoap.credentials import CredentialsMap
 from aiocoap.cli.common import add_server_arguments, server_context_from_arguments
 
-# OSCOREAddress is used here in a semi-placeholder capacity; it is not linked
-# to a transport because the protected site is not a transport's site yet
 from aiocoap.transports.oscore import OSCOREAddress
 
 # In some nested combinations of unittest and coverage, the usually
@@ -357,7 +355,7 @@ class ProtectedSite(resource.Site):
             else:
                 return aiocoap.message.NoResponse
 
-        unprotected.remote = OSCOREAddress(None, sc, request.remote)
+        unprotected.remote = OSCOREAddress(sc, request.remote)
 
         self.log.debug("Message was decrypted successfully. Request is to %s (%s)", unprotected.opt.uri_path, unprotected)
 

@@ -27,8 +27,6 @@ import logging
 from aiocoap import interfaces
 from aiocoap import oscore, error
 
-# OSCOREAddress is used here in a semi-placeholder capacity; it is not linked
-# to a transport because the protected site is not a transport's site yet
 from aiocoap.transports.oscore import OSCOREAddress
 
 class OscoreSiteWrapper(interfaces.Resource):
@@ -88,7 +86,7 @@ class OscoreSiteWrapper(interfaces.Resource):
             else:
                 return aiocoap.message.NoResponse
 
-        unprotected.remote = OSCOREAddress(None, sc, request.remote)
+        unprotected.remote = OSCOREAddress(sc, request.remote)
 
         self.log.debug("Request %r was unprotected into %r", request, unprotected)
 

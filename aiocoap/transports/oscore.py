@@ -26,6 +26,14 @@ In outgoing request, this transport automatically handles Echo options that
 appear to come from RFC8613 Appendix B.1.2 style servers. They indicate that
 the server could not process the request initially, but could do so if the
 client retransmits it with an appropriate Echo value.
+
+Unlike other transports that could (at least in theory) be present multiple
+times in :attr:`aiocoap.protocol.Context.request_interfaces` (eg. because there
+are several bound sockets), this is only useful once in there, as it has no own
+state, picks the OSCORE security context from the CoAP
+:attr:`aiocoap.protocol.Context.client_credentials` when populating the remote
+field, and handles any populated request based ono its remote.security_context
+property alone.
 """
 
 from collections import namedtuple
@@ -35,7 +43,7 @@ from .. import interfaces, credentials, oscore
 from ..numbers import UNAUTHORIZED
 
 class OSCOREAddress(
-        namedtuple("_OSCOREAddress", ["transport", "security_context", "underlying_address"]),
+        namedtuple("_OSCOREAddress", ["security_context", "underlying_address"]),
         interfaces.EndpointAddress
         ):
     """Remote address type for :cls:`TransportOSCORE`."""
@@ -105,7 +113,7 @@ class TransportOSCORE(interfaces.RequestProvider):
     #
 
     async def fill_or_recognize_remote(self, message):
-        if isinstance(message.remote, OSCOREAddress) and message.remote.transport is self:
+        if isinstance(message.remote, OSCOREAddress):
             return True
         if message.opt.object_security is not None:
             # double oscore is not specified; using this fact to make `._wire
@@ -119,7 +127,7 @@ class TransportOSCORE(interfaces.RequestProvider):
 
         # FIXME: it'd be better to have a "get me credentials *of this type* if they exist"
         if isinstance(secctx, oscore.SecurityContext):
-            message.remote = OSCOREAddress(self, secctx, message.remote)
+            message.remote = OSCOREAddress(secctx, message.remote)
             self.log.debug("Selecting OSCORE transport based on context %r for new request %r", secctx, message)
             return True
         else:
@@ -176,7 +184,7 @@ class TransportOSCORE(interfaces.RequestProvider):
                 protected_response = await wire_request.response
                 unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)
 
-            unprotected_response.remote = OSCOREAddress(self, secctx, protected_response.remote)
+            unprotected_response.remote = OSCOREAddress(secctx, protected_response.remote)
             self.log.debug("Successfully unprotected %r into %r", protected_response, unprotected_response)
             # FIXME: if i could tap into the underlying PlumbingRequest, that'd
             # be a lot easier -- and also get rid of the awkward _check
@@ -194,7 +202,7 @@ class TransportOSCORE(interfaces.RequestProvider):
                 more = protected_response.opt.observe is not None
                 more = _check(more, unprotected_response)
 
-                unprotected_response.remote = OSCOREAddress(self, secctx, protected_response.remote)
+                unprotected_response.remote = OSCOREAddress(secctx, protected_response.remote)
                 self.log.debug("Successfully unprotected %r into %r", protected_response, unprotected_response)
                 # FIXME: discover is_last from the underlying response
                 request.add_response(unprotected_response, is_last=not more)
