@@ -33,9 +33,12 @@ Then, server_opts can be passed to `server_context_from_arguments`.
 
 import sys
 import argparse
+import json
+from pathlib import Path
 
 from ..util import hostportsplit
 from ..protocol import Context
+from ..credentials import CredentialsMap
 
 class _HelpBind(argparse.Action):
     def __init__(self, *args, **kwargs):
@@ -69,6 +72,9 @@ def add_server_arguments(parser):
 
     parser.add_argument('--bind', help="Host and/or port to bind to (see --help-bind for details)", type=hostportsplit_helper, default=None)
 
+    parser.add_argument('--credentials', help="JSON file pointing to credentials for the server's identity/ies.", type=Path)
+
+    # These are to be eventually migrated into credentials
     parser.add_argument('--tls-server-certificate', help="TLS certificate (chain) to present to connecting clients (in PEM format)", metavar="CRT")
     parser.add_argument('--tls-server-key', help="TLS key to load that supports the server certificate", metavar="KEY")
 
@@ -83,10 +89,12 @@ def extract_server_arguments(namespace):
     server_arguments.bind = namespace.bind
     server_arguments.tls_server_certificate = namespace.tls_server_certificate
     server_arguments.tls_server_key = namespace.tls_server_key
+    server_arguments.credentials = namespace.credentials
 
     del namespace.bind
     del namespace.tls_server_certificate
     del namespace.tls_server_key
+    del namespace.credentials
     del namespace.help_bind
 
     return server_arguments
@@ -106,5 +114,15 @@ async def server_context_from_arguments(site, namespace, **kwargs):
         ssl_context.set_alpn_protocols(["coap"])
     else:
         ssl_context = None
+
+    if namespace.credentials:
+        server_credentials = CredentialsMap()
+        server_credentials.load_from_dict(json.load(namespace.credentials.open('rb')))
+
+        # FIXME: could be non-OSCORE as well -- can we build oscore_sitewrapper
+        # in such a way it only depends on the OSCORE dependencies if there are
+        # actual identities present?
+        from aiocoap.oscore_sitewrapper import OscoreSiteWrapper
+        site = OscoreSiteWrapper(site, server_credentials)
 
     return await Context.create_server_context(site, namespace.bind, _ssl_context=ssl_context, **kwargs)
