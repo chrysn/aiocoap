@@ -57,8 +57,8 @@ class CapturingSubprocess(asyncio.SubprocessProtocol):
     def process_exited(self):
         self.read_more.set_result(None)
 
-# those are to be expected to contain bad words -- 'Check passed: X failed' is legitimate, as is 'Unprotected response: ... Precondition failed...'
-output_whitelist = ['Check passed: ', 'Unprotected response: ', 'Verify: Received message']
+# those are to be expected to contain bad words -- 'Check passed: X failed' is legitimate
+output_whitelist = ['Check passed: ']
 # explicitly whitelisted for when the server is run with increased verbosity
 debug_whitelist = ['INFO:coap-server:Render request raised a renderable error', 'DEBUG:oscore-site:Will encrypt message as response: ']
 
@@ -73,6 +73,13 @@ class WithAssertNofaillines(unittest.TestCase):
         invalid)'"""
 
         lines = text_to_check.decode('utf8').split('\n')
+        lines = (l
+                # "failed" and "error" are always legitimate in this position
+                # as they happen by design; whereever they are unexpected,
+                # they're caught by the regular plug test operation
+                .replace('Precondition Failed', 'Precondition @@@led')
+                .replace('Internal Server Error', 'Internal Server @@@or')
+                for l in lines)
         lines = (l for l in lines if not any(l.startswith(white) for white in output_whitelist))
         lines = (l for l in lines if not any(white in l for white in debug_whitelist))
         errorlines = (l for l in lines if 'fail'in l.lower() or 'warning' in l.lower() or 'error' in l.lower())
