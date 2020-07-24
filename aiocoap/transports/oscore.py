@@ -120,6 +120,7 @@ class TransportOSCORE(interfaces.RequestProvider):
         # FIXME: it'd be better to have a "get me credentials *of this type* if they exist"
         if isinstance(secctx, oscore.SecurityContext):
             message.remote = OSCOREAddress(self, secctx, message.remote)
+            self.log.debug("Selecting OSCORE transport based on context %r for new request %r", secctx, message)
             return True
         else:
             return False
@@ -176,6 +177,7 @@ class TransportOSCORE(interfaces.RequestProvider):
                 unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)
 
             unprotected_response.remote = OSCOREAddress(self, secctx, protected_response.remote)
+            self.log.debug("Successfully unprotected %r into %r", protected_response, unprotected_response)
             # FIXME: if i could tap into the underlying PlumbingRequest, that'd
             # be a lot easier -- and also get rid of the awkward _check
             # code moved into its own function just to avoid duplication.
@@ -193,6 +195,7 @@ class TransportOSCORE(interfaces.RequestProvider):
                 more = _check(more, unprotected_response)
 
                 unprotected_response.remote = OSCOREAddress(self, secctx, protected_response.remote)
+                self.log.debug("Successfully unprotected %r into %r", protected_response, unprotected_response)
                 # FIXME: discover is_last from the underlying response
                 request.add_response(unprotected_response, is_last=not more)
 
