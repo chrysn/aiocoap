@@ -7,15 +7,21 @@
 # described in the accompanying LICENSE file.
 
 """A plain CoAP resource directory according to
-draft-ietf-core-resource-directory-14
+draft-ietf-core-resource-directory-25
 
 Known Caveats:
 
-    * Nothing group related is implemented.
-
-    * Multiply given registration parameters are not handled.
-
     * It is very permissive. Not only is no security implemented.
+
+    * This may and will make exotic choices about discoverable paths whereever
+      it can (see StandaloneResourceDirectory documentation)
+
+    * Split-horizon is not implemented correctly
+
+    * Unless enforced by security (ie. not so far), endpoint and sector names
+      (ep, d) are not checked for their lengths or other validity.
+
+    * Simple registrations don't cache .well-known/core contents
 """
 
 import sys
@@ -37,20 +43,38 @@ from aiocoap.util.linkformat import Link, LinkFormat, parse
 import link_header
 
 def query_split(msg):
-    return dict(q.split('=', 1) if '=' in q else (q, True) for q in msg.opt.uri_query)
+    result = {}
+    for q in msg.opt.uri_query:
+        if '=' not in q:
+            k = q
+            # matching the representation in link_header
+            v = None
+        else:
+            k, v = q.split('=', 1)
+        result.setdefault(k, []).append(v)
+    return result
+
+def pop_single_arg(query, name):
+    """Out of query which is the output of query_split, pick the single value
+    at the key name, raise a suitable BadRequest on error, or return None if
+    nothing is there. The value is removed from the query dictionary."""
+
+    if name not in query:
+        return None
+    if len(query[name]) > 1:
+        raise BadRequest("Multiple values for %r" % name)
+    return query.pop(name)[0]
 
 class CommonRD:
-    # the `key` of an endpoint is not really worked out yet. currently it's
-    # (ep, d) 2-tuples; code that handles key internals should be limited to
-    # this class.
+    # "Key" here always means an (ep, d) tuple.
 
     entity_prefix = ("reg",)
 
     def __init__(self):
         super().__init__()
 
-        self._endpoint_registrations_by_key = {} # key -> Registration
-        self._entities_by_pathtail = {} # path -> Registration or Group
+        self._by_key = {} # key -> Registration
+        self._by_path = {} # path -> Registration
 
         self._updated_state_cb = []
 
@@ -66,14 +90,19 @@ class CommonRD:
         def href(self):
             return '/' + '/'.join(self.path)
 
-        def __init__(self, path, network_remote, delete_cb, update_cb, registration_parameters):
-            # note that this can not modify d and ep any more, since they were
-            # already used in keying to a path
+        def __init__(self, static_registration_parameters, path, network_remote, delete_cb, update_cb, registration_parameters):
+            # note that this can not modify d and ep any more, since they are
+            # already part of the key and possibly the path
             self.path = path
             self.links = LinkFormat([])
 
             self._delete_cb = delete_cb
             self._update_cb = update_cb
+
+            self.registration_parameters = static_registration_parameters
+            self.lt = 90000
+            self.base_is_explicit = False
+
             self.update_params(network_remote, registration_parameters, is_initial=True)
 
         def update_params(self, network_remote, registration_parameters, is_initial=False):
@@ -82,6 +111,15 @@ class CommonRD:
             observation updates if requried (the typical ones don't because
             their registration_parameters are {} and all it does is restart the
             lifetime counter)"""
+
+            if any(k in ('ep', 'd') for k in registration_parameters.keys()):
+                # The ep and d of initial registrations are already popped out
+                raise error.BadRequest("Parameters 'd' and 'ep' can not be updated")
+
+            # Not in use class "R" or otherwise conflict with common parameters
+            if any(k in ('page', 'count', 'rt', 'href', 'anchor') for k in
+                    registration_parameters.keys()):
+                raise error.BadRequest("Unsuitable parameter for registration")
 
             if (is_initial or not self.base_is_explicit) and 'base' not in \
                     registration_parameters:
@@ -93,34 +131,38 @@ class CommonRD:
                     raise error.BadRequest("explicit base required")
 
             if is_initial:
-                self.registration_parameters = registration_parameters
-                self.lt = 90000
-                if 'base' not in registration_parameters:
-                    self.base = network_base
-                    self.base_is_explicit = False
-
                 # technically might be a re-registration, but we can't catch that at this point
                 actual_change = True
             else:
-                if 'd' in registration_parameters or 'ep' in registration_parameters:
-                    raise error.BadRequest("Parameters 'd' and 'ep' can not be updated")
+                actual_change = False
 
-                actual_change = any(v != self.registration_parameters.get(k, -1) for (k, v) in registration_parameters.items())
-
-                self.registration_parameters = dict(self.registration_parameters, **registration_parameters)
+            # Don't act while still checking
+            set_lt = None
+            set_base = None
 
             if 'lt' in registration_parameters:
                 try:
-                    self.lt = int(registration_parameters['lt'])
+                    set_lt = int(pop_single_arg(registration_parameters, 'lt'))
                 except ValueError:
                     raise error.BadRequest("lt must be numeric")
 
             if 'base' in registration_parameters:
-                self.base = registration_parameters['base']
+                set_base = pop_single_arg(registration_parameters, 'base')
+
+            if set_lt is not None and self.lt != set_lt:
+                actual_change = True
+                self.lt = set_lt
+            if set_base is not None and (is_initial or self.base != set_base):
+                actual_change = True
+                self.base = set_base
                 self.base_is_explicit = True
 
-            if not self.base_is_explicit and self.base != network_base:
+            if not self.base_is_explicit and (is_initial or self.base != network_base):
                 self.base = network_base
+                actual_change = True
+
+            if any(v != self.registration_parameters.get(k) for (k, v) in registration_parameters.items()):
+                self.registration_parameters.update(registration_parameters)
                 actual_change = True
 
             if is_initial:
@@ -141,10 +183,6 @@ class CommonRD:
             # workaround for python issue20493
 
             async def longwait(delay, callback):
-                almostday = 24*60*60 - 10
-                while delay > almostday:
-                    await asyncio.sleep(almostday)
-                    delay -= almostday
                 await asyncio.sleep(delay)
                 callback()
             self.timeout = asyncio.Task(longwait(delay, self.delete))
@@ -154,22 +192,19 @@ class CommonRD:
             self._set_timeout()
 
         def get_host_link(self):
-            args = dict(self.registration_parameters, base=self.base, rt="core.rd-ep")
-            args.pop('lt', None)
-            return Link(href=self.href, **args)
+            attr_pairs = []
+            for (k, values) in self.registration_parameters.items():
+                for v in values:
+                    attr_pairs.append([k, v])
+            return Link(href=self.href, attr_pairs=attr_pairs, base=self.base, rt="coire.rd-ep")
 
         def get_based_links(self):
             """Produce a LinkFormat object that represents all statements in
             the registration, resolved to the registration's base (and thus
             suitable for serving from the lookup interface).
 
-            This implements Modernized Link Format as described in Appendix D
-            of draft-ietf-core-resource-directory-15.
-
-            If protocol negotiation is implemented and base becomes a list, this
-            function will probably grow parameters that hint at which base to
-            use.
-            """
+            This implements Limited Link Format as described in Appendix C
+            of draft-ietf-core-resource-directory-25."""
             result = []
             for l in self.links.links:
                 if 'anchor' in l:
@@ -187,6 +222,9 @@ class CommonRD:
     def register_change_callback(self, callback):
         """Ask RD to invoke the callback whenever any of the RD state
         changed"""
+        # This has no unregister equivalent as it's only called by the lookup
+        # resources that are expected to be live for the remainder of the
+        # program, like the Registry is.
         self._updated_state_cb.append(callback)
 
     def _updated_state(self):
@@ -200,20 +238,24 @@ class CommonRD:
             # ignores trailing slashes shall have a hard time keeping
             # registrations alive.
             path = (str(i), '')
-            if path not in self._entities_by_pathtail:
+            if path not in self._by_path:
                 return path
 
     def initialize_endpoint(self, network_remote, registration_parameters):
-        try:
-            ep = registration_parameters['ep']
-        except KeyError:
+        # copying around for later use in static, but not checking again
+        # because reading them from the original will already have screamed by
+        # the time this is used
+        ep_and_d = {k: v for (k, v) in registration_parameters.items() if k in ('ep', 'd')}
+
+        ep = pop_single_arg(registration_parameters, 'ep')
+        if ep is None:
             raise error.BadRequest("ep argument missing")
-        d = registration_parameters.get('d', None)
+        d = pop_single_arg(registration_parameters, 'd')
 
         key = (ep, d)
 
         try:
-            oldreg = self._endpoint_registrations_by_key[key]
+            oldreg = self._by_key[key]
         except KeyError:
             path = self._new_pathtail()
         else:
@@ -227,19 +269,19 @@ class CommonRD:
         # changes.
 
         def delete():
-            del self._entities_by_pathtail[path]
-            del self._endpoint_registrations_by_key[key]
+            del self._by_path[path]
+            del self._by_key[key]
 
-        reg = self.Registration(self.entity_prefix + path, network_remote, delete,
+        reg = self.Registration(ep_and_d, self.entity_prefix + path, network_remote, delete,
                 self._updated_state, registration_parameters)
 
-        self._endpoint_registrations_by_key[key] = reg
-        self._entities_by_pathtail[path] = reg
+        self._by_key[key] = reg
+        self._by_path[path] = reg
 
         return reg
 
     def get_endpoints(self):
-        return self._endpoint_registrations_by_key.values()
+        return self._by_key.values()
 
 def link_format_from_message(message):
     try:
@@ -262,7 +304,7 @@ class ThingWithCommonRD:
         if isinstance(self, ObservableResource):
             self.common_rd.register_change_callback(self.updated_state)
 
-class RegistrationInterface(ThingWithCommonRD, Resource):
+class DirectoryResource(ThingWithCommonRD, Resource):
     ct = link_format_to_message.supported_ct
     rt = "core.rd"
 
@@ -280,7 +322,8 @@ class RegistrationResource(Resource):
     """The resource object wrapping a registration is just a very thin and
     ephemeral object; all those methods could just as well be added to
     Registration with `s/self.reg/self/g`, making RegistrationResource(reg) =
-    reg, but this is kept here for better separation of model and interface."""
+    reg (or handleded in a single RegistrationDispatchSite), but this is kept
+    here for better separation of model and interface."""
 
     def __init__(self, registration):
         self.reg = registration
@@ -314,27 +357,27 @@ class RegistrationResource(Resource):
 
         return aiocoap.Message(code=aiocoap.DELETED)
 
-class EntityDispatchSite(ThingWithCommonRD, Resource, PathCapable):
+class RegistrationDispatchSite(ThingWithCommonRD, Resource, PathCapable):
     async def render(self, request):
         try:
-            entity = self.common_rd._entities_by_pathtail[request.opt.uri_path]
+            entity = self.common_rd._by_path[request.opt.uri_path]
         except KeyError:
             raise error.NotFound
 
-        if isinstance(entity, CommonRD.Registration):
-            entity = RegistrationResource(entity)
-        else:
-            raise ValueError("Unexpected object in entities")
+        entity = RegistrationResource(entity)
 
         return await entity.render(request.copy(uri_path=()))
 
 def _paginate(candidates, query):
+    page = pop_single_arg(query, 'page')
+    count = pop_single_arg(query, 'count')
+
     try:
         candidates = list(candidates)
-        if 'page' in query:
-            candidates = candidates[int(query['page']) * int(query['count']):]
-        if 'count' in query:
-            candidates = candidates[:int(query['count'])]
+        if page is not None:
+            candidates = candidates[int(page) * int(count):]
+        if count is not None:
+            candidates = candidates[:int(count)]
     except (KeyError, ValueError):
         raise error.BadRequest("page requires count, and both must be ints")
 
@@ -352,30 +395,30 @@ class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
 
         candidates = self.common_rd.get_endpoints()
 
-        for search_key, search_value in query.items():
+        for search_key, search_values in query.items():
             if search_key in ('page', 'count'):
                 continue # filtered last
 
-            if search_value.endswith('*'):
-                matches = lambda x, start=search_value[:-1]: x.startswith(start)
-            else:
-                matches = lambda x: x == search_value
+            for search_value in search_values:
+                if search_value is not None and search_value.endswith('*'):
+                    matches = lambda x, start=search_value[:-1]: x.startswith(start)
+                else:
+                    matches = lambda x: x == search_value
 
-            if search_key in ('if', 'rt'):
-                candidates = (c for c in candidates if any(any(matches(x) for x in ' '.join(getattr(r, search_key, '')).split()) for r in c.get_based_links().links))
-                continue
+                if search_key in ('if', 'rt'):
+                    matches = lambda x, original_matches=matches: any(original_matches(v) for v in x.split())
 
-            if search_key == 'href':
+                if search_key == 'href':
+                    candidates = (c for c in candidates if
+                            matches(c.href) or
+                            any(matches(r.href) for r in c.get_based_links().links)
+                            )
+                    continue
+
                 candidates = (c for c in candidates if
-                        matches(c.href) or
-                        any(matches(r.href) for r in c.get_based_links().links)
+                        (search_key in c.registration_parameters and any(matches(x) for x in c.registration_parameters[search_key])) or
+                        any(_link_matches(r, search_key, matches) for r in c.get_based_links().links)
                         )
-                continue
-
-            candidates = (c for c in candidates if
-                    (search_key in c.registration_parameters and matches(c.registration_parameters[search_key])) or
-                    any(_link_matches(r, search_key, matches) for r in c.get_based_links().links)
-                    )
 
         candidates = _paginate(candidates, query)
 
@@ -393,33 +436,30 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
         eps = self.common_rd.get_endpoints()
         candidates = ((e, c) for e in eps for c in e.get_based_links().links)
 
-        for search_key, search_value in query.items():
+        for search_key, search_values in query.items():
             if search_key in ('page', 'count'):
                 continue # filtered last
 
-            # FIXME: maybe we need query_split to turn ?rt=foo&obs into {'rt':
-            # 'foo', 'obs': True} to match on obs, and then this needs more
-            # type checking
-            if search_value.endswith('*'):
-                matches = lambda x, start=search_value[:-1]: x.startswith(start)
-            else:
-                matches = lambda x: x == search_value
+            for search_value in search_values:
+                if search_value is not None and search_value.endswith('*'):
+                    matches = lambda x, start=search_value[:-1]: x.startswith(start)
+                else:
+                    matches = lambda x: x == search_value
 
-            if search_key in ('if', 'rt'):
-                candidates = ((e, c) for (e, c) in candidates if any(matches(x) for x in " ".join(getattr(c, search_key, ())).split()))
-                continue
+                if search_key in ('if', 'rt'):
+                    matches = lambda x, original_matches=matches: any(original_matches(v) for v in x.split())
 
-            if search_key == 'href':
+                if search_key == 'href':
+                    candidates = ((e, c) for (e, c) in candidates if
+                            matches(c.href) or
+                            matches(e.href) # FIXME: They SHOULD give this as relative as we do, but don't have to
+                            )
+                    continue
+
                 candidates = ((e, c) for (e, c) in candidates if
-                        matches(urljoin(e.base, c.href)) or
-                        matches(e.href) # FIXME: actually resolved e, but so far we've avoided knowing our own
+                        _link_matches(c, search_key, matches) or
+                        (search_key in e.registration_parameters and any(matches(x) for x in e.registration_parameters[search_key]))
                         )
-                continue
-
-            candidates = ((e, c) for (e, c) in candidates if
-                    _link_matches(c, search_key, matches) or
-                    (search_key in e.registration_parameters and matches(e.registration_parameters[search_key]))
-                    )
 
         # strip endpoint
         candidates = (c for (e, c) in candidates)
@@ -436,34 +476,14 @@ class SimpleRegistrationWKC(WKCResource):
     async def render_post(self, request):
         query = query_split(request)
 
-        # this is not deduplicated with update_params in full because that code
-        # path is triggered later when the response was already sent
-
-        if 'ep' not in query:
-            raise error.BadRequest("ep argument missing")
-
-        if 'lt' in query:
-            try:
-                # just trying out whether it can be constructed to err out
-                # early and meaningfully
-                int(query['lt'])
-            except ValueError:
-                raise error.BadRequest("lt must be numeric")
-
         if 'base' in query:
             raise error.BadRequest("base is not allowed in simple registrations")
 
-        try:
-            # just trying out whether it can be constructed to err out in
-            # time (under the current model of "respond early, ask later")
-            request.remote.uri
-        except error.UnparsableMessage:
-            raise error.BadRequest("explicit base required")
-
-        asyncio.Task(self.process_request(
+        await self.process_request(
+                key=key,
                 network_remote=request.remote,
                 registration_parameters=query,
-            ))
+            )
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
@@ -472,13 +492,9 @@ class SimpleRegistrationWKC(WKCResource):
 
         fetch_address = (base + '/.well-known/core')
 
-        try:
-            response = await self.context.request(aiocoap.Message(code=aiocoap.GET, uri=fetch_address)).response_raising
-            links = link_format_from_message(response)
-        except Exception as e:
-            logging.error("The request triggered for simple registration of %s failed.", base)
-            logging.exception(e)
-            return
+        # not trying to catch anything here -- the errors are most likely well renderable into the final response
+        response = await self.context.request(aiocoap.Message(code=aiocoap.GET, uri=fetch_address)).response_raising
+        links = link_format_from_message(response)
 
         registration = self.common_rd.initialize_endpoint(network_remote, registration_parameters)
         registration.links = links
@@ -490,9 +506,9 @@ class StandaloneResourceDirectory(Site):
     function set paths are configurable and default to values that are
     different from the specification (but still recognizable)."""
 
-    rd_path = ("resourcedirectory",)
-    ep_lookup_path = ("endpoint-lookup",)
-    res_lookup_path = ("resource-lookup",)
+    rd_path = ("resourcedirectory", "")
+    ep_lookup_path = ("endpoint-lookup", "")
+    res_lookup_path = ("resource-lookup", "")
 
     def __init__(self):
         super().__init__()
@@ -502,11 +518,11 @@ class StandaloneResourceDirectory(Site):
         self._simple_wkc = SimpleRegistrationWKC(self.get_resources_as_linkheader, common_rd=common_rd)
         self.add_resource([".well-known", "core"], self._simple_wkc)
 
-        self.add_resource(self.rd_path, RegistrationInterface(common_rd=common_rd))
+        self.add_resource(self.rd_path, DirectoryResource(common_rd=common_rd))
         self.add_resource(self.ep_lookup_path, EndpointLookupInterface(common_rd=common_rd))
         self.add_resource(self.res_lookup_path, ResourceLookupInterface(common_rd=common_rd))
 
-        self.add_resource(common_rd.entity_prefix, EntityDispatchSite(common_rd=common_rd))
+        self.add_resource(common_rd.entity_prefix, RegistrationDispatchSite(common_rd=common_rd))
 
         self.common_rd = common_rd
 
