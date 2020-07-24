@@ -125,4 +125,10 @@ async def server_context_from_arguments(site, namespace, **kwargs):
         from aiocoap.oscore_sitewrapper import OscoreSiteWrapper
         site = OscoreSiteWrapper(site, server_credentials)
 
-    return await Context.create_server_context(site, namespace.bind, _ssl_context=ssl_context, **kwargs)
+    ctx = await Context.create_server_context(site, namespace.bind, _ssl_context=ssl_context, **kwargs)
+
+    if namespace.credentials:
+        # FIXME should be passed through create_*_context, right now it's only in __init__
+        ctx.client_credentials = server_credentials
+
+    return ctx

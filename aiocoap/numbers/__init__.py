@@ -58,6 +58,8 @@ media_types = {0: 'text/plain;charset=utf-8',
                11542: 'application/vnd.oma.lwm2m+tlv',
                11543: 'application/vnd.oma.lwm2m+json',
                504: 'application/link-format+json', # draft-ietf-core-links-json-10
+
+               65000: 'application/ace+cbor', # https://github.com/ace-wg/Hackathon-108/blob/master/IANA.md
                }
 """A map from CoAP-assigned integral codes to Internet media type descriptions."""
 

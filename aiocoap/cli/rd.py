@@ -431,6 +431,19 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
     rt = "core.rd-lookup-res"
 
     async def render_get(self, request):
+        print("Serving request from", request.remote)
+        if not isinstance(request.remote, aiocoap.transports.oscore.OSCOREAddress):
+            # FIXME better filtering...
+            import cbor2
+            return aiocoap.Message(
+                    code=aiocoap.UNAUTHORIZED,
+                    content_format=aiocoap.numbers.media_types_rev['application/ace+cbor'],
+                    payload=cbor2.dumps({
+                        1: "coap://localhost/token", # AS
+                        5: "rs1", # audience
+                        9: "lookup", # scope
+                        })
+                    )
         query = query_split(request)
 
         eps = self.common_rd.get_endpoints()
@@ -556,6 +569,9 @@ class Main(AsyncCLIDaemon):
         await self.site.shutdown()
         await self.context.shutdown()
 
+# import logging
+# logging.basicConfig(level=logging.DEBUG)
+# 
 sync_main = Main.sync_main
 
 if __name__ == "__main__":

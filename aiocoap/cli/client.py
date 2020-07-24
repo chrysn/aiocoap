@@ -30,7 +30,7 @@ import aiocoap.meta
 import aiocoap.proxy.client
 from aiocoap.util import contenttype
 from aiocoap.util.cli import ActionNoYes
-from aiocoap.numbers import media_types
+from aiocoap.numbers import media_types, media_types_rev
 
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
@@ -263,6 +263,8 @@ async def single_request(args, context=None):
     else:
         interface = aiocoap.proxy.client.ProxyForwarder(options.proxy, context)
 
+    original_request = request.copy()
+
     try:
         requester = interface.request(request)
 
@@ -290,6 +292,52 @@ async def single_request(args, context=None):
             sys.exit(1)
 
         if response_data.code.is_successful():
+            present(response_data, options)
+        elif response_data.code == aiocoap.UNAUTHORIZED and media_types.get(response_data.opt.content_format) == 'application/ace+cbor':
+            print("Stepping into ACE mode")
+            import cbor2 as cbor
+            pointers = cbor.loads(response_data.payload)
+            as_token_uri = pointers[1]
+            audience = pointers[5]
+            scope = pointers[9]
+            print(f"Going to {as_token_uri} to get a token for {audience} on scope {scope}")
+
+            as_request = aiocoap.Message(
+                    code=aiocoap.POST,
+                    uri=as_token_uri,
+                    content_format=media_types_rev['application/ace+cbor'],
+                    payload=cbor.dumps({5: audience, 9: scope})
+                    )
+            as_response = await interface.request(as_request).response_raising
+            assert as_response.opt.content_format == media_types_rev['application/ace+cbor']
+            payload = cbor.loads(as_response.payload)
+            token = payload[1]
+            cnf = payload[8]
+            cnf_osc = cnf[99]
+
+            # skipping the discovery step for something that's rt=ace.ai and just short-cutting...
+
+            from aiocoap.util.secrets import token_bytes
+            nonce1 = token_bytes(16)
+            from urllib.parse import urljoin
+            authzinfo_request = aiocoap.Message(
+                    code=aiocoap.POST,
+                    uri=urljoin(options.url, '/authz-info'),
+                    content_format=media_types_rev['application/ace+cbor'],
+                    payload=cbor.dumps({1: token, 65: nonce1}),
+                    )
+
+            authzinfo_response = await interface.request(authzinfo_request).response_raising
+            authzinfo_data = cbor.loads(authzinfo_response.payload)
+            nonce2 = authzinfo_data.pop(66)
+            assert not authzinfo_data, "Leftover data in authz-info response"
+
+            cnf_osc[6] = cnf_osc.pop(6, b"") + nonce1 + nonce2
+
+            context.client_credentials[options.url] = aiocoap.oscore.AceOscoreContext(cnf_osc, 'client')
+
+            requester = interface.request(original_request)
+            response_data = await requester.response
             present(response_data, options)
         else:
             print(colored(response_data.code, options, 'red'), file=sys.stderr)

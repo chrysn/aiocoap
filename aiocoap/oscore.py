@@ -1023,6 +1023,62 @@ class FilesystemSecurityContext(SecurityContext):
         if self.lockfile is not None:
             self._destroy()
 
+class AceOscoreContext(SecurityContext):
+    """Security context that is never stored, because it was derived from an
+    ACE-OSCORE process and cen be re-derived by running that process again
+
+    (More precisely, it *could* be stored, but that'd make the context
+    unavailable until it is loaded again, whereas a FilesystemSecurityContext
+    uses the Appendix B.1 methods to allow use even between storage events)
+
+    It is built from the osc element of the ACE-OSCORE's cnf dictionary, and
+    raises a ValueError or KeyError if anything in there is unprocessable, or there are
+    leftover elements. Note that while using the cnf dictionary's structure, it
+    does *not* use the nonce1/nonce2 values of the profile on its own; it
+    expects the caller to have set up the salt (cnf_osc[6]) accordingly.
+    """
+
+    def __init__(self, cnf_osc, role):
+        self.sender_sequence_number = 0
+
+        # FIXME: Currently only accepts tstr
+        self.algorithm = algorithms[cnf_osc.pop(5, DEFAULT_ALGORITHM)]
+        self.hashfun = hashfunctions[cnf_osc.pop(4, DEFAULT_HASHFUNCTION)]
+
+        windowsize = DEFAULT_WINDOWSIZE
+
+        version = cnf_osc.pop(0, 1)
+        if version != 1:
+            raise ValueError("Unknown OSCORE version")
+        master_secret = cnf_osc.pop(1)
+        client_id = cnf_osc.pop(2)
+        server_id = cnf_osc.pop(3)
+        master_salt = cnf_osc.pop(6, b"")
+        self.id_context = cnf_osc.pop(7, None)
+
+        # we're the server 
+        if role == 'server':
+            self.sender_id = server_id
+            self.recipient_id = client_id
+        elif role == 'client':
+            self.sender_id = client_id
+            self.recipient_id = server_id
+
+        # FIXME duplication
+        if max(len(self.sender_id), len(self.recipient_id)) > self.algorithm.iv_bytes - 6:
+            raise self.LoadError("Sender or Recipient ID too long (maximum length %s for this algorithm)" % (self.algorithm.iv_bytes - 6))
+
+        self.derive_keys(master_salt, master_secret)
+
+        self.recipient_replay_window = ReplayWindow(windowsize, lambda:None)
+        self.recipient_replay_window.initialize_empty()
+
+        if cnf_osc:
+            raise ValueError("Unprocessed elements in the dictionary")
+
+    def post_seqnoincrease(self):
+        pass # not stored, no action needed
+
 def verify_start(message):
     """Extract a sender ID and ID context (if present, otherwise None) from a
     message for the verifier to then pick a security context to actually verify

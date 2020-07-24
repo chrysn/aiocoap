@@ -24,12 +24,67 @@ again. (This will also influence a future inner-blockwise implementation).
 
 import logging
 
+import aiocoap
 from aiocoap import interfaces
 from aiocoap import oscore, error
+
+from aiocoap.resource import Resource
 
 # OSCOREAddress is used here in a semi-placeholder capacity; it is not linked
 # to a transport because the protected site is not a transport's site yet
 from aiocoap.transports.oscore import OSCOREAddress
+
+class OscoreProfileAuthzInfo(Resource):
+    """An /autz-info endpoint that can perform the ACE-OSCORE profile and
+    enters its context into the credentials set"""
+    def __init__(self, credentials, context_getter):
+        self.credentials = credentials
+        # FIXME about that we have to pass a context around
+        self.context_getter = context_getter
+        super().__init__()
+
+    async def render_post(self, request):
+        import cbor2 as cbor
+        import aiocoap
+        data = cbor.loads(request.payload)
+        token = data[1]
+        nonce1 = data[65]
+
+        my_as_introspection_point = 'coap://localhost/introspect'
+        context = self.context_getter()
+        print(f"Requesting {my_as_introspection_point} via {context}")
+        introspect_request = aiocoap.Message(
+                code=aiocoap.POST,
+                uri=my_as_introspection_point,
+                content_format=aiocoap.numbers.media_types_rev['application/ace+cbor'],
+                payload=cbor.dumps({11: token}),
+                )
+        introspect_response = await context.request(introspect_request).response_raising
+        result = cbor.loads(introspect_response.payload)
+        print(result)
+
+        audience = result[3]
+        scope = result[9]
+        cnf = result[8]
+        assert list(cnf.keys()) == [99] # per https://github.com/ace-wg/Hackathon-108/blob/master/IANA.md
+        cnf_osc = cnf[99]
+
+        from aiocoap.util.secrets import token_bytes
+        nonce2 = token_bytes(16)
+
+        cnf_osc[6] = cnf_osc.pop(6, b"") + nonce1 + nonce2
+        secctx = oscore.AceOscoreContext(cnf_osc, 'server')
+
+        # FIXME abusing the knowledge that they're the same
+        # FIXME a static name is a bad idea here
+        context.client_credentials[':ace-oscore'] = secctx
+        print("Set that context as the available ACE-OSCORE context")
+
+        return aiocoap.Message(
+                code=aiocoap.CHANGED,
+                content_format=aiocoap.numbers.media_types_rev['application/ace+cbor'],
+                payload=cbor.dumps({66: nonce2}),
+                )
 
 class OscoreSiteWrapper(interfaces.Resource):
     def __init__(self, inner_site, server_credentials):
@@ -37,6 +92,9 @@ class OscoreSiteWrapper(interfaces.Resource):
 
         self._inner_site = inner_site
         self.server_credentials = server_credentials
+
+        # FIXME about where we get that context from
+        self._inner_site.add_resource(['authz-info'], OscoreProfileAuthzInfo(server_credentials, lambda: inner_site._simple_wkc.context))
 
     async def needs_blockwise_assembly(self, request):
         if not request.opt.object_security:
