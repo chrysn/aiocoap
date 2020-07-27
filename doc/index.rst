@@ -5,6 +5,7 @@
 
    installation
    guidedtour
+   stateofoscore
 
    api
 
