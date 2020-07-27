@@ -25,7 +25,12 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
 
         self._token = random.randint(0, 65535)
         self.outgoing_requests = {}  #: Unfinished outgoing requests (identified by token and remote)
-        self.incoming_requests = {}  #: Unfinished incoming requests. ``(path-tuple, remote): (Request, "run" task)``
+        self.incoming_requests = {}  #: Unfinished incoming requests.
+                                     #: ``(token, remote): (PlumbingRequest, stopper)``
+                                     #: where stopper is a function unregistes
+                                     #: the PlumbingRequest event handler and
+                                     #: thus indicates to the server the
+                                     #: discontinued interest
 
         self.log = self.context.log
         self.loop = self.context.loop
@@ -41,10 +46,8 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             request.add_exception(error.LibraryShutdown())
         self.outgoing_requests = None
 
-        for request, task in self.incoming_requests.values():
-            # FIXME decide what to do with pending requests
-            # request.add_response(... RST? 5.00 Server Shutdown?
-            task.cancel()
+        # No handling of self.incoming_requests necssary -- or should we send a
+        # request.add_response(... RST? 5.00 Server Shutdown?) to them?
 
         await self.token_interface.shutdown()
 
@@ -90,24 +93,20 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         exception = error.NetworkError(str(original_error))
         exception.__cause__ = original_error
 
+        # The stopping calls would pop items from the pending requests --
+        # iterating once, extracting the stoppers and then calling them en
+        # batch
+        stoppers = []
         for key, request in self.outgoing_requests.items():
             (token, request_remote) = key
             if request_remote == remote:
-                request.add_exception(exception)
-                keys_for_removal.append(key)
-        for k in keys_for_removal:
-            self.outgoing_requests.pop(k)
+                stoppers.append(lambda: request.add_exception(exception))
 
-        keys_for_removal = [
-                (_p, _r)
-                for (_p, _r)
-                in self.incoming_requests
-                if _r == remote
-                ]
-        for key in keys_for_removal:
-            pr, task = self.incoming_requests.pop(key)
-            pr.stop_interest()
-            task.cancel()
+        for ((_, _r), (_, stopper)) in self.incoming_requests.items():
+            if remote == _r:
+                stoppers.append(stopper)
+        for stopper in stoppers:
+            stopper()
 
     def process_request(self, request):
         key = (request.token, request.remote)
@@ -117,44 +116,39 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # about it, but here's a new request" or renewed interest in an
             # observation, which gets modelled as a new request at thislevel
             self.log.debug("Incoming request overrides existing request")
-            pr, task = self.incoming_requests.pop(key)
-            pr.stop_interest()
-            task.cancel()
+            (pr, pr_stop) = self.incoming_requests.pop(key)
+            pr_stop()
 
         pr = PlumbingRequest(request)
 
         # FIXME: what can we pass down to the token_interface?  certainly not
         # the request, but maybe the request with a response filter applied?
-        #
-        # for now, starting a task just to serice the queues, add a token and
-        # push on the messages -- should be more callback-driven at this level,
-        # though.
-        async def run():
-            while True:
-                ev = await pr._events.get()
-                if ev.message is not None:
-                    m = ev.message
-                    # FIXME: should this code warn if token or remote are set?
-                    m.token = request.token
-                    m.remote = request.remote.as_response_address()
+        def on_event(ev):
+            if ev.message is not None:
+                m = ev.message
+                # FIXME: should this code warn if token or remote are set?
+                m.token = request.token
+                m.remote = request.remote.as_response_address()
 
-                    if m.mtype is None and request.mtype is NON:
-                        # Default to sending NON to NON requests; rely on the
-                        # default (CON if stand-alone else ACK) otherwise.
-                        m.mtype = NON
-                    self.token_interface.send_message(m)
-                else:
-                    self.log.error("Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s", ev)
-                if ev.is_last:
-                    break
+                if m.mtype is None and request.mtype is NON:
+                    # Default to sending NON to NON requests; rely on the
+                    # default (CON if stand-alone else ACK) otherwise.
+                    m.mtype = NON
+                self.token_interface.send_message(m)
+            else:
+                self.log.error("Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s", ev)
+            if not ev.is_last:
+                return True
+        def on_end():
             del self.incoming_requests[key]
             # no further cleanup to do here: any piggybackable ack was already flushed
             # out by the first response, and if there was not even a
             # NoResponse, something went wrong above (and we can't tell easily
             # here).
-        task = self.loop.create_task(run())
+        pr_stop = pr.on_event(on_event)
+        pr.on_interest_end(on_end)
 
-        self.incoming_requests[key] = (pr, task)
+        self.incoming_requests[key] = (pr, pr_stop)
 
         self.context.render_to_plumbing_request(pr)
 
@@ -234,8 +228,8 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # some information to the token_interface about whether it should
             # keep an eye out for responses on that token and cancel
             # transmission accordingly.
-            request.once_on_message(send_canceller)
-            request.on_interest_end(send_canceller)
+            request.on_event(lambda ev: (send_canceller(), False)[1],
+                    is_interest=False)
 
         # A request sent over the multicast interface will only return a single
         # response and otherwise behave quite like an anycast request (which is
@@ -255,10 +249,33 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
 
 
 class PlumbingRequest:
-    # it is expected that this will change into something that's more a
-    # callback dispatcher and less something that's keeping buffered state;
-    # leaving it as it is for now until it can be more comfortably be
-    # refactored when the test suite can be run again
+    """Low-level meeting point between a request and a any responses that come
+    back on it.
+
+    A single request message is placed in the PlumbingRequest at creation time.
+    Any responses, as well as any exception happening in the course of
+    processing, are passed back to the requester along the PlumbingRequest. A
+    response can carry an indication of whether it is final; an exception
+    always is.
+
+    This object is used both on the client side (where the Context on behalf of
+    the application creates a PlumbingRequest and passes it to the network
+    transports that send the request and fill in any responses) and on the
+    server side (where the Context creates one for an incoming request and
+    eventually lets the server implementation populate it with responses).
+
+    This currently follows a callback dispatch style. (It may be developed into
+    something where only awaiting a response drives the proces, though).
+
+    Currently, the requester sets up the object, connects callbacks, and then
+    passes the PlumbingRequest on to whatever creates the response.
+
+    The creator of responses is notified by the PlumbingRequest of a loss of
+    interest in a response when there are no more callback handlers registered
+    by registering an on_interest_end callback. As the response callbacks need
+    to be already in place when the PlumbingRequest is passed on to the
+    responder, the absence event callbacks is signalled by callign the callback
+    immediately on registration."""
 
     Event = namedtuple("Event", ("message", "exception", "is_last"))
 
@@ -266,20 +283,15 @@ class PlumbingRequest:
 
     def __init__(self, request):
         self.request = request
-        self._interest = asyncio.Future()
-        self._events = asyncio.Queue()
 
-        self._once_on_message = []
-        self._on_interest_end = []
-        # The default-argument closure makes sure no cyclic references are
-        # formed here
-        def handle_interest_end(future, *, interest_end=self._on_interest_end):
-            while interest_end:
-                interest_end.pop()()
-        self._interest.add_done_callback(handle_interest_end)
+        self._event_callbacks = [] # list[(callback, is_interest)],
+                                   # or None during event processing,
+                                   # or False when there were no more event
+                                   # callbacks and an the on_interest_end
+                                   # callbacks have already been called
 
-    def stop_interest(self):
-        self._interest.set_result(None)
+    def _any_interest(self):
+        return any(is_interest for (cb, is_interest) in self._event_callbacks)
 
     def poke(self):
         """Ask the responder for a life sign. It is up to the responder to
@@ -293,26 +305,59 @@ class PlumbingRequest:
         message as a response."""
         raise NotImplementedError()
 
-    # called by side
+    def on_event(self, callback, is_interest=True):
+        """Call callback on any event. The callback must return True to be
+        called again after an event. Callbacks must not produce new events or
+        deregister unrelated event handlers.
 
-    def once_on_message(self, callback):
-        self._once_on_message.append(callback)
+        If is_interest=False, the callback will not be counted toward the
+        active callbacks, and will receive a (None, None, is_last=True) event
+        eventually.
+
+        To unregister the handler, call the returned closure; this can trigger
+        on_interest_end callbacks.
+        """
+        self._event_callbacks.append((callback, is_interest))
+        return functools.partial(self._unregister_on_event, callback)
+
+    def _unregister_on_event(self, callback):
+        self._event_callbacks = [(cb, i) for (cb, i) in self._event_callbacks if callback is not cb]
+        if not self._any_interest():
+            self._end()
 
     def on_interest_end(self, callback):
-        self._on_interest_end.append(callback)
+        """Register a callback that will be called exactly once -- either right
+        now if there is not even a current indicated interest, or at a last
+        event, or when no more interests are present"""
+        if self._any_interest():
+            self._event_callbacks.append((
+                lambda e: ((callback(), False) if e.is_last else (None, True))[1],
+                False
+                ))
+        else:
+            callback()
+
+    def _end(self):
+        cbs = self._event_callbacks
+        self._event_callbacks = False
+        tombstone = self.Event(None, None, True)
+        [cb(tombstone) for (cb, _) in cbs]
 
     # called by the responding side
 
+    def _add_event(self, event):
+        cbs = self._event_callbacks
+        # Force an error when during event handling an event is generated
+        self._event_callbacks = None
+        surviving = [(cb, is_interest) for (cb, is_interest) in cbs if cb(event)]
+
+        self._event_callbacks = surviving
+
+        if not self._any_interest():
+            self._end()
+
     def add_response(self, response, is_last=False):
-        self._events.put_nowait(self.Event(response, None, is_last))
-        while self._once_on_message:
-            self._once_on_message.pop()()
+        self._add_event(self.Event(response, None, is_last))
 
-    def add_exception(self, exception, is_last=True):
-        self._events.put_nowait(self.Event(None, exception, is_last))
-
-    def revoke_responses(self, filterexpression):
-        """Remove all pending responses from the response queue where
-        filterexpression(msg) returns True. To be used primarily for filtering
-        out old pending observation responses."""
-        raise NotImplementedError()
+    def add_exception(self, exception):
+        self._add_event(self.Event(None, exception, True))

@@ -321,6 +321,7 @@ class Context(interfaces.RequestProvider):
             return BlockwiseRequest(self, request_message)
 
         plumbing_request = PlumbingRequest(request_message)
+        # Request sets up callbacks at creation
         result = Request(plumbing_request, self.loop, self.log)
 
         async def send():
@@ -648,25 +649,40 @@ class Request(interfaces.Request, BaseUnicastRequest):
         else:
             self.observation = None
 
-        self._runner = loop.create_task(self._run())
+        self._runner = self._run()
+        self._runner.send(None)
+        def process(event):
+            try:
+                self._runner.send(event)
+                return True
+            except StopIteration:
+                return False
+        self._stop_interest = self._plumbing_request.on_event(process)
 
         self.log = log
 
         self.response.add_done_callback(self._response_cancellation_handler)
 
     def _response_cancellation_handler(self, response):
-        if self.response.cancelled() and not self._runner.cancelled():
-            self._runner.cancel()
-            self._plumbing_request.stop_interest()
+        if self.response.cancelled() and self._runner is not None:
+            self._runner = None
+            self._stop_interest()
+            self._stop_interest = None
 
     @staticmethod
     def _add_response_properties(response, request):
         response.request = request
 
-    async def _run(self):
+    def _run(self):
+        # FIXME: This is in iterator form because it used to be a task that
+        # awaited futures, and that code could be easily converted to an
+        # iterator. I'm not sure that's a bad state here, but at least it
+        # should be a more conscious decision to make this an iterator rather
+        # than just having it happen to be one.
+        #
         # FIXME: check that responses come from the same remmote as long as we're assuming unicast
 
-        first_event = await self._plumbing_request._events.get()
+        first_event = yield None
 
         if first_event.message is not None:
             self._add_response_properties(first_event.message, self._plumbing_request.request)
@@ -711,7 +727,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
             # FIXME: there *is* now a .on_cancel callback, we should at least
             # hook into that, and possibly even send a proper cancellation
             # then.
-            next_event = await self._plumbing_request._events.get()
+            next_event = yield True
             if self.observation.cancelled:
                 self._plumbing_request.stop_interest()
                 return
