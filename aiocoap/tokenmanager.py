@@ -275,7 +275,15 @@ class PlumbingRequest:
     by registering an on_interest_end callback. As the response callbacks need
     to be already in place when the PlumbingRequest is passed on to the
     responder, the absence event callbacks is signalled by callign the callback
-    immediately on registration."""
+    immediately on registration.
+
+    To accurately model "loss of interest", it is important to use the
+    two-phase setup of first registering actual callbacks and then producing
+    events and/or placing on_interest_end callbacks; this is not clearly
+    expressed in type or state yet. (One possibility would be for the
+    PlumbingRequest to carry a preparation boolean, and which prohibits event
+    sending during preparation and is_interest=True callback creation
+    afterwards)."""
 
     Event = namedtuple("Event", ("message", "exception", "is_last"))
 
