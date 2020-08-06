@@ -221,6 +221,8 @@ class CredentialsMap(dict):
                     del self[k]
             else:
                 self[k] = self._item_from_dict(v)
+                # FIXME only works that way for OSCORE clients
+                self[k].authenticated_claims = [k]
 
     def _item_from_dict(self, v):
         if isinstance(v, str):

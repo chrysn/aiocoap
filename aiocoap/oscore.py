@@ -288,6 +288,10 @@ class SecurityContext(metaclass=abc.ABCMeta):
     # from the current process, and thus its sequence number is fresh
     echo_recovery = None
 
+    # Authentication information carried with this security context; managed
+    # externally by whatever creates the security context.
+    authenticated_claims = []
+
     # message processing
 
     def _extract_external_aad(self, message, request_kid, request_piv):

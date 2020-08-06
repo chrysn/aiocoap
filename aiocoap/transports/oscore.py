@@ -84,6 +84,10 @@ class OSCOREAddress(
     def scheme(self):
         return self.underlying_address.scheme
 
+    @property
+    def authenticated_claims(self):
+        return self.security_context.authenticated_claims
+
     is_multicast = False
 
     maximum_payload_size = 1024

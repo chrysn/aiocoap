@@ -155,6 +155,23 @@ class EndpointAddress(metaclass=abc.ABCMeta):
         """
         return self
 
+    @property
+    def authenticated_claims(self):
+        """Iterable of objects representing any claims (e.g. an identity, or
+        generally objects that can be used to authorize particular accesses)
+        that were authenticated for this remote.
+
+        This is experimental and may be changed without notice.
+
+        Its primary use is on the server side; there, a request handler (or
+        resource decorator) can use the claims to decide whether the client is
+        authorized for a particular request. Use on the client side is planned
+        as a requirement on a request, although (especially on side-effect free
+        non-confidential requests) it can also be used in response
+        processing."""
+        # "no claims" is a good default
+        return ()
+
 class MessageManager(metaclass=abc.ABCMeta):
     """The interface an entity that drives a MessageInterface provides towards
     the MessageInterface for callbacks and object acquisition."""
