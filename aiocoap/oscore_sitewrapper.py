@@ -24,6 +24,7 @@ again. (This will also influence a future inner-blockwise implementation).
 
 import logging
 
+import aiocoap
 from aiocoap import interfaces
 from aiocoap import oscore, error
 
