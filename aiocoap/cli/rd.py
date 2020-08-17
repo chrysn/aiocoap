@@ -480,7 +480,6 @@ class SimpleRegistrationWKC(WKCResource):
             raise error.BadRequest("base is not allowed in simple registrations")
 
         await self.process_request(
-                key=key,
                 network_remote=request.remote,
                 registration_parameters=query,
             )
