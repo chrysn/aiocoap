@@ -116,6 +116,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # about it, but here's a new request" or renewed interest in an
             # observation, which gets modelled as a new request at thislevel
             self.log.debug("Incoming request overrides existing request")
+            # Popping: FIXME Decide if one of them is sufficient (see `del self.incoming_requests[key]` below)
             (pr, pr_stop) = self.incoming_requests.pop(key)
             pr_stop()
 
@@ -140,7 +141,10 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             if not ev.is_last:
                 return True
         def on_end():
-            del self.incoming_requests[key]
+            if key in self.incoming_requests:
+                # It may not be, especially if it was popped in `(pr, pr_stop) = self.incoming_requests.pop(keyu)` above
+                # FIXME Decide if one of them is sufficient
+                del self.incoming_requests[key]
             # no further cleanup to do here: any piggybackable ack was already flushed
             # out by the first response, and if there was not even a
             # NoResponse, something went wrong above (and we can't tell easily
