@@ -82,7 +82,7 @@ class OptionNumber(ExtensibleIntEnum):
     NO_RESPONSE = 258
     OBJECT_SECURITY = 9
     # picked for draft-ietf-core-echo-request-tag-09
-    ECHO = 248
+    ECHO = 252
     REQUEST_TAG = 292
 
     def is_critical(self):
