@@ -494,7 +494,7 @@ class SimpleRegistrationWKC(WKCResource):
         except error.AnonymousHost:
             raise error.BadRequest("explicit base required")
 
-        fetch_address = (base + '/.well-known/core')
+        fetch_address = (network_base + '/.well-known/core')
 
         # not trying to catch anything here -- the errors are most likely well renderable into the final response
         response = await self.context.request(aiocoap.Message(code=aiocoap.GET, uri=fetch_address)).response_raising
