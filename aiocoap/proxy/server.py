@@ -12,6 +12,7 @@ This is work in progress and not yet part of the API."""
 
 import asyncio
 import functools
+import ipaddress
 import logging
 
 from .. import numbers, interfaces, message, error, util
@@ -243,16 +244,27 @@ class ForwardProxy(Proxy):
             raise NoUriSplitting
         if request.opt.proxy_scheme is None:
             raise IncompleteProxyUri("This is only a proxy")
-        if request.opt.proxy_scheme != 'coap':
-            raise IncompleteProxyUri("This is only a proxy")
+        if request.opt.uri_host is None:
+            raise IncompleteProxyUri
 
+        raise_unless_safe(request, (numbers.OptionNumber.PROXY_SCHEME, numbers.OptionNumber.URI_HOST))
+
+        request.remote = message.UndecidedRemote(request.opt.proxy_scheme, util.hostportjoin(request.opt.uri_host, request.opt.uri_port))
         request.opt.proxy_scheme = None
+        request.opt.uri_port = None
+        try:
+            # I'd prefer to not do if-by-try, but the ipaddress doesn't seem to
+            # offer any other choice
+            ipaddress.ip_address(request.opt.uri_host)
+        except ValueError:
+            pass
+        else:
+            request.opt.uri_host = None
 
+        # Maybe the URI-Host matches a known forwarding -- in that case, catch that.
         redirected = super(ForwardProxy, self).apply_redirection(request)
         if redirected is not None:
             return redirected
-
-        raise_unless_safe(request, (numbers.OptionNumber.PROXY_SCHEME, numbers.OptionNumber.URI_HOST))
 
         return request
 
