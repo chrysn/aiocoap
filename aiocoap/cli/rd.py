@@ -487,7 +487,10 @@ class SimpleRegistrationWKC(WKCResource):
         return aiocoap.Message(code=aiocoap.CHANGED)
 
     async def process_request(self, network_remote, registration_parameters):
-        base = network_remote.uri
+        try:
+            network_base = network_remote.uri
+        except error.AnonymousHost:
+            raise error.BadRequest("explicit base required")
 
         fetch_address = (base + '/.well-known/core')
 
