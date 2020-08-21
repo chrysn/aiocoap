@@ -42,6 +42,8 @@ from aiocoap.util.linkformat import Link, LinkFormat, parse
 
 import link_header
 
+IMMUTABLE_PARAMETERS = ('ep', 'd')
+
 def query_split(msg):
     result = {}
     for q in msg.opt.uri_query:
@@ -245,7 +247,7 @@ class CommonRD:
         # copying around for later use in static, but not checking again
         # because reading them from the original will already have screamed by
         # the time this is used
-        ep_and_d = {k: v for (k, v) in registration_parameters.items() if k in ('ep', 'd')}
+        static_registration_parameters = {k: v for (k, v) in registration_parameters.items() if k in IMMUTABLE_PARAMETERS}
 
         ep = pop_single_arg(registration_parameters, 'ep')
         if ep is None:
@@ -272,7 +274,7 @@ class CommonRD:
             del self._by_path[path]
             del self._by_key[key]
 
-        reg = self.Registration(ep_and_d, self.entity_prefix + path, network_remote, delete,
+        reg = self.Registration(static_registration_parameters, self.entity_prefix + path, network_remote, delete,
                 self._updated_state, registration_parameters)
 
         self._by_key[key] = reg
