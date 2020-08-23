@@ -88,6 +88,7 @@ setup(
     author_email="c.amsuess@energyharvesting.at",
     url="https://github.com/chrysn/aiocoap",
 
+    license='MIT',
     keywords=['coap', 'asyncio', 'iot'],
     classifiers=[
         'Development Status :: 4 - Beta',
