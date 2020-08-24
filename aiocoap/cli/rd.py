@@ -471,9 +471,10 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
         return link_format_to_message(request, LinkFormat(candidates))
 
 class SimpleRegistrationWKC(WKCResource):
-    def __init__(self, listgenerator, common_rd):
+    def __init__(self, listgenerator, common_rd, context):
         super().__init__(listgenerator)
         self.common_rd = common_rd
+        self.context = context
 
     async def render_post(self, request):
         query = query_split(request)
@@ -514,13 +515,12 @@ class StandaloneResourceDirectory(Site):
     ep_lookup_path = ("endpoint-lookup", "")
     res_lookup_path = ("resource-lookup", "")
 
-    def __init__(self):
+    def __init__(self, context):
         super().__init__()
 
         common_rd = CommonRD()
 
-        self._simple_wkc = SimpleRegistrationWKC(self.get_resources_as_linkheader, common_rd=common_rd)
-        self.add_resource([".well-known", "core"], self._simple_wkc)
+        self.add_resource([".well-known", "core"], SimpleRegistrationWKC(self.get_resources_as_linkheader, common_rd=common_rd, context=context))
 
         self.add_resource(self.rd_path, DirectoryResource(common_rd=common_rd))
         self.add_resource(self.ep_lookup_path, EndpointLookupInterface(common_rd=common_rd))
@@ -532,12 +532,6 @@ class StandaloneResourceDirectory(Site):
 
     async def shutdown(self):
         await self.common_rd.shutdown()
-
-    # the need to pass this around crudely demonstrates that the setup of sites
-    # and contexts direly needs improvement, and thread locals are giggling
-    # about my stubbornness
-    def set_context(self, new_context):
-        self._simple_wkc.context = new_context
 
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
@@ -551,10 +545,11 @@ class Main(AsyncCLIDaemon):
         parser = build_parser()
         options = parser.parse_args(args if args is not None else sys.argv[1:])
 
-        self.site = StandaloneResourceDirectory()
+        # Putting in an empty site to construct the site with a context
+        self.context = await server_context_from_arguments(None, options)
 
-        self.context = await server_context_from_arguments(self.site, options)
-        self.site.set_context(self.context)
+        self.site = StandaloneResourceDirectory(context=self.context)
+        self.context.serversite = self.site
 
     async def shutdown(self):
         await self.site.shutdown()
