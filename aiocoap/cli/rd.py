@@ -198,7 +198,7 @@ class CommonRD:
             for (k, values) in self.registration_parameters.items():
                 for v in values:
                     attr_pairs.append([k, v])
-            return Link(href=self.href, attr_pairs=attr_pairs, base=self.base, rt="coire.rd-ep")
+            return Link(href=self.href, attr_pairs=attr_pairs, base=self.base, rt="core.rd-ep")
 
         def get_based_links(self):
             """Produce a LinkFormat object that represents all statements in
