@@ -12,21 +12,35 @@ This is work in progress and not yet part of the API."""
 
 import asyncio
 import functools
+import ipaddress
 import logging
 
 from .. import numbers, interfaces, message, error, util
 
-class CanNotRedirect(Exception):
-    def __init__(self, code, explanation):
-        super(CanNotRedirect, self).__init__()
-        self.code = code
-        self.explanation = explanation
+class CanNotRedirect(error.ConstructionRenderableError):
+    message = "Proxy redirection failed"
+
+class NoUriSplitting(CanNotRedirect):
+    code = numbers.codes.NOT_IMPLEMENTED
+    message = "URI splitting not implemented, please use Proxy-Scheme."
+
+class IncompleteProxyUri(CanNotRedirect):
+    code = numbers.codes.BAD_REQUEST
+    message = "Proxying requires Proxy-Scheme and Uri-Host"
+
+class NotAForwardProxy(CanNotRedirect):
+    code = numbers.codes.PROXYING_NOT_SUPPORTED
+    message = "This is a reverse proxy, not a forward one."
+
+class NoSuchHostname(CanNotRedirect):
+    code = numbers.codes.NOT_FOUND
+    message = ""
 
 class CanNotRedirectBecauseOfUnsafeOptions(CanNotRedirect):
+    code = numbers.codes.BAD_OPTION
+
     def __init__(self, options):
-        self.code = numbers.codes.BAD_OPTION
-        self.explanation = "Unsafe options in request: %s"%(", ".join(str(o.number) for o in options))
-        self.options = options
+        self.message = "Unsafe options in request: %s"%(", ".join(str(o.number) for o in options))
 
 def raise_unless_safe(request, known_options):
     """Raise a BAD_OPTION CanNotRedirect unless all options in request are
@@ -55,6 +69,7 @@ class Proxy(interfaces.Resource):
     interpret_block_options = False
 
     def __init__(self, outgoing_context, logger=None):
+        super().__init__()
         self.outgoing_context = outgoing_context
         self.log = logger or logging.getLogger('proxy')
 
@@ -82,7 +97,7 @@ class Proxy(interfaces.Resource):
         try:
             request = self.apply_redirection(request)
         except CanNotRedirect as e:
-            return message.Message(code=e.code, payload=e.explanation.encode('utf8'))
+            return e.to_message()
 
         try:
             response = await self.outgoing_context.request(request, handle_blockwise=self.interpret_block_options).response
@@ -227,19 +242,30 @@ class ForwardProxy(Proxy):
     # big FIXME: modifying an object in-place and returning it should not be done.
     def apply_redirection(self, request):
         if request.opt.proxy_uri is not None:
-            raise CanNotRedirect(numbers.codes.NOT_IMPLEMENTED, "URI splitting not implemented, please use Proxy-Scheme.")
+            raise NoUriSplitting
         if request.opt.proxy_scheme is None:
-            raise CanNotRedirect(numbers.codes.BAD_REQUEST, "This is only a proxy.") # correct error code?
-        if request.opt.proxy_scheme != 'coap':
-            raise CanNotRedirect(numbers.codes.BAD_OPTION, "This is only a CoAP proxy (set uri-scheme to coap)")
+            raise IncompleteProxyUri("This is only a proxy")
+        if request.opt.uri_host is None:
+            raise IncompleteProxyUri
 
+        raise_unless_safe(request, (numbers.OptionNumber.PROXY_SCHEME, numbers.OptionNumber.URI_HOST))
+
+        request.remote = message.UndecidedRemote(request.opt.proxy_scheme, util.hostportjoin(request.opt.uri_host, request.opt.uri_port))
         request.opt.proxy_scheme = None
+        request.opt.uri_port = None
+        try:
+            # I'd prefer to not do if-by-try, but the ipaddress doesn't seem to
+            # offer any other choice
+            ipaddress.ip_address(request.opt.uri_host)
+        except ValueError:
+            pass
+        else:
+            request.opt.uri_host = None
 
+        # Maybe the URI-Host matches a known forwarding -- in that case, catch that.
         redirected = super(ForwardProxy, self).apply_redirection(request)
         if redirected is not None:
             return redirected
-
-        raise_unless_safe(request, (numbers.OptionNumber.PROXY_SCHEME, numbers.OptionNumber.URI_HOST))
 
         return request
 
@@ -250,11 +276,11 @@ class ReverseProxy(Proxy):
     def apply_redirection(self, request):
         if request.opt.proxy_uri is not None or request.opt.proxy_scheme is not None:
             # that should somehow be default...
-            raise CanNotRedirect(numbers.codes.PROXYING_NOT_SUPPORTED, "This is a reverse proxy, not a forward one.")
+            raise NotAForwardProxy
 
         redirected = super(ReverseProxy, self).apply_redirection(request)
         if redirected is None:
-            raise CanNotRedirect(numbers.codes.NOT_FOUND, "")
+            raise NoSuchHostname
 
         return redirected
 

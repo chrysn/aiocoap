@@ -24,6 +24,7 @@ Known Caveats:
     * Simple registrations don't cache .well-known/core contents
 """
 
+import string
 import sys
 import logging
 import asyncio
@@ -33,14 +34,19 @@ import itertools
 
 import aiocoap
 from aiocoap.resource import Site, Resource, ObservableResource, PathCapable, WKCResource, link_format_to_message
+from aiocoap.proxy.server import Proxy
 from aiocoap.util.cli import AsyncCLIDaemon
+import aiocoap.util.uri
 from aiocoap import error
 from aiocoap.cli.common import add_server_arguments, server_context_from_arguments
 from aiocoap.numbers import media_types_rev
+import aiocoap.proxy.server
 
 from aiocoap.util.linkformat import Link, LinkFormat, parse
 
 import link_header
+
+IMMUTABLE_PARAMETERS = ('ep', 'd', 'proxy')
 
 def query_split(msg):
     result = {}
@@ -70,13 +76,16 @@ class CommonRD:
 
     entity_prefix = ("reg",)
 
-    def __init__(self):
+    def __init__(self, proxy_domain=None):
         super().__init__()
 
         self._by_key = {} # key -> Registration
         self._by_path = {} # path -> Registration
 
         self._updated_state_cb = []
+
+        self.proxy_domain = proxy_domain
+        self.proxy_active = {} # uri_host -> Remote
 
     class Registration:
         # FIXME: split this into soft and hard grace period (where the former
@@ -90,7 +99,7 @@ class CommonRD:
         def href(self):
             return '/' + '/'.join(self.path)
 
-        def __init__(self, static_registration_parameters, path, network_remote, delete_cb, update_cb, registration_parameters):
+        def __init__(self, static_registration_parameters, path, network_remote, delete_cb, update_cb, registration_parameters, proxy_host, setproxyremote_cb):
             # note that this can not modify d and ep any more, since they are
             # already part of the key and possibly the path
             self.path = path
@@ -102,6 +111,9 @@ class CommonRD:
             self.registration_parameters = static_registration_parameters
             self.lt = 90000
             self.base_is_explicit = False
+
+            self.proxy_host = proxy_host
+            self._setproxyremote_cb = setproxyremote_cb
 
             self.update_params(network_remote, registration_parameters, is_initial=True)
 
@@ -125,10 +137,15 @@ class CommonRD:
                     registration_parameters:
                 # check early for validity to avoid side effects of requests
                 # answered with 4.xx
-                try:
-                    network_base = network_remote.uri
-                except error.AnonymousHost:
-                    raise error.BadRequest("explicit base required")
+                if self.proxy_host is None:
+                    try:
+                        network_base = network_remote.uri
+                    except error.AnonymousHost:
+                        breakpoint()
+                        raise error.BadRequest("explicit base required")
+                else:
+                    # FIXME: Advertise alternative transports (write alternative-transports)
+                    network_base = 'coap://' + self.proxy_host
 
             if is_initial:
                 # technically might be a re-registration, but we can't catch that at this point
@@ -173,6 +190,9 @@ class CommonRD:
             if actual_change:
                 self._update_cb()
 
+            if self.proxy_host:
+                self._setproxyremote_cb(network_remote)
+
         def delete(self):
             self.timeout.cancel()
             self._update_cb()
@@ -196,7 +216,7 @@ class CommonRD:
             for (k, values) in self.registration_parameters.items():
                 for v in values:
                     attr_pairs.append([k, v])
-            return Link(href=self.href, attr_pairs=attr_pairs, base=self.base, rt="coire.rd-ep")
+            return Link(href=self.href, attr_pairs=attr_pairs, base=self.base, rt="core.rd-ep")
 
         def get_based_links(self):
             """Produce a LinkFormat object that represents all statements in
@@ -245,14 +265,44 @@ class CommonRD:
         # copying around for later use in static, but not checking again
         # because reading them from the original will already have screamed by
         # the time this is used
-        ep_and_d = {k: v for (k, v) in registration_parameters.items() if k in ('ep', 'd')}
+        static_registration_parameters = {k: v for (k, v) in registration_parameters.items() if k in IMMUTABLE_PARAMETERS}
 
         ep = pop_single_arg(registration_parameters, 'ep')
         if ep is None:
             raise error.BadRequest("ep argument missing")
         d = pop_single_arg(registration_parameters, 'd')
 
+        proxy = pop_single_arg(registration_parameters, 'proxy')
+
+        if proxy is not None and proxy != 'on':
+            raise error.BadRequest("Unsupported proxy value")
+
         key = (ep, d)
+
+        if static_registration_parameters.pop('proxy', None):
+            # FIXME: 'ondemand' is done unconditionally
+
+            if not self.proxy_domain:
+                raise BadRequest("Proxying not enabled")
+
+            def is_usable(s):
+                # Host names per RFC1123 (which is stricter than what RFC3986 would allow).
+                #
+                # Only supporting lowercase names as to avoid ambiguities due
+                # to hostname capitalizatio normalization (otherwise it'd need
+                # to be first-registered-first-served)
+                return s and all(x in string.ascii_lowercase + string.digits + '-' for x in s)
+            if not is_usable(ep) or (d is not None and not is_usable(d)):
+                raise BadRequest("Proxying only supported for limited ep and d set (lowercase, digits, dash)")
+
+            proxy_host = ep
+            if d is not None:
+                proxy_host += '.' + d
+            proxy_host = proxy_host + '.' + self.proxy_domain
+        else:
+            proxy_host = None
+
+        # No more errors should fly out from below here, as side effects start now
 
         try:
             oldreg = self._by_key[key]
@@ -271,9 +321,13 @@ class CommonRD:
         def delete():
             del self._by_path[path]
             del self._by_key[key]
+            self.proxy_active.pop(proxy_host)
 
-        reg = self.Registration(ep_and_d, self.entity_prefix + path, network_remote, delete,
-                self._updated_state, registration_parameters)
+        def setproxyremote(remote):
+            self.proxy_active[proxy_host] = remote
+
+        reg = self.Registration(static_registration_parameters, self.entity_prefix + path, network_remote, delete,
+                self._updated_state, registration_parameters, proxy_host, setproxyremote)
 
         self._by_key[key] = reg
         self._by_path[path] = reg
@@ -469,9 +523,10 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
         return link_format_to_message(request, LinkFormat(candidates))
 
 class SimpleRegistrationWKC(WKCResource):
-    def __init__(self, listgenerator, common_rd):
+    def __init__(self, listgenerator, common_rd, context):
         super().__init__(listgenerator)
         self.common_rd = common_rd
+        self.context = context
 
     async def render_post(self, request):
         query = query_split(request)
@@ -487,18 +542,27 @@ class SimpleRegistrationWKC(WKCResource):
         return aiocoap.Message(code=aiocoap.CHANGED)
 
     async def process_request(self, network_remote, registration_parameters):
-        base = network_remote.uri
+        if 'proxy' not in registration_parameters:
+            try:
+                network_base = network_remote.uri
+            except error.AnonymousHost:
+                raise error.BadRequest("explicit base required")
 
-        fetch_address = (base + '/.well-known/core')
+            fetch_address = (network_base + '/.well-known/core')
+            get = aiocoap.Message(code=aiocoap.GET, uri=fetch_address)
+        else:
+            # ignoring that there might be a based present, that will err later
+            get = aiocoap.Message(code=aiocoap.GET, uri_path=['.well-known', 'core'])
+            get.remote = network_remote
 
         # not trying to catch anything here -- the errors are most likely well renderable into the final response
-        response = await self.context.request(aiocoap.Message(code=aiocoap.GET, uri=fetch_address)).response_raising
+        response = await self.context.request(get).response_raising
         links = link_format_from_message(response)
 
         registration = self.common_rd.initialize_endpoint(network_remote, registration_parameters)
         registration.links = links
 
-class StandaloneResourceDirectory(Site):
+class StandaloneResourceDirectory(Proxy, Site):
     """A site that contains all function sets of the CoAP Resource Directoru
 
     To prevent or show ossification of example paths in the specification, all
@@ -509,13 +573,13 @@ class StandaloneResourceDirectory(Site):
     ep_lookup_path = ("endpoint-lookup", "")
     res_lookup_path = ("resource-lookup", "")
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, context, **kwargs):
+        # Double inheritance: works as everything up of Proxy has the same interface
+        super().__init__(outgoing_context=context)
 
-        common_rd = CommonRD()
+        common_rd = CommonRD(**kwargs)
 
-        self._simple_wkc = SimpleRegistrationWKC(self.get_resources_as_linkheader, common_rd=common_rd)
-        self.add_resource([".well-known", "core"], self._simple_wkc)
+        self.add_resource([".well-known", "core"], SimpleRegistrationWKC(self.get_resources_as_linkheader, common_rd=common_rd, context=context))
 
         self.add_resource(self.rd_path, DirectoryResource(common_rd=common_rd))
         self.add_resource(self.ep_lookup_path, EndpointLookupInterface(common_rd=common_rd))
@@ -525,14 +589,26 @@ class StandaloneResourceDirectory(Site):
 
         self.common_rd = common_rd
 
+    def apply_redirection(self, request):
+        # Fully overriding so we don't need to set an add_redirector
+
+        # infallible as the request only gets here if the proxy path is chosen
+        actual_remote = self.common_rd.proxy_active[request.opt.uri_host]
+        request.remote = actual_remote
+        request.opt.uri_host = None
+        return request
+
     async def shutdown(self):
         await self.common_rd.shutdown()
 
-    # the need to pass this around crudely demonstrates that the setup of sites
-    # and contexts direly needs improvement, and thread locals are giggling
-    # about my stubbornness
-    def set_context(self, new_context):
-        self._simple_wkc.context = new_context
+    async def render(self, request):
+        # Full override switching which of the parents' behavior to choose
+
+        if request.opt.uri_host in self.common_rd.proxy_active:
+            # This is never the case if proxying is disabled.
+            return await Proxy.render(self, request)
+        else:
+            return await Site.render(self, request)
 
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
@@ -544,12 +620,14 @@ def build_parser():
 class Main(AsyncCLIDaemon):
     async def start(self, args=None):
         parser = build_parser()
+        parser.add_argument("--proxy-domain", help="Enable the RD proxy extension. Example: `.proxy.example.net` will produce base URIs like `coap://node1.proxy.example.net/`. The names must all resolve to an address the RD is bound to.", type=str)
         options = parser.parse_args(args if args is not None else sys.argv[1:])
 
-        self.site = StandaloneResourceDirectory()
+        # Putting in an empty site to construct the site with a context
+        self.context = await server_context_from_arguments(None, options)
 
-        self.context = await server_context_from_arguments(self.site, options)
-        self.site.set_context(self.context)
+        self.site = StandaloneResourceDirectory(context=self.context, proxy_domain=options.proxy_domain)
+        self.context.serversite = self.site
 
     async def shutdown(self):
         await self.site.shutdown()

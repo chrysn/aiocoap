@@ -224,6 +224,12 @@ class Context(interfaces.RequestProvider):
         As a shortcut, the list may also contain interface names alone. Those
         will be joined for the 'all CoAP nodes' groups of IPv4 and IPv6 (with
         scopes 2 and 5) as well as the respective 'all nodes' groups in IPv6.
+
+        Under some circumstances you may already need a context to pass into
+        the site for creation; this is typically the case for servers that
+        trigger requests on their own. For those cases, it is usually easiest
+        to pass None in as a site, and set the fully constructed site later by
+        assigning to the ``serversite`` attribute.
         """
 
         if loop is None:
