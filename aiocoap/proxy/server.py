@@ -69,6 +69,7 @@ class Proxy(interfaces.Resource):
     interpret_block_options = False
 
     def __init__(self, outgoing_context, logger=None):
+        super().__init__()
         self.outgoing_context = outgoing_context
         self.log = logger or logging.getLogger('proxy')
 
