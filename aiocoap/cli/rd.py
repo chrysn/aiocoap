@@ -141,7 +141,6 @@ class CommonRD:
                     try:
                         network_base = network_remote.uri
                     except error.AnonymousHost:
-                        breakpoint()
                         raise error.BadRequest("explicit base required")
                 else:
                     # FIXME: Advertise alternative transports (write alternative-transports)
