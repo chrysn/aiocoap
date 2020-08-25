@@ -12,7 +12,7 @@ import sys
 import argparse
 
 import aiocoap
-from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ReverseProxyWithPooledObservations, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector
+from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ProxyWithPooledObservations, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector
 from aiocoap.util.cli import AsyncCLIDaemon
 from aiocoap.cli.common import add_server_arguments, server_context_from_arguments
 
@@ -20,8 +20,8 @@ def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
 
     mode = p.add_argument_group("mode", "Required argument for setting the operation mode")
-    mode.add_argument('--forward', help="Run as forward proxy", action='store_const', const=ForwardProxyWithPooledObservations, dest='direction')
-    mode.add_argument('--reverse', help="Run as reverse proxy", action='store_const', const=ReverseProxyWithPooledObservations, dest='direction')
+    mode.add_argument('--forward', help="Run as forward proxy", action='store_true')
+    mode.add_argument('--reverse', help="Run as reverse proxy", action='store_true')
 
     details = p.add_argument_group("details", "Options that govern how requests go in and out")
     add_server_arguments(details)
@@ -44,11 +44,14 @@ class Main(AsyncCLIDaemon):
         parser = build_parser()
         options = parser.parse_args(args if args is not None else sys.argv[1:])
 
-        if options.direction is None:
-            raise parser.error("Either --forward or --reverse must be given.")
+        if not options.forward and not options.reverse:
+            raise parser.error("At least one of --forward and --reverse must be given.")
 
         self.outgoing_context = await aiocoap.Context.create_client_context()
-        proxy = options.direction(self.outgoing_context)
+        if options.forward and not options.reverse:
+            proxy = ForwardProxyWithPooledObservations(self.outgoing_context)
+        else:
+            proxy = ProxyWithPooledObservations(self.outgoing_context)
         for kind, data in options.r or ():
             if kind == '--namebased':
                 try:

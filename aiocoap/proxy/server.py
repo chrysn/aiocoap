@@ -99,6 +99,12 @@ class Proxy(interfaces.Resource):
         except CanNotRedirect as e:
             return e.to_message()
 
+        if request is None:
+            response = await super().render(request)
+            if response is None:
+                raise IncompleteProxyUri("No matching proxy rule")
+            return response
+
         try:
             response = await self.outgoing_context.request(request, handle_blockwise=self.interpret_block_options).response
         except error.RequestTimedOut as e:
@@ -219,6 +225,8 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
 
         try:
             redirected_request = self.apply_redirection(redirected_request)
+            if redirected_request is None:
+                return await super().render(request)
             clientobservationrequest = self._peek_observation_for(redirected_request)
         except (KeyError, CanNotRedirect) as e:
             if not isinstance(e, CanNotRedirect) and request.opt.observe is not None:
@@ -239,16 +247,16 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
 
 
 class ForwardProxy(Proxy):
-    # big FIXME: modifying an object in-place and returning it should not be done.
     def apply_redirection(self, request):
+        request = request.copy()
         if request.opt.proxy_uri is not None:
             raise NoUriSplitting
         if request.opt.proxy_scheme is None:
-            raise IncompleteProxyUri("This is only a proxy")
+            return super().apply_redirection(request)
         if request.opt.uri_host is None:
             raise IncompleteProxyUri
 
-        raise_unless_safe(request, (numbers.OptionNumber.PROXY_SCHEME, numbers.OptionNumber.URI_HOST))
+        raise_unless_safe(request, (numbers.OptionNumber.PROXY_SCHEME, numbers.OptionNumber.URI_HOST, numbers.OptionNumber.URI_PORT))
 
         request.remote = message.UndecidedRemote(request.opt.proxy_scheme, util.hostportjoin(request.opt.uri_host, request.opt.uri_port))
         request.opt.proxy_scheme = None
@@ -273,16 +281,12 @@ class ForwardProxyWithPooledObservations(ForwardProxy, ProxyWithPooledObservatio
     pass
 
 class ReverseProxy(Proxy):
-    def apply_redirection(self, request):
-        if request.opt.proxy_uri is not None or request.opt.proxy_scheme is not None:
-            # that should somehow be default...
-            raise NotAForwardProxy
-
-        redirected = super(ReverseProxy, self).apply_redirection(request)
-        if redirected is None:
-            raise NoSuchHostname
-
-        return redirected
+    def __init__(self, *args, **kwargs):
+        import warnings
+        warnings.warn("ReverseProxy has become moot due to proxy operation "
+                "changes, just instanciate Proxy and set the appropriate "
+                "redirectors", DeprecationWarning, stacklevel=1)
+        super().__init__(*args, **kwargs)
 
 class ReverseProxyWithPooledObservations(ReverseProxy, ProxyWithPooledObservations):
     pass

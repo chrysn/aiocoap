@@ -56,7 +56,7 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
         request = req()
 
         response = yieldfrom(self.client.request(request).response)
-        self.assertEqual(response.code, aiocoap.NOT_FOUND, "GET without hostname gave resource (NOT_FOUND expected)")
+        self.assertEqual(response.code, aiocoap.BAD_REQUEST, "GET without hostname gave resource (something like BAD_REQUEST expected)")
 
         request = req()
         request.opt.uri_host = self.name_for_real_server
@@ -84,7 +84,7 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
         request.opt.proxy_scheme = 'coap'
 
         response = yieldfrom(self.client.request(request).response)
-        self.assertEqual(response.code, aiocoap.PROXYING_NOT_SUPPORTED, "Reverse proxy supports proxying even though it shouldn't.")
+        self.assertEqual(response.code, aiocoap.BAD_OPTION, "Reverse proxy supports proxying even though it shouldn't.")
 
 
         request = req()
