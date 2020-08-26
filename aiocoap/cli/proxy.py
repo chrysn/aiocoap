@@ -25,9 +25,9 @@ def build_parser():
 
     details = p.add_argument_group("details", "Options that govern how requests go in and out")
     add_server_arguments(details)
-    details.add_argument('--proxy', help="Relay outgoing requests through yet another proxy", metavar="HOST[:PORT]")
 
-    r = p.add_argument_group('Rules', description="Sequence of forwarding rules that, if matched by a request, specify a forwarding destination")
+    r = p.add_argument_group('Rules', description="Sequence of forwarding rules "
+            "that, if matched by a request, specify a forwarding destination. Destinations can be prefixed to change their behavior: With an '@' sign, they are treated as forward proxies. With a '!' sign, the destination is set as Uri-Host.")
     class TypedAppend(argparse.Action):
         def __call__(self, parser, namespace, values, option_string=None):
             if getattr(namespace, self.dest) is None:
@@ -39,6 +39,17 @@ def build_parser():
     r.add_argument('--unconditional', help="Route all requests not previously matched to DEST", metavar="DEST", action=TypedAppend, dest='r')
 
     return p
+
+def destsplit(dest):
+    use_as_proxy = False
+    rewrite_uri_host = False
+    if dest.startswith('!'):
+        dest = dest[1:]
+        rewrite_uri_host = True
+    if dest.startswith('@'):
+        dest = dest[1:]
+        use_as_proxy = True
+    return dest, rewrite_uri_host, use_as_proxy
 
 class Main(AsyncCLIDaemon):
     async def start(self, args=None):
@@ -59,7 +70,10 @@ class Main(AsyncCLIDaemon):
                     name, dest = data.split(':', 1)
                 except:
                     raise parser.error("%s needs NAME:DEST as arguments" % kind)
-                r = (NameBasedVirtualHost if kind == '--namebased' else SubdomainVirtualHost)(name, dest)
+                dest, rewrite_uri_host, use_as_proxy = destsplit(dest)
+                if rewrite_uri_host and kind == '--subdomainbased':
+                    parser.error("The flag '!' makes no sense for subdomain based redirection as the subdomain data would be lost")
+                r = (NameBasedVirtualHost if kind == '--namebased' else SubdomainVirtualHost)(name, dest, rewrite_uri_host, use_as_proxy)
             elif kind == '--pathbased':
                 try:
                     path, dest = data.split(':', 1)
@@ -67,7 +81,10 @@ class Main(AsyncCLIDaemon):
                     raise parser.error("--pathbased needs PATH:DEST as arguments")
                 r = SubresourceVirtualHost(path.split('/'), dest)
             elif kind == '--unconditional':
-                r = UnconditionalRedirector(data)
+                dest, rewrite_uri_host, use_as_proxy = destsplit(data)
+                if rewrite_uri_host:
+                    parser.error("The flag '!' makes no sense for unconditional redirection as the host name data would be lost")
+                r = UnconditionalRedirector(dest, use_as_proxy)
             else:
                 raise AssertionError('Unknown redirectory kind')
             proxy.add_redirector(r)

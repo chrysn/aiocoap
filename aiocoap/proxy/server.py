@@ -92,7 +92,7 @@ class Proxy(interfaces.Resource):
         # FIXME i'd rather let the application do with the message whatever it
         # wants. everything the responder needs of the request should be
         # extracted beforehand.
-        request = request.copy(mid=None, remote=None, token=None)
+        request = request.copy(mid=None, token=None)
 
         try:
             request = self.apply_redirection(request)
@@ -296,15 +296,18 @@ class Redirector():
         return None
 
 class NameBasedVirtualHost(Redirector):
-    def __init__(self, match_name, target, rewrite_uri_host=False):
+    def __init__(self, match_name, target, rewrite_uri_host=False, use_as_proxy=False):
         self.match_name = match_name
         self.target = target
         self.rewrite_uri_host = rewrite_uri_host
+        self.use_as_proxy = use_as_proxy
 
     def apply_redirection(self, request):
         raise_unless_safe(request, ())
 
         if self._matches(request.opt.uri_host):
+            if self.use_as_proxy:
+                request.opt.proxy_scheme = request.remote.scheme
             if self.rewrite_uri_host:
                 request.opt.uri_host, _ = util.hostportsplit(self.target)
             request.unresolved_remote = self.target
@@ -323,12 +326,15 @@ class SubdomainVirtualHost(NameBasedVirtualHost):
         return hostname.endswith('.' + self.match_name)
 
 class UnconditionalRedirector(Redirector):
-    def __init__(self, target):
+    def __init__(self, target, use_as_proxy=False):
         self.target = target
+        self.use_as_proxy= use_as_proxy
 
     def apply_redirection(self, request):
         raise_unless_safe(request, ())
 
+        if self.use_as_proxy:
+            request.opt.proxy_scheme = request.remote.scheme
         request.unresolved_remote = self.target
         return request
 
