@@ -48,7 +48,7 @@ class Main(AsyncCLIDaemon):
             raise parser.error("At least one of --forward and --reverse must be given.")
 
         self.outgoing_context = await aiocoap.Context.create_client_context()
-        if options.forward and not options.reverse:
+        if options.forward:
             proxy = ForwardProxyWithPooledObservations(self.outgoing_context)
         else:
             proxy = ProxyWithPooledObservations(self.outgoing_context)
