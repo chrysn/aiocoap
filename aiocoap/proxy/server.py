@@ -304,11 +304,23 @@ class NameBasedVirtualHost(Redirector):
     def apply_redirection(self, request):
         raise_unless_safe(request, ())
 
-        if request.opt.uri_host == self.match_name:
+        if self._matches(request.opt.uri_host):
             if self.rewrite_uri_host:
                 request.opt.uri_host, _ = util.hostportsplit(self.target)
             request.unresolved_remote = self.target
             return request
+
+    def _matches(self, hostname):
+        return hostname == self.match_name
+
+class SubdomainVirtualHost(NameBasedVirtualHost):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.rewrite_uri_host:
+            raise TypeError("rewrite_uri_host makes no sense with subdomain virtual hosting")
+
+    def _matches(self, hostname):
+        return hostname.endswith('.' + self.match_name)
 
 class UnconditionalRedirector(Redirector):
     def __init__(self, target):

@@ -12,7 +12,7 @@ import sys
 import argparse
 
 import aiocoap
-from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ProxyWithPooledObservations, NameBasedVirtualHost, SubresourceVirtualHost, UnconditionalRedirector
+from aiocoap.proxy.server import ForwardProxyWithPooledObservations, ProxyWithPooledObservations, NameBasedVirtualHost, SubdomainVirtualHost, SubresourceVirtualHost, UnconditionalRedirector
 from aiocoap.util.cli import AsyncCLIDaemon
 from aiocoap.cli.common import add_server_arguments, server_context_from_arguments
 
@@ -34,6 +34,7 @@ def build_parser():
                 setattr(namespace, self.dest, [])
             getattr(namespace, self.dest).append((option_string, values))
     r.add_argument('--namebased', help="If Uri-Host matches NAME, route to DEST", metavar="NAME:DEST", action=TypedAppend, dest='r')
+    r.add_argument('--subdomainbased', help="If Uri-Host is anything.NAME, route to DEST", metavar="NAME:DEST", action=TypedAppend, dest='r')
     r.add_argument('--pathbased', help="If a requested path starts with PATH, split that part off and route to DEST", metavar="PATH:DEST", action=TypedAppend, dest='r')
     r.add_argument('--unconditional', help="Route all requests not previously matched to DEST", metavar="DEST", action=TypedAppend, dest='r')
 
@@ -53,12 +54,12 @@ class Main(AsyncCLIDaemon):
         else:
             proxy = ProxyWithPooledObservations(self.outgoing_context)
         for kind, data in options.r or ():
-            if kind == '--namebased':
+            if kind in ('--namebased', '--subdomainbased'):
                 try:
                     name, dest = data.split(':', 1)
                 except:
-                    raise parser.error("--namebased needs NAME:DEST as arguments")
-                r = NameBasedVirtualHost(name, dest)
+                    raise parser.error("%s needs NAME:DEST as arguments" % kind)
+                r = (NameBasedVirtualHost if kind == '--namebased' else SubdomainVirtualHost)(name, dest)
             elif kind == '--pathbased':
                 try:
                     path, dest = data.split(':', 1)
