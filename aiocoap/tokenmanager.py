@@ -303,6 +303,9 @@ class PlumbingRequest:
                                    # callbacks have already been called
 
     def _any_interest(self):
+        if self._event_callbacks is False:
+            # happens when on_interest_end is called after _end has been called
+            return False
         return any(is_interest for (cb, is_interest) in self._event_callbacks)
 
     def poke(self):
