@@ -107,6 +107,9 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
         self._transport = None
         self._hostinfo = hostinfo
 
+    def __repr__(self):
+        return "<%s at %#x, hostinfo %s, local %s>" % (type(self).__name__, id(self), self.hostinfo, self.hostinfo_local)
+
     @property
     def scheme(self):
         return self._ctx._scheme
@@ -433,7 +436,7 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
                     lambda: TcpConnection(self, self.log, self.loop,
                         hostinfo=util.hostportjoin(host, port)),
                     host, port,
-                    ssl=self._ssl_context_factory())
+                    ssl=self._ssl_context_factory(message.unresolved_remote))
         except socket.gaierror:
             raise error.ResolutionError("No address information found for requests to %r" % host)
         except OSError:
@@ -444,7 +447,7 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
         return protocol
 
     # for diverting behavior of TLSClient
-    def _ssl_context_factory(self):
+    def _ssl_context_factory(self, hostinfo):
         return None
 
     def _evict_from_pool(self, connection):
@@ -457,7 +460,7 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
             self._pool.pop(k)
 
     @classmethod
-    async def create_client_transport(cls, tman: interfaces.TokenManager, log, loop):
+    async def create_client_transport(cls, tman: interfaces.TokenManager, log, loop, credentials=None):
         # this is not actually asynchronous, and even though the interface
         # between the context and the creation of interfaces is not fully
         # standardized, this stays in the other inferfaces' style.
@@ -465,6 +468,8 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
         self._tokenmanager = tman
         self.log = log
         self.loop = loop
+        # used by the TLS variant; FIXME not well thought through
+        self.credentials = credentials
 
         return self
 

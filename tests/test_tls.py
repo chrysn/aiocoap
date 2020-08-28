@@ -18,11 +18,14 @@ from .test_client import TestClientWithSetHost
 
 from .fixtures import no_warnings, asynctest
 
+IS_STANDALONE = False
+
 class WithTLSServer(WithTestServer):
     def setUp(self):
         self.keydir = tempfile.mkdtemp(suffix="-testkeypair")
         self.keyfile = self.keydir + '/key.pem'
         self.certfile = self.keydir + '/cert.pem'
+        self.credentialsfile = self.keydir + '/credentials.json'
         subprocess.check_call([
             'openssl',
             'req',
@@ -33,6 +36,15 @@ class WithTLSServer(WithTestServer):
             '-days', '5',
             '-nodes', '-subj', '/CN=%s' % self.servernamealias
             ])
+
+        # Write out for the benefit of standalone clients during debugging
+        with open(self.credentialsfile, 'w') as of:
+            json.dump({
+                'coaps+tcp://%s/*' % self.servernamealias: {'tlscert': { 'certfile': self.certfile }}
+            }, of)
+
+        if IS_STANDALONE:
+            print("To test, run ./aiocoap-client coaps+tcp://%s/whoami --credentials %s" % (self.servernamealias, self.credentialsfile,))
 
         super().setUp()
 
@@ -49,7 +61,14 @@ class WithTLSServer(WithTestServer):
         ssl_context.set_alpn_protocols(["coap"])
         return ssl_context
 
-class TestTLS(WithTLSServer, WithClient):
+class WithTLSClient(WithClient):
+    # This expects that something -- typically the colocated WithTestServer -- sets certfile first
+    def setUp(self):
+        super().setUp()
+
+        self.client.client_credentials['coaps+tcp://%s/*' % self.servernamealias] = aiocoap.credentials.TLSCert(certfile=self.certfile)
+
+class TestTLS(WithTLSServer, WithTLSClient):
     @no_warnings
     @asynctest
     async def test_tls(self):
@@ -62,6 +81,7 @@ class TestTLS(WithTLSServer, WithClient):
 
 if __name__ == "__main__":
     # due to the imports, you'll need to run this as `python3 -m tests.test_server`
+    IS_STANDALONE = True
     import logging
     logging.basicConfig(level=logging.DEBUG)
     run_fixture_as_standalone_server(TestTLS)

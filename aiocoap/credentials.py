@@ -182,6 +182,19 @@ class DTLS(_Objectish):
     def as_dtls_psk(self):
         return (self.client_identity, self.psk)
 
+class TLSCert(_Objectish):
+    """Indicates that a client can use the given certificate file to authenticate the server.
+
+    Can only be used with 'coaps+tcp://HOSTINFO/*' and 'coaps+tcp://*' forms.
+    """
+    def __init__(self, certfile: str):
+        self.certfile = certfile
+
+    def as_ssl_params(self):
+        """Generate parameters suitable for passing via ** to
+        ssl.create_default_context when purpose is alreay set"""
+        return {"cafile": self.certfile}
+
 def construct_oscore(contextfile: str):
     from .oscore import FilesystemSecurityContext
 
@@ -247,6 +260,7 @@ class CredentialsMap(dict):
     _class_map = {
             'dtls': DTLS,
             'oscore': construct_oscore,
+            'tlscert': TLSCert,
             'any-of': AnyOf,
             'all-of': AllOf,
             }
