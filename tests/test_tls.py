@@ -35,7 +35,9 @@ class WithTLSServer(WithTestServer):
             '-out', self.certfile,
             '-days', '5',
             '-nodes', '-subj', '/CN=%s' % self.servernamealias
-            ])
+            ],
+            stderr=subprocess.DEVNULL,
+            )
 
         # Write out for the benefit of standalone clients during debugging
         with open(self.credentialsfile, 'w') as of:
