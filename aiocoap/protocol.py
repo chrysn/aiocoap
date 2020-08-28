@@ -326,7 +326,7 @@ class Context(interfaces.RequestProvider):
         if handle_blockwise:
             return BlockwiseRequest(self, request_message)
 
-        plumbing_request = PlumbingRequest(request_message)
+        plumbing_request = PlumbingRequest(request_message, self.log)
         # Request sets up callbacks at creation
         result = Request(plumbing_request, self.loop, self.log)
 

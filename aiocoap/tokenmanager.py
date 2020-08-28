@@ -120,7 +120,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             (pr, pr_stop) = self.incoming_requests.pop(key)
             pr_stop()
 
-        pr = PlumbingRequest(request)
+        pr = PlumbingRequest(request, self.log)
 
         # FIXME: what can we pass down to the token_interface?  certainly not
         # the request, but maybe the request with a response filter applied?
@@ -293,8 +293,9 @@ class PlumbingRequest:
 
     # called by the initiator of the request
 
-    def __init__(self, request):
+    def __init__(self, request, log):
         self.request = request
+        self.log = log
 
         self._event_callbacks = [] # list[(callback, is_interest)],
                                    # or None during event processing,
@@ -302,10 +303,10 @@ class PlumbingRequest:
                                    # callbacks and an the on_interest_end
                                    # callbacks have already been called
 
+    def __repr__(self):
+        return '<%s at %#x around %r with %r callbacks>'%(type(self).__name__, id(self), self.request, len(self._event_callbacks) if self._event_callbacks else self._event_callbacks)
+
     def _any_interest(self):
-        if self._event_callbacks is False:
-            # happens when on_interest_end is called after _end has been called
-            return False
         return any(is_interest for (cb, is_interest) in self._event_callbacks)
 
     def poke(self):
@@ -344,6 +345,12 @@ class PlumbingRequest:
         """Register a callback that will be called exactly once -- either right
         now if there is not even a current indicated interest, or at a last
         event, or when no more interests are present"""
+
+        if self._event_callbacks is False:
+            self.log.warning("on_interest_end callback %r added after %r has already ended", callback, self)
+            callback()
+            return
+
         if self._any_interest():
             self._event_callbacks.append((
                 lambda e: ((callback(), False) if e.is_last else (None, True))[1],
@@ -361,6 +368,10 @@ class PlumbingRequest:
     # called by the responding side
 
     def _add_event(self, event):
+        if self._event_callbacks is False:
+            self.log.warning("Response %r added after %r has already ended", event, self)
+            return
+
         cbs = self._event_callbacks
         # Force an error when during event handling an event is generated
         self._event_callbacks = None
