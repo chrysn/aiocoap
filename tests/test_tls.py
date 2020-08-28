@@ -59,6 +59,7 @@ class WithTLSServer(WithTestServer):
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         ssl_context.load_cert_chain(certfile=self.certfile, keyfile=self.keyfile)
         ssl_context.set_alpn_protocols(["coap"])
+        ssl_context.sni_callback = lambda obj, name, context: setattr(obj, "indicated_server_name", name)
         return ssl_context
 
 class WithTLSClient(WithClient):
@@ -77,7 +78,7 @@ class TestTLS(WithTLSServer, WithTLSClient):
         response = await self.client.request(request).response_raising
 
         response = json.loads(response.payload)
-        self.assertEqual(response['requested_uri'], 'coap+tls://%s/whoami' % self.servernamealias, "SNI name was not used by the server")
+        self.assertEqual(response['requested_uri'], 'coaps+tcp://%s/whoami' % self.servernamealias, "SNI name was not used by the server")
 
 if __name__ == "__main__":
     # due to the imports, you'll need to run this as `python3 -m tests.test_server`

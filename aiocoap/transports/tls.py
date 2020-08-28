@@ -44,4 +44,5 @@ class TLSClient(_TLSMixIn, TCPClient):
             ssl_params = tlscert.as_ssl_params()
         c = ssl.create_default_context(**ssl_params)
         c.set_alpn_protocols(["coap"])
+        c.sni_callback = lambda obj, name, context: setattr(obj, "indicated_server_name", name)
         return c
