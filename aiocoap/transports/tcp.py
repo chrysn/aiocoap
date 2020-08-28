@@ -94,7 +94,7 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
     # depend on whether the library user still keeps a usable address around,
     # those functions could be split.
 
-    def __init__(self, ctx, log, loop, *, hostinfo=None):
+    def __init__(self, ctx, log, loop, *, is_server):
         self._ctx = ctx
         self.log = log
         self.loop = loop
@@ -105,7 +105,10 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
         self._remote_settings = None
 
         self._transport = None
-        self._hostinfo = hostinfo
+        self._local_is_server = is_server
+
+    def __repr__(self):
+        return "<%s at %#x, hostinfo %s, local %s>" % (type(self).__name__, id(self), self.hostinfo, self.hostinfo_local)
 
     @property
     def scheme(self):
@@ -185,6 +188,29 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
     def connection_made(self, transport):
         self._transport = transport
 
+        ssl_object = transport.get_extra_info('ssl_object')
+        if ssl_object is not None:
+            server_name = getattr(ssl_object, "indicated_server_name", None)
+        else:
+            server_name = None
+
+        # `host` already contains the interface identifier, so throwing away
+        # scope and interface identifier
+        self._localname = transport.get_extra_info('sockname')[:2]
+        self._peername = transport.get_extra_info('peername')[:2]
+
+        def none_default_port(sockname):
+            return (sockname[0], None if sockname[1] == self._ctx._default_port else sockname[1])
+        self._localname = none_default_port(self._localname)
+        self._peername = none_default_port(self._peername)
+
+        # SNI information available
+        if server_name is not None:
+            if self._local_is_server:
+                self._localname = (server_name, self._localname[1])
+            else:
+                self._peername = (server_name, self._peername[1])
+
         self._send_initial_csm()
 
     def connection_lost(self, exc):
@@ -257,36 +283,32 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
 
     @property
     def hostinfo(self):
-        if self._hostinfo:
-            return self._hostinfo
-        peername = self._transport.get_extra_info('peername')
-        return util.hostportjoin(peername[0], peername[1])
+        # keeping _peername and _localname around structurally rather than in
+        # hostinfo / hostinfo_local form looks odd now, but on the long run the
+        # remote should be able to tell the message what its default Uri-Host
+        # value is
+        return util.hostportjoin(*self._peername)
 
     @property
     def hostinfo_local(self):
-        # `host` already contains the interface identifier, so throwing away
-        # scope and interface identifier
-        host, port, *_ = self._transport.get_extra_info('socket').getsockname()
-        if port == self._ctx._default_port:
-            port = None
-        return util.hostportjoin(host, port)
+        return util.hostportjoin(*self._localname)
 
     is_multicast = False
     is_multicast_locally = False
 
     @property
     def uri_base(self):
-        if self._hostinfo:
-            return self._ctx._scheme + '://' + self.hostinfo
-        else:
+        if self._is_server:
             raise error.AnonymousHost("Client side of %s can not be expressed as a URI" % self._ctx._scheme)
+        else:
+            return self._ctx._scheme + '://' + self.hostinfo
 
     @property
     def uri_base_local(self):
-        if self._hostinfo:
-            raise error.AnonymousHost("Client side of %s can not be expressed as a URI" % self._ctx._scheme)
-        else:
+        if self._is_server:
             return self._ctx._scheme + '://' + self.hostinfo_local
+        else:
+            raise error.AnonymousHost("Client side of %s can not be expressed as a URI" % self._ctx._scheme)
 
     @property
     def maximum_block_size_exp(self):
@@ -374,7 +396,7 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         bind = (bind[0], bind[1] + (self._default_port - COAP_PORT) if bind[1] else self._default_port)
 
         def new_connection():
-            c = TcpConnection(self, log, loop)
+            c = TcpConnection(self, log, loop, is_server=True)
             self._pool.add(c)
             return c
 
@@ -431,9 +453,9 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
         try:
             _, protocol = await self.loop.create_connection(
                     lambda: TcpConnection(self, self.log, self.loop,
-                        hostinfo=util.hostportjoin(host, port)),
+                        is_server=False),
                     host, port,
-                    ssl=self._ssl_context_factory())
+                    ssl=self._ssl_context_factory(message.unresolved_remote))
         except socket.gaierror:
             raise error.ResolutionError("No address information found for requests to %r" % host)
         except OSError:
@@ -444,7 +466,7 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
         return protocol
 
     # for diverting behavior of TLSClient
-    def _ssl_context_factory(self):
+    def _ssl_context_factory(self, hostinfo):
         return None
 
     def _evict_from_pool(self, connection):
@@ -457,7 +479,7 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
             self._pool.pop(k)
 
     @classmethod
-    async def create_client_transport(cls, tman: interfaces.TokenManager, log, loop):
+    async def create_client_transport(cls, tman: interfaces.TokenManager, log, loop, credentials=None):
         # this is not actually asynchronous, and even though the interface
         # between the context and the creation of interfaces is not fully
         # standardized, this stays in the other inferfaces' style.
@@ -465,6 +487,8 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
         self._tokenmanager = tman
         self.log = log
         self.loop = loop
+        # used by the TLS variant; FIXME not well thought through
+        self.credentials = credentials
 
         return self
 

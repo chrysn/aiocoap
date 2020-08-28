@@ -194,7 +194,7 @@ class Context(interfaces.RequestProvider):
             elif transportname == 'tlsclient':
                 from .transports.tls import TLSClient
                 await self._append_tokenmanaged_transport(
-                    lambda tman: TLSClient.create_client_transport(tman, self.log, loop))
+                    lambda tman: TLSClient.create_client_transport(tman, self.log, loop, self.client_credentials))
             elif transportname == 'oscore':
                 from .transports.oscore import TransportOSCORE
                 oscoretransport = TransportOSCORE(self, self)
@@ -277,7 +277,7 @@ class Context(interfaces.RequestProvider):
             elif transportname == 'tlsclient':
                 from .transports.tls import TLSClient
                 await self._append_tokenmanaged_transport(
-                    lambda tman: TLSClient.create_client_transport(tman, self.log, loop))
+                    lambda tman: TLSClient.create_client_transport(tman, self.log, loop, self.client_credentials))
             elif transportname == 'oscore':
                 from .transports.oscore import TransportOSCORE
                 oscoretransport = TransportOSCORE(self, self)

@@ -112,6 +112,8 @@ async def server_context_from_arguments(site, namespace, **kwargs):
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         ssl_context.load_cert_chain(certfile=namespace.tls_server_certificate, keyfile=namespace.tls_server_key)
         ssl_context.set_alpn_protocols(["coap"])
+        if hasattr(ssl_context, 'sni_callback'): # starting python 3.7
+            ssl_context.sni_callback = lambda obj, name, context: setattr(obj, "indicated_server_name", name)
     else:
         ssl_context = None
 
