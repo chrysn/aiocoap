@@ -13,6 +13,7 @@ import aiocoap.resource
 import unittest
 import logging
 import os
+import json
 
 from . import common
 from .fixtures import (WithLogMonitoring, no_warnings, precise_warnings,
@@ -95,6 +96,23 @@ class DoubleErrorResource(aiocoap.resource.Resource):
         def to_message(self):
             raise RuntimeError()
 
+class WhoAmI(aiocoap.resource.Resource):
+    async def render_get(self, request):
+        p = dict(
+                repr=repr(request.remote),
+                hostinfo=request.remote.hostinfo,
+                hostinfo_local=request.remote.hostinfo_local,
+                scheme=request.remote.scheme,
+                urihost_option=request.opt.uri_host,
+                # FIXME: The whole get_request_uri is a mess
+                requested_uri=request._original_request_uri,
+                )
+        return aiocoap.Message(
+                code=aiocoap.CONTENT,
+                content_format=aiocoap.numbers.media_types_rev.get('application/json'),
+                payload=json.dumps(p).encode('utf8'),
+                )
+
 class TestingSite(aiocoap.resource.Site):
     def __init__(self):
         super(TestingSite, self).__init__()
@@ -120,6 +138,7 @@ class TestingSite(aiocoap.resource.Site):
         self.add_resource(['error', 'generic'], GenericErrorResource())
         self.add_resource(['error', 'pretty'], PrettyErrorResource())
         self.add_resource(['error', 'double'], DoubleErrorResource())
+        self.add_resource(['whoami'], WhoAmI())
         self.add_resource([], RootResource())
 
     class Subsite(aiocoap.resource.Site):
@@ -135,12 +154,16 @@ class WithTestServer(WithAsyncLoop, Destructing):
     def create_testing_site(self):
         return self.TestingSite()
 
+    def get_server_ssl_context(self):
+        """Override hook for subclasses that want to populate _ssl_context at construction"""
+        return None
+
     def setUp(self):
         super(WithTestServer, self).setUp()
 
         multicastif = os.environ['AIOCOAP_TEST_MCIF'].split(':') if 'AIOCOAP_TEST_MCIF' in os.environ else []
 
-        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site(), bind=(self.serveraddress, None), multicast=multicastif))
+        self.server = self.loop.run_until_complete(aiocoap.Context.create_server_context(self.create_testing_site(), bind=(self.serveraddress, None), multicast=multicastif, _ssl_context=self.get_server_ssl_context()))
 
     def tearDown(self):
         # let the server receive the acks we just sent
