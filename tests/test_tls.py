@@ -10,6 +10,8 @@ import json
 import tempfile
 import shutil
 import subprocess
+import unittest
+import sys
 
 import aiocoap
 
@@ -17,6 +19,7 @@ from .test_server import WithClient, WithTestServer, run_fixture_as_standalone_s
 from .test_client import TestClientWithSetHost
 
 from .fixtures import no_warnings, asynctest
+from .common import tcp_disabled
 
 IS_STANDALONE = False
 
@@ -72,6 +75,7 @@ class WithTLSClient(WithClient):
 
         self.client.client_credentials['coaps+tcp://%s/*' % self.servernamealias] = aiocoap.credentials.TLSCert(certfile=self.certfile)
 
+@unittest.skipIf(tcp_disabled, "TCP disabled in environment")
 class TestTLS(WithTLSServer, WithTLSClient):
     @no_warnings
     @asynctest
@@ -82,6 +86,9 @@ class TestTLS(WithTLSServer, WithTLSClient):
 
         response = json.loads(response.payload)
         self.assertEqual(response['requested_uri'], 'coaps+tcp://%s/whoami' % self.servernamealias, "SNI name was not used by the server")
+
+    if sys.version_info < (3, 7):
+        test_tls = unittest.expectedFailure(test_tls) # SNI support was only added in Python 3.7
 
 if __name__ == "__main__":
     # due to the imports, you'll need to run this as `python3 -m tests.test_server`
