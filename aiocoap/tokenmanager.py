@@ -347,6 +347,7 @@ class PlumbingRequest:
         event, or when no more interests are present"""
 
         if self._event_callbacks is False:
+            # Happens, for example, when a proxy receives multiple requests on a single token
             self.log.warning("on_interest_end callback %r added after %r has already ended", callback, self)
             callback()
             return
@@ -369,6 +370,7 @@ class PlumbingRequest:
 
     def _add_event(self, event):
         if self._event_callbacks is False:
+            # Happens, for example, when a proxy receives multiple requests on a single token
             self.log.warning("Response %r added after %r has already ended", event, self)
             return
 
