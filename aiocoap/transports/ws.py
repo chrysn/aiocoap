@@ -50,7 +50,9 @@ course unaffected by this.
 
   Due to a shortcoming of aiocoap's way of specifying ports to bind
   to, if a port is explicitly stated to bind to, CoAP-over-WS will bind to that
-  port plus 3000 (resulting in the abovementioned 8683 for 5683).
+  port plus 3000 (resulting in the abovementioned 8683 for 5683). If TLS server
+  keys are given, the TLS server is launched on the next port after the HTTP
+  server (typically 8684).
 """
 
 from typing import Dict, List, Optional
@@ -183,14 +185,24 @@ class WSPool(interfaces.TokenInterface):
                 port = port + 3000
 
             server = await websockets.serve(
-                    functools.partial(self._new_connection, scheme='coap+wss' if server_context is not None else 'coap+ws'),
+                    functools.partial(self._new_connection, scheme='coap+ws'),
                     host, port,
                     subprotocols=['coap'],
                     process_request=self._process_request,
                     ping_interval=None, # "SHOULD NOT be used"
-                    ssl=server_context,
                     )
             self._servers.append(server)
+
+            if server_context is not None:
+                server = await websockets.serve(
+                        functools.partial(self._new_connection, scheme='coaps+ws'),
+                        host, port + 1,
+                        subprotocols=['coap'],
+                        process_request=self._process_request,
+                        ping_interval=None, # "SHOULD NOT be used"
+                        ssl=server_context,
+                        )
+                self._servers.append(server)
 
         return self
 
