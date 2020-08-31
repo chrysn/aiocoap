@@ -180,6 +180,13 @@ class WSPool(interfaces.TokenInterface):
         return False
 
     def send_message(self, message, exchange_monitor=None):
+        if message.code.is_response():
+            no_response = (message.opt.no_response or 0) & (1 << message.code.class_ - 1) != 0
+            if no_response:
+                return
+
+        message.opt.no_response = None
+
         message.remote._send_message(message)
 
     async def shutdown(self):

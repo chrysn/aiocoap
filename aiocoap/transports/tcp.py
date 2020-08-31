@@ -275,6 +275,8 @@ class _TCPPooling:
             if no_response:
                 return
 
+        message.opt.no_response = None
+
         message.remote._send_message(message)
 
     # used by the TcpConnection instances
