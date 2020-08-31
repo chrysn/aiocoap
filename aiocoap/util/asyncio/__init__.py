@@ -9,4 +9,3 @@
 """Extensions to asyncio and workarounds around its shortcomings"""
 
 from .peekqueue import PeekQueue
-from .pre35 import AsyncGenerator

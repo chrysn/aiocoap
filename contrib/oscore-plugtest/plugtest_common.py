@@ -1,9 +1,6 @@
 import shutil
 from pathlib import Path
 
-# When Python 3.5 support is dropped (and PyPy has evolved beyond that
-# point), .as_posix() can be dropped
-
 import cbor2 as cbor
 
 from aiocoap import oscore
@@ -46,11 +43,11 @@ def get_security_context(contextname, contextcopy: Path, simulate_unclean_shutdo
     replay window is removed from the loaded state."""
     if not contextcopy.exists():
         contextcopy.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree((contextdir / contextname).as_posix(), contextcopy.as_posix())
+        shutil.copytree((contextdir / contextname), contextcopy)
 
         print("Context %s copied to %s" % (contextname, contextcopy))
 
-    secctx = PlugtestFilesystemSecurityContext(contextcopy.as_posix())
+    secctx = PlugtestFilesystemSecurityContext(contextcopy)
 
     if simulate_unclean_shutdown:
         secctx.recipient_replay_window._index = None
