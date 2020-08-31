@@ -45,6 +45,12 @@ to aiocoap's server, which defaults to binding to port 8683.
 The port choice of outgoing connections, or the interpretation of the
 protocol's default port (ie. the port implied by ``coap+ws://hostname/``) is of
 course unaffected by this.
+
+.. warning::
+
+  Due to a shortcoming of aiocoap's way of specifying ports to bind
+  to, if a port is explicitly stated to bind to, CoAP-over-WS will bind to that
+  port plus 3000 (resulting in the abovementioned 8683 for 5683).
 """
 
 from typing import Dict, List, Optional
@@ -170,8 +176,10 @@ class WSPool(interfaces.TokenInterface):
         if server_bind:
             host, port = server_bind
             if port is None:
-                # FIXME document the odd default
                 port = 8683
+            else:
+                # FIXME see module documentation
+                port = port + 3000
 
             server = await websockets.serve(
                     self._new_connection,
