@@ -365,6 +365,17 @@ class TestServerTCP(TestServer):
         request.requested_scheme = 'coap+tcp'
         return request
 
+@unittest.skipIf(common.ws_disabled, "WS disabled in environment")
+class TestServerWS(TestServer):
+    # as with TestServerWS
+
+    def build_request(self):
+        request = super().build_request()
+        # odd default port
+        request.unresolved_remote += ':8683'
+        request.requested_scheme = 'coap+ws'
+        return request
+
 def run_fixture_as_standalone_server(fixture):
     import sys
     if '-v' in sys.argv:
