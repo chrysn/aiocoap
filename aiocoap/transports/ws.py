@@ -53,7 +53,7 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
     _connection: websockets.WebSocketCommonProtocol
     _key: PoolKey
 
-    def __init__(self, connection, loop, log):
+    def __init__(self, connection, loop, log, *, local_hostinfo=None, remote_hostinfo=None):
         super().__init__()
         self._connection = connection
         self.loop = loop
@@ -61,15 +61,14 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
 
         self._is_server = isinstance(connection, websockets.WebSocketServerProtocol)
 
-    @property
-    def hostinfo(self):
-        # FIXME Hostname
-        return util.hostportjoin(*self._connection.remote_address)
-
-    @property
-    def hostinfo_local(self):
-        # FIXME Hostname
-        return util.hostportjoin(*self._connection.local_address)
+        if local_hostinfo is None:
+            self._local_hostinfo = self._connection.local_address[:2]
+        else:
+            self._local_hostinfo = local_hostinfo
+        if remote_hostinfo is None:
+            self._remote_hostinfo = self._connection.remote_address[:2]
+        else:
+            self._remote_hostinfo = remote_hostinfo
 
     @property
     def scheme(self):
@@ -152,7 +151,9 @@ class WSPool(interfaces.TokenInterface):
     async def _new_connection(self, websocket, path):
         # ignoring path: Already checked in _process_request
 
-        remote = WSRemote(websocket, self.loop, self.log)
+        local_hostinfo = util.hostportsplit(websocket.request_headers['Host'])
+
+        remote = WSRemote(websocket, self.loop, self.log, local_hostinfo=local_hostinfo)
 
         # FIXME deposit socket in outgoing for sending -- or should we? (maybe
         # an incoming one is just reachable over the explicit remote object)
@@ -208,7 +209,8 @@ class WSPool(interfaces.TokenInterface):
                 received = await remote._connection.recv()
             except websockets.exceptions.ConnectionClosed as e:
                 # FIXME if deposited somewhere, mark that as stale?
-                # FIXME raise an error in the token manager to tell it that nothing is coming any more
+                self.log.info("Expressing WebSocket termination '%s' as errno 0", e)
+                self._tokenmanager.dispatch_error(0, remote)
                 return
 
             if not isinstance(received, bytes):

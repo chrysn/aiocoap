@@ -108,9 +108,6 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
         self._transport = None
         self._local_is_server = is_server
 
-    def __repr__(self):
-        return "<%s at %#x, hostinfo %s, local %s>" % (type(self).__name__, id(self), self.hostinfo, self.hostinfo_local)
-
     @property
     def scheme(self):
         return self._ctx._scheme
@@ -143,20 +140,20 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
 
         # `host` already contains the interface identifier, so throwing away
         # scope and interface identifier
-        self._localname = transport.get_extra_info('sockname')[:2]
-        self._peername = transport.get_extra_info('peername')[:2]
+        self._local_hostinfo = transport.get_extra_info('sockname')[:2]
+        self._remote_hostinfo = transport.get_extra_info('peername')[:2]
 
         def none_default_port(sockname):
             return (sockname[0], None if sockname[1] == self._ctx._default_port else sockname[1])
-        self._localname = none_default_port(self._localname)
-        self._peername = none_default_port(self._peername)
+        self._local_hostinfo = none_default_port(self._local_hostinfo)
+        self._remote_hostinfo = none_default_port(self._remote_hostinfo)
 
         # SNI information available
         if server_name is not None:
             if self._local_is_server:
-                self._localname = (server_name, self._localname[1])
+                self._local_hostinfo = (server_name, self._local_hostinfo[1])
             else:
-                self._peername = (server_name, self._peername[1])
+                self._remote_hostinfo = (server_name, self._remote_hostinfo[1])
 
         self._send_initial_csm()
 
@@ -225,46 +222,6 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
     def resume_writing(self):
         # FIXME: do something ;-)
         pass
-
-    # implementing interfaces.EndpointAddress
-
-    @property
-    def hostinfo(self):
-        # keeping _peername and _localname around structurally rather than in
-        # hostinfo / hostinfo_local form looks odd now, but on the long run the
-        # remote should be able to tell the message what its default Uri-Host
-        # value is
-        return util.hostportjoin(*self._peername)
-
-    @property
-    def hostinfo_local(self):
-        return util.hostportjoin(*self._localname)
-
-    @property
-    def maximum_block_size_exp(self):
-        if self._remote_settings is None:
-            # This is assuming that we can do BERT, so a first Block1 would be
-            # exponent 7 but still only 1k -- because by the time we send this,
-            # we typically haven't seen a CSM yet, so we'd be stuck with 6
-            # because 7959 says we can't increase the exponent...
-            #
-            # FIXME: test whether we're properly using lower block sizes if
-            # server says that szx=7 is not OK.
-            return 7
-
-        max_message_size = (self._remote_settings or {}).get('max-message-size', 1152)
-        has_blockwise = (self._remote_settings or {}).get('block-wise-transfer', False)
-        if max_message_size > 1152 and has_blockwise:
-            return 7
-        return 6 # FIXME: deal with smaller max-message-size
-
-    @property
-    def maximum_payload_size(self):
-        max_message_size = (self._remote_settings or {}).get('max-message-size', 1152)
-        has_blockwise = (self._remote_settings or {}).get('block-wise-transfer', False)
-        if max_message_size > 1152 and has_blockwise:
-            return ((max_message_size - 128) // 1024) * 1024
-        return 1024 # FIXME: deal with smaller max-message-size
 
 class _TCPPooling:
     # implementing TokenInterface
