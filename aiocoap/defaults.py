@@ -55,6 +55,8 @@ def get_default_clienttransports(*, loop=None, use_env=True):
 
     yield 'tcpclient'
     yield 'tlsclient'
+    if not ws_missing_modules():
+        yield 'ws'
 
     if sys.platform != 'linux':
         # udp6 was never reported to work on anything but linux; would happily
@@ -97,6 +99,8 @@ def get_default_servertransports(*, loop=None, use_env=True):
     yield 'tcpclient'
     yield 'tlsserver'
     yield 'tlsclient'
+    if not ws_missing_modules():
+        yield 'ws'
 
     if sys.platform != 'linux':
         # udp6 was never reported to work on anything but linux; would happily
@@ -158,6 +162,17 @@ def oscore_missing_modules():
         import filelock # noqa: F401
     except ImportError:
         missing.append('filelock')
+
+    return missing
+
+def ws_missing_modules():
+    """Return a list of modules that are missing in order to user CoAP-over-WS,
+    or a false value if everything is present"""
+    missing = []
+    try:
+        import websockets # noqa: F401
+    except ImportError:
+        missing.append('websockets')
 
     return missing
 
