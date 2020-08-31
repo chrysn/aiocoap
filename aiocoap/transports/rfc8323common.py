@@ -25,7 +25,8 @@ class RFC8323Remote:
 
     # CSM received from the peer. The receive hook should abort suitably when
     # receiving a non-CSM message and this is not set yet.
-    _remote_settings: Optional[Message]
+    # Python 3.7 hint
+    #_remote_settings: Optional[Message]
 
     # Parameter usually set statically per implementation
     _my_max_message_size = 1024 * 1024

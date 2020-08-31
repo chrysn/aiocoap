@@ -104,7 +104,8 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
     _connection: websockets.WebSocketCommonProtocol
     # Only used to ensure that remotes are associated to the right pool -- not
     # that there'd be any good reason to have multiple of those.
-    _pool: weakref.ReferenceType # [WSPool] -- but that'd be circular
+    # Python 3.7 hint
+    #_pool: weakref.ReferenceType # [WSPool] -- but that'd be circular
 
     scheme = None # Override property -- it's per instance here
 
@@ -156,10 +157,11 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
         self.loop.create_task(send())
 
 class WSPool(interfaces.TokenInterface):
-    _outgoing_starting: Dict[PoolKey, asyncio.Task]
-    _pool: Dict[PoolKey, WSRemote]
-
-    _servers: List[websockets.WebSocketServer]
+    # Python 3.7 hint
+    #_outgoing_starting: Dict[PoolKey, asyncio.Task]
+    #_pool: Dict[PoolKey, WSRemote]
+    #
+    #_servers: List[websockets.WebSocketServer]
 
     def __init__(self, tman, log, loop):
         self.loop = loop
