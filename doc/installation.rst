@@ -91,6 +91,8 @@ The extras currently supported are:
 
 * ``tinydtls``: Required for using CoAP over DTLS.
 
+* ``ws``: Required for using CoAP over WebSockets.
+
 * ``prettyprint``: Allows using the ``--color`` and ``--pretty-print`` options
   of :doc:`module/aiocoap.cli.client`.
 
