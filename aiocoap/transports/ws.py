@@ -199,7 +199,15 @@ class WSPool(interfaces.TokenInterface):
     async def _new_connection(self, websocket, path, *, scheme):
         # ignoring path: Already checked in _process_request
 
-        local_hostinfo = util.hostportsplit(websocket.request_headers['Host'])
+        hostheader = websocket.request_headers['Host']
+        if hostheader.count(':') > 1 and '[' not in hostheader:
+            # Workaround for websockets version before
+            # https://github.com/aaugustin/websockets/issues/802
+            #
+            # To be removed once a websockets version with this fix can be
+            # depended on
+            hostheader = '[' + hostheader[:hostheader.rfind(':')] + ']' + hostheader[hostheader.rfind(':'):]
+        local_hostinfo = util.hostportsplit(hostheader)
 
         remote = WSRemote(self, websocket, self.loop, self.log, scheme=scheme, local_hostinfo=local_hostinfo)
 
