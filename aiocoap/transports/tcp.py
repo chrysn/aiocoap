@@ -339,7 +339,7 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
 class _TCPPooling:
     # implementing TokenInterface
 
-    def send_message(self, message, exchange_monitor=None):
+    def send_message(self, message):
         if message.code.is_response():
             no_response = (message.opt.no_response or 0) & (1 << message.code.class_ - 1) != 0
             if no_response:
