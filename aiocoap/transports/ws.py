@@ -176,6 +176,8 @@ class WSPool(interfaces.TokenInterface):
     async def create_transport(cls, tman: interfaces.TokenManager, log, loop, *, client_credentials, server_bind=None, server_context=None):
         self = cls(tman, log, loop)
 
+        self._client_credentials = client_credentials
+
         if server_bind:
             host, port = server_bind
             if port is None:
@@ -239,12 +241,19 @@ class WSPool(interfaces.TokenInterface):
 
     async def _connect_task(self, key: PoolKey):
         try:
+            if key.scheme == 'coaps+ws':
+                ssl_context = self._client_credentials.ssl_client_context(key.scheme, key.hostinfo)
+            else:
+                # websockets library would not appreciate the extra info when connecting to ws://
+                ssl_context = None
+
             hostinfo_split = util.hostportsplit(key.hostinfo)
 
             websocket = await websockets.connect("%s://%s/.well-known/coap" % (
                 {'coap+ws': 'ws', 'coaps+ws': 'wss'}[key.scheme], key.hostinfo),
                 subprotocols=['coap'],
                 ping_interval=None,
+                ssl=ssl_context,
                 )
 
             remote = WSRemote(self, websocket, self.loop, self.log, scheme=key.scheme, remote_hostinfo=hostinfo_split)

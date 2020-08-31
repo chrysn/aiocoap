@@ -39,6 +39,7 @@ ease porting to platforms that don't support inspect like micropython does.
 
 import re
 import inspect
+import ssl
 
 from typing import Optional
 
@@ -290,6 +291,22 @@ class CredentialsMap(dict):
                 raise CredentialsMissingError("No suitable credentials for %s" % uri)
         else:
             raise CredentialsLoadError("Search for suitable credentials for %s exceeds recursion limit")
+
+    def ssl_client_context(self, scheme, hostinfo):
+        """Return an SSL client context as configured for the given request
+        scheme and hostinfo (no full message is to be processed here, as
+        connections are used across requests to the same origin).
+
+        If no credentials are configured, this returns the default SSL client
+        context."""
+
+        ssl_params = {}
+        tlscert = self.get('%s://%s/*' % (scheme, hostinfo), None)
+        if tlscert is None:
+            tlscert = self.get('%s://*' % scheme, None)
+        if tlscert is not None:
+            ssl_params = tlscert.as_ssl_params()
+        return ssl.create_default_context(**ssl_params)
 
     # used by a server
 
