@@ -56,6 +56,7 @@ course unaffected by this.
 from typing import Dict, List, Optional
 from collections import namedtuple
 import asyncio
+import functools
 import http
 import weakref
 
@@ -103,7 +104,9 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
     # that there'd be any good reason to have multiple of those.
     _pool: weakref.ReferenceType # [WSPool] -- but that'd be circular
 
-    def __init__(self, pool, connection, loop, log, *, local_hostinfo=None, remote_hostinfo=None):
+    scheme = None # Override property -- it's per instance here
+
+    def __init__(self, pool, connection, loop, log, *, scheme, local_hostinfo=None, remote_hostinfo=None):
         super().__init__()
         self._pool = weakref.ref(pool)
         self._connection = connection
@@ -121,9 +124,7 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
         else:
             self._remote_hostinfo = remote_hostinfo
 
-    @property
-    def scheme(self):
-        return 'coaps+ws' if self._connection.secure else 'coap+ws'
+        self.scheme = scheme
 
     # Necessary for RFC8323Remote
 
@@ -182,7 +183,7 @@ class WSPool(interfaces.TokenInterface):
                 port = port + 3000
 
             server = await websockets.serve(
-                    self._new_connection,
+                    functools.partial(self._new_connection, scheme='coap+wss' if server_context is not None else 'coap+ws'),
                     host, port,
                     subprotocols=['coap'],
                     process_request=self._process_request,
@@ -195,12 +196,12 @@ class WSPool(interfaces.TokenInterface):
 
     # Helpers for WebScoket server
 
-    async def _new_connection(self, websocket, path):
+    async def _new_connection(self, websocket, path, *, scheme):
         # ignoring path: Already checked in _process_request
 
         local_hostinfo = util.hostportsplit(websocket.request_headers['Host'])
 
-        remote = WSRemote(self, websocket, self.loop, self.log, local_hostinfo=local_hostinfo)
+        remote = WSRemote(self, websocket, self.loop, self.log, scheme=scheme, local_hostinfo=local_hostinfo)
 
         await self._run_recv_loop(remote)
 
@@ -226,7 +227,7 @@ class WSPool(interfaces.TokenInterface):
                 ping_interval=None,
                 )
 
-            remote = WSRemote(self, websocket, self.loop, self.log, remote_hostinfo=hostinfo_split)
+            remote = WSRemote(self, websocket, self.loop, self.log, scheme=key.scheme, remote_hostinfo=hostinfo_split)
             self._pool[remote] = remote
 
             self.loop.create_task(self._run_recv_loop(remote))
