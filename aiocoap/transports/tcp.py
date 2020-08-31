@@ -9,9 +9,10 @@
 import asyncio
 import socket
 
+from aiocoap.transports import rfc8323common
 from aiocoap import interfaces, optiontypes, error, util
 from aiocoap import COAP_PORT, Message
-from aiocoap.numbers.codes import CSM, PING, PONG, RELEASE, ABORT
+from aiocoap.numbers.codes import ABORT
 from aiocoap import defaults
 
 def _extract_message_size(data: bytes):
@@ -88,91 +89,34 @@ def _serialize(msg: Message) -> bytes:
             data
             ))
 
-class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
+class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
     # currently, both the protocol and the EndpointAddress are the same object.
     # if, at a later point in time, the keepaliving of TCP connections should
     # depend on whether the library user still keeps a usable address around,
     # those functions could be split.
 
     def __init__(self, ctx, log, loop, *, is_server):
+        super().__init__()
         self._ctx = ctx
         self.log = log
         self.loop = loop
 
         self._spool = b""
 
-        self._my_max_message_size = 1024 * 1024
         self._remote_settings = None
 
         self._transport = None
         self._local_is_server = is_server
 
-    def __repr__(self):
-        return "<%s at %#x, hostinfo %s, local %s>" % (type(self).__name__, id(self), self.hostinfo, self.hostinfo_local)
-
     @property
     def scheme(self):
         return self._ctx._scheme
-
-    def _send_initial_csm(self):
-        my_csm = Message(code=CSM)
-        # this is a tad awkward in construction because the options objects
-        # were designed under the assumption that the option space is constant
-        # for all message codes.
-        block_length = optiontypes.UintOption(2, self._my_max_message_size)
-        my_csm.opt.add_option(block_length)
-        supports_block = optiontypes.UintOption(4, 0)
-        my_csm.opt.add_option(supports_block)
-        self._send_message(my_csm)
-
-    def _process_signaling(self, msg):
-        if msg.code == CSM:
-            if self._remote_settings is None:
-                self._remote_settings = {}
-            for opt in msg.opt.option_list():
-                # FIXME: this relies on the relevant option numbers to be
-                # opaque; message parsing should already use the appropriate
-                # option types, or re-think the way options are parsed
-                if opt.number == 2:
-                    self._remote_settings['max-message-size'] = int.from_bytes(opt.value, 'big')
-                elif opt.number == 4:
-                    self._remote_settings['block-wise-transfer'] = True
-                elif opt.number.is_critical():
-                    self.abort("Option not supported", bad_csm_option=opt.number)
-                else:
-                    pass # ignoring elective CSM options
-        elif msg.code in (PING, PONG, RELEASE, ABORT):
-            # not expecting data in any of them as long as Custody is not implemented
-            for opt in msg.opt.option_list():
-                if opt.number.is_critical():
-                    self.abort("Unknown critical option")
-                else:
-                    pass
-
-            if msg.code == PING:
-                pong = Message(code=PONG, token=msg.token)
-                self._send_message(pong)
-            elif msg.code == PONG:
-                pass
-            elif msg.code == RELEASE:
-                raise NotImplementedError
-            elif msg.code == ABORT:
-                raise NotImplementedError
-        else:
-            self.abort("Unknown signalling code")
 
     def _send_message(self, msg: Message):
         self.log.debug("Sending message: %r", msg)
         self._transport.write(_serialize(msg))
 
-    def abort(self, errormessage=None, bad_csm_option=None):
-        self.log.warning("Aborting connection: %s", errormessage)
-        abort_msg = Message(code=ABORT)
-        if errormessage is not None:
-            abort_msg.payload = errormessage.encode('utf8')
-        if bad_csm_option is not None:
-            bad_csm_option_option = optiontypes.UintOption(2, bad_csm_option)
-            abort_msg.opt.add_option(bad_csm_option_option)
+    def _abort_with(self, abort_msg):
         if self._transport is not None:
             self._send_message(abort_msg)
             self._transport.close()
@@ -196,20 +140,20 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
 
         # `host` already contains the interface identifier, so throwing away
         # scope and interface identifier
-        self._localname = transport.get_extra_info('sockname')[:2]
-        self._peername = transport.get_extra_info('peername')[:2]
+        self._local_hostinfo = transport.get_extra_info('sockname')[:2]
+        self._remote_hostinfo = transport.get_extra_info('peername')[:2]
 
         def none_default_port(sockname):
             return (sockname[0], None if sockname[1] == self._ctx._default_port else sockname[1])
-        self._localname = none_default_port(self._localname)
-        self._peername = none_default_port(self._peername)
+        self._local_hostinfo = none_default_port(self._local_hostinfo)
+        self._remote_hostinfo = none_default_port(self._remote_hostinfo)
 
         # SNI information available
         if server_name is not None:
             if self._local_is_server:
-                self._localname = (server_name, self._localname[1])
+                self._local_hostinfo = (server_name, self._local_hostinfo[1])
             else:
-                self._peername = (server_name, self._peername[1])
+                self._remote_hostinfo = (server_name, self._remote_hostinfo[1])
 
         self._send_initial_csm()
 
@@ -279,71 +223,16 @@ class TcpConnection(asyncio.Protocol, interfaces.EndpointAddress):
         # FIXME: do something ;-)
         pass
 
-    # implementing interfaces.EndpointAddress
-
-    @property
-    def hostinfo(self):
-        # keeping _peername and _localname around structurally rather than in
-        # hostinfo / hostinfo_local form looks odd now, but on the long run the
-        # remote should be able to tell the message what its default Uri-Host
-        # value is
-        return util.hostportjoin(*self._peername)
-
-    @property
-    def hostinfo_local(self):
-        return util.hostportjoin(*self._localname)
-
-    is_multicast = False
-    is_multicast_locally = False
-
-    @property
-    def uri_base(self):
-        if self._is_server:
-            raise error.AnonymousHost("Client side of %s can not be expressed as a URI" % self._ctx._scheme)
-        else:
-            return self._ctx._scheme + '://' + self.hostinfo
-
-    @property
-    def uri_base_local(self):
-        if self._is_server:
-            return self._ctx._scheme + '://' + self.hostinfo_local
-        else:
-            raise error.AnonymousHost("Client side of %s can not be expressed as a URI" % self._ctx._scheme)
-
-    @property
-    def maximum_block_size_exp(self):
-        if self._remote_settings is None:
-            # This is assuming that we can do BERT, so a first Block1 would be
-            # exponent 7 but still only 1k -- because by the time we send this,
-            # we typically haven't seen a CSM yet, so we'd be stuck with 6
-            # because 7959 says we can't increase the exponent...
-            #
-            # FIXME: test whether we're properly using lower block sizes if
-            # server says that szx=7 is not OK.
-            return 7
-
-        max_message_size = (self._remote_settings or {}).get('max-message-size', 1152)
-        has_blockwise = (self._remote_settings or {}).get('block-wise-transfer', False)
-        if max_message_size > 1152 and has_blockwise:
-            return 7
-        return 6 # FIXME: deal with smaller max-message-size
-
-    @property
-    def maximum_payload_size(self):
-        max_message_size = (self._remote_settings or {}).get('max-message-size', 1152)
-        has_blockwise = (self._remote_settings or {}).get('block-wise-transfer', False)
-        if max_message_size > 1152 and has_blockwise:
-            return ((max_message_size - 128) // 1024) * 1024
-        return 1024 # FIXME: deal with smaller max-message-size
-
 class _TCPPooling:
     # implementing TokenInterface
 
-    def send_message(self, message, exchange_monitor=None):
+    def send_message(self, message):
         if message.code.is_response():
             no_response = (message.opt.no_response or 0) & (1 << message.code.class_ - 1) != 0
             if no_response:
                 return
+
+        message.opt.no_response = None
 
         message.remote._send_message(message)
 

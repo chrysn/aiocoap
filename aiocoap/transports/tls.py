@@ -23,8 +23,6 @@ from .tcp import TCPClient, TCPServer
 
 from aiocoap import COAPS_PORT
 
-import ssl
-
 class _TLSMixIn:
     _scheme = 'coaps+tcp'
     _default_port = COAPS_PORT
@@ -36,13 +34,7 @@ class TLSServer(_TLSMixIn, TCPServer):
 
 class TLSClient(_TLSMixIn, TCPClient):
     def _ssl_context_factory(self, hostinfo):
-        ssl_params = {}
-        tlscert = self.credentials.get('coaps+tcp://%s/*' % hostinfo, None)
-        if tlscert is None:
-            tlscert = self.credentials.get('coaps+tcp://*', None)
-        if tlscert is not None:
-            ssl_params = tlscert.as_ssl_params()
-        c = ssl.create_default_context(**ssl_params)
+        c = self.credentials.ssl_client_context(self._scheme, hostinfo)
         c.set_alpn_protocols(["coap"])
         if hasattr(c, 'sni_callback'): # starting python 3.7
             c.sni_callback = lambda obj, name, context: setattr(obj, "indicated_server_name", name)

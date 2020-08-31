@@ -365,6 +365,19 @@ class TestServerTCP(TestServer):
         request.requested_scheme = 'coap+tcp'
         return request
 
+ws_modules = aiocoap.defaults.ws_missing_modules()
+
+@unittest.skipIf(ws_modules or common.ws_disabled, "WS missing modules (%s) or disabled in this environment" % (ws_modules,))
+class TestServerWS(TestServer):
+    # as with TestServerWS
+
+    def build_request(self):
+        request = super().build_request()
+        # odd default port
+        request.unresolved_remote += ':8683'
+        request.requested_scheme = 'coap+ws'
+        return request
+
 def run_fixture_as_standalone_server(fixture):
     import sys
     if '-v' in sys.argv:

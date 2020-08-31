@@ -26,6 +26,7 @@ extras_require = {
         'linkheader': ['LinkHeader'],
         'oscore': ['cbor2', 'cryptography (>= 2.0)', 'filelock'],
         'tinydtls': ['DTLSSocket >= 0.1.11a1'],
+        'ws': ['websockets'],
         'prettyprint': ['termcolor', 'cbor2', 'LinkHeader', 'pygments'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         'all': [], # populated below, contains everything but documentation dependencies for easier installation

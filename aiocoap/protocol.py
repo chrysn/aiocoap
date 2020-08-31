@@ -195,6 +195,10 @@ class Context(interfaces.RequestProvider):
                 from .transports.tls import TLSClient
                 await self._append_tokenmanaged_transport(
                     lambda tman: TLSClient.create_client_transport(tman, self.log, loop, self.client_credentials))
+            elif transportname == 'ws':
+                from .transports.ws import WSPool
+                await self._append_tokenmanaged_transport(
+                    lambda tman: WSPool.create_transport(tman, self.log, loop, client_credentials=self.client_credentials))
             elif transportname == 'oscore':
                 from .transports.oscore import TransportOSCORE
                 oscoretransport = TransportOSCORE(self, self)
@@ -278,6 +282,11 @@ class Context(interfaces.RequestProvider):
                 from .transports.tls import TLSClient
                 await self._append_tokenmanaged_transport(
                     lambda tman: TLSClient.create_client_transport(tman, self.log, loop, self.client_credentials))
+            elif transportname == 'ws':
+                from .transports.ws import WSPool
+                await self._append_tokenmanaged_transport(
+                    # None, None: Unlike the other transports this has a server/client generic creator, and only binds if there is some bind
+                    lambda tman: WSPool.create_transport(tman, self.log, loop, client_credentials=self.client_credentials, server_bind=bind or (None, None), server_context=_ssl_context))
             elif transportname == 'oscore':
                 from .transports.oscore import TransportOSCORE
                 oscoretransport = TransportOSCORE(self, self)

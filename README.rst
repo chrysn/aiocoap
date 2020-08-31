@@ -39,8 +39,9 @@ This library supports the following standards in full or partially:
 * RFC7641_ (Observe): Reordering, re-registration, and active cancellation are
   missing.
 * RFC7959_ (Blockwise): Multicast exceptions missing.
-* RFC8323_ (TCP): Supports CoAP over TCP and TLS (certificate only, no
-  preshared or raw public keys) but not CoAP over WebSockets.
+* RFC8323_ (TCP, WebSockets): Supports CoAP over TCP, TLS, and WebSockets (both
+  over HTTP and HTTPS). The TLS parts are server-certificate only;
+  preshared, raw public keys and client certificates are not supported yet.
 * RFC7967_ (No-Response): Supported.
 * RFC8132_ (PATCH/FETCH): Types and codes known, FETCH observation supported
 * draft-ietf-core-resource-directory_: A standalone resource directory
