@@ -51,6 +51,7 @@ from typing import Dict, List, Optional
 from collections import namedtuple
 import asyncio
 import http
+import weakref
 
 from aiocoap import Message, interfaces, ABORT, util
 from aiocoap.transports import rfc8323common
@@ -88,14 +89,17 @@ def _serialize(msg: Message) -> bytes:
 
     return b"".join(data)
 
-PoolKey = namedtuple("PoolKey", ("scheme", "host", "port"))
+PoolKey = namedtuple("PoolKey", ("scheme", "hostinfo"))
 
 class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
     _connection: websockets.WebSocketCommonProtocol
-    _key: PoolKey
+    # Only used to ensure that remotes are associated to the right pool -- not
+    # that there'd be any good reason to have multiple of those.
+    _pool: weakref.ReferenceType # [WSPool] -- but that'd be circular
 
-    def __init__(self, connection, loop, log, *, local_hostinfo=None, remote_hostinfo=None):
+    def __init__(self, pool, connection, loop, log, *, local_hostinfo=None, remote_hostinfo=None):
         super().__init__()
+        self._pool = weakref.ref(pool)
         self._connection = connection
         self.loop = loop
         self.log = log
@@ -127,11 +131,10 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
     async def _abort_with_waiting(self, msg, *, close_code):
         self.log.debug("Aborting with message: %r", msg)
         try:
-            await message.remote._connection.send(_serialize(message))
+            await self._connection.send(_serialize(msg))
         except Exception as e:
             self.log.error("Sending to a WebSocket should not raise errors", exc_info=e)
-        self._connection.close(code=close_code)
-        await self._connection.close_wait()
+        await self._connection.close(code=close_code)
 
     def _send_message(self, msg):
         # FIXME overhaul back-pressure model
@@ -144,21 +147,16 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
         self.loop.create_task(send())
 
 class WSPool(interfaces.TokenInterface):
+    _outgoing_starting: Dict[PoolKey, asyncio.Task]
     _pool: Dict[PoolKey, WSRemote]
 
-    _outgoing_starting: Dict[PoolKey, asyncio.Task]
-    # Channel into which an _outgoing_starting item is fed to enter the main task
-    _startup_complete: asyncio.Future
-
-    _task: asyncio.Task
     _servers: List[websockets.WebSocketServer]
 
     def __init__(self, tman, log, loop):
         self.loop = loop
 
         self._pool = {}
-        self._outgoing_queue = {}
-        self._startup_complete = loop.create_future()
+        self._outgoing_starting = {}
 
         self._servers = []
 
@@ -209,7 +207,7 @@ class WSPool(interfaces.TokenInterface):
 
     async def fill_or_recognize_remote(self, message):
         if isinstance(message.remote, WSRemote) and \
-                message.remote._pool is self:
+                message.remote._pool() is self:
             return True
 
         if message.requested_scheme in ('coap+ws', 'coaps+ws'):
