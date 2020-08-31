@@ -192,7 +192,7 @@ class WSPool(interfaces.TokenInterface):
 
         local_hostinfo = util.hostportsplit(websocket.request_headers['Host'])
 
-        remote = WSRemote(websocket, self.loop, self.log, local_hostinfo=local_hostinfo)
+        remote = WSRemote(self, websocket, self.loop, self.log, local_hostinfo=local_hostinfo)
 
         await self._run_recv_loop(remote)
 
@@ -203,6 +203,30 @@ class WSPool(interfaces.TokenInterface):
         # Continue with WebSockets
         return None
 
+    # Helpers for WebScoket client
+
+    def _connect(self, key: PoolKey):
+        self._outgoing_starting[key] = self.loop.create_task(self._connect_task(key))
+
+    async def _connect_task(self, key: PoolKey):
+        try:
+            hostinfo_split = util.hostportsplit(key.hostinfo)
+
+            websocket = await websockets.connect("%s://%s/.well-known/coap" % (
+                {'coap+ws': 'ws', 'coaps+ws': 'wss'}[key.scheme], key.hostinfo),
+                subprotocols=['coap'],
+                ping_interval=None,
+                )
+
+            remote = WSRemote(self, websocket, self.loop, self.log, remote_hostinfo=hostinfo_split)
+            self._pool[remote] = remote
+
+            self.loop.create_task(self._run_recv_loop(remote))
+
+            return remote
+        finally:
+            del self._outgoing_starting[key]
+
     # Implementation of TokenInterface
 
     async def fill_or_recognize_remote(self, message):
@@ -211,7 +235,21 @@ class WSPool(interfaces.TokenInterface):
             return True
 
         if message.requested_scheme in ('coap+ws', 'coaps+ws'):
-            FAIL # pick one from the pool if present, otherwise enqueue a new one
+            key = PoolKey(message.requested_scheme, message.remote.hostinfo)
+
+            if key in self._pool:
+                message.remote = self._pool[key]
+                if message.remote._connection.open:
+                    return True
+                # else try opening a new one
+
+            if key not in self._outgoing_starting:
+                self._connect(key)
+            # It's a bit unorthodox to wait for an (at least partially)
+            # established connection in fill_or_recognize_remote, but it's
+            # not completely off off either, and it makes it way easier to
+            # not have partially initialized remotes around
+            message.remote = await self._outgoing_starting[key]
             return True
 
         return False
