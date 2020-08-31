@@ -6,6 +6,47 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
+"""
+This moduel implements a TokenInterface for `CoAP over WebSockets`_.
+
+.. _`CoAP over WebSockets`: https://tools.ietf.org/html/rfc8323#section-4
+
+As with CoAP-over-TCP, while the transport distinguishes a connection initiator
+("WebSocket (and TCP) client") and a receiver ("WebSocket (and TCP) server"),
+both sides can take both roles in CoAP (ie. as a CoAP server and a CoAP
+client). As the WebSocket client can not possibly be connected to (even by the
+same server -- once the connection is closed, it's gone and even a new one
+likely has a different port), aiocoap does not allow expressing their addresses
+in URIs (given they wouldn't serve their purpose as URLs and don't provide any
+stability either). Requests to a CoAP-over-WS client can be made by assigning
+the remote to an outgoing request.
+
+Port choice
+-----------
+
+Unlike the other transports, CoAP-over-WS is specified with a privileged port
+(port 80) as the default port. This is impractical for aiocoap servers for two
+reasons:
+
+    * Unless explicitly configured, aiocoap is typically run as an unprivileged
+      user (and has no provisions in place to receive a socket by other means
+      than opening it).
+
+    * Where a CoAP-over-WS proxy is run, there is often a "proper" website
+      running on the same port on a full HTTP server. That server is usually
+      capable of forwarding requests, whereas the ``websockets`` module used by
+      aiocoap is in no position to either serve websites nor to proxy to an
+      underlying server.
+
+The recommended setup is therefore to run a full web server at port 80, and
+configure it to proxy incoming requests for WebSockets at `/.well-known/coap`
+to aiocoap's server, which defaults to binding to port 8683.
+
+The port choice of outgoing connections, or the interpretation of the
+protocol's default port (ie. the port implied by ``coap+ws://hostname/``) is of
+course unaffected by this.
+"""
+
 from typing import Dict, List, Optional
 from collections import namedtuple
 import asyncio
@@ -154,9 +195,6 @@ class WSPool(interfaces.TokenInterface):
         local_hostinfo = util.hostportsplit(websocket.request_headers['Host'])
 
         remote = WSRemote(websocket, self.loop, self.log, local_hostinfo=local_hostinfo)
-
-        # FIXME deposit socket in outgoing for sending -- or should we? (maybe
-        # an incoming one is just reachable over the explicit remote object)
 
         await self._run_recv_loop(remote)
 
