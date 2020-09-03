@@ -42,7 +42,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         return self.context.client_credentials
 
     async def shutdown(self):
-        for request in self.outgoing_requests.values():
+        for request in dict(self.outgoing_requests).values():
             request.add_exception(error.LibraryShutdown())
         self.outgoing_requests = None
 
