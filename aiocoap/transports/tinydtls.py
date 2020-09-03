@@ -187,6 +187,8 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         except OSError as e:
             self.log.debug("Expressing exception %r as errno %d.", e, e.errno)
             self.coaptransport.ctx.dispatch_error(e.errno, self)
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             self.log.error("Exception %r can not be represented as errno, setting -1.", e)
             self.coaptransport.ctx.dispatch_error(-1, self)
