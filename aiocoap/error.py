@@ -7,7 +7,7 @@
 # described in the accompanying LICENSE file.
 
 """
-Exception definitions for txThings CoAP library.
+Common errors for the aiocoap library
 """
 
 import warnings
@@ -111,7 +111,7 @@ class UnsupportedMethod(MethodNotAllowed):
 class NotImplemented(Error):
     """
     Raised when request is correct, but feature is not implemented
-    by txThings library.
+    by library.
     For example non-sequential blockwise transfers
     """
 

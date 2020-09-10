@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# txThings asyncio branch documentation build configuration file, created by
+# aiocoap documentation build configuration file, created by
 # sphinx-quickstart on Wed Jun  4 09:40:16 2014.
 #
 # This file is execfile()d with the current directory set to its
