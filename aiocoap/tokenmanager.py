@@ -51,31 +51,6 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
 
         await self.token_interface.shutdown()
 
-    def kill_transactions(self, remote, exception=error.CommunicationKilled):
-        """Abort all pending exchanges and observations to a given remote.
-
-        The exact semantics of this are not yet completely frozen -- currently,
-        pending exchanges are treated as if they timeouted, server sides of
-        observations are droppedn and client sides of observations receive an
-        errback.
-
-        Requests that are not part of an exchange, eg. NON requests or requests
-        that are waiting for their responses after an empty ACK are currently
-        not handled."""
-
-        self.token_interface.kill_transactions(remote, exception)
-
-        for ((token, obs_remote), clientobservation) in list(self.outgoing_observations.items()):
-            if remote != obs_remote:
-                continue
-            clientobservation().error(exception())
-
-        for ((token, obs_remote), serverobservation) in list(self.incoming_observations.items()):
-            if remote != obs_remote:
-                continue
-            ## FIXME this is not tested either
-            serverobservation.deregister("Dropping due to kill_transactions")
-
     def next_token(self):
         """Reserve and return a new Token for request."""
         #TODO: add proper Token handling

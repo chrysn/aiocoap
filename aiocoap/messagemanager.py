@@ -449,19 +449,3 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         # not going via send_message because that would strip the mid, and we
         # already know that it can go straight to the wire
         self._send_initially(ack)
-
-    def kill_transactions(self, remote, exception=error.CommunicationKilled):
-        for ((exchange_remote, messageid), (exchangemonitor, cancellabletimeout)) in self._active_exchanges.items():
-            if remote != exchange_remote:
-                continue
-
-            ## FIXME: this should receive testing, but a test setup would need
-            # precise timing to trigger this code path
-            ## FIXME: this does not actually abort the request, as the protocol
-            # does not have a way to tell a request that it won't complete. so
-            # actually, the request will just need to time out. (typical
-            # requests don't use an exchange monitor).
-            cancellabletimeout.cancel()
-            if exchangemonitor is not None:
-                exchangemonitor.rst()
-            self._active_exchanges.pop((exchange_remote, messageid))
