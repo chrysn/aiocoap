@@ -609,6 +609,9 @@ class StandaloneResourceDirectory(Proxy, Site):
         else:
             return await Site.render(self, request)
 
+class LwM2MCompatibilityRD(StandaloneResourceDirectory):
+    rd_path = ["rd",]
+
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
 
@@ -620,12 +623,14 @@ class Main(AsyncCLIDaemon):
     async def start(self, args=None):
         parser = build_parser()
         parser.add_argument("--proxy-domain", help="Enable the RD proxy extension. Example: `.proxy.example.net` will produce base URIs like `coap://node1.proxy.example.net/`. The names must all resolve to an address the RD is bound to.", type=str)
+        parser.add_argument("--lwm2m-compat", help="Compatibility mode for LwM2M clients that can not perform some discovery steps (moving the registration resource to `/rd`)", action='store_true')
         options = parser.parse_args(args if args is not None else sys.argv[1:])
 
         # Putting in an empty site to construct the site with a context
         self.context = await server_context_from_arguments(None, options)
 
-        self.site = StandaloneResourceDirectory(context=self.context, proxy_domain=options.proxy_domain)
+        siteclass = LwM2MCompatibilityRD if options.lwm2m_compat else StandaloneResourceDirectory
+        self.site = siteclass(context=self.context, proxy_domain=options.proxy_domain)
         self.context.serversite = self.site
 
     async def shutdown(self):
