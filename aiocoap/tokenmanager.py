@@ -321,6 +321,14 @@ class PlumbingRequest:
         return functools.partial(self._unregister_on_event, callback)
 
     def _unregister_on_event(self, callback):
+        if self._event_callbacks is False:
+            # They wouldn't be called any more so they're already dropped.a
+            # It's OK that the caller cleans up after itself: Sure it could
+            # register an on_interest_end, but that's really not warranted if
+            # all it wants to know is whether it'll have to execute cleanup
+            # when it's shutting down or not.
+            return
+
         self._event_callbacks = [(cb, i) for (cb, i) in self._event_callbacks if callback is not cb]
         if not self._any_interest():
             self._end()
