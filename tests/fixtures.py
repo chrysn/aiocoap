@@ -13,7 +13,9 @@ import functools
 import gc
 import inspect
 import logging
+import os
 import pprint
+import sys
 import unittest
 import weakref
 
@@ -105,10 +107,15 @@ class WithLogMonitoring(unittest.TestCase):
         logging.root.removeHandler(self.handler)
 
         formatter = logging.Formatter(fmt='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
-        self.assertTrue(test_is_successful(self), "Previous errors were raised."
-                " Complete log:\n" + "\n".join(
-                formatter.format(x) for x in self.handler.list if x.name != 'asyncio'),
-                )
+        complete_log = " Complete log:\n" + "\n".join(
+                formatter.format(x) for x in self.handler.list if x.name != 'asyncio')
+
+        if 'AIOCOAP_TESTS_SHOWLOG' in os.environ:
+            print(complete_log, file=sys.stderr)
+            complete_log = "was just printed unconditionally anyway"
+
+        self.assertTrue(test_is_successful(self),
+                "Previous errors were raised." + complete_log)
 
     class ListHandler(logging.Handler):
         def __init__(self):
