@@ -751,12 +751,12 @@ class Request(interfaces.Request, BaseUnicastRequest):
                 self.observation.error(next_event.exception)
                 if not next_event.is_last:
                     self._plumbing_request.stop_interest()
-                if not isinstance(first_event.exception, error.Error):
+                if not isinstance(next_event.exception, error.Error):
                     self.log.warning(
                            "An exception that is not an aiocoap Error was "
                            "raised from a transport during an observation; "
                            "please report this as a bug in aiocoap: %r",
-                           first_event.exception)
+                           next_event.exception)
                 return
 
             self._add_response_properties(next_event.message, self._plumbing_request.request)
