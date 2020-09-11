@@ -52,6 +52,29 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
         loop.call_soon(protocol.connection_made, self)
         # only start reading when connection_made() has been called
         import weakref
+        # We could add error handling in here like this:
+        # ```
+        # self = s()
+        # if self is None or self.__sock is None:
+        #     # The read event happened briefly before .close() was called,
+        #     # but late enough that the caller of close did not yield to let
+        #     # the event out; when remove_reader was then called, the
+        #     # pending event was not removed, so it fires now that the
+        #     # socket is already closed. (Depending on the GC's whims, self
+        #     # may or may not have been GC'd, but if it wasn't yet, the
+        #     # closed state is indicated by the lack of a __sock.
+        #     #
+        #     # Thus, silently (preferably with an ICMP error, but really
+        #     # can't do that)...
+        #     return
+        # ```
+        # That was done tentatively while debugging errors flying out of
+        # _read_ready, but it turned out that this was not the actual error
+        # source. Thus, I'm not adding the handler and assuming that close's
+        # remove_reader is not racing against callbacks, and thus that s() is
+        # always valid while the transport is around (and the weakref is really
+        # only used to break up the reference cycles to ensure the GC is not
+        # needed here).
         rr = lambda s=weakref.ref(self): s()._read_ready()
         loop.call_soon(loop.add_reader, self.__sock_fileno, rr)
         loop.call_soon(_set_result_unless_cancelled, waiter, None)
