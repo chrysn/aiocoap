@@ -13,6 +13,7 @@ Currently, it also provides the mechanisms for managing tokens, but those will
 be split into dedicated classes.
 """
 
+import errno
 import functools
 import random
 
@@ -260,9 +261,10 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             next_retransmission = self._schedule_retransmit(message, timeout, retransmission_counter)
             self._active_exchanges[key] = (messageerror_monitor, next_retransmission)
         else:
-            self.log.info("Exchange timed out")
-            # FIXME: send timeout error on the remote in general
-            self._continue_backlog(message.remote)
+            self.log.info("Exchange timed out trying to transmit %s", message)
+            del self._backlogs[remote]
+            # FIXME This is stretching the sloppy errno-style interface even more here
+            self.token_manager.dispatch_error(errno.ETIMEDOUT, message.remote)
 
     #
     # coap dispatch, message-code sublayer: triggering custom actions based on incoming messages
