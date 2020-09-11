@@ -199,3 +199,7 @@ class NetworkError(Error):
 class ResolutionError(NetworkError):
     """Resolving the host component of a URI to a usable transport address was
     not possible"""
+
+class MessageError(NetworkError):
+    """Received an error from the remote on the CoAP message level (typically a
+    RST)"""

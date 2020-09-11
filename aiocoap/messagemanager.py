@@ -44,8 +44,8 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         #: Tracker of recently received messages (by remote and message ID).
         #: Maps them to a response message when one is already known.
         self._recent_messages = {}  # type: Dict[Tuple[Remote, int], Optional[Message]]
-        self._active_exchanges = {}  #: active exchanges i.e. sent CON messages (remote, message-id): (exchange monitor, cancellable timeout)
-        self._backlogs = {} #: per-remote list of (backlogged package, exchange-monitor) tupless (keys exist iff there is an active_exchange with that node)
+        self._active_exchanges = {}  #: active exchanges i.e. sent CON messages (remote, message-id): (messageerror_monitor monitor, cancellable timeout)
+        self._backlogs = {} #: per-remote list of (backlogged package, messageerror_monitor) tupless (keys exist iff there is an active_exchange with that node)
 
         #: Maps pending remote/token combinations to the MID a response can be
         #: piggybacked on, and the timeout that should be cancelled if it is.
@@ -61,9 +61,9 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         return self.token_manager.client_credentials
 
     async def shutdown(self):
-        for exchange_monitor, cancellable in self._active_exchanges.values():
-            if exchange_monitor is not None:
-                exchange_monitor.cancelled()
+        for messageerror_monitor, cancellable in self._active_exchanges.values():
+            # Not calling messageerror_monitor: This is not message specific,
+            # and its shutdown will take care of these things
             cancellable.cancel()
         self._active_exchanges = None
 
@@ -116,11 +116,9 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         self.token_manager.dispatch_error(errno, remote)
 
         keys_for_removal = []
-        for key, (monitor, cancellable_timeout) in self._active_exchanges.items():
+        for key, (messageerror_monitor, cancellable_timeout) in self._active_exchanges.items():
             (exchange_remote, message_id) = key
             if remote == exchange_remote:
-                if monitor is not None:
-                    monitor.rst() # FIXME: add API for better errors
                 cancellable_timeout.cancel()
                 keys_for_removal.append(key)
         for k in keys_for_removal:
@@ -169,7 +167,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     # coap dispatch, message-type sublayer: retransmission handling
     #
 
-    def _add_exchange(self, message, exchange_monitor=None):
+    def _add_exchange(self, message, messageerror_monitor):
         """Add an "exchange" for outgoing CON message.
 
         CON (Confirmable) messages are automatically retransmitted by protocol
@@ -184,7 +182,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
 
         next_retransmission = self._schedule_retransmit(message, timeout, 0)
-        self._active_exchanges[key] = (exchange_monitor, next_retransmission)
+        self._active_exchanges[key] = (messageerror_monitor, next_retransmission)
 
         self.log.debug("Exchange added, message ID: %d.", message.mid)
 
@@ -197,13 +195,10 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             self.log.warning("Received %s from %s, but could not match it to a running exchange.", message.mtype, message.remote)
             return
 
-        exchange_monitor, next_retransmission = self._active_exchanges.pop(key)
+        messageerror_monitor, next_retransmission = self._active_exchanges.pop(key)
         next_retransmission.cancel()
-        if exchange_monitor is not None:
-            if message.mtype is RST:
-                exchange_monitor.rst()
-            else:
-                exchange_monitor.response(message)
+        if message.mtype is RST:
+            messageerror_monitor()
         self.log.debug("Exchange removed, message ID: %d.", message.mid)
 
         self._continue_backlog(message.remote)
@@ -223,8 +218,8 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         # messages were NONs
         while not any(r == remote for r, mid in self._active_exchanges.keys()):
             if self._backlogs[remote] != []:
-                next_message, exchange_monitor = self._backlogs[remote].pop(0)
-                self._send_initially(next_message, exchange_monitor)
+                next_message, messageerror_monitor = self._backlogs[remote].pop(0)
+                self._send_initially(next_message, messageerror_monitor)
             else:
                 del self._backlogs[remote]
                 break
@@ -252,7 +247,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         """Retransmit CON message that has not been ACKed or RSTed."""
         key = (message.remote, message.mid)
 
-        exchange_monitor, next_retransmission = self._active_exchanges.pop(key)
+        messageerror_monitor, next_retransmission = self._active_exchanges.pop(key)
         # this should be a no-op, but let's be sure
         next_retransmission.cancel()
 
@@ -263,13 +258,10 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             timeout *= 2
 
             next_retransmission = self._schedule_retransmit(message, timeout, retransmission_counter)
-            self._active_exchanges[key] = (exchange_monitor, next_retransmission)
-            if exchange_monitor is not None:
-                exchange_monitor.retransmitted()
+            self._active_exchanges[key] = (messageerror_monitor, next_retransmission)
         else:
             self.log.info("Exchange timed out")
-            if exchange_monitor is not None:
-                exchange_monitor.timeout()
+            # FIXME: send timeout error on the remote in general
             self._continue_backlog(message.remote)
 
     #
@@ -333,7 +325,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             return True
         return False
 
-    def send_message(self, message, exchange_monitor=None):
+    def send_message(self, message, messageerror_monitor):
         """Encode and send message. This takes care of retransmissions (if
         CON), message IDs and rate limiting, but does not hook any events to
         responses. (Use the :class:`Request` class or responding resources
@@ -399,22 +391,18 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
 
         if message.mtype == CON and message.remote in self._backlogs:
             self.log.debug("Message to %s put into backlog", message.remote)
-            if exchange_monitor is not None:
-                exchange_monitor.enqueued()
-            self._backlogs[message.remote].append((message, exchange_monitor))
+            self._backlogs[message.remote].append((message, messageerror_monitor))
         else:
-            self._send_initially(message, exchange_monitor)
+            self._send_initially(message, messageerror_monitor)
 
-    def _send_initially(self, message, exchange_monitor=None):
+    def _send_initially(self, message, messageerror_monitor=None):
         """Put the message on the wire for the first time, starting retransmission timeouts"""
 
         self.log.debug("Sending message %r", message)
 
         if message.mtype is CON:
-            self._add_exchange(message, exchange_monitor)
-
-        if exchange_monitor is not None:
-            exchange_monitor.sent()
+            assert messageerror_monitor is not None, "messageerror_monitor needs to be set for CONs"
+            self._add_exchange(message, messageerror_monitor)
 
         self._store_response_for_duplicates(message)
 

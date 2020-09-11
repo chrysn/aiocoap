@@ -197,10 +197,19 @@ class MessageManager(metaclass=abc.ABCMeta):
 
 class TokenInterface(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def send_message(self, message) -> Optional[Callable[[], None]]:
+    def send_message(self, message, messageerror_monitor) -> Optional[Callable[[], None]]:
         """Send a message. If it returns a a callable, the caller is asked to
         call in case it no longer needs the message sent, and to dispose of if
         it doesn't intend to any more.
+
+        messageerror_monitor is a function that will be called at most once by
+        the token interface: When the underlying layer is indicating that this
+        concrete message could not be processed. This is typically the case for
+        RSTs on from the message layer, and used to cancel observations. Errors
+        that are not likely to be specific to a message (like retransmission
+        timeouts, or ICMP errors) are reported through dispatch_error instead.
+        (While the information which concrete message triggered that might be
+        available, it is not likely to be relevant).
 
         Currently, it is up to the TokenInterface to unset the no_response
         option in response messages, and to possibly not send them."""

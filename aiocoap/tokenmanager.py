@@ -110,7 +110,16 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                     # Default to sending NON to NON requests; rely on the
                     # default (CON if stand-alone else ACK) otherwise.
                     m.mtype = NON
-                self.token_interface.send_message(m)
+                self.token_interface.send_message(
+                        m,
+                        # No more interest from *that* remote; as it's the only
+                        # thing keeping the PR alive, it'll go its course of
+                        # vanishing for lack of interest (as it would if
+                        # pr_stop were called from its other possible caller,
+                        # the start of process_request when a new request comes
+                        # in on the same token)
+                        pr_stop,
+                        )
             else:
                 self.log.error("Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s", ev)
             if not ev.is_last:
@@ -185,7 +194,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         self.log.debug("Sending request - Token: %s, Remote: %s", msg.token.hex(), msg.remote)
 
         try:
-            send_canceller = self.token_interface.send_message(msg)
+            send_canceller = self.token_interface.send_message(msg, lambda: request.add_exception(error.MessageError))
         except Exception as e:
             request.add_exception(e)
             return

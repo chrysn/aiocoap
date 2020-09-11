@@ -226,7 +226,11 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
 class _TCPPooling:
     # implementing TokenInterface
 
-    def send_message(self, message):
+    def send_message(self, message, messageerror_monitor):
+        # Ignoring messageerror_monitor: CoAP over reliable transports has no
+        # way of indicating that a particular message was bad, it always shuts
+        # down the complete connection
+
         if message.code.is_response():
             no_response = (message.opt.no_response or 0) & (1 << message.code.class_ - 1) != 0
             if no_response:
