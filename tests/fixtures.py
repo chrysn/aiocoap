@@ -106,9 +106,8 @@ class WithLogMonitoring(unittest.TestCase):
 
         logging.root.removeHandler(self.handler)
 
-        formatter = logging.Formatter(fmt='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
         complete_log = " Complete log:\n" + "\n".join(
-                formatter.format(x) for x in self.handler.list if x.name != 'asyncio')
+                x.preformatted for x in self.handler.list if x.name != 'asyncio')
 
         if 'AIOCOAP_TESTS_SHOWLOG' in os.environ:
             print(complete_log, file=sys.stderr)
@@ -118,21 +117,43 @@ class WithLogMonitoring(unittest.TestCase):
                 "Previous errors were raised." + complete_log)
 
     class ListHandler(logging.Handler):
+        """Handler that catches log records into a list for later evaluation
+
+        The log records are formatted right away into a .preformatted attribute
+        and have their args and exc_info stripped out. This approach retains
+        the ability to later filter the messages by logger name or level, but
+        drops any references the record might hold to stack frames or other
+        passed arguments, as to not interfere with _del_to_be_sure.
+
+        (In regular handlers, these references are not an issue because in
+        regular logging the decision whether or not to log is taken right away,
+        and maybe then formatting happens, and either way the rest is
+        dropped)..
+        """
         def __init__(self):
             super().__init__()
             self.list = []
+            self.preformatter = logging.Formatter(fmt='%(asctime)s:%(levelname)s:%(name)s:%(message)s')
 
         def emit(self, record):
-            if record.args:
-                # Resolving this early to ensure that nothing in here offends _del_to_be_sure
-                # (This *is* the behavior of regular handlers -- we're just not
-                # formatting it all the way down yet to retain the ability to
-                # use assertWarned etc)
+            record.preformatted = self.preformatter.format(record)
+
+            if record.args and not hasattr(record, 'style'):
+                # Several of the precise_warnings and simiiar uses rely on the
+                # ability to match on the message as shown. This mechanism
+                # predates the preformatted messages, and is kept as a middle
+                # ground. (Matching on something like "Aborting connection: No
+                # CSM received" is impossible when the arguments are already
+                # thrown away for then it'd be "Aboting connection: %s", but
+                # matching into the fully preformatted log record is not ideal
+                # either as it effectively means parsing by the above colon
+                # format (yes, sub-string matching is probably good enough, but
+                # why take chances).
                 record.msg = record.msg % record.args
-                record.args = None
-            if record.exc_info:
-                # Leaving this around would certainly result in failure in _del_to_be_sure
-                record.exc_info = None
+
+            record.args = None
+            record.exc_info = None
+
             self.list.append(record)
 
         def __iter__(self):
