@@ -467,7 +467,14 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             self.log.warning("Ignoring unparsable message from %s", address)
             return
 
-        self._ctx.dispatch_message(message)
+        try:
+            self._ctx.dispatch_message(message)
+        except BaseException as exc:
+            # Catching here because util.asyncio.recvmsg inherits
+            # _SelectorDatagramTransport's bad handling of callback errors;
+            # this is the last time we have a log at hand.
+            self.log.error("Exception raised through dispatch_message: %s", exc, exc_info=exc)
+            raise
 
     def datagram_errqueue_received(self, data, ancdata, flags, address):
         assert flags == socknumbers.MSG_ERRQUEUE
@@ -490,7 +497,14 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # anyway, when an icmp error comes back, everything pending from that
         # port should err out.
 
-        self._ctx.dispatch_error(errno, remote)
+        try:
+            self._ctx.dispatch_error(errno, remote)
+        except BaseException as exc:
+            # Catching here because util.asyncio.recvmsg inherits
+            # _SelectorDatagramTransport's bad handling of callback errors;
+            # this is the last time we have a log at hand.
+            self.log.error("Exception raised through dispatch_error: %s", exc, exc_info=exc)
+            raise
 
     def error_received(self, exc):
         """Implementation of the DatagramProtocol interface, called by the transport."""
