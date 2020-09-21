@@ -461,6 +461,8 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                 pktinfo = cmsg_data
             else:
                 self.log.info("Received unexpected ancillary data to recvmsg: level %d, type %d, data %r", cmsg_level, cmsg_type, cmsg_data)
+        if pktinfo is None:
+            self.log.warning("Did not receive requested pktinfo ancdata on message from %s", address)
         try:
             message = Message.decode(data, UDP6EndpointAddress(address, self, pktinfo=pktinfo))
         except error.UnparsableMessage:
