@@ -57,6 +57,8 @@ def pretty_print(message):
     info = lambda m: infos.append(m)
 
     cf = message.opt.content_format
+    if cf is None:
+        cf = message.request.opt.accept
     content_type = media_types.get(cf, "type %s" % cf)
     category = contenttype.categorize(content_type)
 
