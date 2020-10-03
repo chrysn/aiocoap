@@ -33,17 +33,17 @@ Features / Standards
 
 This library supports the following standards in full or partially:
 
-* RFC7252_ (CoAP): missing are a caching and cross proxy implementation, proper
-  multicast (support is incomplete); DTLS support is client-side only so far,
-  and lacking some security properties.
-* RFC7641_ (Observe): Reordering, re-registration, and active cancellation are
-  missing.
-* RFC7959_ (Blockwise): Multicast exceptions missing.
+* RFC7252_ (CoAP): Supported for clients and servers. Multicast is supported on
+  the server side, and partially for clients. DTLS is supported for clients,
+  but lacking some security properties. No caching is done inside the library.
+* RFC7641_ (Observe): Basic support for clients and servers. Reordering,
+  re-registration, and active cancellation are missing.
+* RFC7959_ (Blockwise): Supported both for atomic and random access.
 * RFC8323_ (TCP, WebSockets): Supports CoAP over TCP, TLS, and WebSockets (both
   over HTTP and HTTPS). The TLS parts are server-certificate only;
   preshared, raw public keys and client certificates are not supported yet.
 * RFC7967_ (No-Response): Supported.
-* RFC8132_ (PATCH/FETCH): Types and codes known, FETCH observation supported
+* RFC8132_ (PATCH/FETCH): Types and codes known, FETCH observation supported.
 * draft-ietf-core-resource-directory_: A standalone resource directory
   server is provided along with a library function to register at one. They
   lack support for groups and security considerations, and are generally rather
