@@ -337,12 +337,19 @@ class CommonRD:
         return self._by_key.values()
 
 def link_format_from_message(message):
+    """Convert a response message into a LinkFormat object
+
+    This expects an explicit media type set on the response (or was explicitly requested)
+    """
+    certain_format = message.opt.content_format
+    if certain_format is None:
+        certain_format = message.request.opt.accept
     try:
-        if message.opt.content_format == media_types_rev['application/link-format']:
+        if certain_format == media_types_rev['application/link-format']:
             return parse(message.payload.decode('utf8'))
-        elif message.opt.content_format == media_types_rev['application/link-format+json']:
+        elif certain_format == media_types_rev['application/link-format+json']:
             return LinkFormat.from_json_string(message.payload.decode('utf8'))
-        elif message.opt.content_format == media_types_rev['application/link-format+cbor']:
+        elif certain_format == media_types_rev['application/link-format+cbor']:
             return LinkFormat.from_cbor_bytes(message.payload)
         else:
             raise error.UnsupportedMediaType()
@@ -548,11 +555,14 @@ class SimpleRegistrationWKC(WKCResource):
                 raise error.BadRequest("explicit base required")
 
             fetch_address = (network_base + '/.well-known/core')
-            get = aiocoap.Message(code=aiocoap.GET, uri=fetch_address)
+            get = aiocoap.Message(uri=fetch_address)
         else:
             # ignoring that there might be a based present, that will err later
-            get = aiocoap.Message(code=aiocoap.GET, uri_path=['.well-known', 'core'])
+            get = aiocoap.Message(uri_path=['.well-known', 'core'])
             get.remote = network_remote
+
+        get.code = aiocoap.GET
+        get.opt.accept = media_types_rev['application/link-format']
 
         # not trying to catch anything here -- the errors are most likely well renderable into the final response
         response = await self.context.request(get).response_raising
