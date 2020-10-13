@@ -262,7 +262,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             self._active_exchanges[key] = (messageerror_monitor, next_retransmission)
         else:
             self.log.info("Exchange timed out trying to transmit %s", message)
-            del self._backlogs[remote]
+            del self._backlogs[message.remote]
             # FIXME This is stretching the sloppy errno-style interface even more here
             self.token_manager.dispatch_error(errno.ETIMEDOUT, message.remote)
 
