@@ -48,8 +48,27 @@ class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
 
 def hostportjoin(host, port=None):
     """Join a host and optionally port into a hostinfo-style host:port
-    string"""
-    if ':' in host:
+    string
+
+    >>> hostportjoin('example.com')
+    'example.com'
+    >>> hostportjoin('example.com', 1234)
+    'example.com:1234'
+    >>> hostportjoin('127.0.0.1', 1234)
+    '127.0.0.1:1234'
+
+    This is lax with respect to whether host is an IPv6 literal in brackets or
+    not, and accepts either form; IP-future literals that do not contain a
+    colon must be already presented in their bracketed form:
+
+    >>> hostportjoin('2001:db8::1')
+    '[2001:db8::1]'
+    >>> hostportjoin('2001:db8::1', 1234)
+    '[2001:db8::1]:1234'
+    >>> hostportjoin('[2001:db8::1]', 1234)
+    '[2001:db8::1]:1234'
+    """
+    if ':' in host and not (host.startswith('[') and host.endswith(']')):
         host = '[%s]'%host
 
     if port is None:

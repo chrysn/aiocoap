@@ -368,6 +368,8 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             port = port or COAP_PORT
         elif request.opt.uri_host:
             host = request.opt.uri_host
+            if host.startswith('[') and host.endswith(']'):
+                host = host[1:-1]
             port = request.opt.uri_port or COAP_PORT
         else:
             raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")

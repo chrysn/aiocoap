@@ -269,6 +269,10 @@ class ForwardProxy(Proxy):
             pass
         else:
             request.opt.uri_host = None
+        if request.opt.uri_host.startswith('['):
+            # IPv6 or future literals are not recognized by ipaddress which
+            # does not look at host-encoded form
+            request.opt.uri_host = None
 
         # Maybe the URI-Host matches a known forwarding -- in that case, catch that.
         redirected = super(ForwardProxy, self).apply_redirection(request)
