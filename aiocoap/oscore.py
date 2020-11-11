@@ -605,7 +605,7 @@ class SecurityContext(metaclass=abc.ABCMeta):
         return unprotected_message, request_id
 
     @staticmethod
-    def _uncompress(option_data):
+    def _uncompress(option_data, payload):
         if option_data == b"":
             firstbyte = 0
         else:
@@ -636,15 +636,15 @@ class SecurityContext(metaclass=abc.ABCMeta):
             kid = tail
             unprotected[COSE_KID] = kid
 
-        return b"", {}, unprotected
+        return b"", {}, unprotected, payload
 
     @classmethod
     def _extract_encrypted0(cls, message):
         if message.opt.object_security is None:
             raise NotAProtectedMessage("No Object-Security option present", message)
 
-        protected_serialized, protected, unprotected = cls._uncompress(message.opt.object_security)
-        return protected_serialized, protected, unprotected, message.payload
+        protected_serialized, protected, unprotected, ciphertext = cls._uncompress(message.opt.object_security, message.payload)
+        return protected_serialized, protected, unprotected, ciphertext
 
     # context parameter setup
 
