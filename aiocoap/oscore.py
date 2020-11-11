@@ -393,8 +393,8 @@ class SecurityContext(metaclass=abc.ABCMeta):
         return nonce
 
     @staticmethod
-    def _compress(unprotected, protected):
-        """Pack the untagged COSE_Encrypt0 object described by the arguments
+    def _compress(protected, unprotected, ciphertext):
+        """Pack the untagged COSE_Encrypt0 object described by the *args
         into two bytestrings suitable for the Object-Security option and the
         message body"""
 
@@ -426,9 +426,11 @@ class SecurityContext(metaclass=abc.ABCMeta):
             raise RuntimeError("Protection produced a message that has uncompressable fields.")
 
         if firstbyte:
-            return bytes([firstbyte]) + piv + s_kid_context + kid_data
+            option = bytes([firstbyte]) + piv + s_kid_context + kid_data
         else:
-            return b""
+            option = b""
+
+        return (option, ciphertext)
 
     def protect(self, message, request_id=None, *, kid_context=True):
         """Given a plain CoAP message, create a protected message that contains
@@ -481,12 +483,12 @@ class SecurityContext(metaclass=abc.ABCMeta):
             plaintext += inner_message.payload
 
 
-        ciphertext_and_tag = self.algorithm.encrypt(plaintext, aad, key, nonce)
+        ciphertext = self.algorithm.encrypt(plaintext, aad, key, nonce)
 
-        option_data = self._compress(unprotected, protected)
+        option_data, payload = self._compress(protected, unprotected, ciphertext)
 
         outer_message.opt.object_security = option_data
-        outer_message.payload = ciphertext_and_tag
+        outer_message.payload = payload
 
         # FIXME go through options section
 
