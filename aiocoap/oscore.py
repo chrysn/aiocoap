@@ -41,11 +41,14 @@ MAX_SEQNO = 2**40 - 1
 COSE_KID = 4
 COSE_PIV = 6
 COSE_KID_CONTEXT = 10
+# from https://tools.ietf.org/html/draft-ietf-cose-countersign-01
+COSE_COUNTERSINGATURE0 = 11
 
 COMPRESSION_BITS_N = 0b111
 COMPRESSION_BIT_K = 0b1000
 COMPRESSION_BIT_H = 0b10000
-COMPRESSION_BITS_RESERVED = 0b11100000
+COMPRESSION_BIT_G = 0b100000 # Group Flag from draft-ietf-core-oscore-groupcomm-10
+COMPRESSION_BITS_RESERVED = 0b11000000
 
 class NotAProtectedMessage(error.Error, ValueError):
     """Raised when verification is attempted on a non-OSCORE message"""
@@ -422,6 +425,14 @@ class SecurityContext(metaclass=abc.ABCMeta):
         else:
             s_kid_context = b""
 
+        if COSE_COUNTERSINGATURE0 in unprotected:
+            firstbyte |= COMPRESSION_BIT_G
+
+            # In theory at least. In practice, that's an empty value to later
+            # be squished in when the compressed option value is available for
+            # signing.
+            ciphertext += unprotected.pop(COSE_COUNTERSINGATURE0)
+
         if unprotected:
             raise RuntimeError("Protection produced a message that has uncompressable fields.")
 
@@ -512,6 +523,10 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
         # FIXME check for duplicate keys in protected
 
+        if unprotected.pop(COSE_KID_CONTEXT, self.id_context) != self.id_context:
+            # FIXME is this necessary?
+            raise ProtectionInvalid("Sender ID does not match")
+
         if unprotected.pop(COSE_KID, self.recipient_id) != self.recipient_id:
             # for most cases, this is caught by the session ID dispatch, but in
             # responses (where explicit sender IDs are atypical), this is a
@@ -525,7 +540,7 @@ class SecurityContext(metaclass=abc.ABCMeta):
             nonce = request_id.nonce
             seqno = None # sentinel for not striking out anyting
         else:
-            partial_iv_short = unprotected[COSE_PIV]
+            partial_iv_short = unprotected.pop(COSE_PIV)
 
             nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
@@ -543,7 +558,8 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
                 request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=self.is_unicast and replay_error is None)
 
-        # FIXME is it an error for additional data to be present in unprotected?
+        if unprotected:
+            raise DecodeError("Unsupported unprotected option")
 
         if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
@@ -635,6 +651,13 @@ class SecurityContext(metaclass=abc.ABCMeta):
         if firstbyte & COMPRESSION_BIT_K:
             kid = tail
             unprotected[COSE_KID] = kid
+
+        if firstbyte & COMPRESSION_BIT_G:
+            # Not really; As this is (also) used early on (before the KID
+            # context is even known, because it's just getting extracted), this
+            # is returning an incomplete value here and leaves it to the later
+            # processing to strip the right number of bytes from the ciphertext
+            unprotected[COSE_COUNTERSINGATURE0] = b""
 
         return b"", {}, unprotected, payload
 
