@@ -281,11 +281,6 @@ DEFAULT_WINDOWSIZE = 32
 class SecurityContext(metaclass=abc.ABCMeta):
     # FIXME: define an interface for that
 
-    # Indicates that in this context, when responding to a request, will always
-    # be the *only* context that does. (This is primarily a reminder to stop
-    # reusing nonces once multicast is implemented).
-    is_unicast = True
-
     # Unless None, this is the value by which the running process recognizes
     # that the second phase of a B.1.2 replay window recovery Echo option comes
     # from the current process, and thus its sequence number is fresh
@@ -556,7 +551,7 @@ class SecurityContext(metaclass=abc.ABCMeta):
                     # Don't even try decoding if there is no reason to
                     raise replay_error
 
-                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=self.is_unicast and replay_error is None)
+                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=replay_error is None)
 
         if unprotected:
             raise DecodeError("Unsupported unprotected option")
