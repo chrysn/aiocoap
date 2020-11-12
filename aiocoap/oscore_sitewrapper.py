@@ -49,13 +49,13 @@ class OscoreSiteWrapper(interfaces.Resource):
 
     async def render(self, request):
         try:
-            recipient_id, id_context = oscore.verify_start(request)
+            unprotected = oscore.verify_start(request)
         except oscore.NotAProtectedMessage:
             # ie. if no object_seccurity present
             return await self._inner_site.render(request)
 
         try:
-            sc = self.server_credentials.find_oscore(recipient_id, id_context)
+            sc = self.server_credentials.find_oscore(unprotected)
         except KeyError:
             if request.mtype == aiocoap.CON:
                 raise error.Unauthorized("Security context not found")

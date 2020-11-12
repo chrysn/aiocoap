@@ -796,6 +796,18 @@ class SecurityContext(metaclass=abc.ABCMeta):
         """
         return self
 
+    def get_oscore_context_for(self, unprotected):
+        """Return a sutiable context (most easily self) for an incoming request
+        if its unprotected data (COSE_KID, COSE_KID_CONTEXT) fit its
+        description. If it doesn't match, it returns None.
+
+        The default implementation just strictly checks for whether kid and any
+        kid context match (not matching if a local KID context is set but none
+        is given in the request); modes like Group OSCORE can spin up aspect
+        objects here.
+        """
+        if unprotected.get(COSE_KID, None) == self.recipient_id and unprotected.get(COSE_KID_CONTEXT, None) == self.id_context:
+            return self
 
 class ReplayWindow:
     """A regular replay window of a fixed size.
@@ -1127,18 +1139,14 @@ class FilesystemSecurityContext(SecurityContext):
             self._destroy()
 
 def verify_start(message):
-    """Extract a sender ID and ID context (if present, otherwise None) from a
+    """Extract the unprotected COSE options from a
     message for the verifier to then pick a security context to actually verify
-    the message.
+    the message. (Future versions may also report fields from both unprotected
+    and protected, if the protected bag is ever used with OSCORE.).
 
     Call this only requests; for responses, you'll have to know the security
     context anyway, and there is usually no information to be gained."""
 
     _, _, unprotected, _ = SecurityContext._extract_encrypted0(message)
 
-    try:
-        # FIXME raise on duplicate key
-        return unprotected[COSE_KID], unprotected.get(COSE_KID_CONTEXT, None)
-    except KeyError:
-        raise NotAProtectedMessage("No Sender ID present", message)
-
+    return unprotected
