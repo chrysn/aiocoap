@@ -286,13 +286,36 @@ class SecurityContext(metaclass=abc.ABCMeta):
     # from the current process, and thus its sequence number is fresh
     echo_recovery = None
 
+    # The protection function will add a signature acccording to the context's
+    # alg_countersign attribute if this is true
+    is_signing = False
+
+    # The protection and unprotection functions will use the Group OSCORE AADs
+    # rather than the regular OSCORE AADs. (Ie. alg_countersign is added to
+    # the algorithms, and the id_context is added at the end).
+    #
+    # This is not necessarily identical to is_signing (as pairwise contexts use
+    # this but don't sign), and is distinct from the added OSCORE option in the
+    # AAD (as that's only applicable for the external AAD as extracted for
+    # signing and signature verification purposes).
+    external_aad_is_group = False
+
+    # Send the KID when protecting responses
+    #
+    # Once group pairwise mode is implemented, this will need to become a
+    # parameter to protect(), which is stored at the point where the incoming
+    # context is turned into an outgoing context. (Currently, such a mechanism
+    # isn't there yet, and oscore_wrapper protects responses with the very same
+    # context they came in on).
+    responses_send_kid = False
+
     # Authentication information carried with this security context; managed
     # externally by whatever creates the security context.
     authenticated_claims = []
 
     # message processing
 
-    def _extract_external_aad(self, message, request_kid, request_piv):
+    def _extract_external_aad(self, message, request_kid, request_piv, for_signature=False):
         # If any option were actually Class I, it would be something like
         #
         # the_options = pick some of(message)
@@ -301,13 +324,24 @@ class SecurityContext(metaclass=abc.ABCMeta):
         oscore_version = 1
         class_i_options = b""
 
+        algorithms = [self.algorithm.value]
+        if self.external_aad_is_group:
+            algorithms.extend(self.alg_countersign.value_all_par)
+
         external_aad = [
                 oscore_version,
-                [self.algorithm.value],
+                algorithms,
                 request_kid,
                 request_piv,
                 class_i_options,
                 ]
+
+        if self.external_aad_is_group:
+            external_aad.append(self.id_context)
+
+        if for_signature:
+            assert message.opt.object_security is not None
+            external_aad.append(message.opt.object_security)
 
         external_aad = cbor.dumps(external_aad)
 
@@ -476,6 +510,9 @@ class SecurityContext(metaclass=abc.ABCMeta):
                     unprotected[COSE_KID_CONTEXT] = self.id_context
             elif kid_context is not False:
                 unprotected[COSE_KID_CONTEXT] = kid_context
+        else:
+            if self.responses_send_kid:
+                unprotected[COSE_KID] = self.sender_id
 
         assert protected == {}
         protected_serialized = b'' # were it into an empty dict, it'd be the cbor dump
@@ -491,9 +528,21 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
         ciphertext = self.algorithm.encrypt(plaintext, aad, key, nonce)
 
+        # Putting in a dummy value as the signature calculation will already need some of the compression result
+        if self.is_signing:
+            unprotected[COSE_COUNTERSINGATURE0] = b""
         option_data, payload = self._compress(protected, unprotected, ciphertext)
 
         outer_message.opt.object_security = option_data
+        if self.is_signing:
+            # Belayed until outer_message has the Object-Security option assigned
+            external_aad_for_signing = self._extract_external_aad(
+                    outer_message,
+                    request_id.kid,
+                    request_id.partial_iv,
+                    for_signature=True
+                    )
+            payload += self.alg_countersign.sign(payload, external_aad_for_signing, self.private_key)
         outer_message.payload = payload
 
         # FIXME go through options section
@@ -553,6 +602,20 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
                 request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=replay_error is None)
 
+        if unprotected.pop(COSE_COUNTERSINGATURE0, None) is not None:
+            try:
+                alg_countersign = self.alg_countersign
+            except NameError:
+                raise DecodeError("Group messages can not be decoded with this non-group context")
+
+            siglen = alg_countersign.signature_length
+            if len(ciphertext) < siglen:
+                raise DecodeError("Message too short for signature")
+            signature = ciphertext[-siglen:]
+            ciphertext = ciphertext[:-siglen]
+        else:
+            signature = None
+
         if unprotected:
             raise DecodeError("Unsupported unprotected option")
 
@@ -566,6 +629,11 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
         if not is_response and seqno is not None and replay_error is None:
             self.recipient_replay_window.strike_out(seqno)
+
+        if signature is not None:
+            # Only doing the expensive signature validation once the cheaper decyrption passed
+            external_aad_for_signing = self._extract_external_aad(protected_message, request_id.kid, request_id.partial_iv, for_signature=True)
+            alg_countersign.verify(signature, ciphertext, external_aad_for_signing, self.recipient_public_key)
 
         # FIXME add options from unprotected
 
