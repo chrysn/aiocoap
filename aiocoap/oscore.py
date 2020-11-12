@@ -699,6 +699,17 @@ class SecurityContext(metaclass=abc.ABCMeta):
         """Ensure that sender_sequence_number is stored"""
         raise
 
+    def context_from_response(self, unprotected_bag):
+        """When receiving a response to a request protected with this security
+        context, pick the security context with which to unprotect the response
+        given the unprotected information from the Object-Security option.
+
+        This allow picking the right security context in a group response, and
+        helps getting a new short-lived context for B.2 mode. The default
+        behaivor is returning self.
+        """
+        return self
+
 
 class ReplayWindow:
     """A regular replay window of a fixed size.
