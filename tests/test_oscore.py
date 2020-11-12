@@ -245,3 +245,56 @@ class TestOSCOAPStatic(unittest.TestCase):
         encoded = outer_message.encode()
         self.assertEqual(encoded, h('64445d1f00003974920100ff4d4c13669384b67354b2b6175ff4b8658c666a6cf88e'), "Encoded message differs")
 
+@_skip_unless_oscore
+class TestOSCORECompression(unittest.TestCase):
+    def compare_uncompress(self, ref_option, ref_payload, ref_protected, ref_unprotected, ref_ciphertext):
+        message = aiocoap.Message(payload=ref_payload, object_security=ref_option)
+        protected_serialized, protected, unprotected, ciphertext = aiocoap.oscore.SecurityContext._extract_encrypted0(message)
+
+        self.assertEqual(protected, ref_protected, "Protected dictionary mismatch")
+        self.assertEqual(unprotected, ref_unprotected, "Unprotected dictionary mismatch")
+        self.assertEqual(ciphertext, ref_ciphertext, "Ciphertext mismatch")
+
+    def compare_compress(self, ref_option, ref_payload, ref_protected, ref_unprotected, ref_ciphertext):
+        option, payload = aiocoap.oscore.SecurityContext._compress(ref_protected, ref_unprotected, ref_ciphertext)
+
+        self.assertEqual(option, ref_option, "Compressed option mismatch")
+        self.assertEqual(payload, ref_payload, "Compressed payload mismatch")
+
+    def compare_all(self, ref_option, ref_payload, ref_protected, ref_unprotected, ref_ciphertext):
+        self.compare_uncompress(ref_option, ref_payload, ref_protected, ref_unprotected, ref_ciphertext)
+        self.compare_compress(ref_option, ref_payload, ref_protected, ref_unprotected, ref_ciphertext)
+
+    def test_empty(self):
+        self.compare_all(b"", b"1234", {}, {}, b"1234")
+
+    def test_short(self):
+        self.compare_all(b"\x01\x00", b"1234", {}, {aiocoap.oscore.COSE_PIV: b"\x00"}, b"1234")
+
+    def test_long(self):
+        self.compare_all(b"\x05ABCDE", b"1234", {}, {aiocoap.oscore.COSE_PIV: b"ABCDE"}, b"1234")
+
+    def test_kid(self):
+        self.compare_all(b"\x0bABC--------", b"1234", {}, {aiocoap.oscore.COSE_PIV: b"ABC", aiocoap.oscore.COSE_KID: b"--------"}, b"1234")
+
+    def test_idcontext(self):
+        self.compare_all(b"\x1bABC\x03abc--------", b"1234", {}, {aiocoap.oscore.COSE_PIV: b"ABC", aiocoap.oscore.COSE_KID: b"--------", aiocoap.oscore.COSE_KID_CONTEXT: b"abc"}, b"1234")
+
+    def test_idcontext_nopiv(self):
+        self.compare_all(b"\x18\x03abc--------", b"1234", {}, {aiocoap.oscore.COSE_KID: b"--------", aiocoap.oscore.COSE_KID_CONTEXT: b"abc"}, b"1234")
+
+    def test_counterisgnature(self):
+        # This is only as correct as it gets with the interactions between
+        # determining the countersignature (or its length) and uncompression:
+        # The flag is registered, but its value is empty (deferring to a later
+        # step that'd actually know the algorithm) and relies on the later
+        # process to move data over from the plaintext
+        self.compare_all(b"\x2bABC--", b"1234sigsigsig", {}, {aiocoap.oscore.COSE_PIV: b"ABC", aiocoap.oscore.COSE_KID: b"--", aiocoap.oscore.COSE_COUNTERSINGATURE0: b""}, b"1234sigsigsig")
+
+    def test_reserved(self):
+        self.assertRaises(aiocoap.oscore.DecodeError, lambda: self.compare_uncompress(b"\x4bABC--", b"1234", None, None, None))
+        self.assertRaises(aiocoap.oscore.DecodeError, lambda: self.compare_uncompress(b"\x8bABC--", b"1234", None, None, None))
+
+    def test_unknown(self):
+        self.assertRaises(RuntimeError, lambda: self.compare_compress(None, None, {"x": "y"}, {}, b""))
+        self.assertRaises(RuntimeError, lambda: self.compare_compress(None, None, {}, {"x": "y"}, b""))
