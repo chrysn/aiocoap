@@ -24,7 +24,11 @@ longdescription = __doc__
 # When introducing something new, make sure to update doc/installation.rst
 extras_require = {
         'linkheader': ['LinkHeader'],
-        'oscore': ['cbor2', 'cryptography (>= 2.0)', 'filelock'],
+        # nacl is really just temporarily required for group OSCORE, and given
+        # it should go away again when
+        # https://github.com/pyca/cryptography/issues/5557 is resolved, doesn't
+        # warrant a dedicated group-oscore extra.
+        'oscore': ['cbor2', 'cryptography (>= 2.0)', 'filelock', 'PyNaCl'],
         'tinydtls': ['DTLSSocket >= 0.1.11a1'],
         'ws': ['websockets'],
         'prettyprint': ['termcolor', 'cbor2', 'LinkHeader', 'pygments'],
