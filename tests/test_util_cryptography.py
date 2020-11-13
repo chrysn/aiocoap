@@ -15,6 +15,7 @@ _skip_unless_oscore = unittest.skipIf(oscore_modules, "Modules missing for runni
 @_skip_unless_oscore
 class UtilCryptographyAdditions(unittest.TestCase):
     def test(self):
+        # This is somewhat redundant with tests.test_oscore.test_staticstatic
         from cryptography.hazmat.primitives.asymmetric import ed25519
         from aiocoap.util.cryptography_additions import sk_to_curve25519, pk_to_curve25519
 

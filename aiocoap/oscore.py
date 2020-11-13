@@ -21,7 +21,7 @@ import tempfile
 import abc
 
 from aiocoap.message import Message
-from aiocoap.util import secrets
+from aiocoap.util import secrets, cryptography_additions
 from aiocoap.numbers import POST, FETCH, CHANGED, UNAUTHORIZED
 from aiocoap import error
 
@@ -30,6 +30,7 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 import cryptography.hazmat.backends
 import cryptography.exceptions
+from cryptography.hazmat.primitives import asymmetric, serialization
 
 import cbor2 as cbor
 
@@ -252,6 +253,97 @@ class ChaCha20Poly1305(Algorithm):
         except cryptography.exceptions.InvalidTag:
             raise ProtectionInvalid("Tag invalid")
 
+class AlgorithmCountersign(metaclass=abc.ABCMeta):
+    """A fully parameterized COSE countersign algorithm
+
+    An instance is able to provide all the alg_countersign, par_countersign and
+    par_countersign_key parameters taht go into the Group OSCORE algorithms
+    field.
+    """
+    @abc.abstractmethod
+    def sign(self, body, external_aad, private_key):
+        """Return the signature produced by the key when using
+        CounterSignature0 as describe in draft-ietf-cose-countersign-01"""
+
+    @abc.abstractmethod
+    def verify(self, signature, body, external_aad, public_key):
+        """Verify a signature in analogy to sign"""
+
+    @abc.abstractmethod
+    def generate(self):
+        """Return a usable private key"""
+
+    @abc.abstractmethod
+    def public_from_private(self, private_key):
+        """Given a private key, derive the publishable key"""
+
+    @abc.abstractmethod
+    def staticstatic(self, private_key, public_key):
+        """Derive a shared static-static secret from a private and a public key"""
+
+    @staticmethod
+    def _build_countersign_structure(body, external_aad):
+        countersign_structure = [
+                "CounterSignature0",
+                b"",
+                b"",
+                external_aad,
+                body
+                ]
+        tobesigned = cbor.dumps(countersign_structure)
+        return tobesigned
+
+    @property
+    @abc.abstractproperty
+    def signature_length(self):
+        """The length of a signature using this algorithm"""
+
+class Ed25519(AlgorithmCountersign):
+    def sign(self, body, aad, private_key):
+        private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(private_key)
+        return private_key.sign(self._build_countersign_structure(body, aad))
+
+    def verify(self, signature, body, aad, public_key):
+        public_key = asymmetric.ed25519.Ed25519PublicKey.from_public_bytes(public_key)
+        try:
+            public_key.verify(signature, self._build_countersign_structure(body, aad))
+        except cryptography.exceptions.InvalidSignature:
+            raise ProtectionInvalid("Signature mismatch")
+
+    def generate(self):
+        key = asymmetric.ed25519.Ed25519PrivateKey.generate()
+        # FIXME: We could avoid handing the easy-to-misuse bytes around if the
+        # current algorithm interfaces did not insist on passing the
+        # exchangable representations -- and generally that should be more
+        # efficient.
+        return key.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+            )
+
+    def public_from_private(self, private_key):
+        private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(private_key)
+        public_key = private_key.public_key()
+        return public_key.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+            )
+
+    def staticstatic(self, private_key, public_key):
+        private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(private_key)
+        private_key = cryptography_additions.sk_to_curve25519(private_key)
+
+        public_key = asymmetric.ed25519.Ed25519PublicKey.from_public_bytes(public_key)
+        public_key = cryptography_additions.pk_to_curve25519(public_key)
+
+        return private_key.exchange(public_key)
+
+    # from https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10#appendix-G
+    value_all_par = [-8, [[1], [1, 6]], [1, 6]]
+
+    signature_length = 64
+
 algorithms = {
         'AES-CCM-16-64-128': AES_CCM_16_64_128(),
         'AES-CCM-16-64-256': AES_CCM_16_64_256(),
@@ -265,6 +357,12 @@ algorithms = {
         'A128GCM': A128GCM(),
         'A192GCM': A192GCM(),
         'A256GCM': A256GCM(),
+        }
+
+# algorithms with full parameter set
+algorithms_countersign = {
+        # maybe needs a different name...
+        'Ed25519': Ed25519(),
         }
 
 DEFAULT_ALGORITHM = 'AES-CCM-16-64-128'

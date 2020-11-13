@@ -246,6 +246,85 @@ class TestOSCOAPStatic(unittest.TestCase):
         self.assertEqual(encoded, h('64445d1f00003974920100ff4d4c13669384b67354b2b6175ff4b8658c666a6cf88e'), "Encoded message differs")
 
 @_skip_unless_oscore
+class TestOSCOAAsymmetric(unittest.TestCase):
+    """Test asymmetric algorithms
+
+    As the Group OSCORE document currently has no test vectors, this is using
+    values from the IETF109 hackathon.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # From https://github.com/ace-wg/Hackathon-109/blob/master/GroupKeys.md,
+        # "Rikard Test 2"
+        self.r2_csalg = -8
+        self.r2_csalg_params = [[1], [1, 6]]
+        self.r2_csalg_keyparams = [1, 6]
+
+        self.r2_1_private = bytes.fromhex('397CEB5A8D21D74A9258C20C33FC45AB152B02CF479B2E3081285F77454CF347')
+        self.r2_1_public = bytes.fromhex('CE616F28426EF24EDB51DBCEF7A23305F886F657959D4DF889DDFC0255042159')
+
+        self.r2_2_private = bytes.fromhex('70559B9EECDC578D5FC2CA37F9969630029F1592AFF3306392AB15546C6A184A')
+        self.r2_2_public = bytes.fromhex('2668BA6CA302F14E952228DA1250A890C143FDBA4DAED27246188B9E42C94B6D')
+
+        self.r2_3_private = bytes.fromhex('E550CD532B881D52AD75CE7B91171063E568F2531FBDFB32EE01D1910BCF810F')
+        self.r2_3_public = bytes.fromhex('5394E43633CDAC96F05120EA9F21307C9355A1B66B60A834B53E9BF60B1FB7DF')
+
+        # from https://github.com/ace-wg/Hackathon-109/blob/master/GroupDerivation.md
+        self.r2_shared_12 = bytes.fromhex('4546babdb9482396c167af11d21953bfa49eb9f630c45de93ee4d3b9ef059576')
+        self.r2_shared_13 = bytes.fromhex('bb11648af3dfebb35e612914a7a21fc751b001aceb0267c5536528e2b9261450')
+
+    def alg(self):
+        all_par = [self.r2_csalg, self.r2_csalg_params, self.r2_csalg_keyparams]
+        # FIXME we probably need an algorithm finder from value_all_par
+        alg = aiocoap.oscore.Ed25519()
+        self.assertEqual(alg.value_all_par, all_par)
+        return alg
+
+    def test_publickey_derivation(self):
+        alg = self.alg()
+        self.assertEqual(self.r2_1_public, alg.public_from_private(self.r2_1_private))
+        self.assertEqual(self.r2_2_public, alg.public_from_private(self.r2_2_private))
+        self.assertEqual(self.r2_3_public, alg.public_from_private(self.r2_3_private))
+
+    def _test_keypair(self, private, public):
+        alg = self.alg()
+
+        body = b""
+        aad = b""
+        signature = alg.sign(body, aad, private)
+        alg.verify(signature, body, aad, public)
+
+        self.assertRaises(aiocoap.oscore.ProtectionInvalid, lambda: alg.verify(signature, body + b"x", aad, public))
+
+    def test_publickey_signatures(self):
+        self._test_keypair(self.r2_1_private, self.r2_1_public)
+        self._test_keypair(self.r2_2_private, self.r2_2_public)
+        self._test_keypair(self.r2_3_private, self.r2_3_public)
+
+    def test_generation(self):
+        alg = self.alg()
+
+        random_key = alg.generate()
+        public_key = alg.public_from_private(random_key)
+
+        self._test_keypair(random_key, public_key)
+
+    def test_staticstatic(self):
+        # This is somewhat redundant with test_util_cryptography.UtilCryptographyAdditions.test
+        alg = self.alg()
+        derived_12 = alg.staticstatic(self.r2_1_private, self.r2_2_public)
+        derived_13 = alg.staticstatic(self.r2_1_private, self.r2_3_public)
+        derived_21 = alg.staticstatic(self.r2_2_private, self.r2_1_public)
+        derived_31 = alg.staticstatic(self.r2_3_private, self.r2_1_public)
+
+        self.assertEqual(derived_12, derived_21, "Secret derivation is not symmetric")
+        self.assertEqual(derived_13, derived_31, "Secret derivation is not symmetric")
+        self.assertEqual(derived_12, self.r2_shared_12, "Secret derivation is not as expected")
+        self.assertEqual(derived_13, self.r2_shared_13, "Secret derivation is not as expected")
+
+@_skip_unless_oscore
 class TestOSCORECompression(unittest.TestCase):
     def compare_uncompress(self, ref_option, ref_payload, ref_protected, ref_unprotected, ref_ciphertext):
         message = aiocoap.Message(payload=ref_payload, object_security=ref_option)
