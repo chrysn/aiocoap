@@ -1236,6 +1236,135 @@ class FilesystemSecurityContext(SecurityContext):
         if self.lockfile is not None:
             self._destroy()
 
+class GroupContext(SecurityContext):
+    is_signing = True
+    external_aad_is_group = True
+    responses_send_kid = True
+
+    @abc.abstractproperty
+    def private_key(self):
+        """Private key used to sign outgoing messages.
+
+        Contexts not designed to send messages may raise a RuntimeError here;
+        that necessity may later go away if some more accurate class modelling
+        is found."""
+
+    @abc.abstractproperty
+    def recipient_public_key(self):
+        """Public key used to verify incoming messages.
+
+        Contexts not designed to receive messages (because they'd have aspects
+        for that) may raise a RuntimeError here; that necessity may later go
+        away if some more accurate class modelling is found."""
+
+class SimpleGroupContext(GroupContext):
+    """A context for an OSCORE group
+
+    This is a non-persistable version of a group context that does not support
+    any group manager or rekeying; it is set up statically at startup.
+
+    It is intended for experimentation and demos, but aims to be correct enough
+    to be usable securely.
+    """
+
+    # set during initialization
+    private_key = None
+
+    def __init__(self, algorithm, hashfun, alg_countersign, group_id, master_secret, master_salt, sender_id, private_key, peers):
+        self.sender_id = sender_id
+        self.id_context = group_id
+        self.private_key = private_key
+        self.algorithm = algorithm
+        self.hashfun = hashfun
+        self.alg_countersign = alg_countersign
+
+        self.peers = peers.keys()
+        self.recipient_public_keys = peers
+        self.recipient_replay_windows = {}
+        for k in self.peers:
+            # no need to persist, the whole group is ephemeral
+            w = ReplayWindow(32, lambda: None)
+            w.initialize_empty()
+            self.recipient_replay_windows[k] = w
+
+        self.derive_keys(master_salt, master_secret)
+        self.sender_sequence_number = 0
+
+    @property
+    def recipient_public_key(self):
+        raise RuntimeError("Group context without key indication was used for verification")
+
+    def derive_keys(self, master_salt, master_secret):
+        # FIXME unify with parent?
+
+        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, 'Key')
+        self.recipient_keys = {recipient_id: self._kdf(master_salt, master_secret, recipient_id, 'Key') for recipient_id in self.peers}
+
+        self.common_iv = self._kdf(master_salt, master_secret, b"", 'IV')
+
+    def post_seqnoincrease(self):
+        """No-op because it's ephemeral"""
+
+    def context_from_response(self, unprotected_bag):
+        # FIXME pick pairwise or group mode accessor, and decide when to do what
+        try:
+            sender_kid = unprotected_bag[COSE_KID]
+        except KeyError:
+            raise DecodeError("Group server failed to send own sender KID")
+        return _GroupContextAspect(self, sender_kid)
+
+    def get_oscore_context_for(self, unprotected):
+        if unprotected.get(COSE_KID_CONTEXT, None) != self.id_context:
+            return None
+
+        kid = unprotected.get(COSE_KID, None)
+        if kid in self.peers:
+            return _GroupContextAspect(self, kid)
+
+class _GroupContextAspect(GroupContext):
+    """The concrete context this host has with a particular peer
+
+    As all actual data is stored in the underlying groupcontext, this acts as
+    an accessor to that object (which picks the right recipient key).
+
+    This accessor is for receiving messages in group mode from a particular
+    peer; in sending it behaves exactly as the full group context.
+    """
+    # FIXME
+    """
+
+    For pairwise mode, use the @@@ accessor instead.
+
+    A third accessor that receives group mode but sends in pairwise mode could
+    be added but as not needed yet.
+    """
+
+    def __init__(self, groupcontext, recipient_id):
+        self.groupcontext = groupcontext
+        self.recipient_id = recipient_id
+
+    id_context = property(lambda self: self.groupcontext.id_context)
+    algorithm = property(lambda self: self.groupcontext.algorithm)
+    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+    common_iv = property(lambda self: self.groupcontext.common_iv)
+
+    recipient_key = property(lambda self: self.groupcontext.recipient_keys[self.recipient_id])
+    recipient_public_key = property(lambda self: self.groupcontext.recipient_public_keys[self.recipient_id])
+    recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])
+
+    # Protect in group mode as documented in the class
+
+    def protect(self, message, request_id=None, *, kid_context=True):
+        return self.groupcontext.protect(message, request_id, kid_context=kid_context)
+
+    def post_seqnoincrease(self):
+        # make the ABC happy
+        raise RuntimeError("This is never used by itself for protecting, it"
+                " forwards the protection to the group context instead")
+
+    # same here
+    private_key = property(post_seqnoincrease)
+
 def verify_start(message):
     """Extract the unprotected COSE options from a
     message for the verifier to then pick a security context to actually verify
