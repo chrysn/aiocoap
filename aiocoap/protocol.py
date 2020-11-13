@@ -394,7 +394,7 @@ class Context(interfaces.RequestProvider):
                     # conflict between ABC and Exceptions
                     raise ValueError("Exception to_message failed to produce a message on %r" % e)
             except Exception as e2:
-                self.log.error("Rending the renderable message failed: %r", e2, exc_info=e2)
+                self.log.error("Rendering the renderable exception failed: %r", e2, exc_info=e2)
                 msg = Message(code=INTERNAL_SERVER_ERROR)
             plumbing_request.add_response(msg, is_last=True)
         except asyncio.CancelledError:
