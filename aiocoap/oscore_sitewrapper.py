@@ -91,13 +91,19 @@ class OscoreSiteWrapper(interfaces.Resource):
 
         self.log.debug("Request %r was unprotected into %r", request, unprotected)
 
+        eventual_err = None
         try:
             response = await self._inner_site.render(unprotected)
         except error.RenderableError as err:
-            response = err.to_message()
+            try:
+                response = err.to_message()
+            except Exception as err:
+                eventual_err = err
         except Exception as err:
+            eventual_err = err
+        if eventual_err is not None:
             response = aiocoap.Message(code=aiocoap.INTERNAL_SERVER_ERROR)
-            self.log.error("An exception occurred while rendering a protected resource: %r", err, exc_info=err)
+            self.log.error("An exception occurred while rendering a protected resource: %r", eventual_err, exc_info=eventual_err)
 
         protected_response, _ = sc.protect(response, seqno)
 
