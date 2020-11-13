@@ -63,6 +63,7 @@ class WithGroupClient(WithClient):
 
         self.client.client_credentials['coap://%s/*' % self.servernetloc] = self.groups[1]
 
+@_skip_unless_oscore
 class TestGropuOscore(TestServer, WithGroupServer, WithGroupClient):
     @unittest.expectedFailure # https://github.com/chrysn/aiocoap/issues/220
     def test_replacing_resource(self):
