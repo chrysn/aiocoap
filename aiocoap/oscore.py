@@ -31,6 +31,7 @@ from cryptography.hazmat.primitives import hashes
 import cryptography.hazmat.backends
 import cryptography.exceptions
 from cryptography.hazmat.primitives import asymmetric, serialization
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
 
 import cbor2 as cbor
 
@@ -344,6 +345,55 @@ class Ed25519(AlgorithmCountersign):
 
     signature_length = 64
 
+class ECDSA_SHA256_P256(AlgorithmCountersign):
+    # Trying a new construction approach -- should work just as well given
+    # we're just passing Python objects around
+    def from_public_parts(self, x: bytes, y: bytes):
+        """Create a public key from its COSE values"""
+        return asymmetric.ec.EllipticCurvePublicNumbers(
+                int.from_bytes(x, 'big'),
+                int.from_bytes(y, 'big'),
+                asymmetric.ec.SECP256R1()
+                ).public_key()
+
+    def from_private_parts(self, x: bytes, y: bytes, d: bytes):
+        public_numbers = self.from_public_parts(x, y).public_numbers()
+        private_numbers = asymmetric.ec.EllipticCurvePrivateNumbers(
+                int.from_bytes(d, 'big'),
+                public_numbers)
+        return private_numbers.private_key()
+
+    def sign(self, body, aad, private_key):
+        der_signature = private_key.sign(self._build_countersign_structure(body, aad), asymmetric.ec.ECDSA(hashes.SHA256()))
+        (r, s) = decode_dss_signature(der_signature)
+
+        return r.to_bytes(32, "big") + s.to_bytes(32, "big")
+
+    def verify(self, signature, body, aad, public_key):
+        r = signature[:32]
+        s = signature[32:]
+        r = int.from_bytes(r, "big")
+        s = int.from_bytes(s, "big")
+        der_signature = encode_dss_signature(r, s)
+        try:
+            public_key.verify(der_signature, self._build_countersign_structure(body, aad), asymmetric.ec.ECDSA(hashes.SHA256()))
+        except cryptography.exceptions.InvalidSignature:
+            raise ProtectionInvalid("Signature mismatch")
+
+    def generate(self):
+        return asymmetric.ec.generate_private_key(asymmetric.ec.SECP256R1())
+
+    def public_from_private(self, private_key):
+        return private_key.public_key()
+
+    def staticstatic(self, private_key, public_key):
+        return private_key.exchange(asymmetric.ec.ECDH(), public_key)
+
+    # from https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10#appendix-G
+    value_all_par = [-7, [[2], [2, 1]], [2, 1]]
+
+    signature_length = 64
+
 algorithms = {
         'AES-CCM-16-64-128': AES_CCM_16_64_128(),
         'AES-CCM-16-64-256': AES_CCM_16_64_256(),
@@ -362,7 +412,8 @@ algorithms = {
 # algorithms with full parameter set
 algorithms_countersign = {
         # maybe needs a different name...
-        'Ed25519': Ed25519(),
+        'EdDSA on Ed25519': Ed25519(),
+        'ECDSA w/ SHA-256 on P-256': ECDSA_SHA256_P256(),
         }
 
 DEFAULT_ALGORITHM = 'AES-CCM-16-64-128'

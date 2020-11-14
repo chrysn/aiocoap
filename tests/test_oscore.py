@@ -257,6 +257,20 @@ class TestOSCOAAsymmetric(unittest.TestCase):
         super().__init__(*args, **kwargs)
 
         # From https://github.com/ace-wg/Hackathon-109/blob/master/GroupKeys.md,
+        # "Rikard Test 1"
+
+        self.r1_1_d = bytes.fromhex('FEA2190084748436543C5EC8E329D2AFBD7068054F595CA1F987B9E43E2205E6')
+        self.r1_1_y = bytes.fromhex('64CE3DD128CC4EFA6DE209BE8ABD111C7272F612C2DB654057B6EC00FBFB0684')
+        self.r1_1_x = bytes.fromhex('1ADB2AB6AF48F17C9877CF77DB4FA39DC0923FBE215E576FE6F790B1FF2CBC96')
+
+        self.r1_2_d = bytes.fromhex('DA2593A6E0BCC81A5941069CB76303487816A2F4E6C0F21737B56A7C90381597')
+        self.r1_2_y = bytes.fromhex('1897A28666FE1CC4FACEF79CC7BDECDC271F2A619A00844FCD553A12DD679A4F')
+        self.r1_2_x = bytes.fromhex('0EB313B4D314A1001244776D321F2DD88A5A31DF06A6EEAE0A79832D39408BC1')
+
+        self.r1_3_d = bytes.fromhex('BF31D3F9670A7D1342259E700F48DD9983A5F9DF80D58994C667B6EBFD23270E')
+        self.r1_3_y = bytes.fromhex('5694315AD17A4DA5E3F69CA02F83E9C3D594712137ED8AFB748A70491598F9CD')
+        self.r1_3_x = bytes.fromhex('FAD4312A45F45A3212810905B223800F6CED4BC8D5BACBC8D33BB60C45FC98DD')
+
         # "Rikard Test 2"
         self.r2_csalg = -8
         self.r2_csalg_params = [[1], [1, 6]]
@@ -272,6 +286,11 @@ class TestOSCOAAsymmetric(unittest.TestCase):
         self.r2_3_public = bytes.fromhex('5394E43633CDAC96F05120EA9F21307C9355A1B66B60A834B53E9BF60B1FB7DF')
 
         # from https://github.com/ace-wg/Hackathon-109/blob/master/GroupDerivation.md
+
+        self.r1_shared_12 = bytes.fromhex('56ede6c59e919031cfc8afa3e74a7b7615c2e7a08494cf3638c78757293adc80')
+        self.r1_shared_13 = bytes.fromhex('f568ec5f7df45db137fc79a27595eba737b62e8ee385c7309e316dd409de6953')
+
+        # Not actually used; these are already verified in tests_util_cryptography's vectors
         self.r2_shared_12 = bytes.fromhex('4546babdb9482396c167af11d21953bfa49eb9f630c45de93ee4d3b9ef059576')
         self.r2_shared_13 = bytes.fromhex('bb11648af3dfebb35e612914a7a21fc751b001aceb0267c5536528e2b9261450')
 
@@ -315,6 +334,16 @@ class TestOSCOAAsymmetric(unittest.TestCase):
             second_random = alg.generate()
             second_public = alg.public_from_private(second_random)
             self.assertEqual(alg.staticstatic(random_key, second_public), alg.staticstatic(second_random, public_key))
+
+    def test_ecdsa_vectors(self):
+        alg = aiocoap.oscore.ECDSA_SHA256_P256()
+
+        r1_1 = alg.from_private_parts(self.r1_1_x, self.r1_1_y, self.r1_1_d)
+        r1_2 = alg.from_private_parts(self.r1_2_x, self.r1_2_y, self.r1_2_d)
+        r1_3 = alg.from_private_parts(self.r1_3_x, self.r1_3_y, self.r1_3_d)
+
+        self.assertEqual(alg.staticstatic(r1_1, alg.public_from_private(r1_2)), self.r1_shared_12)
+        self.assertEqual(alg.staticstatic(r1_3, alg.public_from_private(r1_1)), self.r1_shared_13)
 
 @_skip_unless_oscore
 class TestOSCORECompression(unittest.TestCase):
