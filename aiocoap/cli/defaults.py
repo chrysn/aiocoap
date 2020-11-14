@@ -44,4 +44,6 @@ if __name__ == "__main__":
     print("Selected client transports: %s" % ":".join(get_default_clienttransports()))
     print("SO_REUSEPORT available (default, selected): %s, %s" % (has_reuse_port(use_env=False), has_reuse_port()))
 
+    if error:
+        print("Exiting unsuccessfully because --expect-all was set and not all extras are available.")
     sys.exit(error)

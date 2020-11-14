@@ -50,6 +50,10 @@ This library supports the following standards in full or partially:
   simplistic.
 * RFC8613_ (OSCORE): Full support client-side; protected servers can be
   implemented based on it but are not automatic yet.
+* draft-ietf-core-oscore-groupcomm-10_ (Group OSCORE): Supported for both group
+  and pairwise mode in groups that are fully known. (The lack of an implemented
+  joining or persistence mechanism makes this impractical for anything but
+  experimentation.)
 
 If something described by one of the standards but not implemented, it is
 considered a bug; please file at the `github issue tracker`_. (If it's not on
@@ -63,6 +67,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC8323: https://tools.ietf.org/html/rfc8323
 .. _RFC8613: https://tools.ietf.org/html/rfc8613
 .. _draft-ietf-core-resource-directory: https://tools.ietf.org/html/draft-ietf-core-resource-directory-25
+.. _draft-ietf-core-oscore-groupcomm-10: https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10
 
 Dependencies
 ------------

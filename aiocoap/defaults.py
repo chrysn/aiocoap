@@ -163,6 +163,12 @@ def oscore_missing_modules():
     except ImportError:
         missing.append('filelock')
 
+    # Temporary, see setup.py
+    try:
+        import nacl # noqa: F401
+    except ImportError:
+        missing.append('PyNaCl')
+
     return missing
 
 def ws_missing_modules():

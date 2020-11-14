@@ -177,6 +177,13 @@ class TransportOSCORE(interfaces.RequestProvider):
 
         try:
             protected_response = await wire_request.response
+
+            # Offer secctx to switch over for reception based on the header
+            # data (similar to how the server address switches over when
+            # receiving a response to a request sent over multicast)
+            _, _, unprotected, _ = oscore.SecurityContext._extract_encrypted0(protected_response)
+            secctx = secctx.context_from_response(unprotected)
+
             unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)
 
             if unprotected_response.code == UNAUTHORIZED and unprotected_response.opt.echo is not None:

@@ -21,7 +21,7 @@ import tempfile
 import abc
 
 from aiocoap.message import Message
-from aiocoap.util import secrets
+from aiocoap.util import secrets, cryptography_additions
 from aiocoap.numbers import POST, FETCH, CHANGED, UNAUTHORIZED
 from aiocoap import error
 
@@ -30,6 +30,8 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 import cryptography.hazmat.backends
 import cryptography.exceptions
+from cryptography.hazmat.primitives import asymmetric, serialization
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
 
 import cbor2 as cbor
 
@@ -41,11 +43,14 @@ MAX_SEQNO = 2**40 - 1
 COSE_KID = 4
 COSE_PIV = 6
 COSE_KID_CONTEXT = 10
+# from https://tools.ietf.org/html/draft-ietf-cose-countersign-01
+COSE_COUNTERSINGATURE0 = 11
 
 COMPRESSION_BITS_N = 0b111
 COMPRESSION_BIT_K = 0b1000
 COMPRESSION_BIT_H = 0b10000
-COMPRESSION_BITS_RESERVED = 0b11100000
+COMPRESSION_BIT_G = 0b100000 # Group Flag from draft-ietf-core-oscore-groupcomm-10
+COMPRESSION_BITS_RESERVED = 0b11000000
 
 class NotAProtectedMessage(error.Error, ValueError):
     """Raised when verification is attempted on a non-OSCORE message"""
@@ -249,6 +254,146 @@ class ChaCha20Poly1305(Algorithm):
         except cryptography.exceptions.InvalidTag:
             raise ProtectionInvalid("Tag invalid")
 
+class AlgorithmCountersign(metaclass=abc.ABCMeta):
+    """A fully parameterized COSE countersign algorithm
+
+    An instance is able to provide all the alg_countersign, par_countersign and
+    par_countersign_key parameters taht go into the Group OSCORE algorithms
+    field.
+    """
+    @abc.abstractmethod
+    def sign(self, body, external_aad, private_key):
+        """Return the signature produced by the key when using
+        CounterSignature0 as describe in draft-ietf-cose-countersign-01"""
+
+    @abc.abstractmethod
+    def verify(self, signature, body, external_aad, public_key):
+        """Verify a signature in analogy to sign"""
+
+    @abc.abstractmethod
+    def generate(self):
+        """Return a usable private key"""
+
+    @abc.abstractmethod
+    def public_from_private(self, private_key):
+        """Given a private key, derive the publishable key"""
+
+    @abc.abstractmethod
+    def staticstatic(self, private_key, public_key):
+        """Derive a shared static-static secret from a private and a public key"""
+
+    @staticmethod
+    def _build_countersign_structure(body, external_aad):
+        countersign_structure = [
+                "CounterSignature0",
+                b"",
+                b"",
+                external_aad,
+                body
+                ]
+        tobesigned = cbor.dumps(countersign_structure)
+        return tobesigned
+
+    @property
+    @abc.abstractproperty
+    def signature_length(self):
+        """The length of a signature using this algorithm"""
+
+class Ed25519(AlgorithmCountersign):
+    def sign(self, body, aad, private_key):
+        private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(private_key)
+        return private_key.sign(self._build_countersign_structure(body, aad))
+
+    def verify(self, signature, body, aad, public_key):
+        public_key = asymmetric.ed25519.Ed25519PublicKey.from_public_bytes(public_key)
+        try:
+            public_key.verify(signature, self._build_countersign_structure(body, aad))
+        except cryptography.exceptions.InvalidSignature:
+            raise ProtectionInvalid("Signature mismatch")
+
+    def generate(self):
+        key = asymmetric.ed25519.Ed25519PrivateKey.generate()
+        # FIXME: We could avoid handing the easy-to-misuse bytes around if the
+        # current algorithm interfaces did not insist on passing the
+        # exchangable representations -- and generally that should be more
+        # efficient.
+        return key.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+            )
+
+    def public_from_private(self, private_key):
+        private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(private_key)
+        public_key = private_key.public_key()
+        return public_key.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+            )
+
+    def staticstatic(self, private_key, public_key):
+        private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(private_key)
+        private_key = cryptography_additions.sk_to_curve25519(private_key)
+
+        public_key = asymmetric.ed25519.Ed25519PublicKey.from_public_bytes(public_key)
+        public_key = cryptography_additions.pk_to_curve25519(public_key)
+
+        return private_key.exchange(public_key)
+
+    # from https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10#appendix-G
+    value_all_par = [-8, [[1], [1, 6]], [1, 6]]
+
+    signature_length = 64
+
+class ECDSA_SHA256_P256(AlgorithmCountersign):
+    # Trying a new construction approach -- should work just as well given
+    # we're just passing Python objects around
+    def from_public_parts(self, x: bytes, y: bytes):
+        """Create a public key from its COSE values"""
+        return asymmetric.ec.EllipticCurvePublicNumbers(
+                int.from_bytes(x, 'big'),
+                int.from_bytes(y, 'big'),
+                asymmetric.ec.SECP256R1()
+                ).public_key()
+
+    def from_private_parts(self, x: bytes, y: bytes, d: bytes):
+        public_numbers = self.from_public_parts(x, y).public_numbers()
+        private_numbers = asymmetric.ec.EllipticCurvePrivateNumbers(
+                int.from_bytes(d, 'big'),
+                public_numbers)
+        return private_numbers.private_key()
+
+    def sign(self, body, aad, private_key):
+        der_signature = private_key.sign(self._build_countersign_structure(body, aad), asymmetric.ec.ECDSA(hashes.SHA256()))
+        (r, s) = decode_dss_signature(der_signature)
+
+        return r.to_bytes(32, "big") + s.to_bytes(32, "big")
+
+    def verify(self, signature, body, aad, public_key):
+        r = signature[:32]
+        s = signature[32:]
+        r = int.from_bytes(r, "big")
+        s = int.from_bytes(s, "big")
+        der_signature = encode_dss_signature(r, s)
+        try:
+            public_key.verify(der_signature, self._build_countersign_structure(body, aad), asymmetric.ec.ECDSA(hashes.SHA256()))
+        except cryptography.exceptions.InvalidSignature:
+            raise ProtectionInvalid("Signature mismatch")
+
+    def generate(self):
+        return asymmetric.ec.generate_private_key(asymmetric.ec.SECP256R1())
+
+    def public_from_private(self, private_key):
+        return private_key.public_key()
+
+    def staticstatic(self, private_key, public_key):
+        return private_key.exchange(asymmetric.ec.ECDH(), public_key)
+
+    # from https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10#appendix-G
+    value_all_par = [-7, [[2], [2, 1]], [2, 1]]
+
+    signature_length = 64
+
 algorithms = {
         'AES-CCM-16-64-128': AES_CCM_16_64_128(),
         'AES-CCM-16-64-256': AES_CCM_16_64_256(),
@@ -262,6 +407,13 @@ algorithms = {
         'A128GCM': A128GCM(),
         'A192GCM': A192GCM(),
         'A256GCM': A256GCM(),
+        }
+
+# algorithms with full parameter set
+algorithms_countersign = {
+        # maybe needs a different name...
+        'EdDSA on Ed25519': Ed25519(),
+        'ECDSA w/ SHA-256 on P-256': ECDSA_SHA256_P256(),
         }
 
 DEFAULT_ALGORITHM = 'AES-CCM-16-64-128'
@@ -278,15 +430,33 @@ DEFAULT_WINDOWSIZE = 32
 class SecurityContext(metaclass=abc.ABCMeta):
     # FIXME: define an interface for that
 
-    # Indicates that in this context, when responding to a request, will always
-    # be the *only* context that does. (This is primarily a reminder to stop
-    # reusing nonces once multicast is implemented).
-    is_unicast = True
-
     # Unless None, this is the value by which the running process recognizes
     # that the second phase of a B.1.2 replay window recovery Echo option comes
     # from the current process, and thus its sequence number is fresh
     echo_recovery = None
+
+    # The protection function will add a signature acccording to the context's
+    # alg_countersign attribute if this is true
+    is_signing = False
+
+    # The protection and unprotection functions will use the Group OSCORE AADs
+    # rather than the regular OSCORE AADs. (Ie. alg_countersign is added to
+    # the algorithms, and the id_context is added at the end).
+    #
+    # This is not necessarily identical to is_signing (as pairwise contexts use
+    # this but don't sign), and is distinct from the added OSCORE option in the
+    # AAD (as that's only applicable for the external AAD as extracted for
+    # signing and signature verification purposes).
+    external_aad_is_group = False
+
+    # Send the KID when protecting responses
+    #
+    # Once group pairwise mode is implemented, this will need to become a
+    # parameter to protect(), which is stored at the point where the incoming
+    # context is turned into an outgoing context. (Currently, such a mechanism
+    # isn't there yet, and oscore_wrapper protects responses with the very same
+    # context they came in on).
+    responses_send_kid = False
 
     # Authentication information carried with this security context; managed
     # externally by whatever creates the security context.
@@ -294,7 +464,7 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
     # message processing
 
-    def _extract_external_aad(self, message, request_kid, request_piv):
+    def _extract_external_aad(self, message, request_kid, request_piv, for_signature=False):
         # If any option were actually Class I, it would be something like
         #
         # the_options = pick some of(message)
@@ -303,13 +473,24 @@ class SecurityContext(metaclass=abc.ABCMeta):
         oscore_version = 1
         class_i_options = b""
 
+        algorithms = [self.algorithm.value]
+        if self.external_aad_is_group:
+            algorithms.extend(self.alg_countersign.value_all_par)
+
         external_aad = [
                 oscore_version,
-                [self.algorithm.value],
+                algorithms,
                 request_kid,
                 request_piv,
                 class_i_options,
                 ]
+
+        if self.external_aad_is_group:
+            external_aad.append(self.id_context)
+
+        if for_signature:
+            assert message.opt.object_security is not None
+            external_aad.append(message.opt.object_security)
 
         external_aad = cbor.dumps(external_aad)
 
@@ -393,8 +574,8 @@ class SecurityContext(metaclass=abc.ABCMeta):
         return nonce
 
     @staticmethod
-    def _compress(unprotected, protected):
-        """Pack the untagged COSE_Encrypt0 object described by the arguments
+    def _compress(protected, unprotected, ciphertext):
+        """Pack the untagged COSE_Encrypt0 object described by the *args
         into two bytestrings suitable for the Object-Security option and the
         message body"""
 
@@ -422,13 +603,23 @@ class SecurityContext(metaclass=abc.ABCMeta):
         else:
             s_kid_context = b""
 
+        if COSE_COUNTERSINGATURE0 in unprotected:
+            firstbyte |= COMPRESSION_BIT_G
+
+            # In theory at least. In practice, that's an empty value to later
+            # be squished in when the compressed option value is available for
+            # signing.
+            ciphertext += unprotected.pop(COSE_COUNTERSINGATURE0)
+
         if unprotected:
             raise RuntimeError("Protection produced a message that has uncompressable fields.")
 
         if firstbyte:
-            return bytes([firstbyte]) + piv + s_kid_context + kid_data
+            option = bytes([firstbyte]) + piv + s_kid_context + kid_data
         else:
-            return b""
+            option = b""
+
+        return (option, ciphertext)
 
     def protect(self, message, request_id=None, *, kid_context=True):
         """Given a plain CoAP message, create a protected message that contains
@@ -468,6 +659,9 @@ class SecurityContext(metaclass=abc.ABCMeta):
                     unprotected[COSE_KID_CONTEXT] = self.id_context
             elif kid_context is not False:
                 unprotected[COSE_KID_CONTEXT] = kid_context
+        else:
+            if self.responses_send_kid:
+                unprotected[COSE_KID] = self.sender_id
 
         assert protected == {}
         protected_serialized = b'' # were it into an empty dict, it'd be the cbor dump
@@ -481,12 +675,24 @@ class SecurityContext(metaclass=abc.ABCMeta):
             plaintext += inner_message.payload
 
 
-        ciphertext_and_tag = self.algorithm.encrypt(plaintext, aad, key, nonce)
+        ciphertext = self.algorithm.encrypt(plaintext, aad, key, nonce)
 
-        option_data = self._compress(unprotected, protected)
+        # Putting in a dummy value as the signature calculation will already need some of the compression result
+        if self.is_signing:
+            unprotected[COSE_COUNTERSINGATURE0] = b""
+        option_data, payload = self._compress(protected, unprotected, ciphertext)
 
         outer_message.opt.object_security = option_data
-        outer_message.payload = ciphertext_and_tag
+        if self.is_signing:
+            # Belayed until outer_message has the Object-Security option assigned
+            external_aad_for_signing = self._extract_external_aad(
+                    outer_message,
+                    request_id.kid,
+                    request_id.partial_iv,
+                    for_signature=True
+                    )
+            payload += self.alg_countersign.sign(payload, external_aad_for_signing, self.private_key)
+        outer_message.payload = payload
 
         # FIXME go through options section
 
@@ -510,6 +716,10 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
         # FIXME check for duplicate keys in protected
 
+        if unprotected.pop(COSE_KID_CONTEXT, self.id_context) != self.id_context:
+            # FIXME is this necessary?
+            raise ProtectionInvalid("Sender ID does not match")
+
         if unprotected.pop(COSE_KID, self.recipient_id) != self.recipient_id:
             # for most cases, this is caught by the session ID dispatch, but in
             # responses (where explicit sender IDs are atypical), this is a
@@ -523,7 +733,7 @@ class SecurityContext(metaclass=abc.ABCMeta):
             nonce = request_id.nonce
             seqno = None # sentinel for not striking out anyting
         else:
-            partial_iv_short = unprotected[COSE_PIV]
+            partial_iv_short = unprotected.pop(COSE_PIV)
 
             nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
@@ -539,9 +749,24 @@ class SecurityContext(metaclass=abc.ABCMeta):
                     # Don't even try decoding if there is no reason to
                     raise replay_error
 
-                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=self.is_unicast and replay_error is None)
+                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=replay_error is None)
 
-        # FIXME is it an error for additional data to be present in unprotected?
+        if unprotected.pop(COSE_COUNTERSINGATURE0, None) is not None:
+            try:
+                alg_countersign = self.alg_countersign
+            except NameError:
+                raise DecodeError("Group messages can not be decoded with this non-group context")
+
+            siglen = alg_countersign.signature_length
+            if len(ciphertext) < siglen:
+                raise DecodeError("Message too short for signature")
+            signature = ciphertext[-siglen:]
+            ciphertext = ciphertext[:-siglen]
+        else:
+            signature = None
+
+        if unprotected:
+            raise DecodeError("Unsupported unprotected option")
 
         if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
@@ -553,6 +778,11 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
         if not is_response and seqno is not None and replay_error is None:
             self.recipient_replay_window.strike_out(seqno)
+
+        if signature is not None:
+            # Only doing the expensive signature validation once the cheaper decyrption passed
+            external_aad_for_signing = self._extract_external_aad(protected_message, request_id.kid, request_id.partial_iv, for_signature=True)
+            alg_countersign.verify(signature, ciphertext, external_aad_for_signing, self.recipient_public_key)
 
         # FIXME add options from unprotected
 
@@ -603,7 +833,7 @@ class SecurityContext(metaclass=abc.ABCMeta):
         return unprotected_message, request_id
 
     @staticmethod
-    def _uncompress(option_data):
+    def _uncompress(option_data, payload):
         if option_data == b"":
             firstbyte = 0
         else:
@@ -634,15 +864,22 @@ class SecurityContext(metaclass=abc.ABCMeta):
             kid = tail
             unprotected[COSE_KID] = kid
 
-        return b"", {}, unprotected
+        if firstbyte & COMPRESSION_BIT_G:
+            # Not really; As this is (also) used early on (before the KID
+            # context is even known, because it's just getting extracted), this
+            # is returning an incomplete value here and leaves it to the later
+            # processing to strip the right number of bytes from the ciphertext
+            unprotected[COSE_COUNTERSINGATURE0] = b""
+
+        return b"", {}, unprotected, payload
 
     @classmethod
     def _extract_encrypted0(cls, message):
         if message.opt.object_security is None:
             raise NotAProtectedMessage("No Object-Security option present", message)
 
-        protected_serialized, protected, unprotected = cls._uncompress(message.opt.object_security)
-        return protected_serialized, protected, unprotected, message.payload
+        protected_serialized, protected, unprotected, ciphertext = cls._uncompress(message.opt.object_security, message.payload)
+        return protected_serialized, protected, unprotected, ciphertext
 
     # context parameter setup
 
@@ -697,6 +934,29 @@ class SecurityContext(metaclass=abc.ABCMeta):
         """Ensure that sender_sequence_number is stored"""
         raise
 
+    def context_from_response(self, unprotected_bag):
+        """When receiving a response to a request protected with this security
+        context, pick the security context with which to unprotect the response
+        given the unprotected information from the Object-Security option.
+
+        This allow picking the right security context in a group response, and
+        helps getting a new short-lived context for B.2 mode. The default
+        behaivor is returning self.
+        """
+        return self
+
+    def get_oscore_context_for(self, unprotected):
+        """Return a sutiable context (most easily self) for an incoming request
+        if its unprotected data (COSE_KID, COSE_KID_CONTEXT) fit its
+        description. If it doesn't match, it returns None.
+
+        The default implementation just strictly checks for whether kid and any
+        kid context match (not matching if a local KID context is set but none
+        is given in the request); modes like Group OSCORE can spin up aspect
+        objects here.
+        """
+        if unprotected.get(COSE_KID, None) == self.recipient_id and unprotected.get(COSE_KID_CONTEXT, None) == self.id_context:
+            return self
 
 class ReplayWindow:
     """A regular replay window of a fixed size.
@@ -1027,19 +1287,195 @@ class FilesystemSecurityContext(SecurityContext):
         if self.lockfile is not None:
             self._destroy()
 
+class GroupContext(SecurityContext):
+    is_signing = True
+    external_aad_is_group = True
+    responses_send_kid = True
+
+    @abc.abstractproperty
+    def private_key(self):
+        """Private key used to sign outgoing messages.
+
+        Contexts not designed to send messages may raise a RuntimeError here;
+        that necessity may later go away if some more accurate class modelling
+        is found."""
+
+    @abc.abstractproperty
+    def recipient_public_key(self):
+        """Public key used to verify incoming messages.
+
+        Contexts not designed to receive messages (because they'd have aspects
+        for that) may raise a RuntimeError here; that necessity may later go
+        away if some more accurate class modelling is found."""
+
+class SimpleGroupContext(GroupContext):
+    """A context for an OSCORE group
+
+    This is a non-persistable version of a group context that does not support
+    any group manager or rekeying; it is set up statically at startup.
+
+    It is intended for experimentation and demos, but aims to be correct enough
+    to be usable securely.
+    """
+
+    # set during initialization
+    private_key = None
+
+    def __init__(self, algorithm, hashfun, alg_countersign, group_id, master_secret, master_salt, sender_id, private_key, peers):
+        self.sender_id = sender_id
+        self.id_context = group_id
+        self.private_key = private_key
+        self.algorithm = algorithm
+        self.hashfun = hashfun
+        self.alg_countersign = alg_countersign
+
+        self.peers = peers.keys()
+        self.recipient_public_keys = peers
+        self.recipient_replay_windows = {}
+        for k in self.peers:
+            # no need to persist, the whole group is ephemeral
+            w = ReplayWindow(32, lambda: None)
+            w.initialize_empty()
+            self.recipient_replay_windows[k] = w
+
+        self.derive_keys(master_salt, master_secret)
+        self.sender_sequence_number = 0
+
+    @property
+    def recipient_public_key(self):
+        raise RuntimeError("Group context without key indication was used for verification")
+
+    def derive_keys(self, master_salt, master_secret):
+        # FIXME unify with parent?
+
+        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, 'Key')
+        self.recipient_keys = {recipient_id: self._kdf(master_salt, master_secret, recipient_id, 'Key') for recipient_id in self.peers}
+
+        self.common_iv = self._kdf(master_salt, master_secret, b"", 'IV')
+
+    def post_seqnoincrease(self):
+        """No-op because it's ephemeral"""
+
+    def context_from_response(self, unprotected_bag):
+        # FIXME pick pairwise or group mode accessor, and decide when to do what
+        try:
+            sender_kid = unprotected_bag[COSE_KID]
+        except KeyError:
+            raise DecodeError("Group server failed to send own sender KID")
+        return _GroupContextAspect(self, sender_kid)
+
+    def get_oscore_context_for(self, unprotected):
+        if unprotected.get(COSE_KID_CONTEXT, None) != self.id_context:
+            return None
+
+        kid = unprotected.get(COSE_KID, None)
+        if kid in self.peers:
+            if COSE_COUNTERSINGATURE0 in unprotected:
+                return _GroupContextAspect(self, kid)
+            else:
+                return _PairwiseContextAspect(self, kid)
+
+    # yet to stabilize...
+
+    def pairwise_for(self, recipient_id):
+        return _PairwiseContextAspect(self, recipient_id)
+
+class _GroupContextAspect(GroupContext):
+    """The concrete context this host has with a particular peer
+
+    As all actual data is stored in the underlying groupcontext, this acts as
+    an accessor to that object (which picks the right recipient key).
+
+    This accessor is for receiving messages in group mode from a particular
+    peer; in sending it behaves exactly as the full group context.
+
+    For pairwise mode, use the _PairwiseContextAspect accessor obtained using
+    pairwise_for instead.
+
+    A third accessor that receives group mode but sends in pairwise mode could
+    be added but was not implemented yet. (Probably this accessor will *become*
+    that, and one that behaves like the current one would be the odd one to not
+    even be implemented).
+    """
+
+    def __init__(self, groupcontext, recipient_id):
+        self.groupcontext = groupcontext
+        self.recipient_id = recipient_id
+
+    id_context = property(lambda self: self.groupcontext.id_context)
+    algorithm = property(lambda self: self.groupcontext.algorithm)
+    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+    common_iv = property(lambda self: self.groupcontext.common_iv)
+
+    recipient_key = property(lambda self: self.groupcontext.recipient_keys[self.recipient_id])
+    recipient_public_key = property(lambda self: self.groupcontext.recipient_public_keys[self.recipient_id])
+    recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])
+
+    # Protect in group mode as documented in the class
+
+    def protect(self, message, request_id=None, *, kid_context=True):
+        return self.groupcontext.protect(message, request_id, kid_context=kid_context)
+
+    def post_seqnoincrease(self):
+        # make the ABC happy
+        raise RuntimeError("This is never used by itself for protecting, it"
+                " forwards the protection to the group context instead")
+
+    # same here
+    private_key = property(post_seqnoincrease)
+
+class _PairwiseContextAspect(GroupContext):
+    is_signing = False
+
+    def __init__(self, groupcontext, recipient_id):
+        self.groupcontext = groupcontext
+        self.recipient_id = recipient_id
+
+        shared_secret = self.alg_countersign.staticstatic(
+                self.groupcontext.private_key,
+                self.groupcontext.recipient_public_keys[recipient_id]
+                )
+
+        self.sender_key = self._kdf(self.groupcontext.sender_key, shared_secret, self.groupcontext.sender_id, 'Key')
+        self.recipient_key = self._kdf(self.groupcontext.recipient_keys[recipient_id], shared_secret, self.recipient_id, 'Key')
+
+    # FIXME: actually, only to be sent in requests
+    id_context = property(lambda self: self.groupcontext.id_context)
+    algorithm = property(lambda self: self.groupcontext.algorithm)
+    hashfun = property(lambda self: self.groupcontext.hashfun)
+    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+    common_iv = property(lambda self: self.groupcontext.common_iv)
+    sender_id = property(lambda self: self.groupcontext.sender_id)
+
+    recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])
+
+    # Set at initialization
+    recipient_key = None
+    sender_key = None
+
+    @property
+    def sender_sequence_number(self):
+        return self.groupcontext.sender_sequence_number
+    @sender_sequence_number.setter
+    def sender_sequence_number(self, new):
+        self.groupcontext.sender_sequence_number = new
+
+    def post_seqnoincrease(self):
+        self.groupcontext.post_seqnoincrease()
+
+    # same here -- not needed because not signing
+    private_key = property(post_seqnoincrease)
+    recipient_public_key = property(post_seqnoincrease)
+
 def verify_start(message):
-    """Extract a sender ID and ID context (if present, otherwise None) from a
+    """Extract the unprotected COSE options from a
     message for the verifier to then pick a security context to actually verify
-    the message.
+    the message. (Future versions may also report fields from both unprotected
+    and protected, if the protected bag is ever used with OSCORE.).
 
     Call this only requests; for responses, you'll have to know the security
     context anyway, and there is usually no information to be gained."""
 
     _, _, unprotected, _ = SecurityContext._extract_encrypted0(message)
 
-    try:
-        # FIXME raise on duplicate key
-        return unprotected[COSE_KID], unprotected.get(COSE_KID_CONTEXT, None)
-    except KeyError:
-        raise NotAProtectedMessage("No Sender ID present", message)
-
+    return unprotected

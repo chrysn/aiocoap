@@ -20,6 +20,8 @@ def load_tests(loader, tests, ignore):
             p = p[:-3].replace(os.sep, '.')
             if 'oscore' in p and aiocoap.defaults.oscore_missing_modules():
                 continue
+            if 'cryptography_additions' in p and aiocoap.defaults.oscore_missing_modules():
+                continue
             if p.endswith('.ws') and aiocoap.defaults.ws_missing_modules():
                 continue
             if 'resourcedirectory' in p or 'fileserver' in p or p in ('aiocoap.cli.rd', 'aiocoap.util.linkformat') and aiocoap.defaults.linkheader_missing_modules():
