@@ -1370,7 +1370,15 @@ class SimpleGroupContext(GroupContext):
 
         kid = unprotected.get(COSE_KID, None)
         if kid in self.peers:
-            return _GroupContextAspect(self, kid)
+            if COSE_COUNTERSINGATURE0 in unprotected:
+                return _GroupContextAspect(self, kid)
+            else:
+                return _PairwiseContextAspect(self, kid)
+
+    # yet to stabilize...
+
+    def pairwise_for(self, recipient_id):
+        return _PairwiseContextAspect(self, recipient_id)
 
 class _GroupContextAspect(GroupContext):
     """The concrete context this host has with a particular peer
@@ -1380,14 +1388,14 @@ class _GroupContextAspect(GroupContext):
 
     This accessor is for receiving messages in group mode from a particular
     peer; in sending it behaves exactly as the full group context.
-    """
-    # FIXME
-    """
 
-    For pairwise mode, use the @@@ accessor instead.
+    For pairwise mode, use the _PairwiseContextAspect accessor obtained using
+    pairwise_for instead.
 
     A third accessor that receives group mode but sends in pairwise mode could
-    be added but as not needed yet.
+    be added but was not implemented yet. (Probably this accessor will *become*
+    that, and one that behaves like the current one would be the odd one to not
+    even be implemented).
     """
 
     def __init__(self, groupcontext, recipient_id):
@@ -1415,6 +1423,49 @@ class _GroupContextAspect(GroupContext):
 
     # same here
     private_key = property(post_seqnoincrease)
+
+class _PairwiseContextAspect(GroupContext):
+    is_signing = False
+
+    def __init__(self, groupcontext, recipient_id):
+        self.groupcontext = groupcontext
+        self.recipient_id = recipient_id
+
+        shared_secret = self.alg_countersign.staticstatic(
+                self.groupcontext.private_key,
+                self.groupcontext.recipient_public_keys[recipient_id]
+                )
+
+        self.sender_key = self._kdf(self.groupcontext.sender_key, shared_secret, self.groupcontext.sender_id, 'Key')
+        self.recipient_key = self._kdf(self.groupcontext.recipient_keys[recipient_id], shared_secret, self.recipient_id, 'Key')
+
+    # FIXME: actually, only to be sent in requests
+    id_context = property(lambda self: self.groupcontext.id_context)
+    algorithm = property(lambda self: self.groupcontext.algorithm)
+    hashfun = property(lambda self: self.groupcontext.hashfun)
+    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+    common_iv = property(lambda self: self.groupcontext.common_iv)
+    sender_id = property(lambda self: self.groupcontext.sender_id)
+
+    recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])
+
+    # Set at initialization
+    recipient_key = None
+    sender_key = None
+
+    @property
+    def sender_sequence_number(self):
+        return self.groupcontext.sender_sequence_number
+    @sender_sequence_number.setter
+    def sender_sequence_number(self, new):
+        self.groupcontext.sender_sequence_number = new
+
+    def post_seqnoincrease(self):
+        self.groupcontext.post_seqnoincrease()
+
+    # same here -- not needed because not signing
+    private_key = property(post_seqnoincrease)
+    recipient_public_key = property(post_seqnoincrease)
 
 def verify_start(message):
     """Extract the unprotected COSE options from a
