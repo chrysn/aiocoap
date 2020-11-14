@@ -288,9 +288,7 @@ class TestOSCOAAsymmetric(unittest.TestCase):
         self.assertEqual(self.r2_2_public, alg.public_from_private(self.r2_2_private))
         self.assertEqual(self.r2_3_public, alg.public_from_private(self.r2_3_private))
 
-    def _test_keypair(self, private, public):
-        alg = self.alg()
-
+    def _test_keypair(self, alg, private, public):
         body = b""
         aad = b""
         signature = alg.sign(body, aad, private)
@@ -299,30 +297,24 @@ class TestOSCOAAsymmetric(unittest.TestCase):
         self.assertRaises(aiocoap.oscore.ProtectionInvalid, lambda: alg.verify(signature, body + b"x", aad, public))
 
     def test_publickey_signatures(self):
-        self._test_keypair(self.r2_1_private, self.r2_1_public)
-        self._test_keypair(self.r2_2_private, self.r2_2_public)
-        self._test_keypair(self.r2_3_private, self.r2_3_public)
+        alg = self.alg()
+
+        self._test_keypair(alg, self.r2_1_private, self.r2_1_public)
+        self._test_keypair(alg, self.r2_2_private, self.r2_2_public)
+        self._test_keypair(alg, self.r2_3_private, self.r2_3_public)
 
     def test_generation(self):
         alg = self.alg()
 
-        random_key = alg.generate()
-        public_key = alg.public_from_private(random_key)
+        for alg in aiocoap.oscore.algorithms_countersign.values():
+            random_key = alg.generate()
+            public_key = alg.public_from_private(random_key)
 
-        self._test_keypair(random_key, public_key)
+            self._test_keypair(alg, random_key, public_key)
 
-    def test_staticstatic(self):
-        # This is somewhat redundant with test_util_cryptography.UtilCryptographyAdditions.test
-        alg = self.alg()
-        derived_12 = alg.staticstatic(self.r2_1_private, self.r2_2_public)
-        derived_13 = alg.staticstatic(self.r2_1_private, self.r2_3_public)
-        derived_21 = alg.staticstatic(self.r2_2_private, self.r2_1_public)
-        derived_31 = alg.staticstatic(self.r2_3_private, self.r2_1_public)
-
-        self.assertEqual(derived_12, derived_21, "Secret derivation is not symmetric")
-        self.assertEqual(derived_13, derived_31, "Secret derivation is not symmetric")
-        self.assertEqual(derived_12, self.r2_shared_12, "Secret derivation is not as expected")
-        self.assertEqual(derived_13, self.r2_shared_13, "Secret derivation is not as expected")
+            second_random = alg.generate()
+            second_public = alg.public_from_private(second_random)
+            self.assertEqual(alg.staticstatic(random_key, second_public), alg.staticstatic(second_random, public_key))
 
 @_skip_unless_oscore
 class TestOSCORECompression(unittest.TestCase):
