@@ -10,8 +10,8 @@ implemented in aiocoap.
 Its main advantage over lower-layer protection (IPsec, (D)TLS) is that it can
 leverage any CoAP transport (as well as HTTP), can traverse proxies preserving
 some of their features (like block-wise fragmentation and retransmission) and
-supports multicast and other group communication scenarios (not implemented in
-aiocoap).
+supports multicast and other group communication scenarios (implemented, but
+not covered here as it needs even more manual actions so far).
 
 By itself, OSCORE has no key exchange protocol; it relies on other protocols to
 establidsh keys (there is ongoing work on a lightweight key exchange named
