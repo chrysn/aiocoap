@@ -41,6 +41,7 @@ def build_parser():
     p.add_argument('--accept', help="Content format to request", metavar="MIME")
     p.add_argument('--proxy', help="Relay the CoAP request to a proxy for execution", metavar="HOST[:PORT]")
     p.add_argument('--payload', help="Send X as request payload (eg. with a PUT). If X starts with an '@', its remainder is treated as a file name and read from; '@-' reads from the console. Non-file data may be recoded, see --content-format.", metavar="X")
+    p.add_argument('--payload-initial-szx', help="Size exponent to limit the initial block's size (0 ≙ 16 Byte, 6 ≙ 1024 Byte)", metavar="SZX", type=int)
     p.add_argument('--content-format', help="Content format of the --payload data. If a known format is given and --payload has a non-file argument, conversion is attempted (currently only JSON/Python-literals to CBOR).", metavar="MIME")
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
@@ -257,6 +258,12 @@ async def single_request(args, context=None):
             else:
                 request.payload = options.payload.encode('utf8')
 
+    if options.payload_initial_szx is not None:
+        request.opt.block1 = aiocoap.optiontypes.BlockOption.BlockwiseTuple(
+                0,
+                False,
+                options.payload_initial_szx,
+            )
 
     if options.proxy is None:
         interface = context
