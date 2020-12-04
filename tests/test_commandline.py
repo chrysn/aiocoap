@@ -30,7 +30,12 @@ AIOCOAP_RD = PYTHON_PREFIX + ['./aiocoap-rd']
 class TestCommandlineClient(WithTestServer):
     @no_warnings
     def test_help(self):
-        helptext = subprocess.check_output(AIOCOAP_CLIENT + ['--help'])
+        # CI environments often don't have any locale set. That's not
+        # representative of the interactive environments that run --help
+        # (though it may be for others). Setting C.UTF-8 because at least pypy3
+        # 7.3 doesn't default to a UTF-8 enabled mode, and the help output is
+        # not just ASCII.
+        helptext = subprocess.check_output(AIOCOAP_CLIENT + ['--help'], env={"LANG": "C.UTF-8"})
         self.assertTrue(helptext.startswith(b'usage: aiocoap-client '))
 
     @no_warnings
