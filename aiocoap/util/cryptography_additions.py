@@ -31,14 +31,20 @@ def sk_to_curve25519(ed: ed25519.Ed25519PrivateKey) -> x25519.X25519PrivateKey:
             encryption_algorithm=serialization.NoEncryption(),
             )
 
-    ed_nacl = nacl.signing.SigningKey(
-            seed=raw,
-            encoder=nacl.encoding.RawEncoder,
-            )
+    # as proposed in https://github.com/pyca/cryptography/issues/5557#issuecomment-739339132
 
-    x_nacl = ed_nacl.to_curve25519_private_key()
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.backends.openssl.backend import backend
 
-    return x25519.X25519PrivateKey.from_private_bytes(x_nacl.encode())
+    hasher = hashes.Hash(hashes.SHA512())
+    hasher.update(raw)
+    h = bytearray(hasher.finalize())
+    # curve25519 clamping
+    h[0] &= 248
+    h[31] &= 127
+    h[31] |= 64
+
+    return backend.x25519_load_private_bytes(h[0:32])
 
 def pk_to_curve25519(ed: ed25519.Ed25519PublicKey) -> x25519.X25519PublicKey:
     raw = ed.public_bytes(
