@@ -163,11 +163,10 @@ def oscore_missing_modules():
     except ImportError:
         missing.append('filelock')
 
-    # Temporary, see setup.py
     try:
-        import nacl # noqa: F401
+        import ge25519 # noqa: F401
     except ImportError:
-        missing.append('PyNaCl')
+        missing.append('ge25519')
 
     return missing
 

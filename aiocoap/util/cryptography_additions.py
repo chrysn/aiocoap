@@ -11,18 +11,16 @@ Workaround for https://github.com/pyca/cryptography/issues/5557
 
 These functions could be methods to
 `cryptography.hazmat.primitives.asymmetric.ed25519.{Ed25519PrivateKey,
-Ed25519PublicKey}`, respectively, and are currently implemented using NaCl.
+Ed25519PublicKey}`, respectively, and are currently implemented manually or
+using ge25519.
 
-(A more portable workaround would follow what californium is doing_, but
-the better solution is for cryptography to provide it).
-
-.. _doing: https://github.com/rikard-sics/californium/blob/group_oscore/cf-oscore/src/main/java/org/eclipse/californium/oscore/group/KeyRemapping.java#L239
+These conversions are not too critical in that they do not run on data an
+attacker can send arbitrarily (in the most dynamic situation, the keys are
+distributed through a KDC aka. group manager).
 """
 
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from cryptography.hazmat.primitives import serialization
-
-import nacl.signing
 
 def sk_to_curve25519(ed: ed25519.Ed25519PrivateKey) -> x25519.X25519PrivateKey:
     raw = ed.private_bytes(
@@ -52,10 +50,27 @@ def pk_to_curve25519(ed: ed25519.Ed25519PublicKey) -> x25519.X25519PublicKey:
             format=serialization.PublicFormat.Raw,
             )
 
-    ed_nacl = nacl.signing.VerifyKey(
-            key=raw,
-            )
+    # This is libsodium's crypto_sign_ed25519_pk_to_curve25519 translated into
+    # the Pyton module ge25519.
 
-    x_nacl = ed_nacl.to_curve25519_public_key()
+    from ge25519 import ge25519, ge25519_p3
+    from fe25519 import fe25519
 
-    return x25519.X25519PublicKey.from_public_bytes(x_nacl.encode())
+    if ge25519.has_small_order(raw) != 0:
+        raise RuntimeError("Doesn' thave small order")
+
+    # frombytes in libsodium appears to be the same as
+    # frombytes_negate_vartime; as ge25519 only implements the from_bytes
+    # version, we have to do the root check manually.
+    A = ge25519_p3.from_bytes(raw)
+    if A.root_check:
+        raise RuntimeError("Root check failed")
+
+    if not A.is_on_main_subgroup():
+        raise RuntimeError("It's on the main subgroup")
+
+    one_minus_y = fe25519.one() - A.Y
+    x = A.Y + fe25519.one()
+    x = x * one_minus_y.invert()
+
+    return x25519.X25519PublicKey.from_public_bytes(bytes(x.to_bytes()))
