@@ -16,7 +16,6 @@ import sys
 import aiocoap
 
 from .test_server import WithClient, WithTestServer, run_fixture_as_standalone_server
-from .test_client import TestClientWithSetHost
 
 from .fixtures import no_warnings, asynctest
 from .common import tcp_disabled
