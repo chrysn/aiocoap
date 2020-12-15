@@ -1357,12 +1357,17 @@ class SimpleGroupContext(GroupContext):
         """No-op because it's ephemeral"""
 
     def context_from_response(self, unprotected_bag):
-        # FIXME pick pairwise or group mode accessor, and decide when to do what
+        # sender ID *needs to be* here -- if this were a pairwise request, it
+        # would not run through here
         try:
             sender_kid = unprotected_bag[COSE_KID]
         except KeyError:
             raise DecodeError("Group server failed to send own sender KID")
-        return _GroupContextAspect(self, sender_kid)
+
+        if COSE_COUNTERSINGATURE0 in unprotected_bag:
+            return _GroupContextAspect(self, sender_kid)
+        else:
+            return _PairwiseContextAspect(self, sender_kid)
 
     def get_oscore_context_for(self, unprotected):
         if unprotected.get(COSE_KID_CONTEXT, None) != self.id_context:
@@ -1466,6 +1471,18 @@ class _PairwiseContextAspect(GroupContext):
     # same here -- not needed because not signing
     private_key = property(post_seqnoincrease)
     recipient_public_key = property(post_seqnoincrease)
+
+    def context_from_response(self, unprotected_bag):
+        if unprotected_bag.get(COSE_KID, self.recipient_id) != self.recipient_id:
+            raise DecodeError("Response coming from a different server than requested, not attempting to decrypt")
+
+        if COSE_COUNTERSINGATURE0 in unprotected_bag:
+            # It'd be an odd thing to do, but it's source verified, so the
+            # server hopefully has reasons to make this readable to other group
+            # members.
+            return _GroupContextAspect(self.groupcontext, self.recipient_id)
+        else:
+            return self
 
 def verify_start(message):
     """Extract the unprotected COSE options from a
