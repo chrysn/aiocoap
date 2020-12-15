@@ -69,3 +69,17 @@ while it is not clear where to better put them).
   Thus, a typical command line request might look like this::
 
      ./aiocoap-client coap://'[ff02::fd%eth0]'/.well-known/core --non
+
+* **aiocoap fails to start if IPv6 is disabled system-wide.**
+
+  Yes. `Don't do that`__
+  It is not a supported mode of operation with the default implementation.
+
+  .. __: https://howtodisableipv6.com/
+
+  Background details:
+
+  The default transport of aiocoap uses APIs that are well specified for IPv6 and work there for both IPv4 and IPv6 packets.
+  Explicitly re-implementing everything on v4 would not only be needless extra work,
+  it would also be a portability problem as unlike for IPv6, the interfaces are not specified platform independenlty for IPv4.
+  Moreover, that mode would be error prone because it wouldn't receive regular testing.
