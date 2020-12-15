@@ -87,7 +87,8 @@ class TestTLS(WithTLSServer, WithTLSClient):
         response = json.loads(response.payload)
         self.assertEqual(response['requested_uri'], 'coaps+tcp://%s/whoami' % self.servernamealias, "SNI name was not used by the server")
 
-    if sys.version_info < (3, 7):
+    if sys.version_info < (3, 7) or 'PyPy' in sys.version:
+        # For PyPy exclusion, see https://foss.heptapod.net/pypy/pypy/-/issues/3359
         test_tls = unittest.expectedFailure(test_tls) # SNI support was only added in Python 3.7
 
 if __name__ == "__main__":
