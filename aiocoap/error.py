@@ -78,9 +78,6 @@ class UnsupportedContentFormat(ConstructionRenderableError):
 class Unauthorized(ConstructionRenderableError):
     code = codes.UNAUTHORIZED
 
-# deprecated alias
-UnsupportedMediaType = UnsupportedContentFormat
-
 class BadRequest(ConstructionRenderableError):
     code = codes.BAD_REQUEST
 
@@ -203,3 +200,15 @@ class ResolutionError(NetworkError):
 class MessageError(NetworkError):
     """Received an error from the remote on the CoAP message level (typically a
     RST)"""
+
+_deprecated_aliases = {
+        "UnsupportedMediaType": "UnsupportedContentFormat",
+        }
+def __getattr__(name):
+    if name in _deprecated_aliases:
+        modern = _deprecated_aliases[name]
+        from warnings import warn
+        warn(f"{name} is deprecated, use {modern} instead", DeprecationWarning,
+                stacklevel=2)
+        return globals()[modern]
+    raise AttributeError(f"module {__name__} has no attribute {name}")

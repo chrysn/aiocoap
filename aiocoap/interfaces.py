@@ -9,6 +9,8 @@
 """This module provides interface base classes to various aiocoap services,
 especially with respect to request and response handling."""
 
+from __future__ import annotations
+
 import abc
 from aiocoap.numbers.constants import DEFAULT_BLOCK_SIZE_EXP
 
@@ -230,7 +232,7 @@ class RequestInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def request(self, request: "PlumbingRequest"):
+    def request(self, request: PlumbingRequest):
         pass
 
 class RequestProvider(metaclass=abc.ABCMeta):
