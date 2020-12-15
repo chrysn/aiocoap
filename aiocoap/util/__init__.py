@@ -90,7 +90,15 @@ def hostportsplit(hostport):
     """
 
     pseudoparsed = urllib.parse.SplitResult(None, hostport, None, None, None)
-    return pseudoparsed.hostname, pseudoparsed.port
+    try:
+        return pseudoparsed.hostname, pseudoparsed.port
+    except ValueError:
+        if '[' not in hostport and hostport.count(':') > 1:
+            raise ValueError("Could not parse network location. "
+                "Beware that when IPv6 literals are expressed in URIs, they "
+                "need to be put in square brackets to distinguish them from "
+                "port numbers.")
+        raise
 
 def quote_nonascii(s):
     """Like urllib.parse.quote, but explicitly only escaping non-ascii characters."""
