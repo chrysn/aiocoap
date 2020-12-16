@@ -192,6 +192,10 @@ for x in range(0, 17):
         if x == 16:
             # That test can not succeed against a regular plugtest server
             test = unittest.expectedFailure(test)
+        if x == 7:
+            # That test fails because there is no proper observation cancellation
+            # aroun yet, see https://github.com/chrysn/aiocoap/issues/104
+            test = unittest.expectedFailure(test)
 
         # enforcing them to sort properly is purely a readability thing, they
         # execute correctly out-of-order too.
