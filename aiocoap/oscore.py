@@ -499,7 +499,8 @@ class SecurityContext(metaclass=abc.ABCMeta):
     def _split_message(self, message):
         """Given a protected message, return the outer message that contains
         all Class I and Class U options (but without payload or Object-Security
-        option), and a proto-inner message that contains all Class E options.
+        option), and the encoded inner message that contains all Class E
+        options and the payload.
 
         This leaves the messages' remotes unset."""
 
@@ -545,7 +546,12 @@ class SecurityContext(metaclass=abc.ABCMeta):
         if proxy_uri is not None:
             outer_message.set_request_uri(outer_uri)
 
-        return outer_message, inner_message
+        plaintext = bytes([inner_message.code]) + inner_message.opt.encode()
+        if inner_message.payload:
+            plaintext += bytes([0xFF])
+            plaintext += inner_message.payload
+
+        return outer_message, plaintext
 
     def _build_new_nonce(self):
         """This implements generation of a new nonce, assembled as per Figure 5
@@ -636,7 +642,7 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
         assert (request_id is None) == message.code.is_request()
 
-        outer_message, inner_message = self._split_message(message)
+        outer_message, plaintext = self._split_message(message)
 
         protected = {}
         nonce = None
@@ -668,12 +674,6 @@ class SecurityContext(metaclass=abc.ABCMeta):
         enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, request_id.kid, request_id.partial_iv)]
         aad = cbor.dumps(enc_structure)
         key = self.sender_key
-
-        plaintext = bytes([inner_message.code]) + inner_message.opt.encode()
-        if inner_message.payload:
-            plaintext += bytes([0xFF])
-            plaintext += inner_message.payload
-
 
         ciphertext = self.algorithm.encrypt(plaintext, aad, key, nonce)
 
