@@ -546,6 +546,7 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
             inner_message = message.copy()
 
+            # FIXME actually CHANGED or CONTENT, but that means the original code needs to be dragged along in RequestIdentifiers
             outer_code = CHANGED
 
         # no max-age because these are always successsful responses
@@ -1358,6 +1359,14 @@ class SimpleGroupContext(GroupContext):
         self.derive_keys(master_salt, master_secret)
         self.sender_sequence_number = 0
 
+    def __repr__(self):
+        return "<%s with group %r sender_id %r and %d peers>" % (
+                type(self).__name__,
+                self.id_context.hex(),
+                self.sender_id.hex(),
+                len(self.peers),
+                )
+
     @property
     def recipient_public_key(self):
         raise RuntimeError("Group context without key indication was used for verification")
@@ -1417,6 +1426,13 @@ class _GroupContextAspect(GroupContext):
         self.groupcontext = groupcontext
         self.recipient_id = recipient_id
 
+    def __repr__(self):
+        return "<%s inside %r with the peer %r>" % (
+                type(self).__name__,
+                self.groupcontext,
+                self.recipient_id.hex(),
+                )
+
     id_context = property(lambda self: self.groupcontext.id_context)
     algorithm = property(lambda self: self.groupcontext.algorithm)
     alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
@@ -1452,6 +1468,13 @@ class _PairwiseContextAspect(GroupContext):
 
         self.sender_key = self._kdf(self.groupcontext.sender_key, shared_secret, self.groupcontext.sender_id, 'Key')
         self.recipient_key = self._kdf(self.groupcontext.recipient_keys[recipient_id], shared_secret, self.recipient_id, 'Key')
+
+    def __repr__(self):
+        return "<%s based on %r with the peer %r>" % (
+                type(self).__name__,
+                self.groupcontext,
+                self.recipient_id.hex(),
+                )
 
     # FIXME: actually, only to be sent in requests
     id_context = property(lambda self: self.groupcontext.id_context)
