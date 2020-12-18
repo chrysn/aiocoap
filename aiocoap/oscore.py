@@ -21,10 +21,11 @@ import os, os.path
 import warnings
 import tempfile
 import abc
+from typing import Optional
 
 from aiocoap.message import Message
 from aiocoap.util import secrets, cryptography_additions
-from aiocoap.numbers import POST, FETCH, CHANGED, UNAUTHORIZED
+from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED
 from aiocoap import error
 
 from cryptography.hazmat.primitives.ciphers import aead
@@ -53,6 +54,18 @@ COMPRESSION_BIT_K = 0b1000
 COMPRESSION_BIT_H = 0b10000
 COMPRESSION_BIT_G = 0b100000 # Group Flag from draft-ietf-core-oscore-groupcomm-10
 COMPRESSION_BITS_RESERVED = 0b11000000
+
+class DeterministicKey:
+    """Singleton to indicate that for this key member no public or private key
+    is available because it is the Deterministic Client (see
+    <https://www.ietf.org/archive/id/draft-amsuess-core-cachable-oscore-01.html>)
+
+    This is highly experimental not only from an implementation but also from a
+    specification point of view. The specification has not received adaequate
+    review that would justify using it in any non-experimental scenario.
+    """
+DETERMINISTIC_KEY = DeterministicKey()
+del DeterministicKey
 
 class NotAProtectedMessage(error.Error, ValueError):
     """Raised when verification is attempted on a non-OSCORE message"""
@@ -1429,6 +1442,8 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         if kid in self.peers:
             if COSE_COUNTERSINGATURE0 in unprotected:
                 return _GroupContextAspect(self, kid)
+            elif self.recipient_public_keys[kid] is DETERMINISTIC_KEY:
+                return _DeterministicUnprotectProtoAspect(self, kid)
             else:
                 return _PairwiseContextAspect(self, kid)
 
@@ -1436,6 +1451,9 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
 
     def pairwise_for(self, recipient_id):
         return _PairwiseContextAspect(self, recipient_id)
+
+    def for_sending_deterministic_requests(self, deterministic_id, target_server: Optional[bytes]):
+        return _DeterministicProtectProtoAspect(self, deterministic_id, target_server)
 
 class _GroupContextAspect(GroupContext, CanUnprotect):
     """The concrete context this host has with a particular peer
@@ -1532,6 +1550,165 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
             return _GroupContextAspect(self.groupcontext, self.recipient_id)
         else:
             return self
+
+class _DeterministicProtectProtoAspect(CanProtect, SecurityContextUtils):
+    """This implements the sending side of Deterministic Requests.
+
+    While simialr to a _PairwiseContextAspect, it only derives the key at
+    protection time, as the plain text is hashed into the key."""
+
+    deterministic_hashfun = hashes.SHA256()
+
+    def __init__(self, groupcontext, sender_id, target_server: Optional[bytes]):
+        self.groupcontext = groupcontext
+        self.sender_id = sender_id
+        self.target_server = target_server
+
+    def __repr__(self):
+        return "<%s based on %r with the sender ID %r%s>" % (
+                type(self).__name__,
+                self.groupcontext,
+                self.sender_id.hex(),
+                "limited to responses from %s" % self.target_server if self.target_server is not None else ""
+                )
+
+    def new_sequence_number(self):
+        return 0
+
+    def post_seqnoincrease(self):
+        pass
+
+    def context_from_response(self, unprotected_bag):
+        if self.target_server is None:
+            if COSE_KID not in unprotected_bag:
+                raise DecodeError("Server did not send a KID and no particular one was addressed")
+        else:
+            if unprotected_bag.get(COSE_KID, self.target_server) != self.target_server:
+                raise DecodeError("Response coming from a different server than requested, not attempting to decrypt")
+
+        if COSE_COUNTERSINGATURE0 not in unprotected_bag:
+            # Could just as well pass and later barf when the group context doesn't find a signature
+            raise DecodeError("Response to deterministic request came from unsecure pairwise context")
+
+        return _GroupContextAspect(self.groupcontext, unprotected_bag.get(COSE_KID, self.target_server))
+
+    def _get_sender_key(self, outer_message, aad, plaintext, request_id):
+        if outer_message.code.is_response():
+            raise RuntimeError("Deterministic contexts shouldn't protect responses")
+
+        basekey = self.groupcontext.recipient_keys[self.sender_id]
+
+        h = hashes.Hash(self.deterministic_hashfun)
+        h.update(basekey)
+        h.update(aad)
+        h.update(plaintext)
+        request_hash = h.finalize()
+
+        outer_message.opt.request_hash = request_hash
+        outer_message.code = FETCH
+
+        # this is intended for the later decryption of the response; while
+        # request_id is still used a bit later in protect(), it's only
+        # on distinct code paths (that is, during signing).
+        request_id.kid = request_hash
+        request_id.can_reuse_nonce = False
+        # FIXME: we're still sending a h'00' PIV. Not wrong, just a wasted byte.
+
+        return self._kdf(basekey, request_hash, self.sender_id, 'Key')
+
+    external_aad_is_group = True
+
+    # details needed for various operations, especially eAAD generation
+    algorithm = property(lambda self: self.groupcontext.algorithm)
+    hashfun = property(lambda self: self.groupcontext.hashfun)
+    common_iv = property(lambda self: self.groupcontext.common_iv)
+    id_context = property(lambda self: self.groupcontext.id_context)
+    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+
+class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
+    """This implements the sending side of Deterministic Requests.
+
+    While simialr to a _PairwiseContextAspect, it only derives the key at
+    unprotection time, based on information given as Request-Hash."""
+
+    # Unless None, this is the value by which the running process recognizes
+    # that the second phase of a B.1.2 replay window recovery Echo option comes
+    # from the current process, and thus its sequence number is fresh
+    echo_recovery = None
+
+    deterministic_hashfun = hashes.SHA256()
+
+    class ZeroIsAlwaysValid:
+        """Special-purpose replay window that accepts 0 indefinitely"""
+
+        def is_initialized(self):
+            return True
+
+        def is_valid(self, number):
+            # No particular reason to be lax here
+            return number == 0
+
+        def strike_out(self, number):
+            # FIXME: I'd rather indicate here that it's a potential replay, have the
+            # request_id.can_reuse_nonce = False
+            # set here rather than in _post_decrypt_checks, and thus also get
+            # the check for whether it's a safe method
+            pass
+
+        def persist(self):
+            pass
+
+    def __init__(self, groupcontext, recipient_id):
+        self.groupcontext = groupcontext
+        self.recipient_id = recipient_id
+
+        self.recipient_replay_window = self.ZeroIsAlwaysValid()
+
+    def __repr__(self):
+        return "<%s based on %r with the recipient ID %r>" % (
+                type(self).__name__,
+                self.groupcontext,
+                self.recipient_id.hex(),
+                )
+
+    def context_for_response(self):
+        return self.groupcontext
+
+    def _get_recipient_key(self, protected_message):
+        return self._kdf(self.groupcontext.recipient_keys[self.recipient_id], protected_message.opt.request_hash, self.recipient_id, 'Key')
+
+    def _post_decrypt_checks(self, aad, plaintext, protected_message, request_id):
+        if plaintext[0] not in (4+GET, FETCH): # FIXME: "is safe"
+            # FIXME: accept but return inner Unauthorized. (Raising Unauthorized
+            # here would just create an unprotected Unauthorized, which is not
+            # what's spec'd for here)
+            raise ProtectionInvalid("Request was not safe")
+
+        basekey = self.groupcontext.recipient_keys[self.recipient_id]
+
+        h = hashes.Hash(self.deterministic_hashfun)
+        h.update(basekey)
+        h.update(aad)
+        h.update(plaintext)
+        request_hash = h.finalize()
+
+        if request_hash != protected_message.opt.request_hash:
+            raise ProtectionInvalid("Client's hash of the plaintext diverges from the actual request hash")
+
+        # This is intended for the protection of the response, and the
+        # later use in signature in the unprotect function is not happening
+        # here anyway, neither is the later use for Echo requests
+        request_id.kid = request_hash
+        request_id.can_reuse_nonce = False
+
+    external_aad_is_group = True
+
+    # details needed for various operations, especially eAAD generation
+    algorithm = property(lambda self: self.groupcontext.algorithm)
+    hashfun = property(lambda self: self.groupcontext.hashfun)
+    common_iv = property(lambda self: self.groupcontext.common_iv)
+    id_context = property(lambda self: self.groupcontext.id_context)
+    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
 
 def verify_start(message):
     """Extract the unprotected COSE options from a
