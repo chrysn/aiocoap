@@ -130,7 +130,7 @@ class TransportOSCORE(interfaces.RequestProvider):
             return False
 
         # FIXME: it'd be better to have a "get me credentials *of this type* if they exist"
-        if isinstance(secctx, oscore.SecurityContext):
+        if isinstance(secctx, oscore.CanProtect):
             message.remote = OSCOREAddress(secctx, message.remote)
             self.log.debug("Selecting OSCORE transport based on context %r for new request %r", secctx, message)
             return True
@@ -181,7 +181,7 @@ class TransportOSCORE(interfaces.RequestProvider):
             # Offer secctx to switch over for reception based on the header
             # data (similar to how the server address switches over when
             # receiving a response to a request sent over multicast)
-            _, _, unprotected, _ = oscore.SecurityContext._extract_encrypted0(protected_response)
+            unprotected = oscore.verify_start(protected_response)
             secctx = secctx.context_from_response(unprotected)
 
             unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)

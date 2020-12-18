@@ -35,7 +35,7 @@ if not oscore_modules:
     default_hashfun = aiocoap.oscore.hashfunctions['sha256']
 
     import aiocoap.oscore
-    class NonsavingSecurityContext(aiocoap.oscore.SecurityContext):
+    class NonsavingSecurityContext(aiocoap.oscore.CanProtect, aiocoap.oscore.CanUnprotect, aiocoap.oscore.SecurityContextUtils):
         def post_seqnoincrease(self):
             # obviously, don't use this anywhere else, especially not with secret
             # keys
@@ -349,14 +349,14 @@ class TestOSCOAAsymmetric(unittest.TestCase):
 class TestOSCORECompression(unittest.TestCase):
     def compare_uncompress(self, ref_option, ref_payload, ref_protected, ref_unprotected, ref_ciphertext):
         message = aiocoap.Message(payload=ref_payload, object_security=ref_option)
-        protected_serialized, protected, unprotected, ciphertext = aiocoap.oscore.SecurityContext._extract_encrypted0(message)
+        protected_serialized, protected, unprotected, ciphertext = aiocoap.oscore.CanUnprotect._extract_encrypted0(message)
 
         self.assertEqual(protected, ref_protected, "Protected dictionary mismatch")
         self.assertEqual(unprotected, ref_unprotected, "Unprotected dictionary mismatch")
         self.assertEqual(ciphertext, ref_ciphertext, "Ciphertext mismatch")
 
     def compare_compress(self, ref_option, ref_payload, ref_protected, ref_unprotected, ref_ciphertext):
-        option, payload = aiocoap.oscore.SecurityContext._compress(ref_protected, ref_unprotected, ref_ciphertext)
+        option, payload = aiocoap.oscore.CanProtect._compress(ref_protected, ref_unprotected, ref_ciphertext)
 
         self.assertEqual(option, ref_option, "Compressed option mismatch")
         self.assertEqual(payload, ref_payload, "Compressed payload mismatch")

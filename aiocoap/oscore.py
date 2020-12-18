@@ -437,18 +437,7 @@ DEFAULT_HASHFUNCTION = 'sha256'
 
 DEFAULT_WINDOWSIZE = 32
 
-class SecurityContext(metaclass=abc.ABCMeta):
-    # FIXME: define an interface for that
-
-    # Unless None, this is the value by which the running process recognizes
-    # that the second phase of a B.1.2 replay window recovery Echo option comes
-    # from the current process, and thus its sequence number is fresh
-    echo_recovery = None
-
-    # The protection function will add a signature acccording to the context's
-    # alg_countersign attribute if this is true
-    is_signing = False
-
+class BaseSecurityContext:
     # The protection and unprotection functions will use the Group OSCORE AADs
     # rather than the regular OSCORE AADs. (Ie. alg_countersign is added to
     # the algorithms, and the id_context is added at the end).
@@ -459,20 +448,25 @@ class SecurityContext(metaclass=abc.ABCMeta):
     # signing and signature verification purposes).
     external_aad_is_group = False
 
-    # Send the KID when protecting responses
-    #
-    # Once group pairwise mode is implemented, this will need to become a
-    # parameter to protect(), which is stored at the point where the incoming
-    # context is turned into an outgoing context. (Currently, such a mechanism
-    # isn't there yet, and oscore_wrapper protects responses with the very same
-    # context they came in on).
-    responses_send_kid = False
-
     # Authentication information carried with this security context; managed
     # externally by whatever creates the security context.
     authenticated_claims = []
 
-    # message processing
+    def _construct_nonce(self, partial_iv_short, piv_generator_id):
+        pad_piv = b"\0" * (5 - len(partial_iv_short))
+
+        s = bytes([len(piv_generator_id)])
+        pad_id = b'\0' * (self.algorithm.iv_bytes - 6 - len(piv_generator_id))
+
+        components = s + \
+                pad_id + \
+                piv_generator_id + \
+                pad_piv + \
+                partial_iv_short
+
+        nonce = _xor_bytes(self.common_iv, components)
+
+        return nonce
 
     def _extract_external_aad(self, message, request_kid, request_piv, for_signature=False):
         # If any option were actually Class I, it would be something like
@@ -506,89 +500,20 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
         return external_aad
 
-    def _split_message(self, message):
-        """Given a protected message, return the outer message that contains
-        all Class I and Class U options (but without payload or Object-Security
-        option), and the encoded inner message that contains all Class E
-        options and the payload.
+# FIXME pull interface components from SecurityContext up here
+class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
+    # The protection function will add a signature acccording to the context's
+    # alg_countersign attribute if this is true
+    is_signing = False
 
-        This leaves the messages' remotes unset."""
-
-        if message.code.is_request():
-            outer_host = message.opt.uri_host
-            proxy_uri = message.opt.proxy_uri
-
-            inner_message = message.copy(
-                    uri_host=None,
-                    uri_port=None,
-                    proxy_uri=None,
-                    proxy_scheme=None,
-                    )
-            inner_message.remote = None
-
-            if proxy_uri is not None:
-                # Use set_request_uri to split up the proxy URI into its
-                # components; extract, preserve and clear them.
-                inner_message.set_request_uri(proxy_uri, set_uri_host=False)
-                if inner_message.opt.proxy_uri is not None:
-                    raise ValueError("Can not split Proxy-URI into options")
-                outer_uri = inner_message.remote.uri_base
-                inner_message.remote = None
-                inner_message.opt.proxy_scheme = None
-
-            if message.opt.observe is None:
-                outer_code = POST
-            else:
-                outer_code = FETCH
-        else:
-            outer_host = None
-            proxy_uri = None
-
-            inner_message = message.copy()
-
-            # FIXME actually CHANGED or CONTENT, but that means the original code needs to be dragged along in RequestIdentifiers
-            outer_code = CHANGED
-
-        # no max-age because these are always successsful responses
-        outer_message = Message(code=outer_code,
-                uri_host=outer_host,
-                observe=None if message.code.is_response() else message.opt.observe,
-                )
-        if proxy_uri is not None:
-            outer_message.set_request_uri(outer_uri)
-
-        plaintext = bytes([inner_message.code]) + inner_message.opt.encode()
-        if inner_message.payload:
-            plaintext += bytes([0xFF])
-            plaintext += inner_message.payload
-
-        return outer_message, plaintext
-
-    def _build_new_nonce(self):
-        """This implements generation of a new nonce, assembled as per Figure 5
-        of draft-ietf-core-object-security-06. Returns the shortened partial IV
-        as well."""
-        seqno = self.new_sequence_number()
-
-        partial_iv = seqno.to_bytes(5, 'big')
-
-        return (self._construct_nonce(partial_iv, self.sender_id), partial_iv.lstrip(b'\0') or b'\0')
-
-    def _construct_nonce(self, partial_iv_short, piv_generator_id):
-        pad_piv = b"\0" * (5 - len(partial_iv_short))
-
-        s = bytes([len(piv_generator_id)])
-        pad_id = b'\0' * (self.algorithm.iv_bytes - 6 - len(piv_generator_id))
-
-        components = s + \
-                pad_id + \
-                piv_generator_id + \
-                pad_piv + \
-                partial_iv_short
-
-        nonce = _xor_bytes(self.common_iv, components)
-
-        return nonce
+    # Send the KID when protecting responses
+    #
+    # Once group pairwise mode is implemented, this will need to become a
+    # parameter to protect(), which is stored at the point where the incoming
+    # context is turned into an outgoing context. (Currently, such a mechanism
+    # isn't there yet, and oscore_wrapper protects responses with the very same
+    # context they came in on).
+    responses_send_kid = False
 
     @staticmethod
     def _compress(protected, unprotected, ciphertext):
@@ -719,6 +644,107 @@ class SecurityContext(metaclass=abc.ABCMeta):
         unprotect the response."""
         return self.sender_key
 
+    def _split_message(self, message):
+        """Given a protected message, return the outer message that contains
+        all Class I and Class U options (but without payload or Object-Security
+        option), and the encoded inner message that contains all Class E
+        options and the payload.
+
+        This leaves the messages' remotes unset."""
+
+        if message.code.is_request():
+            outer_host = message.opt.uri_host
+            proxy_uri = message.opt.proxy_uri
+
+            inner_message = message.copy(
+                    uri_host=None,
+                    uri_port=None,
+                    proxy_uri=None,
+                    proxy_scheme=None,
+                    )
+            inner_message.remote = None
+
+            if proxy_uri is not None:
+                # Use set_request_uri to split up the proxy URI into its
+                # components; extract, preserve and clear them.
+                inner_message.set_request_uri(proxy_uri, set_uri_host=False)
+                if inner_message.opt.proxy_uri is not None:
+                    raise ValueError("Can not split Proxy-URI into options")
+                outer_uri = inner_message.remote.uri_base
+                inner_message.remote = None
+                inner_message.opt.proxy_scheme = None
+
+            if message.opt.observe is None:
+                outer_code = POST
+            else:
+                outer_code = FETCH
+        else:
+            outer_host = None
+            proxy_uri = None
+
+            inner_message = message.copy()
+
+            # FIXME actually CHANGED or CONTENT, but that means the original code needs to be dragged along in RequestIdentifiers
+            outer_code = CHANGED
+
+        # no max-age because these are always successsful responses
+        outer_message = Message(code=outer_code,
+                uri_host=outer_host,
+                observe=None if message.code.is_response() else message.opt.observe,
+                )
+        if proxy_uri is not None:
+            outer_message.set_request_uri(outer_uri)
+
+        plaintext = bytes([inner_message.code]) + inner_message.opt.encode()
+        if inner_message.payload:
+            plaintext += bytes([0xFF])
+            plaintext += inner_message.payload
+
+        return outer_message, plaintext
+
+    def _build_new_nonce(self):
+        """This implements generation of a new nonce, assembled as per Figure 5
+        of draft-ietf-core-object-security-06. Returns the shortened partial IV
+        as well."""
+        seqno = self.new_sequence_number()
+
+        partial_iv = seqno.to_bytes(5, 'big')
+
+        return (self._construct_nonce(partial_iv, self.sender_id), partial_iv.lstrip(b'\0') or b'\0')
+
+    # sequence number handling
+
+    def new_sequence_number(self):
+        """Return a new sequence number; the implementation is responsible for
+        never returning the same value twice in a given security context.
+
+        May raise ContextUnavailable."""
+        retval = self.sender_sequence_number
+        if retval >= MAX_SEQNO:
+            raise ContextUnavailable("Sequence number too large, context is exhausted.")
+        self.sender_sequence_number += 1
+        self.post_seqnoincrease()
+        return retval
+
+    # implementation defined
+
+    @abc.abstractmethod
+    def post_seqnoincrease(self):
+        """Ensure that sender_sequence_number is stored"""
+        raise
+
+    def context_from_response(self, unprotected_bag) -> CanUnprotect:
+        """When receiving a response to a request protected with this security
+        context, pick the security context with which to unprotect the response
+        given the unprotected information from the Object-Security option.
+
+        This allow picking the right security context in a group response, and
+        helps getting a new short-lived context for B.2 mode. The default
+        behaivor is returning self.
+        """
+        return self # FIXME justify by moving into a mixin for CanProtectAndUnprotect
+
+class CanUnprotect(BaseSecurityContext):
     def unprotect(self, protected_message, request_id=None):
         assert (request_id is not None) == protected_message.code.is_response()
         is_response = protected_message.code.is_response()
@@ -918,8 +944,19 @@ class SecurityContext(metaclass=abc.ABCMeta):
         protected_serialized, protected, unprotected, ciphertext = cls._uncompress(message.opt.object_security, message.payload)
         return protected_serialized, protected, unprotected, ciphertext
 
-    # context parameter setup
+    # implementation defined
 
+    def context_for_response(self) -> CanProtect:
+        """After processing a request with this context, with which security
+        context should an outgoing response be protected? By default, it's the
+        same context."""
+        # FIXME: Is there any way in which the handler may want to influence
+        # the decision taken here? Or would, then, the handler just call a more
+        # elaborate but similar function when setting the response's remote
+        # already?
+        return self # FIXME justify by moving into a mixin for CanProtectAndUnprotect
+
+class SecurityContextUtils(BaseSecurityContext):
     def _kdf(self, master_salt, master_secret, role_id, out_type):
         out_bytes = {'Key': self.algorithm.key_bytes, 'IV': self.algorithm.iv_bytes}[out_type]
 
@@ -950,47 +987,7 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
         self.common_iv = self._kdf(master_salt, master_secret, b"", 'IV')
 
-    # sequence number handling
-
-    def new_sequence_number(self):
-        """Return a new sequence number; the implementation is responsible for
-        never returning the same value twice in a given security context.
-
-        May raise ContextUnavailable."""
-        retval = self.sender_sequence_number
-        if retval >= MAX_SEQNO:
-            raise ContextUnavailable("Sequence number too large, context is exhausted.")
-        self.sender_sequence_number += 1
-        self.post_seqnoincrease()
-        return retval
-
-    # implementation defined
-
-    @abc.abstractmethod
-    def post_seqnoincrease(self):
-        """Ensure that sender_sequence_number is stored"""
-        raise
-
-    def context_from_response(self, unprotected_bag):
-        """When receiving a response to a request protected with this security
-        context, pick the security context with which to unprotect the response
-        given the unprotected information from the Object-Security option.
-
-        This allow picking the right security context in a group response, and
-        helps getting a new short-lived context for B.2 mode. The default
-        behaivor is returning self.
-        """
-        return self
-
-    def context_for_response(self) -> SecurityContext:
-        """After processing a request with this context, with which security
-        context should an outgoing response be protected? By default, it's the
-        same context."""
-        # FIXME: Is there any way in which the handler may want to influence
-        # the decision taken here? Or would, then, the handler just call a more
-        # elaborate but similar function when setting the response's remote
-        # already?
-        return self
+    # really more of the Credentials interface
 
     def get_oscore_context_for(self, unprotected):
         """Return a sutiable context (most easily self) for an incoming request
@@ -1112,7 +1109,7 @@ class ReplayWindow:
 
         return {'index': self._index, 'bitfield': self._bitfield}
 
-class FilesystemSecurityContext(SecurityContext):
+class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
     """Security context stored in a directory as distinct files containing
     containing
 
@@ -1334,7 +1331,7 @@ class FilesystemSecurityContext(SecurityContext):
         if self.lockfile is not None:
             self._destroy()
 
-class GroupContext(SecurityContext):
+class GroupContext:
     is_signing = True
     external_aad_is_group = True
     responses_send_kid = True
@@ -1355,7 +1352,7 @@ class GroupContext(SecurityContext):
         for that) may raise a RuntimeError here; that necessity may later go
         away if some more accurate class modelling is found."""
 
-class SimpleGroupContext(GroupContext):
+class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContextUtils):
     """A context for an OSCORE group
 
     This is a non-persistable version of a group context that does not support
@@ -1411,7 +1408,7 @@ class SimpleGroupContext(GroupContext):
     def post_seqnoincrease(self):
         """No-op because it's ephemeral"""
 
-    def context_from_response(self, unprotected_bag):
+    def context_from_response(self, unprotected_bag) -> CanUnprotect:
         # sender ID *needs to be* here -- if this were a pairwise request, it
         # would not run through here
         try:
@@ -1440,7 +1437,7 @@ class SimpleGroupContext(GroupContext):
     def pairwise_for(self, recipient_id):
         return _PairwiseContextAspect(self, recipient_id)
 
-class _GroupContextAspect(GroupContext):
+class _GroupContextAspect(GroupContext, CanUnprotect):
     """The concrete context this host has with a particular peer
 
     As all actual data is stored in the underlying groupcontext, this acts as
@@ -1471,19 +1468,10 @@ class _GroupContextAspect(GroupContext):
     recipient_public_key = property(lambda self: self.groupcontext.recipient_public_keys[self.recipient_id])
     recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])
 
-    def protect(self, message, request_id=None, *, kid_context=True):
-        raise RuntimeError("This context is exclusively used for receiving.")
-
-    def post_seqnoincrease(self):
-        # make the ABC happy
-        raise RuntimeError("This is never used by itself for protecting")
-    # same here
-    private_key = property(post_seqnoincrease)
-
     def context_for_response(self):
         return self.groupcontext.pairwise_for(self.recipient_id)
 
-class _PairwiseContextAspect(GroupContext):
+class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityContextUtils):
     is_signing = False
 
     def __init__(self, groupcontext, recipient_id):
@@ -1533,7 +1521,7 @@ class _PairwiseContextAspect(GroupContext):
     private_key = property(post_seqnoincrease)
     recipient_public_key = property(post_seqnoincrease)
 
-    def context_from_response(self, unprotected_bag):
+    def context_from_response(self, unprotected_bag) -> CanUnprotect:
         if unprotected_bag.get(COSE_KID, self.recipient_id) != self.recipient_id:
             raise DecodeError("Response coming from a different server than requested, not attempting to decrypt")
 
@@ -1554,6 +1542,6 @@ def verify_start(message):
     Call this only requests; for responses, you'll have to know the security
     context anyway, and there is usually no information to be gained."""
 
-    _, _, unprotected, _ = SecurityContext._extract_encrypted0(message)
+    _, _, unprotected, _ = CanUnprotect._extract_encrypted0(message)
 
     return unprotected
