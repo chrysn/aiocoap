@@ -131,6 +131,14 @@ class Algorithm(metaclass=abc.ABCMeta):
         """Reverse encryption. Must raise ProtectionInvalid on any error
         stemming from untrusted data."""
 
+    @staticmethod
+    def _build_encrypt0_structure(protected, external_aad):
+        assert protected == {}
+        protected_serialized = b'' # were it into an empty dict, it'd be the cbor dump
+        enc_structure = ['Encrypt0', protected_serialized, external_aad]
+
+        return cbor.dumps(enc_structure)
+
 class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
     """AES-CCM implemented using the Python cryptography library"""
 
@@ -669,10 +677,7 @@ class SecurityContext(metaclass=abc.ABCMeta):
             if self.responses_send_kid:
                 unprotected[COSE_KID] = self.sender_id
 
-        assert protected == {}
-        protected_serialized = b'' # were it into an empty dict, it'd be the cbor dump
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(outer_message, request_id.kid, request_id.partial_iv)]
-        aad = cbor.dumps(enc_structure)
+        aad = self.algorithm._build_encrypt0_structure(protected, self._extract_external_aad(outer_message, request_id.kid, request_id.partial_iv))
         key = self.sender_key
 
         ciphertext = self.algorithm.encrypt(plaintext, aad, key, nonce)
