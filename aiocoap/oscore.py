@@ -13,6 +13,8 @@ and unprotection of messages. It does not touch on the integration of OSCORE in
 the larger aiocoap stack of having a context or requests; that's what
 :mod:`aiocoap.transports.osore` is for.`"""
 
+from __future__ import annotations
+
 import json
 import binascii
 import os, os.path
@@ -950,6 +952,16 @@ class SecurityContext(metaclass=abc.ABCMeta):
         """
         return self
 
+    def context_for_response(self) -> SecurityContext:
+        """After processing a request with this context, with which security
+        context should an outgoing response be protected? By default, it's the
+        same context."""
+        # FIXME: Is there any way in which the handler may want to influence
+        # the decision taken here? Or would, then, the handler just call a more
+        # elaborate but similar function when setting the response's remote
+        # already?
+        return self
+
     def get_oscore_context_for(self, unprotected):
         """Return a sutiable context (most easily self) for an incoming request
         if its unprotected data (COSE_KID, COSE_KID_CONTEXT) fit its
@@ -1397,15 +1409,8 @@ class _GroupContextAspect(GroupContext):
     an accessor to that object (which picks the right recipient key).
 
     This accessor is for receiving messages in group mode from a particular
-    peer; in sending it behaves exactly as the full group context.
-
-    For pairwise mode, use the _PairwiseContextAspect accessor obtained using
-    pairwise_for instead.
-
-    A third accessor that receives group mode but sends in pairwise mode could
-    be added but was not implemented yet. (Probably this accessor will *become*
-    that, and one that behaves like the current one would be the odd one to not
-    even be implemented).
+    peer; it does not send (and turns into a pairwise context through
+    context_for_response before it comes to that).
     """
 
     def __init__(self, groupcontext, recipient_id):
@@ -1421,18 +1426,17 @@ class _GroupContextAspect(GroupContext):
     recipient_public_key = property(lambda self: self.groupcontext.recipient_public_keys[self.recipient_id])
     recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])
 
-    # Protect in group mode as documented in the class
-
     def protect(self, message, request_id=None, *, kid_context=True):
-        return self.groupcontext.protect(message, request_id, kid_context=kid_context)
+        raise RuntimeError("This context is exclusively used for receiving.")
 
     def post_seqnoincrease(self):
         # make the ABC happy
-        raise RuntimeError("This is never used by itself for protecting, it"
-                " forwards the protection to the group context instead")
-
+        raise RuntimeError("This is never used by itself for protecting")
     # same here
     private_key = property(post_seqnoincrease)
+
+    def context_for_response(self):
+        return self.groupcontext.pairwise_for(self.recipient_id)
 
 class _PairwiseContextAspect(GroupContext):
     is_signing = False
