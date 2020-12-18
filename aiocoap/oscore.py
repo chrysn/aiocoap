@@ -723,7 +723,7 @@ class SecurityContext(metaclass=abc.ABCMeta):
 
         if unprotected.pop(COSE_KID_CONTEXT, self.id_context) != self.id_context:
             # FIXME is this necessary?
-            raise ProtectionInvalid("Sender ID does not match")
+            raise ProtectionInvalid("Sender ID context does not match")
 
         if unprotected.pop(COSE_KID, self.recipient_id) != self.recipient_id:
             # for most cases, this is caught by the session ID dispatch, but in
