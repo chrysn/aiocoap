@@ -681,7 +681,8 @@ class SecurityContext(metaclass=abc.ABCMeta):
                 unprotected[COSE_KID] = self.sender_id
 
         aad = self.algorithm._build_encrypt0_structure(protected, self._extract_external_aad(outer_message, request_id.kid, request_id.partial_iv))
-        key = self.sender_key
+
+        key = self._get_sender_key(outer_message, aad, plaintext, request_id)
 
         ciphertext = self.algorithm.encrypt(plaintext, aad, key, nonce)
 
@@ -708,6 +709,15 @@ class SecurityContext(metaclass=abc.ABCMeta):
         # caller when protecting a response -- is that reason enough for an
         # `if` and returning None?
         return outer_message, request_id
+
+    def _get_sender_key(self, outer_message, aad, plaintext, request_id):
+        """Customization hook of the protect function
+
+        While most security contexts have a fixed sender key, deterministic
+        requests need to shake up a few things. They need to modify the outer
+        message, as well as the request_id as it will later be used to
+        unprotect the response."""
+        return self.sender_key
 
     def unprotect(self, protected_message, request_id=None):
         assert (request_id is not None) == protected_message.code.is_response()
@@ -782,7 +792,11 @@ class SecurityContext(metaclass=abc.ABCMeta):
         enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_id.kid, request_id.partial_iv)]
         aad = cbor.dumps(enc_structure)
 
-        plaintext = self.algorithm.decrypt(ciphertext, aad, self.recipient_key, nonce)
+        key = self._get_recipient_key(protected_message)
+
+        plaintext = self.algorithm.decrypt(ciphertext, aad, key, nonce)
+
+        self._post_decrypt_checks(aad, plaintext, protected_message, request_id)
 
         if not is_response and seqno is not None and replay_error is None:
             self.recipient_replay_window.strike_out(seqno)
@@ -839,6 +853,21 @@ class SecurityContext(metaclass=abc.ABCMeta):
                 unprotected_message.opt.observe = -1 if seqno is None else seqno
 
         return unprotected_message, request_id
+
+    def _get_recipient_key(self, protected_message):
+        """Customization hook of the unprotect function
+
+        While most security contexts have a fixed recipient key, deterministic
+        requests build it on demand."""
+        return self.recipient_key
+
+    def _post_decrypt_checks(self, aad, plaintext, protected_message, request_id):
+        """Customization hook of the unprotect function after decryption
+
+        While most security contexts are good with the default checks,
+        deterministic requests need to perform additional checks while AAD and
+        plaintext information is still available, and modify the request_id for
+        the later protection step of the response."""
 
     @staticmethod
     def _uncompress(option_data, payload):
