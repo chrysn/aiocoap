@@ -91,6 +91,8 @@ class OscoreSiteWrapper(interfaces.Resource):
 
         self.log.debug("Request %r was unprotected into %r", request, unprotected)
 
+        sc = sc.context_for_response()
+
         eventual_err = None
         try:
             response = await self._inner_site.render(unprotected)

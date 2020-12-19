@@ -53,6 +53,12 @@ class OptionNumber(ExtensibleIntEnum):
     ECHO = 252
     REQUEST_TAG = 292
 
+    # experimental for draft-amsuess-core-cachable-oscore
+    #
+    # Using the number suggested there (rather than a high one) as this is
+    # going to be used in overhead comparisons.
+    REQUEST_HASH = 548
+
     def is_critical(self):
         return self & 0x01 == 0x01
 
@@ -141,3 +147,7 @@ OptionNumber.OBJECT_SECURITY.format = optiontypes.OpaqueOption
 
 OptionNumber.ECHO.format = optiontypes.OpaqueOption
 OptionNumber.REQUEST_TAG.format = optiontypes.OpaqueOption
+
+# experimental for draft-amsuess-core-cachable-oscore
+
+OptionNumber.REQUEST_HASH.format = optiontypes.OpaqueOption
