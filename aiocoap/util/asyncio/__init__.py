@@ -7,5 +7,3 @@
 # described in the accompanying LICENSE file.
 
 """Extensions to asyncio and workarounds around its shortcomings"""
-
-from .peekqueue import PeekQueue

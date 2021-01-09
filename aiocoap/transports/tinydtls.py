@@ -51,7 +51,6 @@ import weakref
 import functools
 import time
 
-from ..util.asyncio import PeekQueue
 from ..util import hostportjoin, hostportsplit
 from ..message import Message
 from .. import interfaces, error
@@ -138,7 +137,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
     def __init__(self, host, port, pskId, psk, coaptransport):
         self._ready = False
-        self._queue = PeekQueue() # stores sent packages while connection
+        self._queue = asyncio.Queue() # stores sent packages while connection
             # is being built. for the above reasons of "this must be able to
             # reconnect", we must always be able to enqueue the package, even
             # though most times it will just be sent right away. the
