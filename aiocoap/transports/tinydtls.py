@@ -50,6 +50,7 @@ import asyncio
 import weakref
 import functools
 import time
+import warnings
 
 from ..util import hostportjoin, hostportsplit
 from ..message import Message
@@ -151,6 +152,22 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
     log = property(lambda self: self.coaptransport.log)
 
+    def _build_accessor(self, method):
+        """Think self._build_accessor('_write')() == self._write(), just that
+        it's returning a weak wrapper that allows refcounting-based GC to
+        happen when the remote falls out of use"""
+        weakself = weakref.ref(self)
+        def wrapper(*args, __weakself=weakself, __method=method):
+            self = __weakself()
+            if self is None:
+                warnings.warn("DTLS module did not shut down the DTLSSocket "
+                        "perfectly; it still tried to call %s in vain" %
+                        __method)
+                return
+            return getattr(self, __method)(*args)
+        wrapper.__name__ = "_build_accessor(%s)" % method
+        return wrapper
+
     async def _start(self):
         from DTLSSocket import dtls
 
@@ -165,9 +182,9 @@ class DTLSClientConnection(interfaces.EndpointAddress):
                     )
 
             self._dtls_socket = dtls.DTLS(
-                    read=self._read,
-                    write=self._write,
-                    event=self._event,
+                    read=self._build_accessor("_read"),
+                    write=self._build_accessor("_write"),
+                    event=self._build_accessor("_event"),
                     pskId=self._pskId,
                     pskStore={self._pskId: self._psk},
                     )
@@ -333,7 +350,7 @@ class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
         self.log = log
         self.loop = loop
 
-    async def _connection_for_address(self, host, port, pskId, psk):
+    def _connection_for_address(self, host, port, pskId, psk):
         """Return a DTLSConnection to a given address. This will always give
         the same result for the same host/port combination, at least for as
         long as that result is kept alive (eg. by messages referring to it in
@@ -372,7 +389,7 @@ class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
             pskId, psk = dtlsparams.as_dtls_psk()
         except AttributeError:
             raise CredentialsMissingError("Credentials for requested URI are not compatible with DTLS-PSK")
-        result = await self._connection_for_address(host, port, pskId, psk)
+        result = self._connection_for_address(host, port, pskId, psk)
         return result
 
     def send(self, message):
