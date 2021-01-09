@@ -83,6 +83,17 @@ CODE_CLOSE_NOTIFY = 0
 DTLS_TICKS_PER_SECOND = 1000
 DTLS_CLOCK_OFFSET = time.time()
 
+# If dispatch_error is rewritten to handle exceptions rather than OS error
+# codes, these may need to inherit from suitable aiocoap.error bases because
+# they can be passed out then (so far, they only show up in log messages)
+class CloseNotifyReceived(Exception):
+    """The DTLS connection a request was sent on raised was closed by the
+    server while the request was being processed"""
+
+class FatalDTLSError(Exception):
+    """The DTLS connection a request was sent on raised a fatal error while the
+    request was being processed"""
+
 class DTLSClientConnection(interfaces.EndpointAddress):
     # for now i'd assyme the connection can double as an address. this means it
     # must be able to reconnect, and to manage itself as a member of a pool.
@@ -141,20 +152,28 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         self.coaptransport = coaptransport
         self.hostinfo = hostportjoin(host, None if port == COAPS_PORT else port)
 
-        self._task = asyncio.ensure_future(self._run(connect_immediately=True))
+        self._task = asyncio.ensure_future(self._run())
+
+    def _remove_from_pool(self):
+        """Remove self from the MessageInterfaceTinyDTLS's pool, so that it
+        will not be used in new requests.
+
+        This is idempotent (to allow quick removal and still remove it in a
+        finally clause) and not thread safe.
+        """
+        poolkey = (self._host, self._port, self._pskId)
+        if self.coaptransport._pool.get(poolkey) is self:
+            del self.coaptransport._pool[poolkey]
 
     def send(self, message):
         self._queue.put_nowait(message)
 
     log = property(lambda self: self.coaptransport.log)
 
-    async def _run(self, connect_immediately):
+    async def _run(self):
         from DTLSSocket import dtls
 
         self._dtls_socket = None
-
-        if not connect_immediately:
-            await self._queue.peek()
 
         self._connection = None
 
@@ -195,6 +214,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             self.log.error("Exception %r can not be represented as errno, setting -1.", e)
             self.coaptransport.ctx.dispatch_error(-1, self)
         finally:
+            self._remove_from_pool()
             if self._connection is not None:
                 try:
                     self._dtls_socket.close(self._connection)
@@ -218,9 +238,19 @@ class DTLSClientConnection(interfaces.EndpointAddress):
     def shutdown(self):
         self._task.cancel()
 
-    def _cancelled(self):
+    def _inject_error(self, e):
+        """Put an error to all pending operations on this remote, just as if it
+        were raised inside the main loop."""
+        self._remove_from_pool()
+
+        if isinstance(e, OSError):
+            self.log.debug("Expressing exception %r as errno %d.", e, e.errno)
+            self.coaptransport.ctx.dispatch_error(e.errno, self)
+        else:
+            self.log.error("Exception %r can not be represented as errno, setting -1.", e)
+            self.coaptransport.ctx.dispatch_error(-1, self)
+
         self._task.cancel()
-        self._task = asyncio.ensure_future(self._run(connect_immediately=False))
 
     # dtls callbacks
 
@@ -257,10 +287,9 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         elif (level, code) == (LEVEL_NOALERT, DTLS_EVENT_CONNECTED):
             self._connecting.set_result(True)
         elif (level, code) == (LEVEL_FATAL, CODE_CLOSE_NOTIFY):
-            self._cancelled()
+            self._inject_error(CloseNotifyReceived())
         elif level == LEVEL_FATAL:
-            self.log.error("Fatal DTLS error: code %d", code)
-            self._cancelled()
+            self._inject_error(FatalDTLSError(code))
         else:
             self.log.warning("Unhandled alert level %d code %d", level, code)
 
@@ -281,8 +310,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             pass
 
         def error_received(self, exc):
-            self.parent.log.warning("Error received in UDP connection under DTLS: %s", exc)
-            self.parent._task.cancel()
+            self.parent._inject_error(exc)
 
         def datagram_received(self, data, addr):
             self.parent._dtls_socket.handleMessage(self.parent._connection, data)
@@ -300,11 +328,12 @@ class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
         """Return a DTLSConnection to a given address. This will always give
         the same result for the same host/port combination, at least for as
         long as that result is kept alive (eg. by messages referring to it in
-        their .remote)."""
+        their .remote) and while the connection has not failed."""
 
         try:
             return self._pool[(host, port, pskId)]
         except KeyError:
+            self.log.info("No DTLS connection active to (%s, %s, %s), creating one", host, port, pskId)
             connection = DTLSClientConnection(host, port, pskId, psk, self)
             self._pool[(host, port, pskId)] = connection
             return connection
