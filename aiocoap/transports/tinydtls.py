@@ -125,7 +125,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         self.coaptransport = coaptransport
         self.hostinfo = hostportjoin(host, None if port == COAPS_PORT else port)
 
-        self._startup = asyncio.ensure_future(self._run())
+        self._startup = asyncio.ensure_future(self._start())
 
     def _remove_from_pool(self):
         """Remove self from the MessageInterfaceTinyDTLS's pool, so that it
@@ -151,7 +151,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
     log = property(lambda self: self.coaptransport.log)
 
-    async def _run(self):
+    async def _start(self):
         from DTLSSocket import dtls
 
         self._dtls_socket = None
@@ -159,7 +159,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         self._connection = None
 
         try:
-            self._transport, singleconnection = await self.coaptransport.loop.create_datagram_endpoint(
+            self._transport, _ = await self.coaptransport.loop.create_datagram_endpoint(
                     self.SingleConnection.factory(self),
                     remote_addr=(self._host, self._port),
                     )
@@ -232,6 +232,13 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         # delayed ICMP errors that might still wind up in the old socket
         self._transport.close()
 
+    def __del__(self):
+        # Breaking the loops between the DTLS object and this here to allow for
+        # an orderly Alet (fatal, close notify) to go out -- and also because
+        # DTLSSocket throws `TypeError: 'NoneType' object is not subscriptable`
+        # from its destructor while the cyclical dependency is taken down.
+        self.shutdown()
+
     def _inject_error(self, e):
         """Put an error to all pending operations on this remote, just as if it
         were raised inside the main loop."""
@@ -291,22 +298,31 @@ class DTLSClientConnection(interfaces.EndpointAddress):
     class SingleConnection:
         @classmethod
         def factory(cls, parent):
-            return functools.partial(cls, parent)
+            return functools.partial(cls, weakref.ref(parent))
 
         def __init__(self, parent):
             self.parent = parent #: DTLSClientConnection
 
         def connection_made(self, transport):
-            pass # already handled in .start()
+            # only for for shutdown
+            self.transport = transport
 
         def connection_lost(self, exc):
             pass
 
         def error_received(self, exc):
-            self.parent._inject_error(exc)
+            parent = self.parent()
+            if parent is None:
+                self.transport.close()
+                return
+            parent._inject_error(exc)
 
         def datagram_received(self, data, addr):
-            self.parent._dtls_socket.handleMessage(self.parent._connection, data)
+            parent = self.parent()
+            if parent is None:
+                self.transport.close()
+                return
+            parent._dtls_socket.handleMessage(parent._connection, data)
 
 class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
     def __init__(self, ctx: interfaces.MessageManager, log, loop):
