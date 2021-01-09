@@ -94,27 +94,6 @@ class FatalDTLSError(Exception):
     request was being processed"""
 
 class DTLSClientConnection(interfaces.EndpointAddress):
-    # for now i'd assyme the connection can double as an address. this means it
-    # must be able to reconnect, and to manage itself as a member of a pool.
-
-    # actually .remote probably needs to be split into different aspects, and
-    # then this will fall apart; in particular:
-    # * "Address where this must come from in order to match the request"
-    # * "Address where to send a package that I want to send to where I
-    #    previously sent something else" (and my own address might have changed)
-    # * possibly something else too
-    #
-    # maybe this can become something like "connection identified by initial
-    # parameters that will try to keep a persistent security context, but will
-    # fail over to doing something else (eg. establishing a new security
-    # context or using another source ip) based on the original parameters if
-    # that's possible (a client connection will always be able to do that, with
-    # a server's side that'll probably fail permanently), and anyway indicate
-    # what happens"?
-    #
-    # for now i'm ignoring that (FIXME this means that some MUST of the spec
-    # are not met!)
-
     # FIXME not only does this not do error handling, it seems not to even
     # survive its 2**16th message exchange.
 
@@ -137,12 +116,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
     def __init__(self, host, port, pskId, psk, coaptransport):
         self._ready = False
-        self._queue = asyncio.Queue() # stores sent packages while connection
-            # is being built. for the above reasons of "this must be able to
-            # reconnect", we must always be able to enqueue the package, even
-            # though most times it will just be sent right away. the
-            # transmission throttling of Protocol will make sure that this
-            # doesn't really fill up.
+        self._queue = [] # stores sent packages while connection is being built
 
         self._host = host
         self._port = port
@@ -151,7 +125,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         self.coaptransport = coaptransport
         self.hostinfo = hostportjoin(host, None if port == COAPS_PORT else port)
 
-        self._task = asyncio.ensure_future(self._run())
+        self._startup = asyncio.ensure_future(self._run())
 
     def _remove_from_pool(self):
         """Remove self from the MessageInterfaceTinyDTLS's pool, so that it
@@ -165,7 +139,15 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             del self.coaptransport._pool[poolkey]
 
     def send(self, message):
-        self._queue.put_nowait(message)
+        if self._queue is not None:
+            self._queue.append(message)
+        else:
+            # most of the time that will have returned long ago
+            self._retransmission_task.cancel()
+
+            self._dtls_socket.write(self._connection, message)
+
+            self._retransmission_task = asyncio.Task(self._run_retransmissions())
 
     log = property(lambda self: self.coaptransport.log)
 
@@ -194,14 +176,20 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             self._retransmission_task = asyncio.Task(self._run_retransmissions())
 
             self._connecting = asyncio.Future()
-
             await self._connecting
 
-            while True:
-                message = await self._queue.get()
-                self._retransmission_task.cancel()
-                self._dtls_socket.write(self._connection, message)
-                self._retransmission_task = asyncio.Task(self._run_retransmissions())
+            queue = self._queue
+            self._queue = None
+
+            for message in queue:
+                # could be a tad more efficient by stopping the retransmissions
+                # in a go, then doing just the punch line and then starting it,
+                # but practically this will be a single thing most of the time
+                # anyway
+                self.send(message)
+
+            return
+
         except OSError as e:
             self.log.debug("Expressing exception %r as errno %d.", e, e.errno)
             self.coaptransport.ctx.dispatch_error(e.errno, self)
@@ -213,17 +201,11 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             self.log.error("Exception %r can not be represented as errno, setting -1.", e)
             self.coaptransport.ctx.dispatch_error(-1, self)
         finally:
-            self._remove_from_pool()
-            if self._connection is not None:
-                try:
-                    self._dtls_socket.close(self._connection)
-                except:
-                    pass # _dtls_socket actually does raise an empty Exception() here
-                self._retransmission_task.cancel()
-            # doing this here allows the dtls socket to send a final word, but
-            # by closing this, we protect the nascent next connection from any
-            # delayed ICMP errors that might still wind up in the old socket
-            self._transport.close()
+            if self._queue is None:
+                # all worked, we're done here
+                return
+
+            self.shutdown()
 
     async def _run_retransmissions(self):
         while True:
@@ -235,12 +217,24 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
 
     def shutdown(self):
-        self._task.cancel()
+        self._remove_from_pool()
+
+        self._startup.cancel()
+        self._retransmission_task.cancel()
+
+        if self._connection is not None:
+            try:
+                self._dtls_socket.close(self._connection)
+            except:
+                pass # _dtls_socket actually does raise an empty Exception() here
+        # doing this here allows the dtls socket to send a final word, but
+        # by closing this, we protect the nascent next connection from any
+        # delayed ICMP errors that might still wind up in the old socket
+        self._transport.close()
 
     def _inject_error(self, e):
         """Put an error to all pending operations on this remote, just as if it
         were raised inside the main loop."""
-        self._remove_from_pool()
 
         if isinstance(e, OSError):
             self.log.debug("Expressing exception %r as errno %d.", e, e.errno)
@@ -249,7 +243,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             self.log.error("Exception %r can not be represented as errno, setting -1.", e)
             self.coaptransport.ctx.dispatch_error(-1, self)
 
-        self._task.cancel()
+        self.shutdown()
 
     # dtls callbacks
 
