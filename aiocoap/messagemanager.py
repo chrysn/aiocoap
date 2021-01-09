@@ -79,8 +79,20 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         sublayers of CoAP"""
 
         self.log.debug("Incoming message %r", message)
-        if self._deduplicate_message(message) is True:
-            return
+        if message.code.is_request():
+            # Responses don't get deduplication because they "are idempotent or
+            # can be handled in an idempotent fashion" (RFC 7252 Section 4.5).
+            # This means that a separate response may get a RST when it is
+            # arrives at the aiocoap client twice. Note that this does not
+            # impede the operation of observations: Their token is still active
+            # so they are ACK'd, and deduplication based on observation numbers
+            # filters out the rest.
+            #
+            # This saves memory, and allows stateful transports to be shut down
+            # expeditiously unless kept alive by something else (otherwise,
+            # they'd linger for EXCHANGE_LIFETIME with no good reason).
+            if self._deduplicate_message(message) is True:
+                return
 
         if message.mtype in (ACK, RST):
             self._remove_exchange(message)
