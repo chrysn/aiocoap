@@ -77,7 +77,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         for key, request in self.outgoing_requests.items():
             (token, request_remote) = key
             if request_remote == remote:
-                stoppers.append(lambda: request.add_exception(exception))
+                stoppers.append(lambda request=request, exception=exception: request.add_exception(exception))
 
         for ((_, _r), (_, stopper)) in self.incoming_requests.items():
             if remote == _r:
