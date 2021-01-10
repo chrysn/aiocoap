@@ -688,7 +688,9 @@ class Request(interfaces.Request, BaseUnicastRequest):
             # similar to a cancelled task
             self._runner = None
             self._stop_interest()
-            self._stop_interest = None
+        # But either way we won't be calling _stop_interest any more, so let's
+        # not keep anything referenced
+        self._stop_interest = None
 
     @staticmethod
     def _add_response_properties(response, request):
