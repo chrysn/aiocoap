@@ -679,7 +679,13 @@ class Request(interfaces.Request, BaseUnicastRequest):
         self.response.add_done_callback(self._response_cancellation_handler)
 
     def _response_cancellation_handler(self, response):
+        # Propagate cancellation to the runner (if interest in the first
+        # response is lost, there won't be observation items to pull out), but
+        # not general completion (because if it's completed and not cancelled,
+        # eg. when an observation is active)
         if self.response.cancelled() and self._runner is not None:
+            # Dropping the only reference makes it stop with GeneratorExit,
+            # similar to a cancelled task
             self._runner = None
             self._stop_interest()
             self._stop_interest = None
@@ -814,7 +820,8 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         self.response.add_done_callback(self._response_cancellation_handler)
 
     def _response_cancellation_handler(self, response_future):
-        if self.response.cancelled() and not self._runner.cancelled():
+        # see Request._response_cancellation_handler
+        if self.response.cancelled():
             self._runner.cancel()
 
     @classmethod
