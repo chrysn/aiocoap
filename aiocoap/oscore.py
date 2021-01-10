@@ -15,6 +15,7 @@ the larger aiocoap stack of having a context or requests; that's what
 
 from __future__ import annotations
 
+import io
 import json
 import binascii
 import os, os.path
@@ -1291,8 +1292,15 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
         else:
             data['received'] = self.recipient_replay_window.persist()
 
-        with os.fdopen(tmphand, 'w') as tmpfile:
-            json.dump(data, tmpfile)
+        # Using io.open (instead os.fdopen) and binary / write with encode
+        # rather than dumps as that works even while the interpreter is
+        # shutting down.
+        #
+        # This can be relaxed when there is a defined shutdown sequence for
+        # security contexts that's triggered from the general context shutdown
+        # -- but right now, there isn't.
+        with io.open(tmphand, 'wb') as tmpfile:
+            tmpfile.write(json.dumps(data).encode('utf8'))
             tmpfile.flush()
             os.fsync(tmpfile.fileno())
 
