@@ -75,7 +75,7 @@ Dependencies
 * The minimum required Python version is now 3.7.
 * The cbor library dependency was replaced with the cbor2 library.
 * The dependency on the hkdf library was removed.
-* A dependency on NaCL was added.
+* The ge25519 library dependency was added to perform key conversion steps necessary for Group OSCORE.
 
 Portability
 ~~~~~~~~~~~
