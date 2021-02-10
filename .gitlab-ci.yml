@@ -76,6 +76,10 @@ test:tox-on-pypy:
     - apt-get update
     # Less to install here as the pypy container should contain full pypy with all its pip etc. already
     - apt-get -y install build-essential libssl-dev autoconf
+    # Rust 1.45? Not on this backend. But no wheels for pypy either, it seems.
+    - "sh <(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs) -y"
+    # as requested by Rust -- this is all going line by line into a shell script, after all (unlike in a Makefile)
+    - "export PATH=${PATH}:${HOME}/.cargo/bin"
     - pip install tox
     # Separate run so I don't waste time telling errors in setup apart from errors at runtime
     - tox --notest
