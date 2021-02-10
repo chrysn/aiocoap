@@ -25,11 +25,57 @@ New features
   the platoforrm. This makes it a viable candidate for LwM2M clients as they
   often operate using role reversal.
 
+* Servers (including the shipped examples) can now offer OSCORE through the
+  OSCORE sitewrapper.
+
+  Access control is only rudimentary in that the authorization information is
+  not available in a convenient form yet.
+
+* CoAP over WebSockets is now supported (in client and server role, with and
+  without TLS). Please note that the default port bound to is not the HTTP
+  default port but 8683.
+
+* OSCORE group communication is now minimally supported (based on draft version
+  10). No automated ways of setting up a context are provided yet.
+
+  This includes highly experimental support for deterministic requests.
+
+* DTLS: Terminating connections are now handled correctly, and shut down when
+  unused.
+
+  The associated refactoring also reduces the resource usage of DTLS
+  connections.
+
+Tools updates
+~~~~~~~~~~~~~
+
+* aiocoap-client: New options to
+
+  * set initial Block1 size (`--payload-initial-szx`), and to
+  * elide the Uri-Host option from requests to named hosts.
+
+* aiocoap-client: CBOR input now accepts Python literals or JSON automatically,
+  and can thus produce numeric keys and byte strings.
+
+* aiocoap-client: Preprocessed CBOR output now works for any CBOR-based content
+  format.
+
+* resource-directory: Updated to draft -25.
+
+* resource-directory: Compatibility mode for LwM2M added.
+
+* resource-directory: Proxying extension implemented. With this, and RD can be
+  configured to allow access to endpoints behind a firewalls or NAT.
+
+* Example server: Add /whoami resource.
+
 Dependencies
 ~~~~~~~~~~~~
 
+* The minimum required Python version is now 3.7.
 * The cbor library dependency was replaced with the cbor2 library.
 * The dependency on the hkdf library was removed.
+* A dependency on NaCL was added.
 
 Portability
 ~~~~~~~~~~~
@@ -46,6 +92,14 @@ Fixes possibly breaking applications
 
   The original error cause is available in a chained exception.
 
+* Responses are not deduplicated any more; as a result, less state is kept in
+  the library.
+
+  As a result, separate responses whose ACKs get lost produce an RST the second
+  time the CON comes. This changes nothing about the client-side handling
+  (which is complete either way with the first response), but may upset servers
+  that do not anticipate this allowed behavior.
+
 Minor fixes
 ~~~~~~~~~~~
 
@@ -59,6 +113,18 @@ Minor fixes
 * Server errors from rendering exceptions to messages are now caught.
 * Notifications now respect the block size limit.
 * Several improvements to the test infrastructure.
+* Refactoring around request processing internals (PlumbingRequest) alleviated potential memory leaks.
+* Update option numbers from draft-ietf-echo-request-tag-10.
+* Various proxying fixes and enhancements.
+* TLS: Use SNI (Python >= 3.8), set correct hostinfo based on it.
+* Internally used NoResponse options on responses are not leaked any more.
+* Timeouts from one remote are now correctly propagated to all pending requests.
+* Various logging improvements and changes.
+* udp6: Show warnings when operating system fails to deliver pktinfo (happens with very old Linux kernels).
+* Reduce installation clobber by excluding tests.
+* Enhanced error reporting for erroneous `coap://2001:db8::1/` style URIs
+* Improve OSCORE's shutdown robustness.
+* Sending to IPv4 literals now does not send the Uri-Host automatically any more.
 
 Version 0.4b3
 -------------
