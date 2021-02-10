@@ -96,7 +96,7 @@ setup(
     license='MIT',
     keywords=['coap', 'asyncio', 'iot'],
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Framework :: AsyncIO',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
@@ -106,6 +106,7 @@ setup(
         'Topic :: Internet',
         'Topic :: Security',
         'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic :: System :: Networking',
         ],
 
     # When changing this, also look into doc/faq.rst and README.rst
