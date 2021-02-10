@@ -1,5 +1,6 @@
 include *.py
 include contrib/*
+include contrib/*/*
 include doc/*
 include LICENSE
 include NEWS
