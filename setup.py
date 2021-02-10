@@ -14,12 +14,11 @@
 
 from setuptools import setup, find_packages
 from distutils.core import Command
-import os
+import os, os.path
 
 name = "aiocoap"
 version = "0.4" # Don't forget meta.version and doc/conf.py
 description = "Python CoAP library"
-longdescription = __doc__
 
 # When introducing something new, make sure to update doc/installation.rst
 extras_require = {
@@ -86,6 +85,8 @@ setup(
     name=name,
     version=version,
     description=description,
+    long_description=open(os.path.join(os.path.dirname(__file__), 'README.rst')).read(),
+    long_description_content_type='text/x-rst',
     packages=find_packages(exclude=["tests"]),
 
     author="Maciej Wasilak, Christian Amsüss",
