@@ -516,7 +516,7 @@ class Message(object):
         self.remote = UndecidedRemote(parsed.scheme, parsed.netloc)
 
         is_ip_literal = parsed.netloc.startswith('[') or (
-                parsed.hostname.count('.') == 4 and
+                parsed.hostname.count('.') == 3 and
                 all(c in '0123456789.' for c in parsed.hostname) and
                 all(int(x) <= 255 for x in parsed.hostname.split('.')))
 
