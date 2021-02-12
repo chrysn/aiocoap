@@ -7,7 +7,7 @@ while it is not clear where to better put them).
 * **Which platforms are supported?**
 
   aiocoap requires Python 3.7
-  or a recent version of PyPy (which is techically 3.6.9 still),
+  (or PyPy 3.7),
   and should run on all operating systems supported by Python.
 
   Development and automated tests run on Linux, and this is where all listed features are supported.

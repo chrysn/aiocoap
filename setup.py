@@ -110,7 +110,7 @@ setup(
         ],
 
     # When changing this, also look into doc/faq.rst and README.rst
-    python_requires='>=3.6.9',
+    python_requires='>=3.7',
     extras_require=extras_require,
     tests_require=tests_require,
 
