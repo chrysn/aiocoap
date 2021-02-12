@@ -1,3 +1,13 @@
+Version 0.4.1
+-------------
+
+* Fix Python version reference to clearly indicate the 3.7 requirement
+  everywhere.
+
+  A Python requirement of ">= 3.6.9" was left over in the previous release's
+  metadata from earlier intermediate steps that accomodated PyPy's pre-3.7
+  version.
+
 Version 0.4
 -----------
 
