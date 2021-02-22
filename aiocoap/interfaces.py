@@ -6,8 +6,13 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""This module provides interface base classes to various aiocoap services,
-especially with respect to request and response handling."""
+"""This module provides interface base classes to various aiocoap software
+components, especially with respect to request and response handling. It
+describes `abstract base classes`_ for messages, endpoints etc.
+
+It is *completely unrelated* to the concept of "network interfaces".
+
+.. _`abstract base classes`: https://docs.python.org/3/library/abc"""
 
 from __future__ import annotations
 
