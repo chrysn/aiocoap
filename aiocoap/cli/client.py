@@ -272,6 +272,8 @@ async def single_request(args, context=None):
         interface = aiocoap.proxy.client.ProxyForwarder(options.proxy, context)
 
     try:
+        requested_uri = request.get_request_uri()
+
         requester = interface.request(request)
 
         if options.observe:
@@ -297,6 +299,10 @@ async def single_request(args, context=None):
             print("Error:", text, file=sys.stderr)
             sys.exit(1)
 
+        response_uri = response_data.get_request_uri()
+        if requested_uri != response_uri:
+            print("Response arrived from different address; base URI is",
+                    response_uri, file=sys.stderr)
         if response_data.code.is_successful():
             present(response_data, options)
         else:
