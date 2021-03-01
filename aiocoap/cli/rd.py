@@ -230,18 +230,15 @@ class CommonRD:
         def get_based_links(self):
             """Produce a LinkFormat object that represents all statements in
             the registration, resolved to the registration's base (and thus
-            suitable for serving from the lookup interface).
-
-            This implements Limited Link Format as described in Appendix C
-            of draft-ietf-core-resource-directory-25."""
+            suitable for comparing anchors)."""
             result = []
             for l in self.links.links:
+                href = urljoin(self.base, l.href)
                 if 'anchor' in l:
                     absanchor = urljoin(self.base, l.anchor)
                     data = [(k, v) for (k, v) in l.attr_pairs if k != 'anchor'] + [['anchor', absanchor]]
                 else:
-                    data = l.attr_pairs + [['anchor', self.base]]
-                href = urljoin(self.base, l.href)
+                    data = l.attr_pairs + [['anchor', urljoin(href, '/')]]
                 result.append(Link(href, data))
             return LinkFormat(result)
 
@@ -543,6 +540,13 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
         candidates = (c for (e, c) in candidates)
 
         candidates = _paginate(candidates, query)
+
+        # strip needless anchors
+        candidates = [
+                Link(l.href, [(k, v) for (k, v) in l.attr_pairs if k != 'anchor'])
+                if dict(l.attr_pairs)['anchor'] == urljoin(l.href, '/')
+                else l
+                for l in candidates]
 
         return link_format_to_message(request, LinkFormat(candidates))
 
