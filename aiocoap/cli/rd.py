@@ -538,10 +538,9 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
 
         return link_format_to_message(request, LinkFormat(candidates))
 
-class SimpleRegistrationWKC(WKCResource):
-    def __init__(self, listgenerator, common_rd, context):
-        super().__init__(listgenerator)
-        self.common_rd = common_rd
+class SimpleRegistration(ThingWithCommonRD, Resource):
+    def __init__(self, common_rd, context):
+        super().__init__(common_rd)
         self.context = context
 
     async def render_post(self, request):
@@ -581,6 +580,11 @@ class SimpleRegistrationWKC(WKCResource):
         registration = self.common_rd.initialize_endpoint(network_remote, registration_parameters)
         registration.links = links
 
+class SimpleRegistrationWKC(WKCResource, SimpleRegistration):
+    def __init__(self, listgenerator, common_rd, context):
+        WKCResource.__init__(self, listgenerator)
+        SimpleRegistration.__init__(self, common_rd, context)
+
 class StandaloneResourceDirectory(Proxy, Site):
     """A site that contains all function sets of the CoAP Resource Directoru
 
@@ -599,6 +603,7 @@ class StandaloneResourceDirectory(Proxy, Site):
         common_rd = CommonRD(**kwargs)
 
         self.add_resource([".well-known", "core"], SimpleRegistrationWKC(self.get_resources_as_linkheader, common_rd=common_rd, context=context))
+        self.add_resource([".well-known", "rd"], SimpleRegistration(common_rd=common_rd, context=context))
 
         self.add_resource(self.rd_path, DirectoryResource(common_rd=common_rd))
         self.add_resource(self.ep_lookup_path, EndpointLookupInterface(common_rd=common_rd))
