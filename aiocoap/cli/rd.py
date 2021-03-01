@@ -49,6 +49,16 @@ import link_header
 IMMUTABLE_PARAMETERS = ('ep', 'd', 'proxy')
 
 def query_split(msg):
+    """Split a message's query up into (key, [*value]) pairs from a
+    ?key=value&key2=value2 style Uri-Query options.
+
+    Keys without an `=` sign will have a None value, and all values are
+    expressed as an (at least 1-element) list of repetitions.
+
+    >>> m = aiocoap.Message(uri="coap://example.com/foo?k1=v1.1&k1=v1.2&obs")
+    >>> query_split(m)
+    {'k1': ['v1.1', 'v1.2'], 'obs': [None]}
+    """
     result = {}
     for q in msg.opt.uri_query:
         if '=' not in q:
