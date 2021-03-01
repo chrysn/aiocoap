@@ -99,6 +99,9 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
     Moreover, this class provides a ``get_link_description`` method as used by
     .well-known/core to expose a resource's ``.ct``, ``.rt`` and ``.if_``
     (alternative name for ``if`` as that's a Python keyword) attributes.
+    Details can be added by overriding the method to return a more
+    comprehensive dictionary, and resources can be hidden completely by
+    returning None.
     """
 
     async def needs_blockwise_assembly(self, request):
@@ -400,6 +403,8 @@ class Site(interfaces.ObservableResource, PathCapable):
                 details = resource.get_link_description()
             else:
                 details = {}
+            if details is None:
+                continue
             lh = Link('/' + '/'.join(path), **details)
 
             links.append(lh)
