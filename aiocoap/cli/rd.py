@@ -78,7 +78,7 @@ def pop_single_arg(query, name):
     if name not in query:
         return None
     if len(query[name]) > 1:
-        raise BadRequest("Multiple values for %r" % name)
+        raise error.BadRequest("Multiple values for %r" % name)
     return query.pop(name)[0]
 
 class CommonRD:
@@ -289,7 +289,7 @@ class CommonRD:
             # FIXME: 'ondemand' is done unconditionally
 
             if not self.proxy_domain:
-                raise BadRequest("Proxying not enabled")
+                raise error.BadRequest("Proxying not enabled")
 
             def is_usable(s):
                 # Host names per RFC1123 (which is stricter than what RFC3986 would allow).
@@ -299,7 +299,7 @@ class CommonRD:
                 # to be first-registered-first-served)
                 return s and all(x in string.ascii_lowercase + string.digits + '-' for x in s)
             if not is_usable(ep) or (d is not None and not is_usable(d)):
-                raise BadRequest("Proxying only supported for limited ep and d set (lowercase, digits, dash)")
+                raise error.BadRequest("Proxying only supported for limited ep and d set (lowercase, digits, dash)")
 
             proxy_host = ep
             if d is not None:
