@@ -1686,7 +1686,7 @@ class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
         return self._kdf(self.groupcontext.recipient_keys[self.recipient_id], protected_message.opt.request_hash, self.recipient_id, 'Key')
 
     def _post_decrypt_checks(self, aad, plaintext, protected_message, request_id):
-        if plaintext[0] not in (4+GET, FETCH): # FIXME: "is safe"
+        if plaintext[0] not in (GET, FETCH): # FIXME: "is safe"
             # FIXME: accept but return inner Unauthorized. (Raising Unauthorized
             # here would just create an unprotected Unauthorized, which is not
             # what's spec'd for here)
