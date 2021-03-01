@@ -378,10 +378,18 @@ class DirectoryResource(ThingWithCommonRD, Resource):
     ct = link_format_to_message.supported_ct
     rt = "core.rd"
 
+    #: Issue a custom warning when registrations come in via this interface
+    registration_warning = None
+
     async def render_post(self, request):
         links = link_format_from_message(request)
 
         registration_parameters = query_split(request)
+
+        if self.registration_warning:
+            # Conveniently placed so it could be changed to something setting
+            # additional registration_parameters instead
+            logging.warning("Warning from registration: %s", self.registration_warning)
 
         regresource = self.common_rd.initialize_endpoint(request.remote, registration_parameters)
         regresource.links = links
@@ -539,6 +547,9 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
         return link_format_to_message(request, LinkFormat(candidates))
 
 class SimpleRegistration(ThingWithCommonRD, Resource):
+    #: Issue a custom warning when registrations come in via this interface
+    registration_warning = None
+
     def __init__(self, common_rd, context):
         super().__init__(common_rd)
         self.context = context
@@ -577,6 +588,10 @@ class SimpleRegistration(ThingWithCommonRD, Resource):
         response = await self.context.request(get).response_raising
         links = link_format_from_message(response)
 
+        if self.registration_warning:
+            # Conveniently placed so it could be changed to something setting
+            # additional registration_parameters instead
+            logging.warning("Warning from registration: %s", self.registration_warning)
         registration = self.common_rd.initialize_endpoint(network_remote, registration_parameters)
         registration.links = links
 
@@ -584,6 +599,7 @@ class SimpleRegistrationWKC(WKCResource, SimpleRegistration):
     def __init__(self, listgenerator, common_rd, context):
         WKCResource.__init__(self, listgenerator)
         SimpleRegistration.__init__(self, common_rd, context)
+        self.registration_warning = "via .well-known/core"
 
 class StandaloneResourceDirectory(Proxy, Site):
     """A site that contains all function sets of the CoAP Resource Directoru
@@ -596,7 +612,10 @@ class StandaloneResourceDirectory(Proxy, Site):
     ep_lookup_path = ("endpoint-lookup", "")
     res_lookup_path = ("resource-lookup", "")
 
-    def __init__(self, context, **kwargs):
+    def __init__(self, context, lwm2m_compat=None, **kwargs):
+        if lwm2m_compat is True:
+            self.rd_path = ("rd",)
+
         # Double inheritance: works as everything up of Proxy has the same interface
         super().__init__(outgoing_context=context)
 
@@ -606,6 +625,12 @@ class StandaloneResourceDirectory(Proxy, Site):
         self.add_resource([".well-known", "rd"], SimpleRegistration(common_rd=common_rd, context=context))
 
         self.add_resource(self.rd_path, DirectoryResource(common_rd=common_rd))
+        if list(self.rd_path) != ["rd"] and lwm2m_compat is None:
+            second_dir_resource = DirectoryResource(common_rd=common_rd)
+            second_dir_resource.registration_warning = "via unannounced /rd"
+            # Hide from listing
+            second_dir_resource.get_link_description = lambda *args: None
+            self.add_resource(["rd"], second_dir_resource)
         self.add_resource(self.ep_lookup_path, EndpointLookupInterface(common_rd=common_rd))
         self.add_resource(self.res_lookup_path, ResourceLookupInterface(common_rd=common_rd))
 
@@ -634,9 +659,6 @@ class StandaloneResourceDirectory(Proxy, Site):
         else:
             return await Site.render(self, request)
 
-class LwM2MCompatibilityRD(StandaloneResourceDirectory):
-    rd_path = ["rd",]
-
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
 
@@ -648,14 +670,14 @@ class Main(AsyncCLIDaemon):
     async def start(self, args=None):
         parser = build_parser()
         parser.add_argument("--proxy-domain", help="Enable the RD proxy extension. Example: `.proxy.example.net` will produce base URIs like `coap://node1.proxy.example.net/`. The names must all resolve to an address the RD is bound to.", type=str)
-        parser.add_argument("--lwm2m-compat", help="Compatibility mode for LwM2M clients that can not perform some discovery steps (moving the registration resource to `/rd`)", action='store_true')
+        parser.add_argument("--lwm2m-compat", help="Compatibility mode for LwM2M clients that can not perform some discovery steps (moving the registration resource to `/rd`)", action='store_true', default=None)
+        parser.add_argument("--no-lwm2m-compat", help="Disable all compativility with LwM2M clients that can not perform some discovery steps (not even accepting registrations at `/rd` with warnings)", action='store_false', dest='lwm2m_compat')
         options = parser.parse_args(args if args is not None else sys.argv[1:])
 
         # Putting in an empty site to construct the site with a context
         self.context = await server_context_from_arguments(None, options)
 
-        siteclass = LwM2MCompatibilityRD if options.lwm2m_compat else StandaloneResourceDirectory
-        self.site = siteclass(context=self.context, proxy_domain=options.proxy_domain)
+        self.site = StandaloneResourceDirectory(context=self.context, proxy_domain=options.proxy_domain, lwm2m_compat=options.lwm2m_compat)
         self.context.serversite = self.site
 
     async def shutdown(self):
