@@ -365,7 +365,7 @@ class Ed25519(AlgorithmCountersign):
         return private_key.exchange(public_key)
 
     # from https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10#appendix-G
-    value_all_par = [-8, [[1], [1, 6]], [1, 6]]
+    value_all_par = [-8, [[1], [1, 6]]]
 
     signature_length = 64
 
@@ -414,7 +414,7 @@ class ECDSA_SHA256_P256(AlgorithmCountersign):
         return private_key.exchange(asymmetric.ec.ECDH(), public_key)
 
     # from https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10#appendix-G
-    value_all_par = [-7, [[2], [2, 1]], [2, 1]]
+    value_all_par = [-7, [[2], [2, 1]]]
 
     signature_length = 64
 
