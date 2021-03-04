@@ -482,7 +482,7 @@ class BaseSecurityContext:
 
         return nonce
 
-    def _extract_external_aad(self, message, request_kid, request_piv, for_signature=False):
+    def _extract_external_aad(self, message, request_kid, request_piv):
         # If any option were actually Class I, it would be something like
         #
         # the_options = pick some of(message)
@@ -506,7 +506,6 @@ class BaseSecurityContext:
         if self.external_aad_is_group:
             external_aad.append(self.id_context)
 
-        if for_signature:
             assert message.opt.object_security is not None
             external_aad.append(message.opt.object_security)
 
@@ -619,27 +618,24 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             if self.responses_send_kid:
                 unprotected[COSE_KID] = self.sender_id
 
+        # Putting in a dummy value as the signature calculation will already need some of the compression result
+        if self.is_signing:
+            unprotected[COSE_COUNTERSINGATURE0] = b""
+        # FIXME: Running this twice quite needlessly (just to get the object_security option for sending)
+        option_data, _ = self._compress(protected, unprotected, b"")
+
+        outer_message.opt.object_security = option_data
+
         aad = self.algorithm._build_encrypt0_structure(protected, self._extract_external_aad(outer_message, request_id.kid, request_id.partial_iv))
 
         key = self._get_sender_key(outer_message, aad, plaintext, request_id)
 
         ciphertext = self.algorithm.encrypt(plaintext, aad, key, nonce)
 
-        # Putting in a dummy value as the signature calculation will already need some of the compression result
-        if self.is_signing:
-            unprotected[COSE_COUNTERSINGATURE0] = b""
-        option_data, payload = self._compress(protected, unprotected, ciphertext)
+        _, payload = self._compress(protected, unprotected, ciphertext)
 
-        outer_message.opt.object_security = option_data
         if self.is_signing:
-            # Belayed until outer_message has the Object-Security option assigned
-            external_aad_for_signing = self._extract_external_aad(
-                    outer_message,
-                    request_id.kid,
-                    request_id.partial_iv,
-                    for_signature=True
-                    )
-            payload += self.alg_countersign.sign(payload, external_aad_for_signing, self.private_key)
+            payload += self.alg_countersign.sign(payload, external_aad, self.private_key)
         outer_message.payload = payload
 
         # FIXME go through options section
@@ -829,7 +825,8 @@ class CanUnprotect(BaseSecurityContext):
         if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
 
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_id.kid, request_id.partial_iv)]
+        external_aad = self._extract_external_aad(protected_message, request_id.kid, request_id.partial_iv)
+        enc_structure = ['Encrypt0', protected_serialized, external_aad]
         aad = cbor.dumps(enc_structure)
 
         key = self._get_recipient_key(protected_message)
@@ -842,9 +839,7 @@ class CanUnprotect(BaseSecurityContext):
             self.recipient_replay_window.strike_out(seqno)
 
         if signature is not None:
-            # Only doing the expensive signature validation once the cheaper decyrption passed
-            external_aad_for_signing = self._extract_external_aad(protected_message, request_id.kid, request_id.partial_iv, for_signature=True)
-            alg_countersign.verify(signature, ciphertext, external_aad_for_signing, self.recipient_public_key)
+            alg_countersign.verify(signature, ciphertext, external_aad, self.recipient_public_key)
 
         # FIXME add options from unprotected
 
