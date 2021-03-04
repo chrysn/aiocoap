@@ -482,7 +482,7 @@ class BaseSecurityContext:
 
         return nonce
 
-    def _extract_external_aad(self, message, request_kid, request_piv):
+    def _extract_external_aad(self, message, request_id):
         # If any option were actually Class I, it would be something like
         #
         # the_options = pick some of(message)
@@ -498,8 +498,8 @@ class BaseSecurityContext:
         external_aad = [
                 oscore_version,
                 algorithms,
-                request_kid,
-                request_piv,
+                request_id.kid,
+                request_id.partial_iv,
                 class_i_options,
                 ]
 
@@ -626,9 +626,11 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         outer_message.opt.object_security = option_data
 
-        aad = self.algorithm._build_encrypt0_structure(protected, self._extract_external_aad(outer_message, request_id.kid, request_id.partial_iv))
+        external_aad = self._extract_external_aad(outer_message, request_id)
 
-        key = self._get_sender_key(outer_message, aad, plaintext, request_id)
+        aad = self.algorithm._build_encrypt0_structure(protected, external_aad)
+
+        key = self._get_sender_key(outer_message, external_aad, plaintext, request_id)
 
         ciphertext = self.algorithm.encrypt(plaintext, aad, key, nonce)
 
@@ -825,7 +827,7 @@ class CanUnprotect(BaseSecurityContext):
         if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
 
-        external_aad = self._extract_external_aad(protected_message, request_id.kid, request_id.partial_iv)
+        external_aad = self._extract_external_aad(protected_message, request_id)
         enc_structure = ['Encrypt0', protected_serialized, external_aad]
         aad = cbor.dumps(enc_structure)
 
@@ -833,12 +835,13 @@ class CanUnprotect(BaseSecurityContext):
 
         plaintext = self.algorithm.decrypt(ciphertext, aad, key, nonce)
 
-        self._post_decrypt_checks(aad, plaintext, protected_message, request_id)
+        self._post_decrypt_checks(external_aad, plaintext, protected_message, request_id)
 
         if not is_response and seqno is not None and replay_error is None:
             self.recipient_replay_window.strike_out(seqno)
 
         if signature is not None:
+            # Only doing the expensive signature validation once the cheaper decyrption passed
             alg_countersign.verify(signature, ciphertext, external_aad, self.recipient_public_key)
 
         # FIXME add options from unprotected
