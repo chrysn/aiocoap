@@ -274,7 +274,6 @@ class TestOSCOAAsymmetric(unittest.TestCase):
         # "Rikard Test 2"
         self.r2_csalg = -8
         self.r2_csalg_params = [[1], [1, 6]]
-        self.r2_csalg_keyparams = [1, 6]
 
         self.r2_1_private = bytes.fromhex('397CEB5A8D21D74A9258C20C33FC45AB152B02CF479B2E3081285F77454CF347')
         self.r2_1_public = bytes.fromhex('CE616F28426EF24EDB51DBCEF7A23305F886F657959D4DF889DDFC0255042159')
@@ -295,7 +294,7 @@ class TestOSCOAAsymmetric(unittest.TestCase):
         self.r2_shared_13 = bytes.fromhex('bb11648af3dfebb35e612914a7a21fc751b001aceb0267c5536528e2b9261450')
 
     def alg(self):
-        all_par = [self.r2_csalg, self.r2_csalg_params, self.r2_csalg_keyparams]
+        all_par = [self.r2_csalg, self.r2_csalg_params]
         # FIXME we probably need an algorithm finder from value_all_par
         alg = aiocoap.oscore.Ed25519()
         self.assertEqual(alg.value_all_par, all_par)
