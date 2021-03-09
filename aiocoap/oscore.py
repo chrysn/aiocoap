@@ -121,6 +121,8 @@ class RequestIdentifiers:
         self.nonce = nonce
         self.can_reuse_nonce = can_reuse_nonce
 
+        self.request_hash = None
+
     def get_reusable_nonce(self):
         """Return the nonce if can_reuse_nonce is True, and set can_reuse_nonce
         to False."""
@@ -365,7 +367,7 @@ class Ed25519(AlgorithmCountersign):
         return private_key.exchange(public_key)
 
     # from https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10#appendix-G
-    value_all_par = [-8, [[1], [1, 6]], [1, 6]]
+    value_all_par = [-8, [[1], [1, 6]]]
 
     signature_length = 64
 
@@ -414,7 +416,7 @@ class ECDSA_SHA256_P256(AlgorithmCountersign):
         return private_key.exchange(asymmetric.ec.ECDH(), public_key)
 
     # from https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10#appendix-G
-    value_all_par = [-7, [[2], [2, 1]], [2, 1]]
+    value_all_par = [-7, [[2], [2, 1]]]
 
     signature_length = 64
 
@@ -482,7 +484,7 @@ class BaseSecurityContext:
 
         return nonce
 
-    def _extract_external_aad(self, message, request_kid, request_piv, for_signature=False):
+    def _extract_external_aad(self, message, request_id):
         # If any option were actually Class I, it would be something like
         #
         # the_options = pick some of(message)
@@ -490,6 +492,8 @@ class BaseSecurityContext:
 
         oscore_version = 1
         class_i_options = b""
+        if request_id.request_hash is not None:
+            class_i_options = Message(request_hash=request_id.request_hash).opt.encode()
 
         algorithms = [self.algorithm.value]
         if self.external_aad_is_group:
@@ -498,15 +502,14 @@ class BaseSecurityContext:
         external_aad = [
                 oscore_version,
                 algorithms,
-                request_kid,
-                request_piv,
+                request_id.kid,
+                request_id.partial_iv,
                 class_i_options,
                 ]
 
         if self.external_aad_is_group:
             external_aad.append(self.id_context)
 
-        if for_signature:
             assert message.opt.object_security is not None
             external_aad.append(message.opt.object_security)
 
@@ -619,27 +622,26 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             if self.responses_send_kid:
                 unprotected[COSE_KID] = self.sender_id
 
-        aad = self.algorithm._build_encrypt0_structure(protected, self._extract_external_aad(outer_message, request_id.kid, request_id.partial_iv))
-
-        key = self._get_sender_key(outer_message, aad, plaintext, request_id)
-
-        ciphertext = self.algorithm.encrypt(plaintext, aad, key, nonce)
-
         # Putting in a dummy value as the signature calculation will already need some of the compression result
         if self.is_signing:
             unprotected[COSE_COUNTERSINGATURE0] = b""
-        option_data, payload = self._compress(protected, unprotected, ciphertext)
+        # FIXME: Running this twice quite needlessly (just to get the object_security option for sending)
+        option_data, _ = self._compress(protected, unprotected, b"")
 
         outer_message.opt.object_security = option_data
+
+        external_aad = self._extract_external_aad(outer_message, request_id)
+
+        aad = self.algorithm._build_encrypt0_structure(protected, external_aad)
+
+        key = self._get_sender_key(outer_message, external_aad, plaintext, request_id)
+
+        ciphertext = self.algorithm.encrypt(plaintext, aad, key, nonce)
+
+        _, payload = self._compress(protected, unprotected, ciphertext)
+
         if self.is_signing:
-            # Belayed until outer_message has the Object-Security option assigned
-            external_aad_for_signing = self._extract_external_aad(
-                    outer_message,
-                    request_id.kid,
-                    request_id.partial_iv,
-                    for_signature=True
-                    )
-            payload += self.alg_countersign.sign(payload, external_aad_for_signing, self.private_key)
+            payload += self.alg_countersign.sign(payload, external_aad, self.private_key)
         outer_message.payload = payload
 
         # FIXME go through options section
@@ -829,22 +831,22 @@ class CanUnprotect(BaseSecurityContext):
         if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
 
-        enc_structure = ['Encrypt0', protected_serialized, self._extract_external_aad(protected_message, request_id.kid, request_id.partial_iv)]
+        external_aad = self._extract_external_aad(protected_message, request_id)
+        enc_structure = ['Encrypt0', protected_serialized, external_aad]
         aad = cbor.dumps(enc_structure)
 
         key = self._get_recipient_key(protected_message)
 
         plaintext = self.algorithm.decrypt(ciphertext, aad, key, nonce)
 
-        self._post_decrypt_checks(aad, plaintext, protected_message, request_id)
+        self._post_decrypt_checks(external_aad, plaintext, protected_message, request_id)
 
         if not is_response and seqno is not None and replay_error is None:
             self.recipient_replay_window.strike_out(seqno)
 
         if signature is not None:
             # Only doing the expensive signature validation once the cheaper decyrption passed
-            external_aad_for_signing = self._extract_external_aad(protected_message, request_id.kid, request_id.partial_iv, for_signature=True)
-            alg_countersign.verify(signature, ciphertext, external_aad_for_signing, self.recipient_public_key)
+            alg_countersign.verify(signature, ciphertext, external_aad, self.recipient_public_key)
 
         # FIXME add options from unprotected
 
@@ -1615,10 +1617,11 @@ class _DeterministicProtectProtoAspect(CanProtect, SecurityContextUtils):
         outer_message.opt.request_hash = request_hash
         outer_message.code = FETCH
 
-        # this is intended for the later decryption of the response; while
-        # request_id is still used a bit later in protect(), it's only
-        # on distinct code paths (that is, during signing).
-        request_id.kid = request_hash
+        # By this time, the AADs have all been calculated already; setting this
+        # for the benefit of the response parsing later
+        request_id.request_hash = request_hash
+        # FIXME I don't think this ever comes to bear but want to be sure
+        # before removing this line (this should only be client-side)
         request_id.can_reuse_nonce = False
         # FIXME: we're still sending a h'00' PIV. Not wrong, just a wasted byte.
 
@@ -1706,7 +1709,7 @@ class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
         # This is intended for the protection of the response, and the
         # later use in signature in the unprotect function is not happening
         # here anyway, neither is the later use for Echo requests
-        request_id.kid = request_hash
+        request_id.request_hash = request_hash
         request_id.can_reuse_nonce = False
 
     external_aad_is_group = True
