@@ -25,6 +25,9 @@ def build_parser():
 
     details = p.add_argument_group("details", "Options that govern how requests go in and out")
     add_server_arguments(details)
+    details.add_argument("--register", help="Register with a Resource directory", metavar='RD-URI', nargs='?', default=False)
+    details.add_argument("--register-as", help="Endpoint name (with possibly a domain after a dot) to register as", metavar='EP[.D]', default=None)
+    details.add_argument("--register-proxy", help="Ask the RD to serve as a reverse proxy. Note that this is only practical for --unconditional or --pathbased reverse proxies.", action='store_true')
 
     r = p.add_argument_group('Rules', description="Sequence of forwarding rules "
             "that, if matched by a request, specify a forwarding destination. Destinations can be prefixed to change their behavior: With an '@' sign, they are treated as forward proxies. With a '!' sign, the destination is set as Uri-Host.")
@@ -55,6 +58,7 @@ class Main(AsyncCLIDaemon):
     async def start(self, args=None):
         parser = build_parser()
         options = parser.parse_args(args if args is not None else sys.argv[1:])
+        self.options = options
 
         if not options.forward and not options.reverse:
             raise parser.error("At least one of --forward and --reverse must be given.")
@@ -91,7 +95,26 @@ class Main(AsyncCLIDaemon):
 
         self.proxy_context = await server_context_from_arguments(proxy, options)
 
+        if options.register is not False:
+            from aiocoap.resourcedirectory.client.register import Registerer
+
+            params = {}
+            if options.register_as:
+                ep, _, d = options.register_as.partition('.')
+                params['ep'] = ep
+                if d:
+                    params['d'] = d
+            if options.register_proxy:
+                # FIXME: Check this in discovery
+                params['proxy'] = 'on'
+            # FIXME: Construct this from settings (path-based), and forward results
+            proxy.get_resources_as_linkheader = lambda: ""
+            self.registerer = Registerer(self.proxy_context, rd=options.register, lt=60,
+                    registration_parameters=params)
+
     async def shutdown(self):
+        if self.options.register is not False:
+            await self.registerer.shutdown()
         await self.outgoing_context.shutdown()
         await self.proxy_context.shutdown()
 
