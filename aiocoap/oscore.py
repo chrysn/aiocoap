@@ -121,6 +121,8 @@ class RequestIdentifiers:
         self.nonce = nonce
         self.can_reuse_nonce = can_reuse_nonce
 
+        self.request_hash = None
+
     def get_reusable_nonce(self):
         """Return the nonce if can_reuse_nonce is True, and set can_reuse_nonce
         to False."""
@@ -490,6 +492,8 @@ class BaseSecurityContext:
 
         oscore_version = 1
         class_i_options = b""
+        if request_id.request_hash is not None:
+            class_i_options = Message(request_hash=request_id.request_hash).opt.encode()
 
         algorithms = [self.algorithm.value]
         if self.external_aad_is_group:
@@ -1613,10 +1617,11 @@ class _DeterministicProtectProtoAspect(CanProtect, SecurityContextUtils):
         outer_message.opt.request_hash = request_hash
         outer_message.code = FETCH
 
-        # this is intended for the later decryption of the response; while
-        # request_id is still used a bit later in protect(), it's only
-        # on distinct code paths (that is, during signing).
-        request_id.kid = request_hash
+        # By this time, the AADs have all been calculated already; setting this
+        # for the benefit of the response parsing later
+        request_id.request_hash = request_hash
+        # FIXME I don't think this ever comes to bear but want to be sure
+        # before removing this line (this should only be client-side)
         request_id.can_reuse_nonce = False
         # FIXME: we're still sending a h'00' PIV. Not wrong, just a wasted byte.
 
@@ -1704,7 +1709,7 @@ class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
         # This is intended for the protection of the response, and the
         # later use in signature in the unprotect function is not happening
         # here anyway, neither is the later use for Echo requests
-        request_id.kid = request_hash
+        request_id.request_hash = request_hash
         request_id.can_reuse_nonce = False
 
     external_aad_is_group = True
