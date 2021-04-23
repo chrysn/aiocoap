@@ -6,18 +6,40 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
+from dataclasses import dataclass
 from typing import Optional, List
 import random
 
 import cbor2
-from cose import curves, algorithms, headers
-from cose.keys import OKPKey, keyops
+from cose import curves, algorithms
+from cose.keys import OKPKey, CoseKey
 from edhoc.roles.responder import Responder
 from edhoc import messages
 from edhoc.definitions import CipherSuite, CipherSuite0
 
 from . import message, numbers, error
 from .resource import Resource
+from .credentials import CredentialsMap
+
+@dataclass
+class EdhocPrivateKey:
+    suite: CipherSuite
+    id_cred_x: dict # eg. {4: ...}
+    cred_x: dict # CBOR public key, typically including "subject name": "..."
+    private_key: CoseKey # more precisely an elliptic curve key matching the cipher suite
+
+    def is_static(self):
+        return self.private_key.crv == self.suite.dh_curve
+
+@dataclass
+class EdhocPublicKey:
+    suite: CipherSuite
+    id_cred_x: dict # eg. {4: ...}
+    cred_x: dict # CBOR public key, typically including "subject name": "..."
+    public_key: CoseKey # more precisely an elliptic curve key matching the cipher suite
+
+    def is_static(self):
+        return self.public_key.crv == self.suite.dh_curve
 
 class _ResponderPool:
     def __init__(self):
@@ -59,13 +81,15 @@ class _ResponderPool:
         return r
 
 class EdhocResource(Resource):
-    def __init__(self):
+    def __init__(self, server_credentials: CredentialsMap):
         # This is local state that; in multi-task systems a different state set
         # may be live at the same time. Nonetheless, they come from the same
         # remote and thus hit the same server.
         #
         # (That's not to say a shared responder couldn't be switched in).
         self.responders = _ResponderPool()
+
+        self.server_credentials = server_credentials
 
     async def render_post(self, request):
         # FIXME general handling of parse errors
@@ -134,77 +158,34 @@ class EdhocResource(Resource):
         suites can be provided for retries (although py-edhoc currently doesn't
         expose them in the error message)
         """
-        if not static:
-            # private signature key
-            private_key = OKPKey(
-                crv=curves.Ed25519,
-                #alg=algorithms.EdDSA,
-                d=bytes.fromhex("df69274d713296e246306365372b4683ced5381bfcadcd440a24c391d2fedb94"))
 
-            # for this the client has a signature key stored (even though it doesn't verify)
-            cert = b"we don't *really* use this"
-            cred_id = {headers.X5t.identifier: [algorithms.Sha256Trunc64.identifier, bytes.fromhex('6844078A53F312F5')]}
-            # Weird thing here: the second argument gets passed through
-            # _parse_credentials, but it's not like the RPK returned is ever
-            # used, so we get away with not even returning it
-            return cred_id, (cert, None), private_key, [CipherSuite0]
-        else:
-            # for this the client has an RPK stored
-            cred_id = {4: b'serverRPK'}
-            # from running once with OKPKey.generate_key(algorithm=algorithms.EdDSA,
-            # key_ops=keyops.DeriveKeyOp)
-            private_key = b'p\x05\x90#\xe2:\xdd\x08\xd68\x8d\xcb\x16\xd5\r\x83\xe8\xaa\x18O<\x92@\t\xc7+\xab\xb2\x89\xb60e'
-            # to be shared with client
-            public_key = b'J&\xddi\xe9\x93\xbe\xc5\x9a\xb7\xbfG)\t\x1f\x1e%\x16\xb9\xac\xed\xfe\x9d\xccX\x8c\xa1\xaf\x82PlT'
-            cose_private_key = OKPKey(
-                crv=curves.X25519,
-                #algorithm=algorithms.EdDSA,
-                d=private_key,
-                x=public_key,
-                )
+        potential_suites = set()
 
-            # to be later simplified into building the OPKKey directly, always hoping it's round-tripped that way to something to get MACed
-            public_key = OKPKey.from_dict({1: 1, -1: 4, -2: public_key, "subject name": ""})
-            return cred_id, public_key, cose_private_key, [CipherSuite0]
+        while suites:
+            # this could be done way more efficiently, but then again the list is expected to be short
+            for (k, c) in self.server_credentials.items():
+                if not isinstance(c, EdhocPrivateKey):
+                    continue
+                # currently not checking for uri_host as that can't be
+                # expressed in credentials ... or can it? probably it could be,
+                # it's just a FIXME
+                if c.is_static() != static:
+                    continue
+                if c.suite not in suites:
+                    potential_suites.add(c.suite)
+                    continue
 
-#         # direct override for marco to get the test vector keys in
-# 
-#         cred_id = {4: b'\x07'}
-#         # from running once with OKPKey.generate_key(algorithm=algorithms.EdDSA,
-#         # key_ops=keyops.DeriveKeyOp)
-#         private_key = bytes.fromhex('bb501aac67b9a95f97e0eded6b82a662934fbbfc7ad1b74c1fcad66a079422d0')
-#         # to be shared with client
-#         public_key = bytes.fromhex("a3ff263595beb377d1a0ce1d04dad2d40966ac6bcb622051b84659184d5d9a32")
-#         cose_private_key = OKPKey(
-#             crv=curves.X25519,
-#             alg=algorithms.EdDSA,
-#             d=private_key,
-#             x=public_key,
-#             )
-#         return cred_id, {1: 1, -1: 4, -2: public_key, "subject name": ""}, cose_private_key, [0]
+                # None: no need to establish the public key, it's just passed through _parse_credentials but never used
+                return c.id_cred_x, (c.cred_x, None), c.private_key, [c.suite]
+
+            suites = suites[1:]
+
+        raise NotImplementedError("Should somehow get these potential_suites out into an error response")
 
     def _get_peer_cred(self, arg):
-        if arg == b"clientRPK":
-#             return {1: 1, -1: 4, -2: b'\x8dP\x88\xba\x0fL\xc6\xd6\npVP\xfb\xd3)x\xdc\xc0<\xd1\xe4~\x96\n\xb0\x90\x8f\xa1\xb8;6\x0e', "subject name": ""}
-#             return OKPKey(
-#                     crv=curves.X25519,
-#                     alg=algorithms.EdDSA,
-#                     # copied from own_key_for_static of client
-#                     x=b'\x8dP\x88\xba\x0fL\xc6\xd6\npVP\xfb\xd3)x\xdc\xc0<\xd1\xe4~\x96\n\xb0\x90\x8f\xa1\xb8;6\x0e',
-#                     )
-            d = {1: 1, -1: 4, -2: b'\x8dP\x88\xba\x0fL\xc6\xd6\npVP\xfb\xd3)x\xdc\xc0<\xd1\xe4~\x96\n\xb0\x90\x8f\xa1\xb8;6\x0e', "subject name": ""}
-            return OKPKey.from_dict(d), cbor2.dumps(d)
+        for (k, c) in self.server_credentials.items():
+            # FIXME: check suite and whether it's suitably static (hey, multiple times the compact identifiers)
+            if c.id_cred_x == arg:
+                return c.public_key, c.cred_x
 
-        if arg == 12:
-            d = {1: 1, -1: 4, -2: bytes.fromhex('2c440cc121f8d7f24c3b0e41aedafe9caa4f4e7abb835ec30f1de88adb96ff71'), "subject name": ""}
-            return OKPKey.from_dict(d), cbor2.dumps(d)
-
-        if arg == {34: [-15, b'p]XE\xf3o\xc6\xa6']}:
-            # The "never used anyway" still has to match what the client sends, or signature_(or_mac)_3 will fail verification
-            return OKPKey(
-                        alg=algorithms.EdDSA,
-                        crv=curves.Ed25519,
-                        x=bytes.fromhex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"),
-                    ), cbor2.dumps("never used anyway")
-
-        raise RuntimeError("Oi, can't find %r", (arg, ))
+        raise NotImplementedError("Not credentials known for peer %r and no error messages implemented", (arg, ))
