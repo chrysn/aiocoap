@@ -10,9 +10,11 @@ from typing import Optional, List
 import random
 
 import cbor2
-from cose import OKP, CoseEllipticCurves, CoseAlgorithms, CoseHeaderKeys, KeyOps
+from cose import curves, algorithms, headers
+from cose.keys import OKPKey, keyops
 from edhoc.roles.responder import Responder
 from edhoc import messages
+from edhoc.definitions import CipherSuite, CipherSuite0
 
 from . import message, numbers, error
 from .resource import Resource
@@ -25,7 +27,7 @@ class _ResponderPool:
     def get(self, key):
         return self.responders[key]
 
-    def create_responder(self, get_peer_cred, id_cred_r, cred_r, auth_key, suites: List[int]):
+    def create_responder(self, get_peer_cred, id_cred_r, cred_r, auth_key, suites: List[CipherSuite]):
         """Pick a responder ID, build a responder given the own credentials and
         register it with the ID for as long as exchanges are expected to be
         active"""
@@ -48,7 +50,7 @@ class _ResponderPool:
                          cred_idr=id_cred_r,
                          auth_key=auth_key,
                          cred=cred_r,
-                         peer_cred=get_peer_cred,
+                         remote_cred_cb=get_peer_cred,
                          # FIXME py-edhoc doesn't use this to the full extent yet
                          supported_ciphers=suites,
                          )
@@ -110,8 +112,8 @@ class EdhocResource(Resource):
             logging.info('EDHOC key exchange successfully completed:')
             logging.info(f" - connection IDr: {conn_idr}")
             logging.info(f" - connection IDi: {conn_idi}")
-            logging.info(f" - aead algorithm: {CoseAlgorithms(aead)}")
-            logging.info(f" - hash algorithm: {CoseAlgorithms(hashf)}")
+            logging.info(f" - aead algorithm: {algorithms.CoseAlgorithm.from_id(aead)}")
+            logging.info(f" - hash algorithm: {algorithms.CoseAlgorithm.from_id(hashf)}")
 
             logging.info(f" - OSCORE secret : {responder.exporter('OSCORE Master Secret', 16).hex()}")
             logging.info(f" - OSCORE salt   : {responder.exporter('OSCORE Master Salt', 8).hex()}")
@@ -124,7 +126,7 @@ class EdhocResource(Resource):
             return message.Message(code=numbers.Code.CHANGED)
 
     # FIXME: change from purely-static into 
-    def _pick_credentials(self, uri_host: Optional[str], static: bool, suites: List[int]):
+    def _pick_credentials(self, uri_host: Optional[str], static: bool, suites: List[CipherSuite]):
         """Pick create_responder arguments given what is known at M1 reception.
         If credentials are found, the suites must be the one-element list of
         the requested suite (although the library probably tolerates tail
@@ -134,46 +136,48 @@ class EdhocResource(Resource):
         """
         if not static:
             # private signature key
-            private_key = OKP(
-                crv=CoseEllipticCurves.ED25519,
-                alg=CoseAlgorithms.EDDSA,
+            private_key = OKPKey(
+                crv=curves.Ed25519,
+                #alg=algorithms.EdDSA,
                 d=bytes.fromhex("df69274d713296e246306365372b4683ced5381bfcadcd440a24c391d2fedb94"))
 
             # for this the client has a signature key stored (even though it doesn't verify)
             cert = b"we don't *really* use this"
-            cred_id = {int(CoseHeaderKeys.X5_T): [int(CoseAlgorithms.SHA_256_64), bytes.fromhex('6844078A53F312F5')]}
-
-            return cred_id, cert, private_key, [0]
+            cred_id = {headers.X5t.identifier: [algorithms.Sha256Trunc64.identifier, bytes.fromhex('6844078A53F312F5')]}
+            # Weird thing here: the second argument gets passed through
+            # _parse_credentials, but it's not like the RPK returned is ever
+            # used, so we get away with not even returning it
+            return cred_id, (cert, None), private_key, [CipherSuite0]
         else:
             # for this the client has an RPK stored
             cred_id = {4: b'serverRPK'}
-            # from running once with OKP.generate_key(algorithm=CoseAlgorithms.EDDSA,
-            # key_ops=KeyOps.DERIVE_KEY)
+            # from running once with OKPKey.generate_key(algorithm=algorithms.EdDSA,
+            # key_ops=keyops.DeriveKeyOp)
             private_key = b'p\x05\x90#\xe2:\xdd\x08\xd68\x8d\xcb\x16\xd5\r\x83\xe8\xaa\x18O<\x92@\t\xc7+\xab\xb2\x89\xb60e'
             # to be shared with client
             public_key = b'J&\xddi\xe9\x93\xbe\xc5\x9a\xb7\xbfG)\t\x1f\x1e%\x16\xb9\xac\xed\xfe\x9d\xccX\x8c\xa1\xaf\x82PlT'
-            cose_private_key = OKP(
-                crv=CoseEllipticCurves.X25519,
-                alg=CoseAlgorithms.EDDSA,
+            cose_private_key = OKPKey(
+                crv=curves.X25519,
+                #algorithm=algorithms.EdDSA,
                 d=private_key,
                 x=public_key,
                 )
 
-            # works also without the dumps but then the _local_authkey is not parsed, which doesn't hurt anything but is just odd
-            public_key = cbor2.dumps({1: 1, -1: 4, -2: public_key, "subject name": ""})
-            return cred_id, public_key, cose_private_key, [0]
+            # to be later simplified into building the OPKKey directly, always hoping it's round-tripped that way to something to get MACed
+            public_key = OKPKey.from_dict({1: 1, -1: 4, -2: public_key, "subject name": ""})
+            return cred_id, public_key, cose_private_key, [CipherSuite0]
 
 #         # direct override for marco to get the test vector keys in
 # 
 #         cred_id = {4: b'\x07'}
-#         # from running once with OKP.generate_key(algorithm=CoseAlgorithms.EDDSA,
-#         # key_ops=KeyOps.DERIVE_KEY)
+#         # from running once with OKPKey.generate_key(algorithm=algorithms.EdDSA,
+#         # key_ops=keyops.DeriveKeyOp)
 #         private_key = bytes.fromhex('bb501aac67b9a95f97e0eded6b82a662934fbbfc7ad1b74c1fcad66a079422d0')
 #         # to be shared with client
 #         public_key = bytes.fromhex("a3ff263595beb377d1a0ce1d04dad2d40966ac6bcb622051b84659184d5d9a32")
-#         cose_private_key = OKP(
-#             crv=CoseEllipticCurves.X25519,
-#             alg=CoseAlgorithms.EDDSA,
+#         cose_private_key = OKPKey(
+#             crv=curves.X25519,
+#             alg=algorithms.EdDSA,
 #             d=private_key,
 #             x=public_key,
 #             )
@@ -182,25 +186,25 @@ class EdhocResource(Resource):
     def _get_peer_cred(self, arg):
         if arg == b"clientRPK":
 #             return {1: 1, -1: 4, -2: b'\x8dP\x88\xba\x0fL\xc6\xd6\npVP\xfb\xd3)x\xdc\xc0<\xd1\xe4~\x96\n\xb0\x90\x8f\xa1\xb8;6\x0e', "subject name": ""}
-#             return OKP(
-#                     crv=CoseEllipticCurves.X25519,
-#                     alg=CoseAlgorithms.EDDSA,
+#             return OKPKey(
+#                     crv=curves.X25519,
+#                     alg=algorithms.EdDSA,
 #                     # copied from own_key_for_static of client
 #                     x=b'\x8dP\x88\xba\x0fL\xc6\xd6\npVP\xfb\xd3)x\xdc\xc0<\xd1\xe4~\x96\n\xb0\x90\x8f\xa1\xb8;6\x0e',
 #                     )
-            return cbor2.dumps({1: 1, -1: 4, -2: b'\x8dP\x88\xba\x0fL\xc6\xd6\npVP\xfb\xd3)x\xdc\xc0<\xd1\xe4~\x96\n\xb0\x90\x8f\xa1\xb8;6\x0e', "subject name": ""})
+            d = {1: 1, -1: 4, -2: b'\x8dP\x88\xba\x0fL\xc6\xd6\npVP\xfb\xd3)x\xdc\xc0<\xd1\xe4~\x96\n\xb0\x90\x8f\xa1\xb8;6\x0e', "subject name": ""}
+            return OKPKey.from_dict(d), cbor2.dumps(d)
 
         if arg == 12:
-            return cbor2.dumps({1: 1, -1: 4, -2: bytes.fromhex('2c440cc121f8d7f24c3b0e41aedafe9caa4f4e7abb835ec30f1de88adb96ff71'), "subject name": ""})
+            d = {1: 1, -1: 4, -2: bytes.fromhex('2c440cc121f8d7f24c3b0e41aedafe9caa4f4e7abb835ec30f1de88adb96ff71'), "subject name": ""}
+            return OKPKey.from_dict(d), cbor2.dumps(d)
 
         if arg == {34: [-15, b'p]XE\xf3o\xc6\xa6']}:
             # The "never used anyway" still has to match what the client sends, or signature_(or_mac)_3 will fail verification
-            return (cbor2.dumps("never used anyway"),
-                    # copied from client
-                    OKP(
-                        alg=CoseAlgorithms.EDDSA,
-                        crv=CoseEllipticCurves.ED25519,
+            return OKPKey(
+                        alg=algorithms.EdDSA,
+                        crv=curves.Ed25519,
                         x=bytes.fromhex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"),
-                    ))
+                    ), cbor2.dumps("never used anyway")
 
         raise RuntimeError("Oi, can't find %r", (arg, ))
