@@ -81,14 +81,14 @@ def main():
     server_credentials[":clientRPK"] = aiocoap.edhoc.EdhocPublicKey(
             suite=CipherSuite0,
             id_cred_x=b"clientRPK",
-            cred_x=cbor2.dumps(clientrpk_key),
+            cred_x=clientrpk_key,
             public_key=OKPKey.from_dict(clientrpk_key),
             )
     # not *actually* accessed until the msg3 verification accessed
     server_credentials[":clientCertificate"] = aiocoap.edhoc.EdhocPublicKey(
             suite=CipherSuite0,
             id_cred_x={34: [-15, b'p]XE\xf3o\xc6\xa6']},
-            cred_x=cbor2.dumps("never used anyway"),
+            cred_x="never used anyway",
             public_key=OKPKey(
                     crv=curves.Ed25519,
                     x=bytes.fromhex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"),
@@ -98,7 +98,7 @@ def main():
     server_credentials[":marco"] = aiocoap.edhoc.EdhocPublicKey(
             suite=CipherSuite0,
             id_cred_x=12,
-            cred_x=cbor2.dumps(marco_rpk),
+            cred_x=marco_rpk,
             public_key=OKPKey.from_dict(marco_rpk),
             )
 
