@@ -49,7 +49,7 @@ def main():
             private_key=OKPKey(
                 crv=curves.X25519,
                 d=static_private_key,
-                x=static_public_key,
+                #x=static_public_key,
                 )
             )
     server_credentials[":demoCertificate"] = aiocoap.edhoc.EdhocPrivateKey(
