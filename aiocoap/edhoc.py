@@ -186,6 +186,6 @@ class EdhocResource(Resource):
         for (k, c) in self.server_credentials.items():
             # FIXME: check suite and whether it's suitably static (hey, multiple times the compact identifiers)
             if c.id_cred_x == arg:
-                return c.public_key, c.cred_x
+                return c.cred_x, c.public_key
 
         raise NotImplementedError("Not credentials known for peer %r and no error messages implemented", (arg, ))
