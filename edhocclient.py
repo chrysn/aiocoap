@@ -57,11 +57,23 @@ own_key_for_static = OKPKey(
 import cose
 # used as a pseudo-map so we can just have dicts and lists in there
 credentials_storage = [
-        ({34: [-15, b'hD\x07\x8aS\xf3\x12\xf5']}, "i don't care"),
+        ({34: [-15, b'hD\x07\x8aS\xf3\x12\xf5']}, (
+            b"we don't *really* use this",
+            # copied from server
+            OKPKey(
+                crv=curves.Ed25519,
+                x=bytes.fromhex("db d9 dc 8c d0 3f b7 c3 91 35 11 46 2b b2 38 16 47 7c 6b d8 d6 6e f5 a1 a0 70 ac 85 4e d7 3f d2")
+            )
+            )),
         # shouldn't it be {4, bn'serverRPK'} ? -- value copied from server
-        (b'serverRPK', OKPKey(
-            crv=curves.X25519,
-            x=b'J&\xddi\xe9\x93\xbe\xc5\x9a\xb7\xbfG)\t\x1f\x1e%\x16\xb9\xac\xed\xfe\x9d\xccX\x8c\xa1\xaf\x82PlT')),
+        (b'serverRPK', (
+                {1: 1, -1: 4, -2: b'J&\xddi\xe9\x93\xbe\xc5\x9a\xb7\xbfG)\t\x1f\x1e%\x16\xb9\xac\xed\xfe\x9d\xccX\x8c\xa1\xaf\x82PlT', "subject name": ""},
+                OKPKey(
+                    crv=curves.X25519,
+                    x=b'J&\xddi\xe9\x93\xbe\xc5\x9a\xb7\xbfG)\t\x1f\x1e%\x16\xb9\xac\xed\xfe\x9d\xccX\x8c\xa1\xaf\x82PlT'
+                    ),
+                ),
+            ),
         # Timothy
         (11, OKPKey(
             crv=curves.X25519,
@@ -155,7 +167,7 @@ def get_peer_cred(cred_id):
     for (k, v) in credentials_storage:
         if k == cred_id:
             return v
-    return None
+    raise RuntimeError("Can't handle unknown servers yet")
 
 
 if __name__ == "__main__":
