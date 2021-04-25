@@ -62,11 +62,12 @@ credentials_storage = [
             # copied from server
             OKPKey(
                 crv=curves.Ed25519,
+                # from vectors
                 x=bytes.fromhex("db d9 dc 8c d0 3f b7 c3 91 35 11 46 2b b2 38 16 47 7c 6b d8 d6 6e f5 a1 a0 70 ac 85 4e d7 3f d2")
             )
             )),
-        # shouldn't it be {4, bn'serverRPK'} ? -- value copied from server
-        (b'serverRPK', (
+        # value copied from server
+        ({4: b'serverRPK'}, (
                 {1: 1, -1: 4, -2: b'J&\xddi\xe9\x93\xbe\xc5\x9a\xb7\xbfG)\t\x1f\x1e%\x16\xb9\xac\xed\xfe\x9d\xccX\x8c\xa1\xaf\x82PlT', "subject name": ""},
                 OKPKey(
                     crv=curves.X25519,
@@ -75,7 +76,7 @@ credentials_storage = [
                 ),
             ),
         # Timothy
-        (11, OKPKey(
+        ({4: b'#'}, OKPKey(
             crv=curves.X25519,
             x=bytes.fromhex('2c440cc121f8d7f24c3b0e41aedafe9caa4f4e7abb835ec30f1de88adb96ff71')),
             ),

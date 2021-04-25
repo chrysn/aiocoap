@@ -80,7 +80,7 @@ def main():
     clientrpk_key = {1: 1, -1: 4, -2: b'\x8dP\x88\xba\x0fL\xc6\xd6\npVP\xfb\xd3)x\xdc\xc0<\xd1\xe4~\x96\n\xb0\x90\x8f\xa1\xb8;6\x0e', "subject name": ""}
     server_credentials[":clientRPK"] = aiocoap.edhoc.EdhocPublicKey(
             suite=CipherSuite0,
-            id_cred_x=b"clientRPK",
+            id_cred_x={4: b"clientRPK"},
             cred_x=clientrpk_key,
             public_key=OKPKey.from_dict(clientrpk_key),
             )
@@ -97,7 +97,7 @@ def main():
     marco_rpk = {1: 1, -1: 4, -2: bytes.fromhex('2c440cc121f8d7f24c3b0e41aedafe9caa4f4e7abb835ec30f1de88adb96ff71'), "subject name": ""}
     server_credentials[":marco"] = aiocoap.edhoc.EdhocPublicKey(
             suite=CipherSuite0,
-            id_cred_x=12,
+            id_cred_x={4: b'$'},
             cred_x=marco_rpk,
             public_key=OKPKey.from_dict(marco_rpk),
             )
