@@ -22,7 +22,7 @@ import cbor2
 from aiocoap import Context, Message
 from aiocoap.numbers.codes import Code
 
-from edhoc.definitions import CipherSuite0, Method, Correlation
+from edhoc.definitions import CipherSuite0, CipherSuite1, Method, Correlation
 from cose.keys import OKPKey
 from cose import algorithms, curves, headers
 from edhoc.roles.initiator import Initiator
@@ -110,7 +110,7 @@ async def main():
 
     context = await Context.create_client_context()
 
-    supported = [CipherSuite0]
+    supported = [CipherSuite0, CipherSuite1]
 
     if args.method == Method.STATIC_STATIC or args.method == Method.STATIC_SIGN:
         initiator_args = dict(

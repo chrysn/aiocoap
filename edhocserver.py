@@ -22,7 +22,7 @@ from aiocoap import oscore_sitewrapper
 import aiocoap
 import aiocoap.edhoc
 
-from edhoc.definitions import CipherSuite0
+from edhoc.definitions import CipherSuite0, CipherSuite1
 from cose.keys import OKPKey
 from cose import algorithms, curves, headers
 import cbor2
@@ -43,7 +43,7 @@ def main():
     static_private_key = b'p\x05\x90#\xe2:\xdd\x08\xd68\x8d\xcb\x16\xd5\r\x83\xe8\xaa\x18O<\x92@\t\xc7+\xab\xb2\x89\xb60e'
     static_public_key = b'J&\xddi\xe9\x93\xbe\xc5\x9a\xb7\xbfG)\t\x1f\x1e%\x16\xb9\xac\xed\xfe\x9d\xccX\x8c\xa1\xaf\x82PlT'
     server_credentials[":serverRPK"] = aiocoap.edhoc.EdhocPrivateKey(
-            suite=CipherSuite0,
+            suites=[CipherSuite0, CipherSuite1],
             id_cred_x={4: b'serverRPK'},
             cred_x={1: 1, -1: 4, -2: static_public_key, "subject name": ""},
             private_key=OKPKey(
@@ -53,7 +53,7 @@ def main():
                 )
             )
     server_credentials[":demoCertificate"] = aiocoap.edhoc.EdhocPrivateKey(
-            suite=CipherSuite0,
+            suites=[CipherSuite0, CipherSuite1],
             id_cred_x={headers.X5t.identifier: [algorithms.Sha256Trunc64.identifier, bytes.fromhex('6844078A53F312F5')]},
             cred_x=b"we don't *really* use this",
             private_key=OKPKey(
@@ -79,14 +79,14 @@ def main():
 
     clientrpk_key = {1: 1, -1: 4, -2: b'\x8dP\x88\xba\x0fL\xc6\xd6\npVP\xfb\xd3)x\xdc\xc0<\xd1\xe4~\x96\n\xb0\x90\x8f\xa1\xb8;6\x0e', "subject name": ""}
     server_credentials[":clientRPK"] = aiocoap.edhoc.EdhocPublicKey(
-            suite=CipherSuite0,
+            suites=[CipherSuite0],
             id_cred_x={4: b"clientRPK"},
             cred_x=clientrpk_key,
             public_key=OKPKey.from_dict(clientrpk_key),
             )
     # not *actually* accessed until the msg3 verification accessed
     server_credentials[":clientCertificate"] = aiocoap.edhoc.EdhocPublicKey(
-            suite=CipherSuite0,
+            suites=[CipherSuite0],
             id_cred_x={34: [-15, b'p]XE\xf3o\xc6\xa6']},
             cred_x="never used anyway",
             public_key=OKPKey(
@@ -96,7 +96,7 @@ def main():
             )
     marco_rpk = {1: 1, -1: 4, -2: bytes.fromhex('2c440cc121f8d7f24c3b0e41aedafe9caa4f4e7abb835ec30f1de88adb96ff71'), "subject name": ""}
     server_credentials[":marco"] = aiocoap.edhoc.EdhocPublicKey(
-            suite=CipherSuite0,
+            suites=[CipherSuite0],
             id_cred_x={4: b'$'},
             cred_x=marco_rpk,
             public_key=OKPKey.from_dict(marco_rpk),

@@ -23,23 +23,25 @@ from .credentials import CredentialsMap
 
 @dataclass
 class EdhocPrivateKey:
-    suite: CipherSuite
+    suites: List[CipherSuite]
     id_cred_x: dict # eg. {4: ...}
     cred_x: dict # CBOR public key, typically including "subject name": "..."
     private_key: CoseKey # more precisely an elliptic curve key matching the cipher suite
 
     def is_static(self):
-        return self.private_key.crv == self.suite.dh_curve
+        assert all(x.dh_curve == self.suites[0].dh_curve for x in self.suites)
+        return self.private_key.crv == self.suites[0].dh_curve
 
 @dataclass
 class EdhocPublicKey:
-    suite: CipherSuite
+    suites: List[CipherSuite]
     id_cred_x: dict # eg. {4: ...}
     cred_x: dict # CBOR public key, typically including "subject name": "..."
     public_key: CoseKey # more precisely an elliptic curve key matching the cipher suite
 
     def is_static(self):
-        return self.public_key.crv == self.suite.dh_curve
+        assert all(x.dh_curve == self.suites[0].dh_curve for x in self.suites)
+        return self.public_key.crv == self.suites[0].dh_curve
 
 class _ResponderPool:
     def __init__(self):
@@ -171,12 +173,12 @@ class EdhocResource(Resource):
                 # it's just a FIXME
                 if c.is_static() != static:
                     continue
-                if c.suite not in suites:
-                    potential_suites.add(c.suite)
+                if suites[0] not in c.suites:
+                    potential_suites.update(c.suites)
                     continue
 
                 # None: no need to establish the public key, it's just passed through _parse_credentials but never used
-                return c.id_cred_x, (c.cred_x, None), c.private_key, [c.suite]
+                return c.id_cred_x, (c.cred_x, None), c.private_key, c.suites
 
             suites = suites[1:]
 
