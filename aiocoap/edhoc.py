@@ -28,9 +28,11 @@ class EdhocPrivateKey:
     cred_x: dict # CBOR public key, typically including "subject name": "..."
     private_key: CoseKey # more precisely an elliptic curve key matching the cipher suite
 
-    def is_static(self):
-        assert all(x.dh_curve == self.suites[0].dh_curve for x in self.suites)
-        return self.private_key.crv == self.suites[0].dh_curve
+    def usable_for_staticness(self, static: bool) -> bool:
+        relevant_attribute = "dh_curve" if static else "sign_curve"
+        assert all(getattr(x, relevant_attribute) == getattr(self.suites[0], relevant_attribute) \
+                for x in self.suites), "Different DH curves in use for a single key"
+        return self.private_key.crv == getattr(self.suites[0], relevant_attribute)
 
 @dataclass
 class EdhocPublicKey:
@@ -40,6 +42,8 @@ class EdhocPublicKey:
     public_key: CoseKey # more precisely an elliptic curve key matching the cipher suite
 
     def is_static(self):
+        # FIXME adjust to usable_for_staticness like EdhocPrivateKey (but isn't
+        # used yet as per _get_peer_cred docs)
         assert all(x.dh_curve == self.suites[0].dh_curve for x in self.suites)
         return self.public_key.crv == self.suites[0].dh_curve
 
@@ -171,7 +175,7 @@ class EdhocResource(Resource):
                 # currently not checking for uri_host as that can't be
                 # expressed in credentials ... or can it? probably it could be,
                 # it's just a FIXME
-                if c.is_static() != static:
+                if not c.usable_for_staticness(static):
                     continue
                 if suites[0] not in c.suites:
                     potential_suites.update(c.suites)
@@ -182,11 +186,12 @@ class EdhocResource(Resource):
 
             suites = suites[1:]
 
-        raise NotImplementedError("Should somehow get these potential_suites out into an error response")
+        raise NotImplementedError("Should somehow get these potential_suites %r out into an error response" % (potential_suites,))
 
     def _get_peer_cred(self, arg):
         for (k, c) in self.server_credentials.items():
             # FIXME: check suite and whether it's suitably static (hey, multiple times the compact identifiers)
+            # bigger FIXME pass in that information in the first place (maybe curry the function at create_responder time?)
             if c.id_cred_x == arg:
                 return c.cred_x, c.public_key
 
