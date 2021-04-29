@@ -96,6 +96,31 @@ credentials_storage = [
                 y=b":\x8faO\xda'\x8d\x9e\xa8\xbe\xc6c\xc1W\x8f\x87\xa2\xabr>\xeb\xe2X\x1f\xdf/R\x99\xdc\x0c\xba>",
                 )
             )),
+        # What Marco's responder sends
+        # Some always commented out because my get_peer_cred doesn't use information that could be used to disambiguate these
+#         ({4: b'\x07'}, (
+#             {1: 1, -1: 6, -2: bytes.fromhex("dbd9dc8cd03fb7c3913511462bb23816477c6bd8d66ef5a1a070ac854ed73fd2"), "subject name": ""},
+#             OKPKey(
+#                 crv=curves.Ed25519,
+#                 x=bytes.fromhex("dbd9dc8cd03fb7c3913511462bb23816477c6bd8d66ef5a1a070ac854ed73fd2")
+#             )
+#             )),
+#         ({4: b'\x07'}, (
+#             # This is direcly-as-Montgomery mode, not Edwards-after-conversion mode
+#             {1: 1, -1: 4, -2: bytes.fromhex("a3ff263595beb377d1a0ce1d04dad2d40966ac6bcb622051b84659184d5d9a32"), "subject name": ""},
+#             OKPKey(
+#                 crv=curves.X25519,
+#                 x=bytes.fromhex("a3ff263595beb377d1a0ce1d04dad2d40966ac6bcb622051b84659184d5d9a32")
+#             )
+#             )),
+        ({4: b'\x07'}, (
+            {1: 2, -1: 1, -2: bytes.fromhex('6f9702a66602d78f5e81bac1e0af01f8b52810c502e87ebb7c926c07426fd02f'), -3: bytes.fromhex('C8D33274C71C9B3EE57D842BBF2238B8283CB410ECA216FB72A78EA7A870F800'), "subject name": ""},
+            EC2Key(
+                crv=curves.P256,
+                x=bytes.fromhex("6f9702a66602d78f5e81bac1e0af01f8b52810c502e87ebb7c926c07426fd02f"),
+                y=bytes.fromhex("C8D33274C71C9B3EE57D842BBF2238B8283CB410ECA216FB72A78EA7A870F800")
+            )
+            )),
     ]
 
 
@@ -160,6 +185,43 @@ async def main():
                 )
     else:
         parser.error("Currently, only suite 2 is selectable")
+
+    # the responder keys Marco expects
+# #     suite = CipherSuite0
+# #     supported = [CipherSuite0]
+# # #     own_key_for_marco_ed = OKPKey(
+# # #             crv=curves.Ed25519,
+# # #             d=bytes.fromhex('2ffce7a0b2b825d397d0cb54f746e3da3f27596ee06b5371481dc0e012bc34d7'),
+# # #             x=bytes.fromhex('38e5d54563c2b6a4ba26f3015f61bb706e5c2efdb556d2e1690b97fc3c6de149'),
+# # #             )
+# # #     initiator_args = dict(
+# # #             cred_idi={4: b'\x24'},
+# # #             auth_key=own_key_for_marco_ed,
+# # #             cred=({1: 1, -1: 6, -2: own_key_for_marco_ed.x, "subject name": ""}, None),
+# # #             )
+# #     own_key_for_marco_x25519 = OKPKey(
+# #             crv=curves.X25519,
+# #             d=bytes.fromhex('2bbea655c23371c329cfbd3b1f02c6c062033837b8b59099a4436f666081b08e'),
+# #             x=bytes.fromhex('2c440cc121f8d7f24c3b0e41aedafe9caa4f4e7abb835ec30f1de88adb96ff71'),
+# #             )
+# #     initiator_args = dict(
+# #             cred_idi={4: b'\x24'},
+# #             auth_key=own_key_for_marco_x25519,
+# #             cred=({1: 1, -1: 4, -2: own_key_for_marco_x25519.x, "subject name": ""}, None),
+# #             )
+#     suite = CipherSuite2
+#     supported = [CipherSuite2]
+#     own_key_for_marco_p2565 = EC2Key(
+#             crv=curves.X25519,
+#             d=bytes.fromhex('04f347f2bead699adb247344f347f2bdac93c7f2bead6a9d2a9b24754a1e2b62'),
+#             x=bytes.fromhex('cd4177ba62433375ede279b5e18e8b91bc3ed8f1e174474a26fc0edb44ea5373'),
+#             y=bytes.fromhex('A0391DE29C5C5BADDA610D4E301EAAA18422367722289CD18CBE6624E89B9CFD'),
+#             )
+#     initiator_args = dict(
+#             cred_idi={4: b'\x24'},
+#             auth_key=own_key_for_marco_p2565,
+#             cred=({1: 2, -1: 1, -2: own_key_for_marco_p2565.x, -3: own_key_for_marco_p2565.y, "subject name": ""}, None),
+#             )
 
     init = Initiator(
         method=args.method,
