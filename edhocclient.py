@@ -22,8 +22,8 @@ import cbor2
 from aiocoap import Context, Message
 from aiocoap.numbers.codes import Code
 
-from edhoc.definitions import CipherSuite0, CipherSuite1, Method, Correlation
-from cose.keys import OKPKey
+from edhoc.definitions import CipherSuite0, CipherSuite1, CipherSuite2, Method, Correlation
+from cose.keys import OKPKey, EC2Key
 from cose import algorithms, curves, headers
 from edhoc.roles.initiator import Initiator
 
@@ -54,6 +54,13 @@ own_key_for_static = OKPKey(
     x=b'\x8dP\x88\xba\x0fL\xc6\xd6\npVP\xfb\xd3)x\xdc\xc0<\xd1\xe4~\x96\n\xb0\x90\x8f\xa1\xb8;6\x0e',
     )
 
+own_key_s2 = EC2Key(
+        crv=curves.P256,
+        d=b'\xf2\xbc\xac\x86J\x16<\x94\x03\xa3-\x07\x11:p;\x00\xc7\xe6P\xa1\x9a\x10\xcf\x1c\x10\xef\xb4:-Ga',
+        x=b'\n\x0f\x96$\xe5\xef\xa9%\x9b\xc00}\xefq0\xf3\x8eB\x84q\xc1eJ\xc5\xb7x\xd6Sk\xbd\x11b',
+        y=b'\xc5Z\xca$`\xe8" Skp\x94\xdf\x16\x90\xc1\\\xf8\xf3\x9e\x8a\xba\x1c\x0e<\x85\xe8\x8d.\xaa\x97H'
+        )
+
 import cose
 # used as a pseudo-map so we can just have dicts and lists in there
 credentials_storage = [
@@ -80,6 +87,15 @@ credentials_storage = [
             crv=curves.X25519,
             x=bytes.fromhex('2c440cc121f8d7f24c3b0e41aedafe9caa4f4e7abb835ec30f1de88adb96ff71')),
             ),
+
+        ({4: b'p256key'}, (
+            {1: 1, -1: 4, -2: b'\xfa\x8e)\xde\x131\xac\xfa\xae\x94^\xad\x04\xa4\xcb5SiS\xd8\xe9Z5\x07\x8d\xb1\x86!H\x1ena', -3: b":\x8faO\xda'\x8d\x9e\xa8\xbe\xc6c\xc1W\x8f\x87\xa2\xabr>\xeb\xe2X\x1f\xdf/R\x99\xdc\x0c\xba>", 'subject name': ''},
+            EC2Key(
+                crv=CipherSuite2.dh_curve,
+                x=b'\xfa\x8e)\xde\x131\xac\xfa\xae\x94^\xad\x04\xa4\xcb5SiS\xd8\xe9Z5\x07\x8d\xb1\x86!H\x1ena',
+                y=b":\x8faO\xda'\x8d\x9e\xa8\xbe\xc6c\xc1W\x8f\x87\xa2\xabr>\xeb\xe2X\x1f\xdf/R\x99\xdc\x0c\xba>",
+                )
+            )),
     ]
 
 
@@ -105,12 +121,16 @@ async def main():
             dest="method",
             const=Method.STATIC_SIGN,
             )
+    parser.add_argument('--suite',
+            default="01",
+            )
 
     args = parser.parse_args()
 
     context = await Context.create_client_context()
 
-    supported = [CipherSuite0, CipherSuite1]
+    suite = CipherSuite0
+    supported = [suite]
 
     if args.method == Method.STATIC_STATIC or args.method == Method.STATIC_SIGN:
         initiator_args = dict(
@@ -125,13 +145,29 @@ async def main():
             cred=(cert, None),
             )
 
+    if args.suite == "01":
+        pass
+    elif args.suite == "2":
+        suite = CipherSuite2
+        supported = [suite]
+        initiator_args = dict(
+                # It'd be tempting to reuse the clientRPK name here, but the
+                # responder callback doesn't tell the selector yet which suite
+                # was picked, so they can't be disambiguated there.
+                cred_idi={4: b'clientRPK256'},
+                auth_key=own_key_s2,
+                cred=({1: 2, -1: 1, -2: own_key_s2.x, -3: own_key_s2.y, "subject name": ""}, None),
+                )
+    else:
+        parser.error("Currently, only suite 2 is selectable")
+
     init = Initiator(
         method=args.method,
         corr=Correlation.CORR_1,
         conn_idi=unhexlify(b''),
         remote_cred_cb=get_peer_cred,
         supported_ciphers=supported,
-        selected_cipher=CipherSuite0,
+        selected_cipher=suite,
         **initiator_args
         )
 

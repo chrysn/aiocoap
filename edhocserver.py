@@ -22,8 +22,8 @@ from aiocoap import oscore_sitewrapper
 import aiocoap
 import aiocoap.edhoc
 
-from edhoc.definitions import CipherSuite0, CipherSuite1
-from cose.keys import OKPKey
+from edhoc.definitions import CipherSuite0, CipherSuite1, CipherSuite2, CipherSuite3
+from cose.keys import OKPKey, EC2Key
 from cose import algorithms, curves, headers
 import cbor2
 
@@ -59,6 +59,21 @@ def main():
             private_key=OKPKey(
                 crv=curves.Ed25519,
                 d=bytes.fromhex("df69274d713296e246306365372b4683ced5381bfcadcd440a24c391d2fedb94")),
+            )
+
+    p256suites = [CipherSuite2, CipherSuite3]
+    # hm, can pick the curve but still have to manually decide whether it's OKPKey or EC2Key
+    p256key = EC2Key(
+            crv=curves.P256,
+            d=b'\x12\xf6>\x83\xa5\xbf\xa2\x17\xc7\xec\x0b\xc8k\x96\xf2\xc4\x87\x81B\xc7:\x80\xbc\xfa]\xb5\x19\xce\xe9Gm|',
+            x=b'\xfa\x8e)\xde\x131\xac\xfa\xae\x94^\xad\x04\xa4\xcb5SiS\xd8\xe9Z5\x07\x8d\xb1\x86!H\x1ena',
+            y=b":\x8faO\xda'\x8d\x9e\xa8\xbe\xc6c\xc1W\x8f\x87\xa2\xabr>\xeb\xe2X\x1f\xdf/R\x99\xdc\x0c\xba>",
+            )
+    server_credentials[":p256"] = aiocoap.edhoc.EdhocPrivateKey(
+            suites=p256suites,
+            id_cred_x={4: b'p256key'},
+            cred_x={1: 1, -1: 4, -2: p256key.x, -3: p256key.y, "subject name": ""},
+            private_key=p256key,
             )
 
 #         # direct override for marco to get the test vector keys in
@@ -100,6 +115,14 @@ def main():
             id_cred_x={4: b'$'},
             cred_x=marco_rpk,
             public_key=OKPKey.from_dict(marco_rpk),
+            )
+    client_suite2 = {1: 2, -1: 1, -2: b'\n\x0f\x96$\xe5\xef\xa9%\x9b\xc00}\xefq0\xf3\x8eB\x84q\xc1eJ\xc5\xb7x\xd6Sk\xbd\x11b', -3: b'\xc5Z\xca$`\xe8" Skp\x94\xdf\x16\x90\xc1\\\xf8\xf3\x9e\x8a\xba\x1c\x0e<\x85\xe8\x8d.\xaa\x97H', "subject name": ""}
+    server_credentials[":clientRPKS2"] = aiocoap.edhoc.EdhocPublicKey(
+            suites=[CipherSuite2],
+            id_cred_x={4: b"clientRPK256"},
+            cred_x=client_suite2,
+            # FIXME: can i just do key.from_dict?
+            public_key=EC2Key.from_dict(client_suite2),
             )
 
     root.add_resource(['.well-known', 'core'],
