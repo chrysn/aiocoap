@@ -21,31 +21,36 @@ from . import message, numbers, error
 from .resource import Resource
 from .credentials import CredentialsMap
 
+class _UsabelForStaticnessMixin:
+    def usable_for_staticness(self, static: bool) -> bool:
+        """Given a boolean indicating whether an EDHOC use is static, check
+        whether this key can support that use."""
+        relevant_attribute = "dh_curve" if static else "sign_curve"
+        assert all(getattr(x, relevant_attribute) == getattr(self.suites[0], relevant_attribute) \
+                for x in self.suites), "Different DH curves in use for a single key"
+        return self.crv == getattr(self.suites[0], relevant_attribute)
+
 @dataclass
-class EdhocPrivateKey:
+class EdhocPrivateKey(_UsabelForStaticnessMixin):
     suites: List[CipherSuite]
     id_cred_x: dict # eg. {4: ...}
     cred_x: dict # CBOR public key, typically including "subject name": "..."
     private_key: CoseKey # more precisely an elliptic curve key matching the cipher suite
 
-    def usable_for_staticness(self, static: bool) -> bool:
-        relevant_attribute = "dh_curve" if static else "sign_curve"
-        assert all(getattr(x, relevant_attribute) == getattr(self.suites[0], relevant_attribute) \
-                for x in self.suites), "Different DH curves in use for a single key"
-        return self.private_key.crv == getattr(self.suites[0], relevant_attribute)
+    @property
+    def crv(self):
+        return self.private_key.crv
 
 @dataclass
-class EdhocPublicKey:
+class EdhocPublicKey(_UsabelForStaticnessMixin):
     suites: List[CipherSuite]
     id_cred_x: dict # eg. {4: ...}
     cred_x: dict # CBOR public key, typically including "subject name": "..."
     public_key: CoseKey # more precisely an elliptic curve key matching the cipher suite
 
-    def is_static(self):
-        # FIXME adjust to usable_for_staticness like EdhocPrivateKey (but isn't
-        # used yet as per _get_peer_cred docs)
-        assert all(x.dh_curve == self.suites[0].dh_curve for x in self.suites)
-        return self.public_key.crv == self.suites[0].dh_curve
+    @property
+    def crv(self):
+        return self.public_key.crv
 
 class _ResponderPool:
     def __init__(self):
@@ -113,8 +118,12 @@ class EdhocResource(Resource):
                 # FIXME precise error handling
                 raise error.BadRequest("As a server, I don't see how the transport would allow me to correlate (client set corr=%d with first byte 0x%02x)" % (corr, first))
             i_am_static = m1.method in (1, 3)
+            peer_is_static = m1.method in (2, 3)
 
-            resp = self.responders.create_responder(self._get_peer_cred, *self._pick_credentials(request.opt.uri_host, i_am_static, m1.cipher_suites))
+            resp = self.responders.create_responder(
+                    lambda id_cred_peer: self._get_peer_cred(peer_is_static, m1.cipher_suites, id_cred_peer),
+                    *self._pick_credentials(request.opt.uri_host, i_am_static, m1.cipher_suites)
+                    )
 
             msg_2 = resp.create_message_two(request.payload)
 
@@ -188,11 +197,14 @@ class EdhocResource(Resource):
 
         raise NotImplementedError("Should somehow get these potential_suites %r out into an error response" % (potential_suites,))
 
-    def _get_peer_cred(self, arg):
+    def _get_peer_cred(self, peer_is_static:bool, suites: List[CipherSuite], id_cred_peer):
         for (k, c) in self.server_credentials.items():
-            # FIXME: check suite and whether it's suitably static (hey, multiple times the compact identifiers)
-            # bigger FIXME pass in that information in the first place (maybe curry the function at create_responder time?)
-            if c.id_cred_x == arg:
+            if not c.usable_for_staticness(peer_is_static):
+                continue
+            if suites[0] not in c.suites:
+                # FIXME indicate supported?
+                continue
+            if c.id_cred_x == id_cred_peer:
                 return c.cred_x, c.public_key
 
-        raise NotImplementedError("Not credentials known for peer %r and no error messages implemented", (arg, ))
+        raise NotImplementedError("Not credentials known for peer %r and no error messages implemented", (id_cred_peer, ))
