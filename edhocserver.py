@@ -14,8 +14,9 @@ for some more information."""
 
 import datetime
 import logging
-
 import asyncio
+
+import yaml
 
 import aiocoap.resource as resource
 from aiocoap import oscore_sitewrapper
@@ -37,6 +38,7 @@ def main():
     root = resource.Site()
 
     server_credentials = aiocoap.credentials.CredentialsMap()
+    server_credentials.load_from_dict(yaml.safe_load(open('edhocserver.credentials')))
 
     # from running once with OKPKey.generate_key(algorithm=algorithms.EdDSA,
     # key_ops=keyops.DeriveKeyOp)
@@ -115,55 +117,6 @@ def main():
 #                 )
 #         )
 
-
-
-    clientrpk_key = {1: 1, -1: 4, -2: b'\x8dP\x88\xba\x0fL\xc6\xd6\npVP\xfb\xd3)x\xdc\xc0<\xd1\xe4~\x96\n\xb0\x90\x8f\xa1\xb8;6\x0e', "subject name": ""}
-    server_credentials[":clientRPK"] = aiocoap.edhoc.EdhocPublicKey(
-            suites=[CipherSuite0],
-            id_cred_x={4: b"clientRPK"},
-            cred_x=clientrpk_key,
-            public_key=OKPKey.from_dict(clientrpk_key),
-            )
-    # not *actually* accessed until the msg3 verification accessed
-    server_credentials[":clientCertificate"] = aiocoap.edhoc.EdhocPublicKey(
-            suites=[CipherSuite0],
-            id_cred_x={34: [-15, b'p]XE\xf3o\xc6\xa6']},
-            cred_x="never used anyway",
-            public_key=OKPKey(
-                    crv=curves.Ed25519,
-                    x=bytes.fromhex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"),
-                ),
-            )
-    # can't have all, nto even the first two, active at the same time, see bigger FIXME in _get_peer_cred
-#     marco_rpk_x25519 = {1: 1, -1: 4, -2: bytes.fromhex('2c440cc121f8d7f24c3b0e41aedafe9caa4f4e7abb835ec30f1de88adb96ff71'), "subject name": ""}
-#     server_credentials[":marco_x25519"] = aiocoap.edhoc.EdhocPublicKey(
-#             suites=[CipherSuite0],
-#             id_cred_x={4: b'$'}, # probably not
-#             cred_x=marco_rpk_x25519,
-#             public_key=OKPKey.from_dict(marco_rpk_x25519),
-#             )
-#     marco_rpk_ed25519 = {1: 1, -1: 6, -2: bytes.fromhex('38e5d54563c2b6a4ba26f3015f61bb706e5c2efdb556d2e1690b97fc3c6de149'), "subject name": ""}
-#     server_credentials[":marco_edwards"] = aiocoap.edhoc.EdhocPublicKey(
-#             suites=[CipherSuite0],
-#             id_cred_x={4: b'$'},
-#             cred_x=marco_rpk_ed25519,
-#             public_key=OKPKey.from_dict(marco_rpk_ed25519),
-#             )
-    marco_rpk_p256 = {1: 2, -1: 1, -2: bytes.fromhex('cd4177ba62433375ede279b5e18e8b91bc3ed8f1e174474a26fc0edb44ea5373'), -3: bytes.fromhex('A0391DE29C5C5BADDA610D4E301EAAA18422367722289CD18CBE6624E89B9CFD'), "subject name": ""}
-    server_credentials[":marco_rpk_256"] = aiocoap.edhoc.EdhocPublicKey(
-            suites=[CipherSuite2],
-            id_cred_x={4: b'$'},
-            cred_x=marco_rpk_p256,
-            public_key=EC2Key.from_dict(marco_rpk_p256),
-            )
-    client_suite2 = {1: 2, -1: 1, -2: b'\n\x0f\x96$\xe5\xef\xa9%\x9b\xc00}\xefq0\xf3\x8eB\x84q\xc1eJ\xc5\xb7x\xd6Sk\xbd\x11b', -3: b'\xc5Z\xca$`\xe8" Skp\x94\xdf\x16\x90\xc1\\\xf8\xf3\x9e\x8a\xba\x1c\x0e<\x85\xe8\x8d.\xaa\x97H', "subject name": ""}
-    server_credentials[":clientRPKS2"] = aiocoap.edhoc.EdhocPublicKey(
-            suites=[CipherSuite2],
-            id_cred_x={4: b"clientRPK256"},
-            cred_x=client_suite2,
-            # FIXME: can i just do key.from_dict?
-            public_key=EC2Key.from_dict(client_suite2),
-            )
 
     root.add_resource(['.well-known', 'core'],
             resource.WKCResource(root.get_resources_as_linkheader))

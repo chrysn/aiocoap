@@ -179,7 +179,7 @@ async def main():
                 # It'd be tempting to reuse the clientRPK name here, but the
                 # responder callback doesn't tell the selector yet which suite
                 # was picked, so they can't be disambiguated there.
-                cred_idi={4: b'clientRPK256'},
+                cred_idi={4: b'clientRPK'},
                 auth_key=own_key_s2,
                 cred=({1: 2, -1: 1, -2: own_key_s2.x, -3: own_key_s2.y, "subject name": ""}, None),
                 )

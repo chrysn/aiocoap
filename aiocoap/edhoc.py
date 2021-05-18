@@ -15,7 +15,7 @@ from cose import algorithms
 from cose.keys import OKPKey, CoseKey, curves
 from edhoc.roles.responder import Responder
 from edhoc import messages
-from edhoc.definitions import CipherSuite, CipherSuite0
+from edhoc.definitions import CipherSuite
 
 from . import message, numbers, error
 from .resource import Resource
@@ -29,6 +29,33 @@ class _UsabelForStaticnessMixin:
         assert all(getattr(x, relevant_attribute) == getattr(self.suites[0], relevant_attribute) \
                 for x in self.suites), "Different DH curves in use for a single key"
         return self.crv == getattr(self.suites[0], relevant_attribute)
+
+def _apply_hex_ascii(v):
+    # FIXME copied over from credentials.py
+    if isinstance(v, dict) and 'ascii' in v:
+        if len(v) != 1:
+            raise CredentialsLoadError("ASCII objects can only have one elemnt.")
+        try:
+            v = v['ascii'].encode('ascii')
+        except UnicodeEncodeError:
+            raise CredentialsLoadError("Elements of the ASCII object can not be represented in ASCII, please use binary or hex representation.")
+
+
+    if isinstance(v, dict) and 'hex' in v:
+        if len(v) != 1:
+            raise CredentialsLoadError("Hex objects can only have one elemnt.")
+        try:
+            v = bytes.fromhex(v['hex'].replace('-', '').replace(' ', '').replace(':', ''))
+        except ValueError as e:
+            raise CredentialsLoadError("Hex object can not be read: %s" % (e.args[0]))
+    # FIXME end copied over
+
+    if isinstance(v, list):
+        return [_apply_hex_ascii(i) for i in v]
+    if isinstance(v, dict):
+        return {k: _apply_hex_ascii(v) for (k, v) in v.items()}
+    else:
+        return v
 
 @dataclass
 class EdhocPrivateKey(_UsabelForStaticnessMixin):
@@ -51,6 +78,32 @@ class EdhocPublicKey(_UsabelForStaticnessMixin):
     @property
     def crv(self):
         return self.public_key.crv
+
+    @classmethod
+    def from_item(cls, item):
+        cred = _apply_hex_ascii(item.pop('cred'))
+        id_cred = _apply_hex_ascii(item.pop('id_cred'))
+
+        if 'public_key' in item:
+            public_key = CoseKey.from_dict(_apply_hex_ascii(item.pop('public_key')))
+        else:
+            public_key = CoseKey.from_dict(cred)
+
+        suites = [CipherSuite.from_id(s) for s in item.pop('suites')]
+
+        if item:
+            raise ValueError("Unhandled elements in credentials: %r" % (item,))
+
+        return cls(
+                suites=suites,
+                id_cred_x=id_cred,
+                cred_x=cred,
+                public_key=public_key,
+                )
+
+# FIXME registration interface maybe?
+CredentialsMap._class_map['edhoc-private'] = EdhocPrivateKey
+CredentialsMap._class_map['edhoc-public'] = EdhocPublicKey
 
 class _ResponderPool:
     def __init__(self):
