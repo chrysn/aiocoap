@@ -65,12 +65,12 @@ class _ResponderPool:
         register it with the ID for as long as exchanges are expected to be
         active"""
 
-        # FIXME: Can use full range once initial null is implemented
         # FIXME: Fall back to longer ones on demand
-        good_choices = set(range(-24, 0)) | set(range(16, 24))
+        good_choices = set(range(-24, 24))
         # Encoded them into the bytes the API needs to later make them back to
         # integers
         good_choices = {messages.EdhocMessage.decode_bstr_id(x) for x in good_choices}
+        good_choices.add(b"")
         # FIXME: Consider also which OSCORE KIDs are allocated for this in the first place
         valid_choices = good_choices ^ self.responders.keys()
         if not valid_choices:
@@ -106,17 +106,14 @@ class EdhocResource(Resource):
         # FIXME general handling of parse errors
 
         first = cbor2.loads(request.payload)
-        # our C_R are all picked to not coincide with the possible values for
-        # METHOD_CORR, and we don't do role I here yet
-        # TBD: Switch over to new null start
-        is_message1 = first in range(16)
+        is_message1 = first is None
 
         if is_message1:
             m1 = messages.MessageOne.decode(request.payload)
 
             if m1.corr in (0, 2):
                 # FIXME precise error handling
-                raise error.BadRequest("As a server, I don't see how the transport would allow me to correlate (client set corr=%d with first byte 0x%02x)" % (corr, first))
+                raise error.BadRequest("As a server, I don't see how the transport would allow me to correlate (client set corr=%d)" % corr)
             i_am_static = m1.method in (1, 3)
             peer_is_static = m1.method in (2, 3)
 
