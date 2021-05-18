@@ -57,6 +57,22 @@ def _apply_hex_ascii(v):
     else:
         return v
 
+def _encode_hex_ascii(v):
+    """Reverse _apply_hex_ascii, replacing any bytes object down a simple
+    object tree with proper {hex:...} or {ascii:...} items"""
+
+    if isinstance(v, bytes):
+        if all(32 <= b <= 127 for b in v):
+            return {"ascii": v.decode('ascii')}
+        else:
+            return {"hex": v.hex()}
+    elif isinstance(v, list):
+        return [_encode_hex_ascii(i) for i in v]
+    elif isinstance(v, dict):
+        return {k: _encode_hex_ascii(v) for (k, v) in v.items()}
+    else:
+        return v
+
 @dataclass
 class EdhocPrivateKey(_UsabelForStaticnessMixin):
     suites: List[CipherSuite]
@@ -67,6 +83,34 @@ class EdhocPrivateKey(_UsabelForStaticnessMixin):
     @property
     def crv(self):
         return self.private_key.crv
+
+    @classmethod
+    def from_item(cls, item):
+        cred = _apply_hex_ascii(item.pop('cred'))
+        id_cred = _apply_hex_ascii(item.pop('id_cred'))
+
+        private_key = CoseKey.from_dict(_apply_hex_ascii(item.pop('private_key')))
+
+        suites = [CipherSuite.from_id(s) for s in item.pop('suites')]
+
+        if item:
+            raise ValueError("Unhandled elements in credentials: %r" % (item,))
+
+        return cls(
+                suites=suites,
+                id_cred_x=id_cred,
+                cred_x=cred,
+                private_key=private_key,
+                )
+
+    # not generally part of the CredentialsMap API, but useful during migration
+    def to_item(self):
+        print('    edhoc-private:')
+        print('        suites: %r' % ([s.identifier for s in self.suites],))
+        print('        id_cred: %s' % _encode_hex_ascii(self.id_cred_x))
+        print('        cred: %s' % _encode_hex_ascii(self.cred_x))
+        print('        private_key: %s' % _encode_hex_ascii(cbor2.loads(self.private_key.encode())))
+
 
 @dataclass
 class EdhocPublicKey(_UsabelForStaticnessMixin):
