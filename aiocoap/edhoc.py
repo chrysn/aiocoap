@@ -11,8 +11,8 @@ from typing import Optional, List
 import random
 
 import cbor2
-from cose import curves, algorithms
-from cose.keys import OKPKey, CoseKey
+from cose import algorithms
+from cose.keys import OKPKey, CoseKey, curves
 from edhoc.roles.responder import Responder
 from edhoc import messages
 from edhoc.definitions import CipherSuite, CipherSuite0

@@ -23,8 +23,8 @@ import aiocoap
 import aiocoap.edhoc
 
 from edhoc.definitions import CipherSuite0, CipherSuite1, CipherSuite2, CipherSuite3
-from cose.keys import OKPKey, EC2Key
-from cose import algorithms, curves, headers
+from cose.keys import OKPKey, EC2Key, curves
+from cose import algorithms, headers
 import cbor2
 
 # logging setup

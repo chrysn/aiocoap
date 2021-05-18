@@ -23,8 +23,8 @@ from aiocoap import Context, Message
 from aiocoap.numbers.codes import Code
 
 from edhoc.definitions import CipherSuite0, CipherSuite1, CipherSuite2, Method, Correlation
-from cose.keys import OKPKey, EC2Key
-from cose import algorithms, curves, headers
+from cose.keys import OKPKey, EC2Key, curves
+from cose import algorithms, headers
 from edhoc.roles.initiator import Initiator
 
 logging.basicConfig(level=logging.INFO)
