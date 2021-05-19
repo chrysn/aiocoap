@@ -50,6 +50,7 @@ import asyncio
 import weakref
 import functools
 import time
+import typing as tp
 import warnings
 
 from ..util import hostportjoin, hostportsplit
@@ -152,18 +153,18 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
     log = property(lambda self: self.coaptransport.log)
 
-    def _build_accessor(self, method):
+    def _build_accessor(self, method: str) -> tp.Callable[..., int]:
         """Think self._build_accessor('_write')() == self._write(), just that
         it's returning a weak wrapper that allows refcounting-based GC to
         happen when the remote falls out of use"""
         weakself = weakref.ref(self)
-        def wrapper(*args, __weakself=weakself, __method=method):
+        def wrapper(*args, __weakself=weakself, __method=method) -> int:
             self = __weakself()
             if self is None:
                 warnings.warn("DTLS module did not shut down the DTLSSocket "
                         "perfectly; it still tried to call %s in vain" %
                         __method)
-                return
+                return -1
             return getattr(self, __method)(*args)
         wrapper.__name__ = "_build_accessor(%s)" % method
         return wrapper
