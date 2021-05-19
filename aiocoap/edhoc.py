@@ -226,9 +226,24 @@ class EdhocResource(Resource):
             peer_is_static = m1.method in (2, 3)
 
             resp = self.responders.create_responder(
-                    lambda id_cred_peer: self._get_peer_cred(peer_is_static, m1.cipher_suites, id_cred_peer),
+                    lambda id_cred_peer: self._get_peer_cred(
+                        # These we have to provide through a curried function
+                        # -- without those, it'd be hard to find the right key
+                        # if the same key identifiers are used for
+                        # obviously-different keys.
+                        peer_is_static,
+                        m1.cipher_suites,
+                        # Only this py-edhoc thinks is relevant.
+                        id_cred_peer,
+                        # This is kind of a second return value -- not only do
+                        # we need to pass the found key material out to EDHOC,
+                        # but also tell aiocoap which permissions are
+                        # associated with this.
+                        credential_identifier_cb,
+                        ),
                     *self._pick_credentials(request.opt.uri_host, i_am_static, m1.cipher_suites)
                     )
+            credential_identifier_cb = lambda identifier: setattr(resp, "application_identifer", identifier)
 
             msg_2 = resp.create_message_two(request.payload)
 
@@ -261,6 +276,8 @@ class EdhocResource(Resource):
 
             logging.info(f" - OSCORE secret : {responder.exporter('OSCORE Master Secret', 16).hex()}")
             logging.info(f" - OSCORE salt   : {responder.exporter('OSCORE Master Salt', 8).hex()}")
+
+            logging.info(f"Peer was identified as %r", responder.application_identifer)
 
             # FIXME are we done here? probably yes, because a second msg3
             # should err -- just we're not producing a msg4, and probably we
@@ -302,7 +319,8 @@ class EdhocResource(Resource):
 
         raise NotImplementedError("Should somehow get these potential_suites %r out into an error response" % (potential_suites,))
 
-    def _get_peer_cred(self, peer_is_static:bool, suites: List[CipherSuite], id_cred_peer):
+    # See calling site for documentation
+    def _get_peer_cred(self, peer_is_static:bool, suites: List[CipherSuite], id_cred_peer, credential_identifier_setter):
         for (k, c) in self.server_credentials.items():
             if not c.usable_for_staticness(peer_is_static):
                 continue
@@ -310,6 +328,7 @@ class EdhocResource(Resource):
                 # FIXME indicate supported?
                 continue
             if c.id_cred_x == id_cred_peer:
+                credential_identifier_setter(k)
                 return c.cred_x, c.public_key
 
         raise NotImplementedError("Not credentials known for peer %r and no error messages implemented", (id_cred_peer, ))
