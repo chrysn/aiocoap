@@ -22,7 +22,7 @@ import cbor2
 from aiocoap import Context, Message
 from aiocoap.numbers.codes import Code
 
-from edhoc.definitions import CipherSuite0, CipherSuite1, CipherSuite2, Method, Correlation
+from edhoc.definitions import CipherSuite0, CipherSuite1, CipherSuite2, CipherSuite5, Method, Correlation
 from cose.keys import OKPKey, EC2Key, curves
 from cose import algorithms, headers
 from edhoc.roles.initiator import Initiator
@@ -116,6 +116,16 @@ credentials_storage = [
                 y=bytes.fromhex("C8D33274C71C9B3EE57D842BBF2238B8283CB410ECA216FB72A78EA7A870F800")
             )
             )),
+        ({4: b"serverRPK5"}, (
+            {1: 2, -1: 2, -2: bytes.fromhex('77ed23703fe21958c7047a626a7c3c2b21fd803d4ab9347a5ead9c19122da28e4001fff7840355daab4f0e8e66ae6bba'),
+              -3: bytes.fromhex('05bccf56d3ccac4197cf46194106475d94576ae7b8de051d0ecbe482d206d8ee5d3976e23efb1391c00ea3ee5956762d'),
+              'subject name': ''},
+            EC2Key(
+                crv=curves.P384,
+                x=bytes.fromhex('77ed23703fe21958c7047a626a7c3c2b21fd803d4ab9347a5ead9c19122da28e4001fff7840355daab4f0e8e66ae6bba'),
+                y=bytes.fromhex('05bccf56d3ccac4197cf46194106475d94576ae7b8de051d0ecbe482d206d8ee5d3976e23efb1391c00ea3ee5956762d'),
+                ),
+                )),
     ]
 
 
@@ -178,8 +188,20 @@ async def main():
                 auth_key=own_key_s2,
                 cred=({1: 2, -1: 1, -2: own_key_s2.x, -3: own_key_s2.y, "subject name": ""}, None),
                 )
+    elif args.suite == "5":
+        own_key_s5 = EC2Key.from_dict({-4: bytes.fromhex('2053ac1fc5a085d36038bb10b6c140f749e54d361161a2fbc5a28e3b134f06642728a4b9f08abc9e3545f7df8b9221be'),
+                  -3: bytes.fromhex('c321b2528d67a9ee3f5cd5fedcdab09cd263e2ae53b3eb7f6aba0c7322d2f373ac6bbd039b5ce0d28bada4fc08b74226'),
+                  -2: bytes.fromhex('4d8df591e25fd4f118164b42ca84b3d41129bc517a93ca3616522a5c2d4d9bf974ce4427219e37d934e011e8cdda0347'),
+                  -1: 2, 1: 2})
+        suite = CipherSuite5
+        supported = [suite]
+        initiator_args = dict(
+                cred_idi={4: b'clientRPK'},
+                auth_key=own_key_s5,
+                cred=({1: 2, -1: 2, -2: bytes.fromhex('4d8df591e25fd4f118164b42ca84b3d41129bc517a93ca3616522a5c2d4d9bf974ce4427219e37d934e011e8cdda0347'), -3: bytes.fromhex('c321b2528d67a9ee3f5cd5fedcdab09cd263e2ae53b3eb7f6aba0c7322d2f373ac6bbd039b5ce0d28bada4fc08b74226'), 'subject name': ''}, None),
+                )
     else:
-        parser.error("Currently, only suite 2 is selectable")
+        parser.error("Currently, only suite 01, 2 and 5 is selectable")
 
     # the responder keys Marco expects
 # #     suite = CipherSuite0
