@@ -105,12 +105,12 @@ class EdhocPrivateKey(_UsabelForStaticnessMixin):
 
     # not generally part of the CredentialsMap API, but useful during migration
     def to_item(self):
-        print('    edhoc-private:')
-        print('        suites: %r' % ([s.identifier for s in self.suites],))
-        print('        id_cred: %s' % _encode_hex_ascii(self.id_cred_x))
-        print('        cred: %s' % _encode_hex_ascii(self.cred_x))
-        print('        private_key: %s' % _encode_hex_ascii(cbor2.loads(self.private_key.encode())))
-
+        return {"edhoc-private": {
+            'suites': [s.identifier for s in self.suites],
+            'id_cred':_encode_hex_ascii(self.id_cred_x),
+            'cred': _encode_hex_ascii(self.cred_x),
+            'private_key': _encode_hex_ascii(cbor2.loads(self.private_key.encode())),
+            }}
 
 @dataclass
 class EdhocPublicKey(_UsabelForStaticnessMixin):
@@ -144,6 +144,17 @@ class EdhocPublicKey(_UsabelForStaticnessMixin):
                 cred_x=cred,
                 public_key=public_key,
                 )
+
+    # not generally part of the CredentialsMap API, but useful during migration
+    def to_item(self):
+        return {"edhoc-public": {
+            'suites': [s.identifier for s in self.suites],
+            'id_cred':_encode_hex_ascii(self.id_cred_x),
+            'cred': _encode_hex_ascii(self.cred_x),
+            # not needed as the cred contains all relevant data already, and we
+            # don't deal with certificates here yet
+            #'public_key': _encode_hex_ascii(cbor2.loads(self.public_key.encode())),
+            }}
 
 # FIXME registration interface maybe?
 CredentialsMap._class_map['edhoc-private'] = EdhocPrivateKey
