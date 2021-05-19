@@ -30,19 +30,14 @@ from edhoc.roles.initiator import Initiator
 logging.basicConfig(level=logging.INFO)
 
 
-# private signature key
+# key from test vectors
 private_key = OKPKey(
     crv=curves.Ed25519,
-    d=unhexlify("2ffce7a0b2b825d397d0cb54f746e3da3f27596ee06b5371481dc0e012bc34d7")
-)
-# copied from a later pycose documentation because that's one where we have both a d and a matching x (whereas generating keys only works for X25519 keys)
-private_key = OKPKey(
-        crv=curves.Ed25519,
-        d=bytes.fromhex("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60"),
-        x=bytes.fromhex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"),
+    d=unhexlify("2ffce7a0b2b825d397d0cb54f746e3da3f27596ee06b5371481dc0e012bc34d7"),
+    x=bytes.fromhex('5413204c3ebc3428a6cf57e24c9def59651770449bce7ec6561e52433aa55e71f1fa34b22a9ca4a1e12924eae1d1766088098449cb848ffc795f88afc49cbe8afdd1ba009f21675e8f6c77a4a2c30195601f6f0a0852978bd43d28207d44486502ff7bdda6'),
 )
 
-cert = "never used anyway"
+cert = bytes.fromhex("5413204c3ebc3428a6cf57e24c9def59651770449bce7ec6561e52433aa55e71f1fa34b22a9ca4a1e12924eae1d1766088098449cb848ffc795f88afc49cbe8afdd1ba009f21675e8f6c77a4a2c30195601f6f0a0852978bd43d28207d44486502ff7bdda6")
 
 cred_id = {headers.X5t.identifier: [algorithms.Sha256Trunc64.identifier, bytes.fromhex('705D5845F36FC6A6')]}
 
