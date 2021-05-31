@@ -256,7 +256,7 @@ class _TCPPooling:
     def _dispatch_error(self, connection, exc):
         self._evict_from_pool(connection)
 
-        if self._tokenmanager is None:
+        if not hasattr(self, '_tokenmanager') or self._tokenmanager is None:
             if exc is not None:
                 self.log.warning("Ignoring late error during shutdown: %s", exc)
             else:
