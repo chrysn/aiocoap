@@ -327,7 +327,7 @@ class CommonRD:
         def delete():
             del self._by_path[path]
             del self._by_key[key]
-            self.proxy_active.pop(proxy_host)
+            self.proxy_active.pop(proxy_host, None)
 
         def setproxyremote(remote):
             self.proxy_active[proxy_host] = remote
