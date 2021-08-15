@@ -663,6 +663,20 @@ class StandaloneResourceDirectory(Proxy, Site):
         else:
             return await Site.render(self, request)
 
+    # See render; necessary on all functions thanks to https://github.com/chrysn/aiocoap/issues/251
+
+    async def needs_blockwise_assembly(self, request):
+        if request.opt.uri_host in self.common_rd.proxy_active:
+            return await Proxy.needs_blockwise_assembly(self, request)
+        else:
+            return await Site.needs_blockwise_assembly(self, request)
+
+    async def add_observation(self, request, serverobservation):
+        if request.opt.uri_host in self.common_rd.proxy_active:
+            return await Proxy.add_observation(self, request, serverobservation)
+        else:
+            return await Site.add_observation(self, request, serverobservation)
+
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
 
