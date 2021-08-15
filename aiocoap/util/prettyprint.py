@@ -71,6 +71,8 @@ def pretty_print(message):
     ([], 'text/plain;charset=utf8', '{"hello":"world')
     >>> pretty_print(Message(payload=b'<>,', content_format=40))
     (['Invalid application/link-format content was not re-formatted'], 'application/link-format', '<>,')
+    >>> pretty_print(Message(payload=b'a', content_format=60)) # doctest: +ELLIPSIS
+    (['Showing hex dump of application/cbor payload: CBOR value is invalid'], 'text/vnd.aiocoap.hexdump', '00000000  61 ...
     """
     infos = []
     info = lambda m: infos.append(m)
@@ -102,7 +104,7 @@ def pretty_print(message):
     elif category == 'cbor':
         try:
             parsed = cbor.loads(message.payload)
-        except ValueError:
+        except cbor.CBORDecodeError:
             show_hex = "CBOR value is invalid"
         else:
             info("CBOR message shown in naïve Python decoding")
