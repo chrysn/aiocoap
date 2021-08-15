@@ -52,6 +52,25 @@ def pretty_print(message):
     binary data that's shaped like Markdown could use a markdown mime type),
     and some line of infos that give additional data (like the reason for a hex
     dump or the original mime type).
+
+    >>> from aiocoap import Message
+    >>> def build(payload, request_cf, response_cf):
+    ...     response = Message(payload=payload, content_format=response_cf)
+    ...     request = Message(accept=request_cf)
+    ...     response.request = request
+    ...     return response
+    >>> pretty_print(Message(payload=b"Hello", content_format=0))
+    ([], 'text/plain;charset=utf8', 'Hello')
+    >>> print(pretty_print(Message(payload=b'{"hello":"world"}', content_format=50))[-1])
+    {
+        "hello": "world"
+    }
+    >>> # JSON errors currently don't give any explanation (and don't trigger
+    >>> # syntax highlighting), link-format do; that may change for either.
+    >>> pretty_print(Message(payload=b'{"hello":"world', content_format=50))
+    ([], 'text/plain;charset=utf8', '{"hello":"world')
+    >>> pretty_print(Message(payload=b'<>,', content_format=40))
+    (['Invalid application/link-format content was not re-formatted'], 'application/link-format', '<>,')
     """
     infos = []
     info = lambda m: infos.append(m)
@@ -66,13 +85,19 @@ def pretty_print(message):
 
     if linkformat is not None and category == 'link-format':
         try:
-            parsed = linkformat.link_header.parse(message.payload.decode('utf8'))
+            decoded = message.payload.decode('utf8')
+            try:
+                parsed = linkformat.link_header.parse(decoded)
+            except linkformat.link_header.ParseException:
+                info("Invalid application/link-format content was not re-formatted")
+                return (infos, 'application/link-format', decoded)
+            else:
+                info("application/link-format content was re-formatted")
+                prettyprinted = ",\n".join(str(l) for l in parsed.links)
+                return (infos, 'application/link-format', prettyprinted)
         except ValueError:
+            # Handled later
             pass
-        else:
-            info("application/link-format content was re-formatted")
-            prettyprinted = ",\n".join(str(l) for l in parsed.links)
-            return (infos, 'application/link-format', prettyprinted)
 
     elif category == 'cbor':
         try:
