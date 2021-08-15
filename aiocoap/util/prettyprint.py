@@ -65,10 +65,10 @@ def pretty_print(message):
     {
         "hello": "world"
     }
-    >>> # JSON errors currently don't give any explanation (and don't trigger
-    >>> # syntax highlighting), link-format do; that may change for either.
+    >>> # Erroneous inputs still go to the pretty printer as long as they're
+    >>> #Unicode
     >>> pretty_print(Message(payload=b'{"hello":"world', content_format=50))
-    ([], 'text/plain;charset=utf8', '{"hello":"world')
+    (['Invalid JSON not re-formated'], 'application/json', '{"hello":"world')
     >>> pretty_print(Message(payload=b'<>,', content_format=40))
     (['Invalid application/link-format content was not re-formatted'], 'application/link-format', '<>,')
     >>> pretty_print(Message(payload=b'a', content_format=60)) # doctest: +ELLIPSIS
@@ -124,13 +124,19 @@ def pretty_print(message):
 
     elif category == 'json':
         try:
-            parsed = json.loads(message.payload.decode('utf8'))
+            decoded = message.payload.decode('utf8')
         except ValueError:
             pass
         else:
-            info("JSON re-formated and indented")
-            formatted = json.dumps(parsed, indent=4)
-            return (infos, 'application/json', formatted)
+            try:
+                parsed = json.loads(decoded)
+            except ValueError:
+                info("Invalid JSON not re-formated")
+                return (infos, 'application/json', decoded)
+            else:
+                info("JSON re-formated and indented")
+                formatted = json.dumps(parsed, indent=4)
+                return (infos, 'application/json', formatted)
 
     # That's about the formats we do for now.
 
