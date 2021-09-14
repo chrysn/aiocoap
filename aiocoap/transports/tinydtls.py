@@ -77,7 +77,7 @@ CODE_CLOSE_NOTIFY = 0
 
 # tinydtls can not be debugged in the Python way; if you need to get more
 # information out of it, use the following line:
-#dtls.setLogLevel(0xff)
+#dtls.setLogLevel(dtls.DTLS_LOG_DEBUG)
 
 # FIXME this should be exposed by the dtls wrapper
 DTLS_TICKS_PER_SECOND = 1000
