@@ -49,7 +49,7 @@ from .. import defaults
 class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.EndpointAddress):
     # hashability and equality follow from being a namedtuple
     def __repr__(self):
-        return '<%s via %s to %s>'%(type(self).__name__, self.serversocket, self.address)
+        return '<%s.%s via %s to %s>'%(__name__, type(self).__name__, self.serversocket, self.address)
 
     def send(self, data):
         self.serversocket._transport.sendto(data, self.address)
@@ -83,6 +83,9 @@ class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.E
     scheme = 'coap'
 
 class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
+    # To be overridden by tinydtls_server
+    _Address = _Address
+
     @classmethod
     async def create(cls, bind, log, loop, new_message_callback, new_error_callback):
         if bind is None or bind[0] in ('::', '0.0.0.0', '', None):
@@ -124,7 +127,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         # FIXME it might be necessary to resolve the address now to get a
         # canonical form that can be recognized later when a package comes back
         self.log.warning("Sending initial messages via a server socket is not recommended")
-        return _Address(self, sockaddr)
+        return self._Address(self, sockaddr)
 
     # datagram protocol interface
 
@@ -133,8 +136,8 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         self._ready_callback(self)
         del self._ready_callback
 
-    def datagram_received(self, data, address):
-        self._new_message_callback(_Address(self, address), data)
+    def datagram_received(self, data, sockaddr):
+        self._new_message_callback(self._Address(self, sockaddr), data)
 
     def error_received(self, exception):
         # This is why this whole implementation is a bad idea (but still the best we got on some platforms)
