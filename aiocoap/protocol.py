@@ -261,6 +261,11 @@ class Context(interfaces.RequestProvider):
                 await self._append_tokenmanaged_messagemanaged_transport(
                     lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop))
             # FIXME end duplication
+            elif transportname == 'tinydtls_server':
+                from .transports.tinydtls_server import MessageInterfaceTinyDTLSServer
+
+                await self._append_tokenmanaged_messagemanaged_transport(
+                    lambda mman: MessageInterfaceTinyDTLSServer.create_server(bind, mman, log=self.log, loop=loop))
             elif transportname == 'simplesocketserver':
                 from .transports.simplesocketserver import MessageInterfaceSimpleServer
                 await self._append_tokenmanaged_messagemanaged_transport(

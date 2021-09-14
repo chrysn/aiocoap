@@ -87,8 +87,8 @@ def get_default_servertransports(*, loop=None, use_env=True):
     if not oscore_missing_modules():
         yield 'oscore'
 
-    # no server support yet, but doesn't hurt either
     if not dtls_missing_modules():
+        yield 'tinydtls_server'
         yield 'tinydtls'
 
     yield 'tcpserver'
