@@ -169,6 +169,14 @@ class WithTestServer(WithAsyncLoop, Destructing):
         # let the server receive the acks we just sent
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
         self.loop.run_until_complete(self.server.shutdown())
+        # Nothing in the context should keep the request interfaces alive;
+        # delete them first to see *which* of them is the one causing the
+        # trouble
+        while self.server.request_interfaces:
+            self._del_to_be_sure({
+                'get': (lambda self: self.server.request_interfaces[0]),
+                'del': (lambda self: self.server.request_interfaces.__delitem__(0)),
+                })
         self._del_to_be_sure("server")
 
         super(WithTestServer, self).tearDown()

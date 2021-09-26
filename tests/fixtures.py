@@ -179,8 +179,14 @@ class WithAsyncLoop(unittest.TestCase):
 
 class Destructing(WithLogMonitoring):
     def _del_to_be_sure(self, attribute):
-        weaksurvivor = weakref.ref(getattr(self, attribute))
-        delattr(self, attribute)
+        if isinstance(attribute, str):
+            getter = lambda self, attribute=attribute: getattr(self, attribute)
+            deleter = lambda self, attribute=attribute: delattr(self, attribute)
+        else:
+            getter = attribute['get']
+            deleter = attribute['del']
+        weaksurvivor = weakref.ref(getter(self))
+        deleter(self)
 
         if not test_is_successful(self):
             # An error was already logged, and that error's backtrace usually
