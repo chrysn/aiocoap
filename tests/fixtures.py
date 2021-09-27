@@ -153,6 +153,11 @@ class WithLogMonitoring(unittest.TestCase):
 
             record.args = None
             record.exc_info = None
+            # The websockets module puts a self-reference into the records
+            # through an extra, stripping that to make GC work in
+            # _del_to_be_sure
+            if hasattr(record, 'websocket'):
+                del record.websocket
 
             self.list.append(record)
 

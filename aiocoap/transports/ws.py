@@ -312,6 +312,13 @@ class WSPool(interfaces.TokenInterface):
         while self._servers:
             # could be parallelized, but what are the chances there'll actually be multiple
             s = self._servers.pop()
+            # We could do something like
+            # >>> for websocket in s.websockets:
+            # >>>     del websocket.logger.extra['websocket']
+            # to reduce the reference loops
+            # (websocket.logger.extra['websocket'] == websocket), but as the
+            # tests actually do run a GC collection once and that gets broken
+            # up, it's not worth adding fragilty here
             s.close()
             await s.wait_closed()
 
