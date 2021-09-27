@@ -150,6 +150,10 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
             self.log.error("Received unexpected connection loss: %s", exception)
 
 class MessageInterfaceSimpleServer(GenericMessageInterface):
+    # for alteration by tinydtls_server
+    _default_port = COAP_PORT
+    _serversocket = _DatagramServerSocketSimple
+
     @classmethod
     async def create_server(cls, bind, ctx: interfaces.MessageManager, log, loop):
         self = cls(ctx, log, loop)
@@ -158,9 +162,9 @@ class MessageInterfaceSimpleServer(GenericMessageInterface):
         # servers that want a random port (eg. when the service URLs are
         # advertised out-of-band anyway). LwM2M clients should use simple6
         # instead as outlined there.
-        bind = (bind[0], COAP_PORT if bind[1] is None else bind[1])
+        bind = (bind[0], self._default_port if bind[1] is None else bind[1] + (self._default_port - COAP_PORT))
 
-        self._pool = await _DatagramServerSocketSimple.create(bind, log, self._loop, self._received_datagram, self._received_exception)
+        self._pool = await self._serversocket.create(bind, log, self._loop, self._received_datagram, self._received_exception)
 
         return self
 
