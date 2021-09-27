@@ -44,11 +44,7 @@ class GenericMessageInterface(interfaces.MessageInterface):
         self._ctx.dispatch_message(message)
 
     def _received_exception(self, address, exception):
-        if isinstance(exception, OSError):
-            self._ctx.dispatch_error(exception.errno, address)
-        else:
-            self._log.error("Exception %r can not be represented as errno, setting -1.", exception)
-            self._ctx.dispatch_error(-1, address)
+        self._ctx.dispatch_error(exception, address)
 
     def send(self, message):
         if self._ctx is None:

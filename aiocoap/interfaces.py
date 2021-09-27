@@ -188,13 +188,9 @@ class MessageManager(metaclass=abc.ABCMeta):
         """Callback to be invoked with an incoming message"""
 
     @abc.abstractmethod
-    def dispatch_error(self, errno, remote):
+    def dispatch_error(self, error: Exception, remote):
         """Callback to be invoked when the operating system indicated an error
-        condition from a particular remote.
-
-        This interface is likely to change soon to something that is not
-        limited to errno-style errors, and might allow transporting additional
-        data."""
+        condition from a particular remote."""
 
     @property
     @abc.abstractmethod
@@ -229,6 +225,7 @@ class TokenInterface(metaclass=abc.ABCMeta):
         routed through this TokenInterface, or return False otherwise."""
 
 class TokenManager(metaclass=abc.ABCMeta):
+    # to be described in full; at least there is a dispatch_error in analogy to MessageManager's
     pass
 
 class RequestInterface(metaclass=abc.ABCMeta):

@@ -264,11 +264,7 @@ class _TCPPooling:
                 pass
             return
 
-        if isinstance(exc, OSError):
-            self._tokenmanager.dispatch_error(exc.errno, connection)
-        else:
-            self.log.info("Expressing incoming exception %r as errno 0", exc)
-            self._tokenmanager.dispatch_error(0, connection)
+        self._tokenmanager.dispatch_error(exc, connection)
 
     # for diverting behavior of _TLSMixIn
     _scheme = 'coap+tcp'

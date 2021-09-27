@@ -66,12 +66,16 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
     # implement the tokenmanager interface
     #
 
-    def dispatch_error(self, errno, remote):
+    def dispatch_error(self, exception, remote):
         keys_for_removal = []
-        # dispatch_error may want to migrate to passing around actual exceptions
-        original_error = OSError(errno, "no details" if errno is None else os.strerror(errno))
-        exception = error.NetworkError(str(original_error))
-        exception.__cause__ = original_error
+        # NetworkError is what we promise users to raise from request etc; if
+        # it's already a NetworkError and possibly more descriptive (eg. a
+        # TimeoutError), we'll just let it through (and thus allow
+        # differentiated handling eg. in application-level retries).
+        if not isinstance(exception, error.NetworkError):
+            cause = exception
+            exception = error.NetworkError(str(exception))
+            exception.__cause__ = cause
 
         # The stopping calls would pop items from the pending requests --
         # iterating once, extracting the stoppers and then calling them en

@@ -13,7 +13,6 @@ Currently, it also provides the mechanisms for managing tokens, but those will
 be split into dedicated classes.
 """
 
-import errno
 import functools
 import random
 
@@ -124,12 +123,12 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         else:
             self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it.", message.code, message.mtype, message.remote)
 
-    def dispatch_error(self, errno, remote):
-        self.log.debug("Incoming error %s from %r", errno, remote)
+    def dispatch_error(self, error, remote):
+        self.log.debug("Incoming error %s from %r", error, remote)
 
         # cancel requests first, and then exchanges: cancelling the pending
         # exchange would trigger enqueued requests to be transmitted
-        self.token_manager.dispatch_error(errno, remote)
+        self.token_manager.dispatch_error(error, remote)
 
         keys_for_removal = []
         for key, (messageerror_monitor, cancellable_timeout) in self._active_exchanges.items():
@@ -278,8 +277,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         else:
             self.log.info("Exchange timed out trying to transmit %s", message)
             del self._backlogs[message.remote]
-            # FIXME This is stretching the sloppy errno-style interface even more here
-            self.token_manager.dispatch_error(errno.ETIMEDOUT, message.remote)
+            self.token_manager.dispatch_error(error.ConRetransmitsExceeded("Retransmissions exceeded"), message.remote)
 
     #
     # coap dispatch, message-code sublayer: triggering custom actions based on incoming messages

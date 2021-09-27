@@ -334,8 +334,7 @@ class WSPool(interfaces.TokenInterface):
                 received = await remote._connection.recv()
             except websockets.exceptions.ConnectionClosed as e:
                 # FIXME if deposited somewhere, mark that as stale?
-                self.log.info("Expressing WebSocket termination '%s' as errno 0", e)
-                self._tokenmanager.dispatch_error(0, remote)
+                self._tokenmanager.dispatch_error(error.RemoteServerShutdown, remote)
                 return
 
             if not isinstance(received, bytes):

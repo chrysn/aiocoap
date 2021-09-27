@@ -83,9 +83,8 @@ CODE_CLOSE_NOTIFY = 0
 DTLS_TICKS_PER_SECOND = 1000
 DTLS_CLOCK_OFFSET = time.time()
 
-# If dispatch_error is rewritten to handle exceptions rather than OS error
-# codes, these may need to inherit from suitable aiocoap.error bases because
-# they can be passed out then (so far, they only show up in log messages)
+# Currently kept a bit private by not inheriting from NetworkError -- thus
+# they'll be wrapped in a NetworkError when they fly out of a request.
 class CloseNotifyReceived(Exception):
     """The DTLS connection a request was sent on raised was closed by the
     server while the request was being processed"""
@@ -207,16 +206,12 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
             return
 
-        except OSError as e:
-            self.log.debug("Expressing exception %r as errno %d.", e, e.errno)
-            self.coaptransport.ctx.dispatch_error(e.errno, self)
         except asyncio.CancelledError:
             # Can be removed starting with Python 3.8 as it's a workaround for
             # https://bugs.python.org/issue32528
             raise
         except Exception as e:
-            self.log.error("Exception %r can not be represented as errno, setting -1.", e)
-            self.coaptransport.ctx.dispatch_error(-1, self)
+            self.coaptransport.ctx.dispatch_error(e, self)
         finally:
             if self._queue is None:
                 # all worked, we're done here
@@ -260,12 +255,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         """Put an error to all pending operations on this remote, just as if it
         were raised inside the main loop."""
 
-        if isinstance(e, OSError):
-            self.log.debug("Expressing exception %r as errno %d.", e, e.errno)
-            self.coaptransport.ctx.dispatch_error(e.errno, self)
-        else:
-            self.log.error("Exception %r can not be represented as errno, setting -1.", e)
-            self.coaptransport.ctx.dispatch_error(-1, self)
+        self.coaptransport.ctx.dispatch_error(e, self)
 
         self.shutdown()
 

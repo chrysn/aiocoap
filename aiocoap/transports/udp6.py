@@ -502,7 +502,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # port should err out.
 
         try:
-            self._ctx.dispatch_error(errno, remote)
+            self._ctx.dispatch_error(OSError(errno, "received through errqueue"), remote)
         except BaseException as exc:
             # Catching here because util.asyncio.recvmsg inherits
             # _SelectorDatagramTransport's bad handling of callback errors;

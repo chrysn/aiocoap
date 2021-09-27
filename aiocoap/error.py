@@ -129,6 +129,10 @@ class NotImplemented(Error):
     For example non-sequential blockwise transfers
     """
 
+class RemoteServerShutdown(NetworkError):
+    """The peer a request was sent to in a stateful connection closed the
+    connection around the time the request was sent"""
+
 class TimeoutError(NetworkError):
     """Base for all timeout-ish errors.
 
