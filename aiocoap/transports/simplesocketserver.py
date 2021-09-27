@@ -87,7 +87,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     _Address = _Address
 
     @classmethod
-    async def create(cls, bind, log, loop, new_message_callback, new_error_callback):
+    async def create(cls, bind, log, loop, message_interface: "GenericMessageInterface"):
         if bind is None or bind[0] in ('::', '0.0.0.0', '', None):
             # If you feel tempted to remove this check, think about what
             # happens if two configured addresses can both route to a
@@ -100,7 +100,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         ready = asyncio.get_running_loop().create_future()
 
         transport, protocol = await loop.create_datagram_endpoint(
-                lambda: cls(ready.set_result, new_message_callback, new_error_callback, log),
+                lambda: cls(ready.set_result, message_interface, log),
                 local_addr=bind,
                 reuse_port=defaults.has_reuse_port(),
                 )
@@ -112,10 +112,9 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
 
         return await ready
 
-    def __init__(self, ready_callback, new_message_callback, new_error_callback, log):
+    def __init__(self, ready_callback, message_interface: "GenericMessageInterface", log):
         self._ready_callback = ready_callback
-        self._new_message_callback = new_message_callback
-        self._new_error_callback = new_error_callback
+        self._message_interface = message_interface
         self.log = log
 
     async def shutdown(self):
@@ -137,7 +136,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         del self._ready_callback
 
     def datagram_received(self, data, sockaddr):
-        self._new_message_callback(self._Address(self, sockaddr), data)
+        self._message_interface._received_datagram(self._Address(self, sockaddr), data)
 
     def error_received(self, exception):
         # This is why this whole implementation is a bad idea (but still the best we got on some platforms)
@@ -145,7 +144,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
 
     def connection_lost(self, exception):
         if exception is None:
-            pass
+            pass # regular shutdown
         else:
             self.log.error("Received unexpected connection loss: %s", exception)
 
@@ -164,7 +163,8 @@ class MessageInterfaceSimpleServer(GenericMessageInterface):
         # instead as outlined there.
         bind = (bind[0], self._default_port if bind[1] is None else bind[1] + (self._default_port - COAP_PORT))
 
-        self._pool = await self._serversocket.create(bind, log, self._loop, self._received_datagram, self._received_exception)
+        # Cyclic reference broken during shutdown
+        self._pool = await self._serversocket.create(bind, log, self._loop, self)
 
         return self
 
