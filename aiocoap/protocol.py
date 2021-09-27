@@ -317,7 +317,11 @@ class Context(interfaces.RequestProvider):
         for r in self._running_renderings:
             r.cancel()
 
-        done, pending = await asyncio.wait([ri.shutdown() for ri in self.request_interfaces], timeout=3)
+        done, pending = await asyncio.wait([
+                asyncio.create_task(ri.shutdown())
+                for ri
+                in self.request_interfaces],
+            timeout=3)
         for item in done:
             await item
 

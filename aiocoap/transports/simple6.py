@@ -226,7 +226,10 @@ class _DatagramClientSocketpoolSimple6:
 
     async def shutdown(self):
         if self._sockets:
-            done, pending = await asyncio.wait([s.shutdown() for s in self._sockets.values()])
+            done, pending = await asyncio.wait([
+                asyncio.create_task(s.shutdown())
+                for s
+                in self._sockets.values()])
             for item in done:
                 await item
         del self._sockets
