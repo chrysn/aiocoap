@@ -3,6 +3,7 @@
 # combination, but let's not blow the test matrix out of proportion).
 test:3.7:
   image: "python:3.7"
+  resource_group: uses-coap-ports
   script:
     - env
     - echo Using cache:; ls .eggs/ || echo No cached .eggs found
@@ -33,6 +34,7 @@ test:3.7:
 
 test:tox:
   image: debian:bullseye
+  resource_group: uses-coap-ports
   variables:
     # Excluding 3.8 means 3.8 is not tested at all :-/
     TOX_SKIP_ENV: "py3[78]|pypy"
@@ -51,6 +53,7 @@ test:tox:
 
 test:tox-on-buster:
   image: debian:buster
+  resource_group: uses-coap-ports
   variables:
     TOX_SKIP_ENV: "py3[89]|pypy"
   script:
@@ -68,6 +71,7 @@ test:tox-on-buster:
 
 test:tox-on-pypy:
   image: pypy:3.7
+  resource_group: uses-coap-ports
   variables:
     TOX_SKIP_ENV: "py3."
   script:
