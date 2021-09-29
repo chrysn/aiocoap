@@ -15,8 +15,8 @@ intrusive refactoring every time a previously internal mechanism is stabilized.
 Neither does it only document the public API, as that would mean that library
 development would need to resort to working with code comments; that would also
 impede experimentation, and migrating comments to docstrings would be intrusive
-again. All modules' documentation can be searched or accedd via
-:doc:`modindex`.
+again. All modules' documentation can be searched, and most modules are listed
+below.
 
 Instead, functions, methods and properties in the library should only be
 considered public (in the semantic versioning sense) if they are described as
@@ -52,12 +52,6 @@ Modules with stable components
    module/aiocoap.optiontypes
    module/aiocoap.resource
    module/aiocoap.util
-   module/aiocoap.util.asyncio
-   module/aiocoap.util.contenttype
-   module/aiocoap.util.cli
-   module/aiocoap.util.socknumbers
-   module/aiocoap.util.secrets
-   module/aiocoap.util.uri
    module/aiocoap.cli
    module/aiocoap.meta
 

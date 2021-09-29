@@ -107,7 +107,7 @@ class Proxy(interfaces.Resource):
 
         try:
             response = await self.outgoing_context.request(request, handle_blockwise=self.interpret_block_options).response
-        except error.RequestTimedOut as e:
+        except error.TimeoutError as e:
             return message.Message(code=numbers.codes.GATEWAY_TIMEOUT)
 
         raise_unless_safe(response, ())

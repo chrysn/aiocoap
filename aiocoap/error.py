@@ -105,6 +105,23 @@ class UnsupportedMethod(MethodNotAllowed):
     message = "Error: Method not recognized!"
 
 
+class NetworkError(Error):
+    """Base class for all "something went wrong with name resolution, sending
+    or receiving packages".
+
+    Errors of these kinds are raised towards client callers when things went
+    wrong network-side, or at context creation. They are often raised from
+    socket.gaierror or similar classes, but these are wrapped in order to make
+    catching them possible independently of the underlying transport."""
+
+class ResolutionError(NetworkError):
+    """Resolving the host component of a URI to a usable transport address was
+    not possible"""
+
+class MessageError(NetworkError):
+    """Received an error from the remote on the CoAP message level (typically a
+    RST)"""
+
 class NotImplemented(Error):
     """
     Raised when request is correct, but feature is not implemented
@@ -112,14 +129,32 @@ class NotImplemented(Error):
     For example non-sequential blockwise transfers
     """
 
+class TimeoutError(NetworkError):
+    """Base for all timeout-ish errors.
 
-class RequestTimedOut(Error):
+    Like NetworkError, receiving this alone does not indicate whether the
+    request may have reached the server or not.
+    """
+
+class ConRetransmitsExceeded(TimeoutError):
+    """A transport that retransmits CON messages has failed to obtain a response
+    within its retransmission timeout.
+
+    When this is raised in a transport, requests failing with it may or may
+    have been received by the server.
+    """
+
+class RequestTimedOut(TimeoutError):
     """
     Raised when request is timed out.
+
+    This error is currently not produced by aiocoap; it is deprecated. Users
+    can now catch error.TimeoutError, or newer more detailed subtypes
+    introduced later.
     """
 
 
-class WaitingForClientTimedOut(Error):
+class WaitingForClientTimedOut(TimeoutError):
     """
     Raised when server expects some client action:
 
@@ -127,6 +162,10 @@ class WaitingForClientTimedOut(Error):
         - sending next GET request with block2 option
 
     but client does nothing.
+
+    This error is currently not produced by aiocoap; it is deprecated. Users
+    can now catch error.TimeoutError, or newer more detailed subtypes
+    introduced later.
     """
 
 class ResourceChanged(Error):
@@ -184,25 +223,10 @@ class AnonymousHost(Error):
     accessed for as long as the connection is active, but can not be used any
     more once it is closed or even by another system."""
 
-class NetworkError(Error):
-    """Base class for all "something went wrong with name resolution, sending
-    or receiving packages".
-
-    Errors of these kinds are raised towards client callers when things went
-    wrong network-side, or at context creation. They are often raised from
-    socket.gaierror or similar classes, but these are wrapped in order to make
-    catching them possible independently of the underlying transport."""
-
-class ResolutionError(NetworkError):
-    """Resolving the host component of a URI to a usable transport address was
-    not possible"""
-
-class MessageError(NetworkError):
-    """Received an error from the remote on the CoAP message level (typically a
-    RST)"""
-
 _deprecated_aliases = {
         "UnsupportedMediaType": "UnsupportedContentFormat",
+        "RequestTimedOut": "TimeoutError",
+        "WaitingForClientTimedOut": "TimeoutError",
         }
 def __getattr__(name):
     if name in _deprecated_aliases:

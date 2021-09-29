@@ -83,8 +83,8 @@ def build_moduledocs(app):
             """).format(x=x)
 
         if x in ('aiocoap.numbers', 'aiocoap.transports'):
-            # this does miss out on media_types{,rev}, but they're a mess
-            # anyway so far
+            # not enumerating items does miss out on media_types{,rev}, but
+            # they're a mess anyway so far
             text = commonstart + textwrap.dedent("""
                 .. automodule:: {x}
                 .. toctree::

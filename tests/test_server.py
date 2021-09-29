@@ -176,6 +176,7 @@ class WithTestServer(WithAsyncLoop, Destructing):
             self._del_to_be_sure({
                 'get': (lambda self: self.server.request_interfaces[0]),
                 'del': (lambda self: self.server.request_interfaces.__delitem__(0)),
+                'label': 'request_interfaces[%s]' % self.server.request_interfaces[0]
                 })
         self._del_to_be_sure("server")
 

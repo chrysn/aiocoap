@@ -23,9 +23,10 @@ import warnings
 import tempfile
 import abc
 from typing import Optional
+import secrets
 
 from aiocoap.message import Message
-from aiocoap.util import secrets, cryptography_additions
+from aiocoap.util import cryptography_additions
 from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED
 from aiocoap import error
 

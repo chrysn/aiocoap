@@ -37,6 +37,9 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
 
         #self.token_interface = … -- needs to be set post-construction, because the token_interface in its constructor already needs to get its manager
 
+    def __repr__(self):
+        return '<%s for %s>' % (type(self).__name__, getattr(self, 'token_interface', '(unbound)'))
+
     @property
     def client_credentials(self):
         return self.context.client_credentials
