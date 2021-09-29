@@ -9,7 +9,7 @@
 import unittest
 
 from .test_server import WithClient, WithTestServer, TestServer
-from aiocoap.util import secrets
+import secrets
 import aiocoap.defaults
 
 oscore_modules = aiocoap.defaults.oscore_missing_modules()
