@@ -101,7 +101,13 @@ def hostportsplit(hostport):
         raise
 
 def quote_nonascii(s):
-    """Like urllib.parse.quote, but explicitly only escaping non-ascii characters."""
+    """Like urllib.parse.quote, but explicitly only escaping non-ascii characters.
+
+    This function is deprecated due to it use of the irrelevant "being an ASCII
+    character" property (when instead RFC3986 productions like "unreserved"
+    should be used), and due for removal when aiocoap's URI processing is
+    overhauled the next time.
+    """
 
     return "".join(chr(c) if c <= 127 else "%%%02X" % c for c in s.encode('utf8'))
 
