@@ -40,6 +40,7 @@ Shortcomings
 import asyncio
 from collections import namedtuple
 
+from .. import error
 from ..numbers import COAP_PORT
 from .. import interfaces
 from .generic_udp import GenericMessageInterface
@@ -110,7 +111,9 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         # hostinfo), and can thus store the local hostinfo without distinction
         protocol.hostinfo_local = hostportjoin(bind[0], bind[1] if bind[1] != COAP_PORT else None)
 
-        return await ready
+        self = await ready
+        self._loop = loop
+        return self
 
     def __init__(self, ready_callback, message_interface: "GenericMessageInterface", log):
         self._ready_callback = ready_callback
@@ -123,10 +126,26 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     # interface like _DatagramClientSocketpoolSimple6
 
     async def connect(self, sockaddr):
-        # FIXME it might be necessary to resolve the address now to get a
-        # canonical form that can be recognized later when a package comes back
+        # FIXME this is not regularly tested either
+
         self.log.warning("Sending initial messages via a server socket is not recommended")
-        return self._Address(self, sockaddr)
+        # A legitimate case is when something stores return addresses as
+        # URI(part)s and not as remotes. (In similar transports this'd also be
+        # the case if the address's connection is dropped from the pool, but
+        # that doesn't happen here since there is no pooling as there is no
+        # per-connection state).
+
+        # getaddrinfo is not only to needed to resolve any host names (which
+        # would not be recognized otherwise), but also to get a complete (host,
+        # port, zoneinfo, whatwasthefourth) tuple from what is passed in as a
+        # (host, port) tuple.
+        addresses = await self._loop.getaddrinfo(*sockaddr, family=self._transport.get_extra_info('socket').family)
+        if not addresses:
+            raise error.NetworkError("No addresses found for %s" % sockaddr[0])
+        # FIXME could do happy eyebals
+        address = addresses[0][4]
+        address = self._Address(self, address)
+        return address
 
     # datagram protocol interface
 
@@ -169,4 +188,9 @@ class MessageInterfaceSimpleServer(GenericMessageInterface):
         return self
 
     async def recognize_remote(self, remote):
-        return isinstance(remote, _Address) and remote in remote.serversocket is self._pool
+        # FIXME: This is never tested (as is the connect method) because all
+        # tests create client contexts client-side (which don't build a
+        # simplesocketserver), and because even when a server context is
+        # created, there's a simple6 that grabs such addresses before a request
+        # is sent out
+        return isinstance(remote, _Address) and remote.serversocket is self._pool
