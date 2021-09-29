@@ -187,9 +187,11 @@ class Destructing(WithLogMonitoring):
         if isinstance(attribute, str):
             getter = lambda self, attribute=attribute: getattr(self, attribute)
             deleter = lambda self, attribute=attribute: delattr(self, attribute)
+            label = attribute
         else:
             getter = attribute['get']
             deleter = attribute['del']
+            label = attribute['label']
         weaksurvivor = weakref.ref(getter(self))
         deleter(self)
 
@@ -281,5 +283,5 @@ class Destructing(WithLogMonitoring):
                 snapshotsmessage = "Before extended grace period:\n" + original_s + "\n\nAfter extended grace period:\n" + ("the same" if s == original_s else s)
             else:
                 snapshotsmessage = s
-            errormessage = "Protocol %s was not garbage collected.\n\n"%attribute + snapshotsmessage
+            errormessage = "Protocol %s was not garbage collected.\n\n" % label + snapshotsmessage
             self.fail(errormessage)
