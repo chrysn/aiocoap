@@ -6,7 +6,22 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-"""Tools not directly related with CoAP that are needed to provide the API"""
+"""Tools not directly related with CoAP that are needed to provide the API
+
+These are only part of the stable API to the extent they are used by other APIs
+-- for example, you can use the type constructor of :class:`ExtensibleEnumMeta`
+when creating an :class:`aiocoap.numbers.optionnumbers.OptionNumber`, but don't
+expect it to be usable in a stable way for own extensions.
+
+Most functions are available in submodules; some of them may only have
+components that are exclusively used internally and never part of the public
+API even in the limited fashion stated above.
+
+.. toctree::
+    :glob:
+
+    aiocoap.util.*
+"""
 
 import urllib.parse
 
