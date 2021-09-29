@@ -87,6 +87,7 @@ using_simple6 = 'simple6' in list(aiocoap.defaults.get_default_clienttransports(
 
 tcp_disabled = 'tcp' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'tcp is default')
 ws_disabled = 'ws' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'ws is default')
+dtls_disabled = 'dtls' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'dtls is default')
 
 if __name__ == "__main__":
     print("Python prefix:", PYTHON_PREFIX)
