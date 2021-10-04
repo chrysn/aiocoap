@@ -37,7 +37,7 @@ test:tox:
   resource_group: uses-coap-ports
   variables:
     # Excluding 3.8 means 3.8 is not tested at all :-/
-    TOX_SKIP_ENV: "py3[78]|pypy"
+    TOX_SKIP_ENV: "py3[781]|pypy"
   script:
     - rm -f .coverage* collected-coverage
     - apt-get update
@@ -51,11 +51,30 @@ test:tox:
     paths:
       - collected-coverage/tox/
 
+test:tox-bookworm:
+  image: debian:bookworm
+  resource_group: uses-coap-ports
+  variables:
+    # Running 3.10 only (might move pypy in here too)
+    TOX_SKIP_ENV: "py3[789]|pypy"
+  script:
+    - rm -f .coverage* collected-coverage
+    - apt-get update
+    - apt-get -y install tox build-essential python3.10-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev
+    # Separate run so I don't waste time telling errors in setup apart from errors at runtime
+    - tox --notest
+    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+    - mkdir collected-coverage/tox-bookworm/ -p
+    - mv .coverage* collected-coverage/tox-bookworm/
+  artifacts:
+    paths:
+      - collected-coverage/tox/
+
 test:tox-on-buster:
   image: debian:buster
   resource_group: uses-coap-ports
   variables:
-    TOX_SKIP_ENV: "py3[89]|pypy"
+    TOX_SKIP_ENV: "py3[891]|pypy"
   script:
     - rm -f .coverage* collected-coverage
     - apt-get update
@@ -73,7 +92,7 @@ test:tox-on-pypy:
   image: pypy:3.7
   resource_group: uses-coap-ports
   variables:
-    TOX_SKIP_ENV: "py3."
+    TOX_SKIP_ENV: "py3[7891]"
   script:
     - rm -f .coverage* collected-coverage
     - apt-get update
