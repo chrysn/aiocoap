@@ -12,8 +12,7 @@
 (Constrained Application) Protocol, which is used mainly in the context of IoT
 (Internet of Things) devices."""
 
-from setuptools import setup, find_packages
-from distutils.core import Command
+from setuptools import setup, find_packages, Command
 import os, os.path
 
 name = "aiocoap"
