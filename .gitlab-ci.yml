@@ -49,7 +49,7 @@ test:tox:
     - mv .coverage* collected-coverage/tox-bullseye/
   artifacts:
     paths:
-      - collected-coverage/tox/
+      - collected-coverage/tox-bullseye/
 
 test:tox-bookworm:
   image: debian:bookworm
@@ -68,7 +68,7 @@ test:tox-bookworm:
     - mv .coverage* collected-coverage/tox-bookworm/
   artifacts:
     paths:
-      - collected-coverage/tox/
+      - collected-coverage/tox-bookworm/
 
 test:tox-on-buster:
   image: debian:buster
@@ -86,7 +86,7 @@ test:tox-on-buster:
     - mv .coverage* collected-coverage/tox-buster/
   artifacts:
     paths:
-      - collected-coverage/tox/
+      - collected-coverage/tox-buster/
 
 test:tox-on-pypy:
   image: pypy:3.7
