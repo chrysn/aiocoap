@@ -82,7 +82,7 @@ class Registerer:
 
         self.log = logging.getLogger(loggername)
 
-        self._task = asyncio.Task(self._run())
+        self._task = asyncio.create_task(self._run())
 
     def __repr__(self):
         return "<%s at %#x: registering at %s as %s (currently %s)>"%(
@@ -231,7 +231,7 @@ class Registerer:
             raise self._RetryableError("RD responded with odd error: %s / %r"%(response.code, response.payload))
 
     async def _run(self):
-        obtain = asyncio.Task(self._obtain_link_data())
+        obtain = asyncio.create_task(self._obtain_link_data())
 
         try:
             await self._run_inner(obtain)

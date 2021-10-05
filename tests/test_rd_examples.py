@@ -32,7 +32,7 @@ class WithResourceDirectory(WithAsyncLoop, Destructing):
     def setUp(self):
         super().setUp()
 
-        self.rd = aiocoap.cli.rd.Main(['--bind', hostportjoin('::1', self.rd_port)])
+        self.rd = aiocoap.cli.rd.Main(['--bind', hostportjoin('::1', self.rd_port)], loop=self.loop)
         self.loop.run_until_complete(self.rd.initializing)
 
     def tearDown(self):

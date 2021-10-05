@@ -214,7 +214,7 @@ class CommonRD:
             async def longwait(delay, callback):
                 await asyncio.sleep(delay)
                 callback()
-            self.timeout = asyncio.Task(longwait(delay, self.delete))
+            self.timeout = asyncio.create_task(longwait(delay, self.delete))
 
         def refresh_timeout(self):
             self.timeout.cancel()

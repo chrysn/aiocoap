@@ -816,7 +816,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         else:
             self.observation = None
 
-        self._runner = asyncio.Task(self._run_outer(
+        self._runner = protocol.loop.create_task(self._run_outer(
             app_request,
             self.response,
             weakref.ref(self.observation) if self.observation is not None else lambda: None,
@@ -974,7 +974,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 lower_observation.cancel()
                 return
             future_weak_observation = protocol.loop.create_future() # packing this up because its destroy callback needs to reference the subtask
-            subtask = asyncio.Task(cls._run_observation(app_request, lower_observation, future_weak_observation, protocol, log))
+            subtask = asyncio.create_task(cls._run_observation(app_request, lower_observation, future_weak_observation, protocol, log))
             future_weak_observation.set_result(weakref.ref(obs, lambda obs: subtask.cancel()))
             obs.on_cancel(subtask.cancel)
             del obs

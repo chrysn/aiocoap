@@ -42,11 +42,11 @@ class CapturingSubprocess(asyncio.SubprocessProtocol):
     def __init__(self):
         self.stdout = b""
         self.stderr = b""
-        self.read_more = asyncio.Future()
+        self.read_more = asyncio.get_running_loop().create_future()
 
     def pipe_data_received(self, fd, data):
         self.read_more.set_result(None)
-        self.read_more = asyncio.Future()
+        self.read_more = asyncio.get_running_loop().create_future()
         if fd == 1:
             self.stdout += data
         elif fd == 2:
@@ -89,12 +89,12 @@ class WithAssertNofaillines(unittest.TestCase):
 class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
     def setUp(self):
         super(WithPlugtestServer, self).setUp()
-        ready = asyncio.Future()
-        self.__done = asyncio.Future()
+        ready = self.loop.create_future()
+        self.__done = self.loop.create_future()
 
         self.contextdir = tempfile.mkdtemp(suffix="-contexts")
 
-        self.__task = asyncio.Task(self.run_server(ready, self.__done))
+        self.__task = self.loop.create_task(self.run_server(ready, self.__done))
         self.loop.run_until_complete(ready)
 
     async def run_server(self, readiness, done):

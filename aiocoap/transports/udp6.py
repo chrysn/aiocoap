@@ -234,7 +234,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
         self._shutting_down = None #: Future created and used in the .shutdown() method.
 
-        self.ready = asyncio.Future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
+        self.ready = asyncio.get_running_loop().create_future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
 
     def _local_port(self):
         # FIXME: either raise an error if this is 0, or send a message to self
@@ -340,7 +340,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         return (await cls._create_transport_endpoint(sock, ctx, log, loop, multicast))
 
     async def shutdown(self):
-        self._shutting_down = asyncio.Future()
+        self._shutting_down = asyncio.get_running_loop().create_future()
 
         self.transport.close()
 
