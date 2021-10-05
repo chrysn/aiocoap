@@ -46,12 +46,26 @@ class AsyncCLIDaemon:
     Implement the :meth:`shutdown` coroutine and to do cleanup; what actually
     runs your program will, if possible, call that and await its return.
 
-    Typical application for this is running ``MyClass.sync_main()`` in the
-    program's ``if __name__ == "__main__":`` section."""
+    Two usage patterns for this are supported:
+
+    * Outside of an async context, run run ``MyClass.sync_main()``, typically
+      in the program's ``if __name__ == "__main__":`` section.
+
+    * To run a subclass of this in an existing loop, start it with
+      ``MyClass(...)`` (possibly passing in the loop to run it on if not already
+      in an async context), and then awaiting its ``.initializing`` future. To
+      stop it, await its ``.shutdown()`` method.
+
+      This pattern is going to be deprecated or removed entirely when ported to
+      async context managers.
+    """
 
     def __init__(self, *args, **kwargs):
-        self.__exitcode = asyncio.Future()
-        self.initializing = asyncio.Task(self.start(*args, **kwargs))
+        self.__loop = kwargs.pop('loop', None)
+        if self.__loop is None:
+            self.__loop = asyncio.get_running_loop()
+        self.__exitcode = self.__loop.create_future()
+        self.initializing = self.__loop.create_task(self.start(*args, **kwargs))
 
     def stop(self, exitcode):
         """Stop the operation (and exit sync_main) at the next convenience."""
@@ -61,10 +75,9 @@ class AsyncCLIDaemon:
     def sync_main(cls, *args, **kwargs):
         """Run the application in an AsyncIO main loop, shutting down cleanly
         on keyboard interrupt."""
-        loop = asyncio.get_event_loop()
-        main = cls(*args, **kwargs)
+        main = cls(*args, loop=asyncio.new_event_loop(), **kwargs)
         try:
-            loop.run_until_complete(main.initializing)
+            main.__loop.run_until_complete(main.initializing)
             # This is the time when we'd signal setup completion by the parent
             # exiting in case of a daemon setup, or to any other process
             # management.
@@ -73,11 +86,11 @@ class AsyncCLIDaemon:
             # (<https://github.com/go-task/task/issues/75#issuecomment-339466142> and
             # <https://unix.stackexchange.com/questions/10231/when-does-the-system-send-a-sigterm-to-a-process>)
             try:
-                loop.add_signal_handler(signal.SIGTERM, lambda: main.__exitcode.set_result(143))
+                main.__loop.add_signal_handler(signal.SIGTERM, lambda: main.__exitcode.set_result(143))
             except NotImplementedError:
                 # Impossible on win32 -- just won't make that clean of a shutdown.
                 pass
-            exitcode = loop.run_until_complete(main.__exitcode)
+            exitcode = main.__loop.run_until_complete(main.__exitcode)
         except KeyboardInterrupt:
             logging.info("Keyboard interupt received, shutting down")
             sys.exit(3)
@@ -87,6 +100,6 @@ class AsyncCLIDaemon:
             if main.initializing.done() and main.initializing.exception():
                 pass # will raise from run_until_complete
             else:
-                loop.run_until_complete(main.initializing)
-                loop.run_until_complete(main.shutdown())
-                loop.stop()
+                main.__loop.run_until_complete(main.initializing)
+                main.__loop.run_until_complete(main.shutdown())
+                main.__loop.stop()
