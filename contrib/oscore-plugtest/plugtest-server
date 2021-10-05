@@ -96,7 +96,7 @@ class Observe(PlugtestResource, aiocoap.interfaces.ObservableResource):
                 mtype=aiocoap.CON, code=aiocoap.INTERNAL_SERVER_ERROR,
                 payload=b"Terminate Observe", content_format=0,
                 ))
-        t = asyncio.Task(keep_entertained())
+        t = asyncio.create_task(keep_entertained())
         serverobservation.accept(t.cancel)
 
 class Hello6(resource.Resource):

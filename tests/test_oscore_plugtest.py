@@ -94,7 +94,7 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
 
         self.contextdir = tempfile.mkdtemp(suffix="-contexts")
 
-        self.__task = asyncio.Task(self.run_server(ready, self.__done))
+        self.__task = self.loop.create_task(self.run_server(ready, self.__done))
         self.loop.run_until_complete(ready)
 
     async def run_server(self, readiness, done):

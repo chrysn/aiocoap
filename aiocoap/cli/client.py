@@ -340,7 +340,7 @@ async def interactive():
         if line in (["quit"], ["q"], ["exit"]):
             return
 
-        current_task = asyncio.Task(single_request(line, context=context))
+        current_task = asyncio.create_task(single_request(line, context=context))
         interactive_expecting_keyboard_interrupt = asyncio.Future()
 
         done, pending = await asyncio.wait([current_task, interactive_expecting_keyboard_interrupt], return_when=asyncio.FIRST_COMPLETED)
@@ -373,7 +373,7 @@ def sync_main(args=None):
             sys.exit(1)
 
         loop = asyncio.get_event_loop()
-        task = asyncio.Task(interactive())
+        task = loop.create_task(interactive())
 
         while not task.done():
             try:

@@ -40,7 +40,7 @@ class ProxyRequest(interfaces.Request):
 
         self.observation = ProxyClientObservation(app_request)
 
-        asyncio.Task(self._launch())
+        asyncio.create_task(self._launch())
 
     async def _launch(self):
         try:

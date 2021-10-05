@@ -208,7 +208,7 @@ class FileServerProgram(AsyncCLIDaemon):
         else:
             self.context = await server_context_from_arguments(server, server_opts)
 
-        self.refreshes = asyncio.Task(server.check_files_for_refreshes())
+        self.refreshes = asyncio.create_task(server.check_files_for_refreshes())
 
         if register is not False:
             if register is not None and register.count('/') != 2:
