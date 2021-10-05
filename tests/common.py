@@ -21,6 +21,10 @@ elif os.environ.get('AIOCOAP_TESTS_LOOP', None) == 'gbulb':
     import gbulb
     gbulb.install()
 
+# All test servers are bound to loopback; if for any reason one'd want to run
+# with particular transports, just set them explicitly.
+os.environ['AIOCOAP_DTLSSERVER_ENABLED'] = '1'
+
 if 'coverage' in sys.modules:
     PYTHON_PREFIX = [sys.executable, '-m', 'coverage', 'run', '--parallel-mode']
 else:
@@ -87,6 +91,7 @@ using_simple6 = 'simple6' in list(aiocoap.defaults.get_default_clienttransports(
 
 tcp_disabled = 'tcp' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'tcp is default')
 ws_disabled = 'ws' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'ws is default')
+dtls_disabled = 'dtls' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'dtls is default')
 
 if __name__ == "__main__":
     print("Python prefix:", PYTHON_PREFIX)

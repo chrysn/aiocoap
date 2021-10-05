@@ -325,3 +325,19 @@ class CredentialsMap(dict):
                 return ctx
 
         raise KeyError()
+
+    def find_dtls_psk(self, identity):
+        # FIXME similar to find_oscore
+        for (entry, item) in self.items():
+            if not hasattr(item, "as_dtls_psk"):
+                continue
+
+            psk_id, psk = item.as_dtls_psk()
+            if psk_id != identity:
+                continue
+
+            # FIXME is returning the entry name a sane value to later put in to
+            # authenticated_claims? OSCORE does something different.
+            return (psk, entry)
+
+        raise KeyError()

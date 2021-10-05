@@ -126,5 +126,7 @@ async def server_context_from_arguments(site, namespace, **kwargs):
         # actual identities present?
         from aiocoap.oscore_sitewrapper import OscoreSiteWrapper
         site = OscoreSiteWrapper(site, server_credentials)
+    else:
+        server_credentials = None
 
-    return await Context.create_server_context(site, namespace.bind, _ssl_context=ssl_context, **kwargs)
+    return await Context.create_server_context(site, namespace.bind, _ssl_context=ssl_context, server_credentials=server_credentials, **kwargs)
