@@ -11,6 +11,15 @@ wrapped tinydtls library.
 
 Bear in mind that the aiocoap CoAPS support is highly experimental and
 incomplete.
+
+Unlike other transports this is *not* enabled automatically in general, as it
+is limited to servers bound to a single address for implementation reasons.
+(Basically, because it is built on the simplesocketserver rather than the udp6
+server -- that can change in future, though). Until either the implementation
+is changed or binding arguments are (allowing different transports to bind to
+per-transport addresses or ports), a DTLS server will only be enabled if the
+AIOCOAP_DTLSSERVER_ENABLED environment variable is set, or tinydtls_server is
+listed explicitly in AIOCOAP_SERVER_TRANSPORT.
 """
 
 # Comparing this to the tinydtls transport, things are a bit easier as we don't

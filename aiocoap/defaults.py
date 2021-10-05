@@ -88,7 +88,8 @@ def get_default_servertransports(*, loop=None, use_env=True):
         yield 'oscore'
 
     if not dtls_missing_modules():
-        yield 'tinydtls_server'
+        if 'AIOCOAP_DTLSSERVER_ENABLED' in os.environ:
+            yield 'tinydtls_server'
         yield 'tinydtls'
 
     yield 'tcpserver'
