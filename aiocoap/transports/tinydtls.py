@@ -151,18 +151,18 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
     log = property(lambda self: self.coaptransport.log)
 
-    def _build_accessor(self, method):
+    def _build_accessor(self, method, deadvalue):
         """Think self._build_accessor('_write')() == self._write(), just that
         it's returning a weak wrapper that allows refcounting-based GC to
         happen when the remote falls out of use"""
         weakself = weakref.ref(self)
-        def wrapper(*args, __weakself=weakself, __method=method):
+        def wrapper(*args, __weakself=weakself, __method=method, __deadvalue=deadvalue):
             self = __weakself()
             if self is None:
                 warnings.warn("DTLS module did not shut down the DTLSSocket "
                         "perfectly; it still tried to call %s in vain" %
                         __method)
-                return
+                return __deadvalue
             return getattr(self, __method)(*args)
         wrapper.__name__ = "_build_accessor(%s)" % method
         return wrapper
@@ -181,9 +181,9 @@ class DTLSClientConnection(interfaces.EndpointAddress):
                     )
 
             self._dtls_socket = dtls.DTLS(
-                    read=self._build_accessor("_read"),
-                    write=self._build_accessor("_write"),
-                    event=self._build_accessor("_event"),
+                    read=self._build_accessor("_read", 0),
+                    write=self._build_accessor("_write", 0),
+                    event=self._build_accessor("_event", 0),
                     pskId=self._pskId,
                     pskStore={self._pskId: self._psk},
                     )
