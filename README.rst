@@ -34,8 +34,8 @@ Features / Standards
 This library supports the following standards in full or partially:
 
 * RFC7252_ (CoAP): Supported for clients and servers. Multicast is supported on
-  the server side, and partially for clients. DTLS is supported for clients,
-  but lacking some security properties. No caching is done inside the library.
+  the server side, and partially for clients. DTLS is supported but experimental,
+  and lacking some security properties. No caching is done inside the library.
 * RFC7641_ (Observe): Basic support for clients and servers. Reordering,
   re-registration, and active cancellation are missing.
 * RFC7959_ (Blockwise): Supported both for atomic and random access.
