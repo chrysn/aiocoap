@@ -9,7 +9,8 @@
 """This module implements a MessageInterface that serves coaps:// using a
 wrapped tinydtls library.
 
-Bear in mind that the aiocoap CoAPS support is highly experimental.
+Bear in mind that the aiocoap CoAPS support is highly experimental and
+incomplete.
 """
 
 # Comparing this to the tinydtls transport, things are a bit easier as we don't
@@ -55,13 +56,15 @@ class _AddressDTLS(interfaces.EndpointAddress):
 
         self._dtls_socket = None
 
+        self._psk_store = SecurityStore(protocol._server_credentials)
+
         self._dtls_socket = dtls.DTLS(
                 # FIXME: Use accessors like tinydtls (but are they needed? maybe shutdown sequence is just already better here...)
                 read=self._read,
                 write=self._write,
                 event=self._event,
                 pskId=b"The socket needs something there but we'll never use it",
-                pskStore=protocol._security_store,
+                pskStore=self._psk_store,
                 )
         self._dtls_session = dtls.Session(_SENTINEL_ADDRESS, _SENTINEL_PORT)
 
@@ -77,6 +80,8 @@ class _AddressDTLS(interfaces.EndpointAddress):
     uri_base_local = property(lambda self: 'coaps://' + self.hostinfo_local)
 
     scheme = 'coaps'
+
+    authenticated_claims = property(lambda self: [self._psk_store._claims])
 
     # implementing GenericUdp addresses
 
@@ -193,29 +198,50 @@ class GoingThroughMessageDecryption:
         self._plaintext_interface._received_datagram(address, data)
 
 class SecurityStore:
-    """Helper to see how this is used; can later pro'ly be a dict"""
+    """Wrapper around a CredentialsMap that makes it accessible to the
+    dict-like object DTLSSocket expects.
+
+    Not only does this convert interfaces, it also adds a back channel: As
+    DTLSSocket wouldn't otherwise report who authenticated, this is tracking
+    access and storing the claims associated with the used key for later use.
+
+    Therefore, SecurityStore objects are created per connection and not per
+    security store.
+    """
+
+    def __init__(self, server_credentials):
+        self._server_credentials = server_credentials
+
+        self._claims = None
+
     def keys(self):
         return self
 
     def __contains__(self, key):
-        print("contains key?", key)
-        return True
+        try:
+            self._server_credentials.find_dtls_psk(key)
+            return True
+        except KeyError:
+            return False
 
     def __getitem__(self, key):
-        return b'secretPSK'
-# still very quirky to override; you can set it to a dict before creating the context, that's easiest
-securitystore = SecurityStore()
+        (psk, claims) = self._server_credentials.find_dtls_psk(key)
+        if self._claims not in (None, claims):
+            # I didn't know it could do that -- how would we know which is the
+            # one it eventually picked?
+            raise RuntimeError("DTLS stack tried accessing different keys")
+        self._claims = claims
+        return psk
 
 class MessageInterfaceTinyDTLSServer(simplesocketserver.MessageInterfaceSimpleServer):
     _default_port = COAPS_PORT
     _serversocket = _DatagramServerSocketSimpleDTLS
 
     @classmethod
-    async def create_server(cls, bind, ctx: interfaces.MessageManager, log, loop):
+    async def create_server(cls, bind, ctx: interfaces.MessageManager, log, loop, server_credentials):
         self = await super().create_server(bind, ctx, log, loop)
 
-        # FIXME where to get security store from?
-        self._pool._security_store = securitystore
+        self._pool._server_credentials = server_credentials
 
         return self
 

@@ -119,7 +119,7 @@ class Context(interfaces.RequestProvider):
     everything not already mentioned).
 
     """
-    def __init__(self, loop=None, serversite=None, loggername="coap", client_credentials=None):
+    def __init__(self, loop=None, serversite=None, loggername="coap", client_credentials=None, server_credentials=None):
         self.log = logging.getLogger(loggername)
 
         self.loop = loop or asyncio.get_event_loop()
@@ -131,6 +131,7 @@ class Context(interfaces.RequestProvider):
         self._running_renderings = set()
 
         self.client_credentials = client_credentials or CredentialsMap()
+        self.server_credentials = server_credentials or CredentialsMap()
 
         # FIXME: consider introducing a TimeoutDict
         self._block1_assemblies = {} # mapping block-key to (partial request, timeout handle)
@@ -209,7 +210,7 @@ class Context(interfaces.RequestProvider):
         return self
 
     @classmethod
-    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicast=[]):
+    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicast=[], server_credentials=None):
         """Create a context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -239,7 +240,7 @@ class Context(interfaces.RequestProvider):
         if loop is None:
             loop = asyncio.get_event_loop()
 
-        self = cls(loop=loop, serversite=site, loggername=loggername)
+        self = cls(loop=loop, serversite=site, loggername=loggername, server_credentials=server_credentials)
 
         multicast_done = not multicast
 
@@ -265,7 +266,7 @@ class Context(interfaces.RequestProvider):
                 from .transports.tinydtls_server import MessageInterfaceTinyDTLSServer
 
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceTinyDTLSServer.create_server(bind, mman, log=self.log, loop=loop))
+                    lambda mman: MessageInterfaceTinyDTLSServer.create_server(bind, mman, log=self.log, loop=loop, server_credentials=self.server_credentials))
             elif transportname == 'simplesocketserver':
                 from .transports.simplesocketserver import MessageInterfaceSimpleServer
                 await self._append_tokenmanaged_messagemanaged_transport(
