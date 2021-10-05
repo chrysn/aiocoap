@@ -40,6 +40,7 @@ Shortcomings
 import asyncio
 from collections import namedtuple
 
+from .. import error
 from ..numbers import COAP_PORT
 from .. import interfaces
 from .generic_udp import GenericMessageInterface
@@ -87,7 +88,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     _Address = _Address
 
     @classmethod
-    async def create(cls, bind, log, loop, new_message_callback, new_error_callback):
+    async def create(cls, bind, log, loop, message_interface: "GenericMessageInterface"):
         if bind is None or bind[0] in ('::', '0.0.0.0', '', None):
             # If you feel tempted to remove this check, think about what
             # happens if two configured addresses can both route to a
@@ -100,7 +101,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         ready = asyncio.get_running_loop().create_future()
 
         transport, protocol = await loop.create_datagram_endpoint(
-                lambda: cls(ready.set_result, new_message_callback, new_error_callback, log),
+                lambda: cls(ready.set_result, message_interface, log),
                 local_addr=bind,
                 reuse_port=defaults.has_reuse_port(),
                 )
@@ -110,12 +111,13 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         # hostinfo), and can thus store the local hostinfo without distinction
         protocol.hostinfo_local = hostportjoin(bind[0], bind[1] if bind[1] != COAP_PORT else None)
 
-        return await ready
+        self = await ready
+        self._loop = loop
+        return self
 
-    def __init__(self, ready_callback, new_message_callback, new_error_callback, log):
+    def __init__(self, ready_callback, message_interface: "GenericMessageInterface", log):
         self._ready_callback = ready_callback
-        self._new_message_callback = new_message_callback
-        self._new_error_callback = new_error_callback
+        self._message_interface = message_interface
         self.log = log
 
     async def shutdown(self):
@@ -124,10 +126,26 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     # interface like _DatagramClientSocketpoolSimple6
 
     async def connect(self, sockaddr):
-        # FIXME it might be necessary to resolve the address now to get a
-        # canonical form that can be recognized later when a package comes back
+        # FIXME this is not regularly tested either
+
         self.log.warning("Sending initial messages via a server socket is not recommended")
-        return self._Address(self, sockaddr)
+        # A legitimate case is when something stores return addresses as
+        # URI(part)s and not as remotes. (In similar transports this'd also be
+        # the case if the address's connection is dropped from the pool, but
+        # that doesn't happen here since there is no pooling as there is no
+        # per-connection state).
+
+        # getaddrinfo is not only to needed to resolve any host names (which
+        # would not be recognized otherwise), but also to get a complete (host,
+        # port, zoneinfo, whatwasthefourth) tuple from what is passed in as a
+        # (host, port) tuple.
+        addresses = await self._loop.getaddrinfo(*sockaddr, family=self._transport.get_extra_info('socket').family)
+        if not addresses:
+            raise error.NetworkError("No addresses found for %s" % sockaddr[0])
+        # FIXME could do happy eyebals
+        address = addresses[0][4]
+        address = self._Address(self, address)
+        return address
 
     # datagram protocol interface
 
@@ -137,7 +155,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         del self._ready_callback
 
     def datagram_received(self, data, sockaddr):
-        self._new_message_callback(self._Address(self, sockaddr), data)
+        self._message_interface._received_datagram(self._Address(self, sockaddr), data)
 
     def error_received(self, exception):
         # This is why this whole implementation is a bad idea (but still the best we got on some platforms)
@@ -145,11 +163,15 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
 
     def connection_lost(self, exception):
         if exception is None:
-            pass
+            pass # regular shutdown
         else:
             self.log.error("Received unexpected connection loss: %s", exception)
 
 class MessageInterfaceSimpleServer(GenericMessageInterface):
+    # for alteration by tinydtls_server
+    _default_port = COAP_PORT
+    _serversocket = _DatagramServerSocketSimple
+
     @classmethod
     async def create_server(cls, bind, ctx: interfaces.MessageManager, log, loop):
         self = cls(ctx, log, loop)
@@ -158,11 +180,17 @@ class MessageInterfaceSimpleServer(GenericMessageInterface):
         # servers that want a random port (eg. when the service URLs are
         # advertised out-of-band anyway). LwM2M clients should use simple6
         # instead as outlined there.
-        bind = (bind[0], COAP_PORT if bind[1] is None else bind[1])
+        bind = (bind[0], self._default_port if bind[1] is None else bind[1] + (self._default_port - COAP_PORT))
 
-        self._pool = await _DatagramServerSocketSimple.create(bind, log, self._loop, self._received_datagram, self._received_exception)
+        # Cyclic reference broken during shutdown
+        self._pool = await self._serversocket.create(bind, log, self._loop, self)
 
         return self
 
     async def recognize_remote(self, remote):
-        return isinstance(remote, _Address) and remote in remote.serversocket is self._pool
+        # FIXME: This is never tested (as is the connect method) because all
+        # tests create client contexts client-side (which don't build a
+        # simplesocketserver), and because even when a server context is
+        # created, there's a simple6 that grabs such addresses before a request
+        # is sent out
+        return isinstance(remote, _Address) and remote.serversocket is self._pool

@@ -124,6 +124,13 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it.", message.code, message.mtype, message.remote)
 
     def dispatch_error(self, error, remote):
+        if self._active_exchanges is None:
+            # Not entirely sure where it is so far; better just raise a warning
+            # than an exception later, nothing terminally bad should come of
+            # this error.
+            self.log.warning("Internal shutdown sequence msismatch: error dispatched through messagemanager after shutown")
+            return
+
         self.log.debug("Incoming error %s from %r", error, remote)
 
         # cancel requests first, and then exchanges: cancelling the pending

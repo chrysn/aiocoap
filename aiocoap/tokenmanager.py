@@ -67,7 +67,13 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
     #
 
     def dispatch_error(self, exception, remote):
-        keys_for_removal = []
+        if self.outgoing_requests is None:
+            # Not entirely sure where it is so far; better just raise a warning
+            # than an exception later, nothing terminally bad should come of
+            # this error.
+            self.log.warning("Internal shutdown sequence msismatch: error dispatched through tokenmanager after shutown")
+            return
+
         # NetworkError is what we promise users to raise from request etc; if
         # it's already a NetworkError and possibly more descriptive (eg. a
         # TimeoutError), we'll just let it through (and thus allow

@@ -46,11 +46,7 @@ def get_default_clienttransports(*, loop=None, use_env=True):
     if not oscore_missing_modules():
         yield 'oscore'
 
-    try:
-        from DTLSSocket import dtls # noqa: F401
-    except ImportError:
-        pass
-    else:
+    if not dtls_missing_modules():
         yield 'tinydtls'
 
     yield 'tcpclient'

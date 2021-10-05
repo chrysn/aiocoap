@@ -50,10 +50,9 @@ from ..util import hostportjoin
 from .generic_udp import GenericMessageInterface
 
 class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
-    def __init__(self, ready_callback, new_message_callback, new_error_callback, stored_sockaddr):
+    def __init__(self, ready_callback, message_interface: "GenericMessageInterface", stored_sockaddr):
         self._ready_callback = ready_callback
-        self._new_message_callback = new_message_callback
-        self._new_error_callback = new_error_callback
+        self._message_interface = message_interface
 
         # This gets stored in the _Connection because not all implementations
         # of datagram transports will expose the get_extra_info('socket')
@@ -128,10 +127,10 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
         del self._ready_callback
 
     def datagram_received(self, data, address):
-        self._new_message_callback(self, data)
+        self._message_interface._received_datagram(self, data)
 
     def error_received(self, exception):
-        self._new_error_callback(self, exception)
+        self._message_interface._received_exception(self, exception)
 
     def connection_lost(self, exception):
         if exception is None:
@@ -141,14 +140,14 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
 
     # whatever it is _DatagramClientSocketpoolSimple6 expects
 
+    # ... because generic_udp expects it from _DatagramClientSocketpoolSimple6
     def send(self, data):
         self._transport.sendto(data, None)
 
     async def shutdown(self):
         self._stage = "shutting down"
         self._transport.abort()
-        del self._new_message_callback
-        del self._new_error_callback
+        del self._message_interface
         self._stage = "destroyed"
 
 class _DatagramClientSocketpoolSimple6:
@@ -174,13 +173,12 @@ class _DatagramClientSocketpoolSimple6:
     # which MessageInterface to talk to for sending), or we move the
     # MessageInterface out completely and have that object be the Protocol,
     # and the Protocol can even send new packages via the address
-    def __init__(self, loop, new_message_callback, new_error_callback):
+    def __init__(self, loop, mi: "GenericMessageInterface"):
         # using an OrderedDict to implement an LRU cache as it's suitable for that purpose according to its documentation
         self._sockets = OrderedDict()
 
         self._loop = loop
-        self._new_message_callback = new_message_callback
-        self._new_error_callback = new_error_callback
+        self._message_interface = mi
 
     async def _maybe_purge_sockets(self):
         while len(self._sockets) >= self.max_sockets: # more of an if
@@ -209,7 +207,7 @@ class _DatagramClientSocketpoolSimple6:
 
         ready = asyncio.get_running_loop().create_future()
         transport, protocol = await self._loop.create_datagram_endpoint(
-                lambda: _Connection(lambda: ready.set_result(None), self._new_message_callback, self._new_error_callback, sockaddr),
+                lambda: _Connection(lambda: ready.set_result(None), self._message_interface, sockaddr),
                 remote_addr=sockaddr)
         await ready
 
@@ -225,6 +223,10 @@ class _DatagramClientSocketpoolSimple6:
         return protocol
 
     async def shutdown(self):
+        # preventing the creation of new sockets early on, and generally
+        # breaking cycles
+        del self._message_interface
+
         if self._sockets:
             done, pending = await asyncio.wait([
                 asyncio.create_task(s.shutdown())
@@ -239,7 +241,8 @@ class MessageInterfaceSimple6(GenericMessageInterface):
     async def create_client_transport_endpoint(cls, ctx, log, loop):
         self = cls(ctx, log, loop)
 
-        self._pool = _DatagramClientSocketpoolSimple6(self._loop, self._received_datagram, self._received_exception)
+        # Cyclic reference broken during shutdown
+        self._pool = _DatagramClientSocketpoolSimple6(self._loop, self)
         return self
 
     async def recognize_remote(self, remote):
