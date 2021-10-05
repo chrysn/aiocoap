@@ -67,7 +67,6 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
     #
 
     def dispatch_error(self, exception, remote):
-        keys_for_removal = []
         # NetworkError is what we promise users to raise from request etc; if
         # it's already a NetworkError and possibly more descriptive (eg. a
         # TimeoutError), we'll just let it through (and thus allow
