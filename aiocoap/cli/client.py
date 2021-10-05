@@ -218,7 +218,7 @@ async def single_request(args, context=None):
 
     if options.observe:
         request.opt.observe = 0
-        observation_is_over = asyncio.Future()
+        observation_is_over = asyncio.get_event_loop().create_future()
 
     if options.content_format:
         try:
@@ -319,10 +319,11 @@ async def single_request(args, context=None):
         if options.observe and not requester.observation.cancelled:
             requester.observation.cancel()
 
-interactive_expecting_keyboard_interrupt = asyncio.Future()
+interactive_expecting_keyboard_interrupt = None
 
 async def interactive():
     global interactive_expecting_keyboard_interrupt
+    interactive_expecting_keyboard_interrupt = asyncio.get_event_loop().create_future()
 
     context = await aiocoap.Context.create_client_context()
 
@@ -341,7 +342,7 @@ async def interactive():
             return
 
         current_task = asyncio.create_task(single_request(line, context=context))
-        interactive_expecting_keyboard_interrupt = asyncio.Future()
+        interactive_expecting_keyboard_interrupt = asyncio.get_event_loop().create_future()
 
         done, pending = await asyncio.wait([current_task, interactive_expecting_keyboard_interrupt], return_when=asyncio.FIRST_COMPLETED)
 

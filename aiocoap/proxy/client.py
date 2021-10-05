@@ -35,7 +35,7 @@ class ProxyRequest(interfaces.Request):
     def __init__(self, proxy, app_request, exchange_monitor_factory=lambda x:None):
         self.proxy = proxy
         self.app_request = app_request
-        self.response = asyncio.Future()
+        self.response = asyncio.get_running_loop().create_future()
         self._exchange_monitor_factory = exchange_monitor_factory
 
         self.observation = ProxyClientObservation(app_request)

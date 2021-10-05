@@ -97,7 +97,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
             # tell the first user where it does happen anyway.
             raise ValueError("The transport can not be bound to any-address.")
 
-        ready = asyncio.Future()
+        ready = asyncio.get_running_loop().create_future()
 
         transport, protocol = await loop.create_datagram_endpoint(
                 lambda: cls(ready.set_result, new_message_callback, new_error_callback, log),

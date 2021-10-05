@@ -207,7 +207,7 @@ class _DatagramClientSocketpoolSimple6:
 
         await self._maybe_purge_sockets()
 
-        ready = asyncio.Future()
+        ready = asyncio.get_running_loop().create_future()
         transport, protocol = await self._loop.create_datagram_endpoint(
                 lambda: _Connection(lambda: ready.set_result(None), self._new_message_callback, self._new_error_callback, sockaddr),
                 remote_addr=sockaddr)

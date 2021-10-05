@@ -192,7 +192,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
             self._retransmission_task = asyncio.create_task(self._run_retransmissions())
 
-            self._connecting = asyncio.Future()
+            self._connecting = asyncio.get_running_loop().create_future()
             await self._connecting
 
             queue = self._queue
