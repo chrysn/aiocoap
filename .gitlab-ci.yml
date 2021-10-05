@@ -55,12 +55,12 @@ test:tox-bookworm:
   image: debian:bookworm
   resource_group: uses-coap-ports
   variables:
-    # Running 3.10 only (might move pypy in here too)
-    TOX_SKIP_ENV: "py3[789]|pypy"
+    # Running only 3.10 and pypy
+    TOX_SKIP_ENV: "py3[789]"
   script:
     - rm -f .coverage* collected-coverage
     - apt-get update
-    - apt-get -y install tox build-essential python3.10-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev
+    - apt-get -y install tox build-essential python3.10-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev pypy3 pypy3-dev
     # Separate run so I don't waste time telling errors in setup apart from errors at runtime
     - tox --notest
     - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
@@ -88,30 +88,6 @@ test:tox-on-buster:
     paths:
       - collected-coverage/tox-buster/
 
-test:tox-on-pypy:
-  image: pypy:3.7
-  resource_group: uses-coap-ports
-  variables:
-    TOX_SKIP_ENV: "py3[7891]"
-  script:
-    - rm -f .coverage* collected-coverage
-    - apt-get update
-    # Less to install here as the pypy container should contain full pypy with all its pip etc. already
-    - apt-get -y install build-essential libssl-dev autoconf iproute2
-    # Rust 1.45? Not on this backend. But no wheels for pypy either, it seems.
-    - "sh <(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs) -y"
-    # as requested by Rust -- this is all going line by line into a shell script, after all (unlike in a Makefile)
-    - "export PATH=${PATH}:${HOME}/.cargo/bin"
-    - pip install tox
-    # Separate run so I don't waste time telling errors in setup apart from errors at runtime
-    - tox --notest
-    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
-    - mkdir collected-coverage/tox-pypy/ -p
-    - mv .coverage* collected-coverage/tox-pypy/
-  artifacts:
-    paths:
-      - collected-coverage/tox/
-
 pages:
   image: "debian"
   stage: deploy
@@ -119,7 +95,7 @@ pages:
     - test:3.7
     - test:tox
     - test:tox-on-buster
-    - test:tox-on-pypy
+    - test:tox-bookworm
   script:
     - apt-get update
     - apt-get -y install python3-pip
