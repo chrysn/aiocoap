@@ -39,7 +39,6 @@ ease porting to platforms that don't support inspect like micropython does.
 
 import re
 import inspect
-import ssl
 
 from typing import Optional
 
@@ -299,6 +298,8 @@ class CredentialsMap(dict):
 
         If no credentials are configured, this returns the default SSL client
         context."""
+
+        import ssl
 
         ssl_params = {}
         tlscert = self.get('%s://%s/*' % (scheme, hostinfo), None)
