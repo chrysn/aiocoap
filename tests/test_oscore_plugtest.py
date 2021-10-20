@@ -21,7 +21,7 @@ from aiocoap.util import hostportjoin
 
 from .test_server import WithAsyncLoop, WithClient, asynctest
 from . import common
-from .fixtures import test_is_successful
+from .fixtures import is_test_successful
 
 from .common import PYTHON_PREFIX
 SERVER_ADDRESS = '::1'
@@ -135,7 +135,7 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
 
         out, err = self.loop.run_until_complete(self.__done)
 
-        if not test_is_successful(self):
+        if not is_test_successful(self):
             if not out and not err:
                 return
             self.fail("Previous errors occurred." +
@@ -188,7 +188,7 @@ class TestOSCOREPlugtestWithRecovery(TestOSCOREPlugtestBase):
 
 for x in range(0, 17):
     for cls in (TestOSCOREPlugtestWithRecovery, TestOSCOREPlugtestWithoutRecovery):
-        test = lambda self, x=x: self._test_plugtestclient(x)
+        test = classmethod(lambda x=x: self._test_plugtestclient(x))
         if x == 16:
             # That test can not succeed against a regular plugtest server
             test = unittest.expectedFailure(test)

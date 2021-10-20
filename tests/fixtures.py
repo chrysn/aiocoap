@@ -35,7 +35,7 @@ CLEANUPTIME = 0.01
 # chance to complete even on occupied systems.
 ASYNCTEST_TIMEOUT = 3 * 60
 
-def test_is_successful(testcase):
+def is_test_successful(testcase):
     """Return true if a current TestCase instancance completed so far without
     raising errors. This is supposed to be used in tearDown handlers on self
     when additional debug information can be shown that would otherwise be
@@ -113,7 +113,7 @@ class WithLogMonitoring(unittest.TestCase):
             print(complete_log, file=sys.stderr)
             complete_log = "was just printed unconditionally anyway"
 
-        self.assertTrue(test_is_successful(self),
+        self.assertTrue(is_test_successful(self),
                 "Previous errors were raised." + complete_log)
 
     class ListHandler(logging.Handler):
@@ -195,7 +195,7 @@ class Destructing(WithLogMonitoring):
         weaksurvivor = weakref.ref(getter(self))
         deleter(self)
 
-        if not test_is_successful(self):
+        if not is_test_successful(self):
             # An error was already logged, and that error's backtrace usually
             # creates references that make any attempt to detect lingering
             # references fuitile. It'll show an error anyway, no use in
