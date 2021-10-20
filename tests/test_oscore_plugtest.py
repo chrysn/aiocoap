@@ -188,10 +188,10 @@ class TestOSCOREPlugtestWithRecovery(TestOSCOREPlugtestBase):
 
 for x in range(0, 17):
     for cls in (TestOSCOREPlugtestWithRecovery, TestOSCOREPlugtestWithoutRecovery):
-        test = classmethod(lambda x=x: self._test_plugtestclient(x))
+        t = lambda self, x=x: self._test_plugtestclient(x)
         if x == 16:
             # That test can not succeed against a regular plugtest server
-            test = unittest.expectedFailure(test)
+            t = unittest.expectedFailure(t)
         if x == 7:
             # That test fails because there is no proper observation cancellation
             # aroun yet, see https://github.com/chrysn/aiocoap/issues/104
@@ -203,4 +203,4 @@ for x in range(0, 17):
 
         # enforcing them to sort properly is purely a readability thing, they
         # execute correctly out-of-order too.
-        setattr(cls, 'test_%03d'%x, test)
+        setattr(cls, 'test_%03d'%x, t)
