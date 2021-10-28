@@ -1,0 +1,36 @@
+security-policy = {
+    "sectors": sector-map,
+    ? "registrar_has_permissions": bool, ; Will default to "true" if not defined
+}
+
+sector-map = {
+    * tstr => sector-policy,
+}
+
+sector-policy = {
+    ? "endpoints": endpoint-map,
+    ? "default_policies": policy-map
+}
+
+endpoint-map = {
+    * tstr => endpoint-policy
+}
+
+endpoint-policy = {
+    "policies": policy-map
+}
+
+; These are the same as in credentials.cddl
+claim = uripattern / credential-reference
+uripattern = tstr .regexp "[^:]"
+credential-reference = tstr .regexp ":.+"
+
+policy-map = {
+    * claim => policy
+}
+
+policy = {
+    ? "write": bool,    ; Will default to "false" if not defined
+    ? "read": bool,     ; Will default to "false" if not defined
+    ? "create": bool,   ; Will default to "false" if not defined
+}

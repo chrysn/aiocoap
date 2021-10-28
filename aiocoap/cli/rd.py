@@ -72,7 +72,7 @@ after another registrar has used that name.
 Policies for the default sector/no sector (if no sector is set) can be defined
 using the special ":default:" sector name.
 Policies that should apply to all clients even if they don't have any
-credentials (default policies) can be set using the special "*" credential
+credentials (default policies) can be set using the special ":default:" credential
 reference/claim.
 
 If a client has multiple claims/multiple policies apply (e.g. the default
@@ -94,12 +94,12 @@ An example of such a security policy JSON file is shown here:
     				}
     			}
     		},
-    		"policies": {
+    		"default_policies": {
     			":key_2": {
     				"write": true,
     				"create": true
     			},
-    			"*": {
+    			":default:": {
     				"read": true,
     				"write": false,
     				"create": false
@@ -160,6 +160,20 @@ from aiocoap.util.linkformat import Link, LinkFormat, parse
 import link_header
 
 IMMUTABLE_PARAMETERS = ('ep', 'd', 'proxy')
+
+# Sector key in the security policy configuration whose value should be used
+# for the "default" sector (i.e. if no sector is set).
+# Might need to be changed if there is a situation where ":default:" is used
+# as an actual sector name.
+DEFAULT_SECTOR_KEY = ':default:'
+
+# Claim/credential reference key in the policy map whose value should be
+# treated as the "default" permissions for users that don't have any claims.
+# Might need to be changed if there is a situation where ":default:" is used
+# as an actual claim name (even though this can also be fixed by just using
+# a different name, since the claim names are only used internally and
+# arbritrarily set in the credentials file).
+DEFAULT_CLAIM_KEY = ':default:'
 
 def query_split(msg):
     """Split a message's query up into (key, [*value]) pairs from a
@@ -263,16 +277,16 @@ class CommonRD:
             sectors = dict()
             for sector_name, sector_data in data['sectors'].items():
                 endpoints = dict()
-                for endpoint_name, endpoint_data in sector_data['endpoints'].items():
-                    ep_policies = {cred_ref if cred_ref != "*" else None: _read_policy_entries(policy_data) for cred_ref, policy_data in endpoint_data['policies'].items()}
+                for endpoint_name, endpoint_data in sector_data.get('endpoints', dict()).items():
+                    ep_policies = {cred_ref if cred_ref != DEFAULT_CLAIM_KEY else None: _read_policy_entries(policy_data) for cred_ref, policy_data in endpoint_data['policies'].items()}
                     endpoints[endpoint_name] = cls.EndpointPolicy(ep_policies)
 
-                sec_policies = {cred_ref if cred_ref != "*" else None: _read_policy_entries(policy_data) for cred_ref, policy_data in sector_data['policies'].items()}
-                if sector_name == ":default:":
+                sec_policies = {cred_ref if cred_ref != DEFAULT_CLAIM_KEY else None: _read_policy_entries(policy_data) for cred_ref, policy_data in sector_data['default_policies'].items()}
+                if sector_name == DEFAULT_SECTOR_KEY:
                     sector_name = None
                 sectors[sector_name] = cls.SectorPolicy(sec_policies, endpoints)
 
-            return cls(True, sectors, True if 'registrar_has_permissions' not in data else data['registrar_has_permissions'])
+            return cls(True, sectors, data.get('registrar_has_permissions', True))
 
         def __init__(self, enable, sectors=None, registrar_full_permissions=True):
             self.enable = enable
@@ -687,18 +701,19 @@ class DirectoryResource(RegistrationCreationResourceBase, ThingWithCommonRD, Res
 
         return aiocoap.Message(code=aiocoap.CREATED, location_path=regresource.path)
 
-class RegistrationResource(Resource):
+class RegistrationResource(ThingWithCommonRD, Resource):
     """The resource object wrapping a registration is just a very thin and
     ephemeral object; all those methods could just as well be added to
     Registration with `s/self.reg/self/g`, making RegistrationResource(reg) =
     reg (or handleded in a single RegistrationDispatchSite), but this is kept
     here for better separation of model and interface."""
 
-    def __init__(self, registration):
+    def __init__(self, common_rd, registration):
+        super().__init__(common_rd)
         self.reg = registration
 
     def _get_permissions(self, request):
-        is_registrar = request.remote == self.reg.registrar
+        is_registrar = type(request.remote) is type(self.reg.registrar) and request.remote == self.reg.registrar
         return self.common_rd.policy.get_permissions(request.remote.authenticated_claims,
                 sector_name=self.reg.d,
                 endpoint_name=self.reg.ep,
@@ -709,7 +724,7 @@ class RegistrationResource(Resource):
         if not self._get_permissions(request) & CommonRD.SecurityPolicy.Permissions.READ:
             raise error.Unauthorized("Operation not allowed due to security policy")
 
-        return link_format_from_message(request, self.reg.links)
+        return link_format_to_message(request, self.reg.links)
 
     def _update_params(self, msg):
         query = query_split(msg)
@@ -754,7 +769,7 @@ class RegistrationDispatchSite(ThingWithCommonRD, Resource, PathCapable):
         except KeyError:
             raise error.NotFound
 
-        entity = RegistrationResource(entity)
+        entity = RegistrationResource(self.common_rd, entity)
 
         return await entity.render(request.copy(uri_path=()))
 
