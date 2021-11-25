@@ -1,5 +1,5 @@
-Version next
-------------
+Version 0.4.2
+-------------
 
 New features
 ~~~~~~~~~~~~
@@ -42,14 +42,15 @@ Minor enhancements
 * Pretty printer errs gracefully.
 * Failure path fixes.
 * Documentation updates.
-* CI testing now uses pytest.
 * Removed distutils dependency.
 
 Internal refactoring
 ~~~~~~~~~~~~~~~~~~~~
 
+* CI testing now uses pytest.
 * dispatch_error now passes on exceptions.
 * DTLS client cleaned up.
+* Build process now uses the build module.
 
 Version 0.4.1
 -------------
