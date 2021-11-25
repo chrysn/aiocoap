@@ -212,8 +212,11 @@ class WSPool(interfaces.TokenInterface):
 
     # Helpers for WebScoket server
 
-    async def _new_connection(self, websocket, path, *, scheme):
+    async def _new_connection(self, websocket, path=None, *, scheme):
         # ignoring path: Already checked in _process_request
+        #
+        # (path is present up to 10.0 and absent in 10.1; keeping it around to
+        # stay compatible with different versions).
 
         hostheader = websocket.request_headers['Host']
         if hostheader.count(':') > 1 and '[' not in hostheader:
