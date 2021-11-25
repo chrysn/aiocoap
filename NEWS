@@ -1,3 +1,16 @@
+Version 0.4.3
+-------------
+
+Compatibility
+~~~~~~~~~~~~~
+
+* Fix compatibility with websockets 10.1.
+
+Minor enhancements
+~~~~~~~~~~~~~~~~~~
+
+* Failure path fixes.
+
 Version 0.4.2
 -------------
 
