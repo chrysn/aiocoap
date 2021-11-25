@@ -83,8 +83,8 @@ def build_moduledocs(app):
             """).format(x=x)
 
         if x in ('aiocoap.numbers', 'aiocoap.transports'):
-            # not enumerating items does miss out on media_types{,rev}, but
-            # they're a mess anyway so far
+            # They have explicit intros pointing out submodules and/or
+            # describing any reexports
             text = commonstart + textwrap.dedent("""
                 .. automodule:: {x}
                 .. toctree::

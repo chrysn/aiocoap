@@ -83,7 +83,7 @@ class UintOption(OptionType):
         self.number = number
 
     def encode(self):
-        return _to_minimum_bytes(self.value)
+        return _to_minimum_bytes(int(self.value))
 
     def decode(self, rawdata):
         self.value = int.from_bytes(rawdata, 'big')

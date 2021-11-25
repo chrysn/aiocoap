@@ -109,7 +109,7 @@ class WhoAmI(aiocoap.resource.Resource):
                 )
         return aiocoap.Message(
                 code=aiocoap.CONTENT,
-                content_format=aiocoap.numbers.media_types_rev.get('application/json'),
+                content_format=aiocoap.numbers.ContentFormat.JSON,
                 payload=json.dumps(p).encode('utf8'),
                 )
 
@@ -232,7 +232,7 @@ class TestServer(WithTestServer, WithClient):
     def test_js_accept(self):
         request = self.build_request()
         request.opt.uri_path = ['empty']
-        request.opt.accept = aiocoap.numbers.media_types_rev['application/json']
+        request.opt.accept = aiocoap.numbers.ContentFormat.JSON
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "JSON request did not succede")
         self.assertEqual(response.payload, b'{}', "JSON request gave unexpected result")

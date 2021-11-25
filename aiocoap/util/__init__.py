@@ -36,6 +36,8 @@ class ExtensibleEnumMeta(type):
                 continue
             if isinstance(v, property):
                 continue
+            if isinstance(v, classmethod):
+                continue
             instance = self(v)
             instance.name = k
             setattr(self, k, instance)

@@ -166,7 +166,7 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         return link
 
 def link_format_to_message(request, linkformat,
-        default_ct=numbers.media_types_rev['application/link-format']):
+        default_ct=numbers.ContentFormat.LINKFORMAT):
     """Given a LinkFormat object, render it to a response message, picking a
     suitable conent format from a given request.
 
@@ -179,7 +179,7 @@ def link_format_to_message(request, linkformat,
     if ct is None:
         ct = default_ct
 
-    if ct == numbers.media_types_rev['application/link-format']:
+    if ct == numbers.ContentFormat.LINKFORMAT:
         payload = str(linkformat).encode('utf8')
     else:
         return message.Message(code=numbers.NOT_ACCEPTABLE)
@@ -188,8 +188,8 @@ def link_format_to_message(request, linkformat,
 
 # Convenience attribute to set as ct on resources that use
 # link_format_to_message as their final step in the request handler
-link_format_to_message.supported_ct = " ".join(str(x) for x in (
-        numbers.media_types_rev['application/link-format'],
+link_format_to_message.supported_ct = " ".join(str(int(x)) for x in (
+        numbers.ContentFormat.LINKFORMAT,
         ))
 
 class WKCResource(Resource):
