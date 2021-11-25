@@ -30,8 +30,7 @@ media_types = {0: 'text/plain;charset=utf-8',
                52: 'application/merge-patch+json',
                60: 'application/cbor',
                61: 'application/cwt',
-               62: 'application/multipast-core', # draft-ietf-core-multipart-ct
-               70: 'application/oscon', # draft-ietf-core-object-security-01
+               62: 'application/multipart-core',
                96: 'application/cose;cose-type="cose-encrypt"',
                97: 'application/cose;cose-type="cose-mac"',
                98: 'application/cose;cose-type="cose-sign"',
