@@ -62,7 +62,7 @@ import functools
 import http
 import weakref
 
-from aiocoap import Message, interfaces, ABORT, util
+from aiocoap import Message, interfaces, ABORT, util, error
 from aiocoap.transports import rfc8323common
 
 import websockets
@@ -334,7 +334,7 @@ class WSPool(interfaces.TokenInterface):
                 received = await remote._connection.recv()
             except websockets.exceptions.ConnectionClosed as e:
                 # FIXME if deposited somewhere, mark that as stale?
-                self._tokenmanager.dispatch_error(error.RemoteServerShutdown, remote)
+                self._tokenmanager.dispatch_error(error.RemoteServerShutdown(), remote)
                 return
 
             if not isinstance(received, bytes):
