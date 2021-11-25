@@ -1,13 +1,16 @@
 Notes to the maintainer on what to do during a release
 ======================================================
 
+migrate sdist according to https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html, maybe add with wheel as `python3 -m build -s -w`
+
 * Update NEWS file
 * Bump versions in setup.py, aiocoap/meta.py and doc/conf.py, and at the head of NEWS
 * Commit: git commit "Prepare $VERSION release"
 * Tag it: git tag -as "$VERSION"
 * Clean up: git stash -u
-* Build it: ./setup.py sdist
-* Upload it: twine upload ./dist/aiocoap-"${VERSION}".tar.gz
+* Build it: python3 -m build
+  (This builds, by default, both tar ball and wheel)
+* Upload it: twine upload ./dist/aiocoap-"$VERSION"{.tar.gz,-py3-none-any.whl}
 * Push it: git push github master --tags; git push gitlab master --tags
 * log in to readthedocs, add new tag as new version
 * Bump versions to add a ".post0"
