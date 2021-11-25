@@ -16,7 +16,7 @@ from setuptools import setup, find_packages, Command
 import os, os.path
 
 name = "aiocoap"
-version = "0.4.2" # Don't forget meta.version and doc/conf.py
+version = "0.4.2.post0" # Don't forget meta.version and doc/conf.py
 description = "Python CoAP library"
 
 # When introducing something new, make sure to update doc/installation.rst
