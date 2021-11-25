@@ -31,7 +31,6 @@ media_types = {0: 'text/plain;charset=utf-8',
                60: 'application/cbor',
                61: 'application/cwt',
                62: 'application/multipast-core', # draft-ietf-core-multipart-ct
-               64: 'application/link-format+cbor', # draft-ietf-core-links-json-10
                70: 'application/oscon', # draft-ietf-core-object-security-01
                96: 'application/cose;cose-type="cose-encrypt"',
                97: 'application/cose;cose-type="cose-mac"',
@@ -57,7 +56,6 @@ media_types = {0: 'text/plain;charset=utf-8',
                1000: 'application/vnd.ocf+cbor',
                11542: 'application/vnd.oma.lwm2m+tlv',
                11543: 'application/vnd.oma.lwm2m+json',
-               504: 'application/link-format+json', # draft-ietf-core-links-json-10
                }
 """A map from CoAP-assigned integral codes to Internet media type descriptions."""
 

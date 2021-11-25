@@ -354,10 +354,6 @@ def link_format_from_message(message):
     try:
         if certain_format == media_types_rev['application/link-format']:
             return parse(message.payload.decode('utf8'))
-        elif certain_format == media_types_rev['application/link-format+json']:
-            return LinkFormat.from_json_string(message.payload.decode('utf8'))
-        elif certain_format == media_types_rev['application/link-format+cbor']:
-            return LinkFormat.from_cbor_bytes(message.payload)
         else:
             raise error.UnsupportedMediaType()
     except (UnicodeDecodeError, link_header.ParseException):

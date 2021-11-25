@@ -181,10 +181,6 @@ def link_format_to_message(request, linkformat,
 
     if ct == numbers.media_types_rev['application/link-format']:
         payload = str(linkformat).encode('utf8')
-    elif ct == numbers.media_types_rev['application/link-format+cbor']:
-        payload = linkformat.as_cbor_bytes()
-    elif ct == numbers.media_types_rev['application/link-format+json']:
-        payload = linkformat.as_json_string().encode('utf8')
     else:
         return message.Message(code=numbers.NOT_ACCEPTABLE)
 
@@ -194,8 +190,6 @@ def link_format_to_message(request, linkformat,
 # link_format_to_message as their final step in the request handler
 link_format_to_message.supported_ct = " ".join(str(x) for x in (
         numbers.media_types_rev['application/link-format'],
-        numbers.media_types_rev['application/link-format+cbor'],
-        numbers.media_types_rev['application/link-format+json'],
         ))
 
 class WKCResource(Resource):
