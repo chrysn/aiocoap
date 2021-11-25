@@ -1,3 +1,56 @@
+Version next
+------------
+
+New features
+~~~~~~~~~~~~
+
+* Experimental support for DTLS server operation (PSK only).
+
+Tools
+~~~~~
+
+* aiocoap-client reports responder address if different from requested.
+* aiocoap-rd is aligned with draft version -27 (e.g. using .well-known/rd).
+* aiocoap-proxy can be registered to an RD.
+
+Compatibility
+~~~~~~~~~~~~~
+
+* Group OSCORE updated to -11.
+* Fixes to support Python 3.10, including removal of some deprecated idioms and
+  inconsistent loop handling.
+
+Examples / contrib
+~~~~~~~~~~~~~~~~~~
+
+* Demo for Deterministic OSCORE added.
+
+Deprecations
+~~~~~~~~~~~~
+
+* util.quote_nonascii
+* error.{RequestTimedOut,WaitingForClientTimedOut}
+* Direct use of AsyncCLIDaemon from asynchronous contexts (replacement not
+  available yet).
+
+Minor enhancements
+~~~~~~~~~~~~~~~~~~
+
+* Resources can hide themselves from the listing in /.well-known/core.
+* RD's built-in proxy handles block-wise better.
+* Added __repr__ to TokenManager and MessageManager.
+* Pretty printer errs gracefully.
+* Failure path fixes.
+* Documentation updates.
+* CI testing now uses pytest.
+* Removed distutils dependency.
+
+Internal refactoring
+~~~~~~~~~~~~~~~~~~~~
+
+* dispatch_error now passes on exceptions.
+* DTLS client cleaned up.
+
 Version 0.4.1
 -------------
 
