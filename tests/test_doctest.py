@@ -11,7 +11,13 @@ import aiocoap.defaults
 import os
 import sys
 
-def load_tests(loader, tests, ignore):
+def _load_tests():
+    """This is an adapted load_test of the old unittest mechanism, adapted
+    crudely to work with pytest. It can most probably be done better, eg. by
+    producing a list of doctest-able files for use with doctest-glob (which
+    would allow getting actual breakpoints where things fail, or other pytest
+    niceties), but as it is, it at least covers the cases again."""
+    i = 0
     for root, dn, fn in os.walk('aiocoap'):
         for f in fn:
             if not f.endswith('.py'):
@@ -35,5 +41,15 @@ def load_tests(loader, tests, ignore):
                     or (sys.platform == 'win32' and sys.version_info < (3, 8))
                     ):
                 continue
-            tests.addTests(doctest.DocTestSuite(p))
-    return tests
+            for t in doctest.DocTestSuite(p):
+                i += 1
+                def test(t=t):
+                    result = t.run()
+                    for f in result.failures:
+                        print(f[1])
+                        raise RuntimeError("Doctest failed (see above)")
+                    for e in result.errors:
+                        raise e
+                globals()['test_%03d' % i] = test
+
+_load_tests()
