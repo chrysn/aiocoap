@@ -9,6 +9,8 @@
 import abc
 import collections
 
+from .numbers.contentformat import ContentFormat
+
 def _to_minimum_bytes(value):
     return value.to_bytes((value.bit_length() + 7) // 8, 'big')
 
@@ -91,8 +93,33 @@ class UintOption(OptionType):
     def __str__(self):
         return str(self.value)
 
+class TypedOption(OptionType, metaclass=abc.ABCMeta):
+    @property
+    @abc.abstractmethod
+    def type(self) -> type:
+        """Checked type of the option"""
 
-class BlockOption(OptionType):
+    def __init__(self, number, value=None):
+        self.number = number
+        # FIXME when is this ever initialized without value?
+        if value is not None:
+            self.value = value
+
+    value = property(lambda self: self._value, lambda self, value: self._set_from_opt_value(value))
+
+    def _set_from_opt_value(self, value: object):
+        """Convert a value set as ``message.opt.option_name = value`` into the
+        stored value. By default, this does an eager isinstance check on the
+        value (anticipating that encoding an unsuitable value would otherwise
+        fail at a hard-to-debug location)."""
+        if not isinstance(value, self.type):
+            raise ValueError("Setting values of type %s is not supported on this option" % type(value))
+        self._value = value
+
+    def __str__(self):
+        return str(self.value)
+
+class BlockOption(TypedOption):
     """Block CoAP option - special option used only for Block1 and Block2 options.
        Currently it is the only type of CoAP options that has
        internal structure.
@@ -153,12 +180,7 @@ class BlockOption(OptionType):
             increasednumber = self.block_number << (min(self.size_exponent, 6) - maximum_exponent)
             return type(self)(increasednumber, self.more, maximum_exponent)
 
-    def __init__(self, number, value=None):
-        if value is not None:
-            self._value = self.BlockwiseTuple._make(value)
-        self.number = number
-
-    value = property(lambda self: self._value, lambda self, value: setattr(self, '_value', self.BlockwiseTuple._make(value)))
+    type = BlockwiseTuple
 
     def encode(self):
         as_integer = (self.value.block_number << 4) + (self.value.more * 0x08) + self.value.size_exponent
@@ -168,5 +190,8 @@ class BlockOption(OptionType):
         as_integer = int.from_bytes(rawdata, 'big')
         self.value = self.BlockwiseTuple(block_number=(as_integer >> 4), more=bool(as_integer & 0x08), size_exponent=(as_integer & 0x07))
 
-    def __str__(self):
-        return str(self.value)
+    def _set_from_opt_value(self, value):
+        # Casting it through the constructor makes it easy to set the option as
+        # `(num, more, sz)` without having to pick the type out of a very long
+        # module name
+        super()._set_from_opt_value(self.type(*value))
