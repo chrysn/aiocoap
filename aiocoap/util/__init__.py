@@ -36,6 +36,8 @@ class ExtensibleEnumMeta(type):
                 continue
             if isinstance(v, property):
                 continue
+            if isinstance(v, classmethod):
+                continue
             instance = self(v)
             instance.name = k
             setattr(self, k, instance)
@@ -51,9 +53,6 @@ class ExtensibleEnumMeta(type):
 class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
     """Similar to Python's enum.IntEnum, this type can be used for named
     numbers which are not comprehensively known, like CoAP option numbers."""
-
-    def __add__(self, delta):
-        return type(self)(int(self) + delta)
 
     def __repr__(self):
         return '<%s %d%s>'%(type(self).__name__, self, ' "%s"'%self.name if hasattr(self, "name") else "")

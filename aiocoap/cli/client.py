@@ -30,7 +30,7 @@ import aiocoap.meta
 import aiocoap.proxy.client
 from aiocoap.util import contenttype
 from aiocoap.util.cli import ActionNoYes
-from aiocoap.numbers import media_types
+from aiocoap.numbers import ContentFormat
 
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
@@ -116,8 +116,11 @@ def present(message, options, file=sys.stdout):
 
     payload = None
 
-    mime = media_types.get(message.opt.content_format,
-            'application/octet-stream')
+    cf = message.opt.content_format or message.request.opt.content_format
+    if cf is not None and cf.is_known():
+        mime = cf.media_type
+    else:
+        mime = 'application/octet-stream'
     if options.pretty_print:
         from aiocoap.util.prettyprint import pretty_print
         prettyprinted = pretty_print(message)
@@ -209,10 +212,10 @@ async def single_request(args, context=None):
 
     if options.accept:
         try:
-            request.opt.accept = int(options.accept)
+            request.opt.accept = ContentFormat(int(options.accept))
         except ValueError:
             try:
-                request.opt.accept = aiocoap.numbers.media_types_rev[options.accept]
+                request.opt.accept = ContentFormat.by_media_type(options.accept)
             except KeyError:
                 raise parser.error("Unknown accept type")
 
@@ -222,10 +225,10 @@ async def single_request(args, context=None):
 
     if options.content_format:
         try:
-            request.opt.content_format = int(options.content_format)
+            request.opt.content_format = ContentFormat(int(options.content_format))
         except ValueError:
             try:
-                request.opt.content_format = aiocoap.numbers.media_types_rev[options.content_format]
+                request.opt.content_format = ContentFormat.by_media_type(options.content_format)
             except KeyError:
                 raise parser.error("Unknown content format")
 
@@ -241,7 +244,12 @@ async def single_request(args, context=None):
             except OSError as e:
                 raise parser.error("File could not be opened: %s"%e)
         else:
-            if contenttype.categorize(aiocoap.numbers.media_types.get(request.opt.content_format, "")) == 'cbor':
+            if contenttype.categorize(
+                    request.opt.content_format.media_type
+                    if request.opt.content_format is not None and
+                        request.opt.content_format.is_known()
+                    else ""
+                    ) == 'cbor':
                 try:
                     import cbor2 as cbor
                 except ImportError as e:

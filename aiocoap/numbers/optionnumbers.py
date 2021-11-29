@@ -59,6 +59,11 @@ class OptionNumber(ExtensibleIntEnum):
     # going to be used in overhead comparisons.
     REQUEST_HASH = 548
 
+    def __add__(self, delta):
+        """Addition makes sense on these due to the delta encoding in CoAP
+        serialization"""
+        return type(self)(int(self) + delta)
+
     def is_critical(self):
         return self & 0x01 == 0x01
 
@@ -116,10 +121,10 @@ OptionNumber.ETAG.format = optiontypes.OpaqueOption
 OptionNumber.URI_PORT.format = optiontypes.UintOption
 OptionNumber.LOCATION_PATH.format = optiontypes.StringOption
 OptionNumber.URI_PATH.format = optiontypes.StringOption
-OptionNumber.CONTENT_FORMAT.format = optiontypes.UintOption
+OptionNumber.CONTENT_FORMAT.format = optiontypes.ContentFormatOption
 OptionNumber.MAX_AGE.format = optiontypes.UintOption
 OptionNumber.URI_QUERY.format = optiontypes.StringOption
-OptionNumber.ACCEPT.format = optiontypes.UintOption
+OptionNumber.ACCEPT.format = optiontypes.ContentFormatOption
 OptionNumber.LOCATION_QUERY.format = optiontypes.StringOption
 OptionNumber.PROXY_URI.format = optiontypes.StringOption
 OptionNumber.PROXY_SCHEME.format = optiontypes.StringOption

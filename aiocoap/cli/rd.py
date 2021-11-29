@@ -39,7 +39,7 @@ from aiocoap.util.cli import AsyncCLIDaemon
 import aiocoap.util.uri
 from aiocoap import error
 from aiocoap.cli.common import add_server_arguments, server_context_from_arguments
-from aiocoap.numbers import media_types_rev
+from aiocoap.numbers import ContentFormat
 import aiocoap.proxy.server
 
 from aiocoap.util.linkformat import Link, LinkFormat, parse
@@ -352,12 +352,8 @@ def link_format_from_message(message):
     if certain_format is None:
         certain_format = message.request.opt.accept
     try:
-        if certain_format == media_types_rev['application/link-format']:
+        if certain_format == ContentFormat.LINKFORMAT:
             return parse(message.payload.decode('utf8'))
-        elif certain_format == media_types_rev['application/link-format+json']:
-            return LinkFormat.from_json_string(message.payload.decode('utf8'))
-        elif certain_format == media_types_rev['application/link-format+cbor']:
-            return LinkFormat.from_cbor_bytes(message.payload)
         else:
             raise error.UnsupportedMediaType()
     except (UnicodeDecodeError, link_header.ParseException):
@@ -586,7 +582,7 @@ class SimpleRegistration(ThingWithCommonRD, Resource):
             get.remote = network_remote
 
         get.code = aiocoap.GET
-        get.opt.accept = media_types_rev['application/link-format']
+        get.opt.accept = ContentFormat.LINKFORMAT
 
         # not trying to catch anything here -- the errors are most likely well renderable into the final response
         response = await self.context.request(get).response_raising
