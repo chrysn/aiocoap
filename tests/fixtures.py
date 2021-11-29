@@ -182,6 +182,12 @@ class WithAsyncLoop(unittest.TestCase):
 
         self.loop = asyncio.get_event_loop()
 
+        if 'PyPy' in sys.version:
+            # Group OSCORE operations really do take ages with pypy
+            #
+            # Workaround for https://github.com/chrysn/aiocoap/issues/265
+            self.loop.slow_callback_duration = 0.9
+
 class Destructing(WithLogMonitoring):
     def _del_to_be_sure(self, attribute):
         if isinstance(attribute, str):
