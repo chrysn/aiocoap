@@ -115,7 +115,7 @@ class WhoAmI(resource.Resource):
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("coap-server").setLevel(logging.DEBUG)
 
-def main():
+async def main():
     # Resource tree creation
     root = resource.Site()
 
@@ -126,9 +126,10 @@ def main():
     root.add_resource(['other', 'separate'], SeparateLargeResource())
     root.add_resource(['whoami'], WhoAmI())
 
-    asyncio.Task(aiocoap.Context.create_server_context(root))
+    await aiocoap.Context.create_server_context(root)
 
-    asyncio.get_event_loop().run_forever()
+    # Run forever
+    await asyncio.get_running_loop().create_future()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

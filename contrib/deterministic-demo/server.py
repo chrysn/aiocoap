@@ -17,7 +17,7 @@ import asyncio
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("coap-server").setLevel(logging.DEBUG)
 
-def main():
+async def main():
     # Resource tree creation
     root = resource.Site()
 
@@ -28,7 +28,7 @@ def main():
 
     root = oscore_sitewrapper.OscoreSiteWrapper(root, server_credentials)
 
-    protocol = asyncio.get_event_loop().run_until_complete(aiocoap.Context.create_server_context(root))
+    protocol = await aiocoap.Context.create_server_context(root)
 
     # Keys from IETF109 plug test: Rikard Test 2 Entity 1
     server_credentials[":a"] = \
@@ -48,7 +48,7 @@ def main():
                         },
                     )
 
-    asyncio.get_event_loop().run_forever()
+    await asyncio.get_running_loop().create_future()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
