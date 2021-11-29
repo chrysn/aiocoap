@@ -79,14 +79,14 @@ def pretty_print(message):
     info = infos.append
 
     cf = message.opt.content_format or message.request.opt.accept
-    if cf.is_known():
+    if cf is None:
+        content_type = "type unknown"
+    elif cf.is_known():
         content_type = cf.media_type
         if cf.encoding != 'identity':
             info("Content format is %s in %s encoding; treating as "
                  "application/octet-stream because decompression is not "
                  "supported yet" % (cf.media_type, cf.encoding))
-    elif cf is None:
-        content_type = "type unknown"
     else:
         content_type = "type %d" % cf
     category = contenttype.categorize(content_type)
