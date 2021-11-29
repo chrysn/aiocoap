@@ -258,7 +258,7 @@ class WKCResource(Resource):
 
 class PathCapable:
     """Class that indicates that a resource promises to parse the uri_path
-    option, and can thus be given requests for :meth:`.render`\ ing that
+    option, and can thus be given requests for :meth:`.render`-ing that
     contain a uri_path"""
 
 class Site(interfaces.ObservableResource, PathCapable):
