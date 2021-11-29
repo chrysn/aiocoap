@@ -39,18 +39,26 @@ In a separate terminal, use :doc:`the aiocoap-client tool <tools>` to send a
 GET request to the server::
 
     $ ./aiocoap-client coap://localhost/.well-known/core
-    </time>; obs, </.well-known/core>; ct=40, </other/separate>, </other/block>
+    application/link-format content was re-formatted
+    </.well-known/core>; ct="40",
+    </time>; obs,
+    </other/block>,
+    </other/separate>; title="A large resource",
+    </whoami>,
+    <https://christian.amsuess.com/tools/aiocoap/#version-0.4.3.post0>; rel="impl-info"
 
 The address we're using here is a resource on the local machine (``localhost``)
 at the well-known location ``.well-known/core``, which in CoAP is the go-to
 location if you don't know anything about the paths on the server beforehand.
 It tells that there is a resource at the path ``/time`` that has the ``obs``\
-ervable attribute, a resource at the path ``/.well-known/core``, and two more
-at ``/other/separate`` and ``/other/block``.
+ervable attribute, a resource at the path ``/.well-known/core``, and more at
+``/other/...`` and ``/whoami``.
 
-.. note:: Getting "5.00 Internal Server Error" instead? Install the
-    `link_header module`_ and restart the server, or trust me that the output
-    would look like that if it were installed and proceed.
+.. note:: Getting "5.00 Internal Server Error" instead, all lines in a single
+    row or no color? Then there are third party modules missing. Run ``python3
+    -m aiocoap.cli.defaults`` to see which they are, or just go back to the
+    :ref:`installation step<installation-development>` and make sure to include
+    the "``[all]``" part.
 
 .. _`link_header module`: https://pypi.python.org/pypi/LinkHeader
 
@@ -61,7 +69,7 @@ at ``/other/separate`` and ``/other/block``.
 Let's see what ``/time`` gives us::
 
     $ ./aiocoap-client coap://localhost/time
-    2016-12-07 10:08
+    2021-12-07 10:08
 
 The response should have arrived immediately: The client sent a message to the
 server in which it requested the resource at ``/time``, and the server could
@@ -78,7 +86,9 @@ A request
 ---------
 
 In order to run a similar request programmatically, we'll need a request
-message::
+message.
+
+::
 
     >>> from aiocoap import *
     >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
@@ -93,7 +103,7 @@ equivalent to what you might know as HTTP headers::
     >>> msg.opt
     <aiocoap.options.Options at 0x0123deadbef0: URI_HOST: localhost, URI_PATH: other / separate>
 
-You might have noticed that the Uri-Path option has whitespace around the
+You might have noticed that the Uri-Path option is shown with some space around the
 slash. This is because paths in CoAP are not a structured byte string with
 slashes in it (as they are in HTTP), but actually repeated options of a (UTF-8)
 string, which are represented as a tuple in Python::
@@ -109,10 +119,11 @@ me, these examples don't actually work**)::
     <Future pending cb=[Request._response_cancellation_handler()]>
 
 That is obviously not a proper response -- yet. If the protocol returned a
-finished response, the program couldn't do any work in the meantime. Because a
-Future is returned, the user can start other requests in parallel, or do other
-processing in the meantime. For now, all we want is to wait until the response
-is ready::
+finished response, the program couldn't do any work in the meantime. Instead,
+it returns a Future -- an object that will (at some time in the *future*)
+contain the response. Because the Future is returned immediately, the user can
+start other requests in parallel, or do other processing in the meantime. For
+now, all we want is to wait until the response is ready::
 
     >>> await protocol.request(msg).response
     <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
@@ -126,42 +137,53 @@ though.
 Asynchronous operation
 ----------------------
 
-The interactive Python shell does not work in an asynchronous fashion (`yet?`_)
--- it follows a strict "read, evaluate, print" loop (REPL), similar to how a
-Python program as a whole is executed. To launch asynchronous processing, we'll
-use the following shorthand::
+To work interactively with asynchronous Python, start your Python interpreter
+like this::
 
-    >>> import asyncio
-    >>> run = asyncio.get_event_loop().run_until_complete
+    $ python3 -m asyncio
+    >>>
 
-With that, we can run asynchronous functions; note that any function that
-``await``\ s anything is itself asynchronous and has to be declared
-accordingly. Now we can run what did not work before::
+Users of the highly recommended IPython_ can continue in their existing
+session, as support for the asynchronous shell is always available there.
 
-    >>> async def main():
-    ...     protocol = await Context.create_client_context()
-    ...     msg = Message(code=GET, uri="coap://localhost/other/separate")
-    ...     response = await protocol.request(msg).response
-    ...     print(response)
-    >>> run(main())
+::
+
+    >>> protocol = await Context.create_client_context()
+    >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
+    >>> response = await protocol.request(msg).response
+    >>> print(response)
     <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
 
 That's better!
 
-(Now the ``protocol`` object could also be created. That doesn't actually take
-a long time, but could, depending on the operating system).
+Now the ``protocol`` object could also be created -- we need to start that
+once to prepare a socket for all the requests we're sending later. That doesn't
+actually take a long time, but could, depending on the operating system.
 
+.. note::
+
+   If you want to pack any of the code into functions, these functions need to
+   be asynchronous functions. When working in a ``.py`` file, the ``await``
+   keyword is not available outside, and you'll need to kick off your program
+   using `asyncio.run`__.
+
+   .. __: https://docs.python.org/3/library/asyncio-task.html#asyncio.run
+
+   The same code as above packed up in a file would look like this::
+
+       import asyncio
+       from aiocoap import *
+
+       async def main():
+           protocol = await Context.create_client_context()
+           msg = Message(code=GET, uri="coap://localhost/other/separate")
+           response = await protocol.request(msg).response
+           print(response)
+
+       asyncio.run(main())
 
 The response
 ------------
-
-To dissect the response, let's make sure we have it available::
-
-    >>> protocol = run(Context.create_client_context())
-    >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
-    >>> response = run(protocol.request(msg).response)
-    >>> print(response)
-    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
 
 The response obtained in the main function is a message like the request
 message, just that it has a different code (2.05 is of the successful 2.00
@@ -188,8 +210,7 @@ accessible in the payload property, and is always a bytestring::
     b'Three rings for the elven kings [ abbreviated ]'
 
 aiocoap does not yet provide utilities to parse the message according to its
-content format (which would be accessed as ``response.opt.content_format`` and
-is numeric in CoAP).
+content format (which would be accessed as ``response.opt.content_format``).
 
 
 .. topic:: More asynchronous fun
@@ -226,4 +247,3 @@ documentation for the server side until the tour covers that is complete.
 
 
 .. _IPython: http://ipython.org/
-.. _`yet?`: https://github.com/ipython/ipython/issues/9166
