@@ -16,7 +16,6 @@ import re
 import cbor2 as cbor
 import pygments, pygments.lexers, pygments.formatters
 
-from aiocoap.numbers import media_types
 from aiocoap.util import linkformat, contenttype
 
 from aiocoap.util.linkformat_pygments import _register
@@ -77,10 +76,17 @@ def pretty_print(message):
     infos = []
     info = lambda m: infos.append(m)
 
-    cf = message.opt.content_format
-    if cf is None:
-        cf = message.request.opt.accept
-    content_type = media_types.get(cf, "type %s" % cf)
+    cf = message.opt.content_format or message.request.opt.accept
+    if cf.is_known():
+        content_type = cf.media_type
+        if cf.encoding != 'identity':
+            info("Content format is %s in %s encoding; treating as "
+                 "application/octet-stream because decompression is not "
+                 "supported yet" % (cf.media_type, cf.encoding))
+    elif cf is None:
+        content_type = "type unknown"
+    else:
+        content_type = "type %d" % cf
     category = contenttype.categorize(content_type)
 
     show_hex = None
