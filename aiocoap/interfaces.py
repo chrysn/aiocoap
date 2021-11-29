@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import abc
 from aiocoap.numbers.constants import DEFAULT_BLOCK_SIZE_EXP
+from aiocoap.plumbingrequest import PlumbingRequest
 
 from typing import Optional, Callable
 
