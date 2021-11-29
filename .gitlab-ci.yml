@@ -88,6 +88,12 @@ test:tox-on-buster:
     paths:
       - collected-coverage/tox-buster/
 
+test:flake:
+  image: python:3
+  script:
+    - pip install flake8
+    - flake8 .
+
 pages:
   image: "debian"
   stage: deploy
