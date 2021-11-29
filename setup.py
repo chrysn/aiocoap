@@ -115,10 +115,7 @@ setup(
     tests_require=tests_require,
 
     # see doc/README.doc seciton "dependency hack"
-    install_requires=# No Rust on readthedocs build servers; just take an old version
-            [x.replace('cryptography (>= 2.0)', 'cryptography (< 3.4)') for x in extras_require['docs']]
-            if 'READTHEDOCS' in os.environ
-            else [],
+    install_requires=extras_require['docs'] if 'READTHEDOCS' in os.environ else [],
 
     entry_points={
         'console_scripts': [
