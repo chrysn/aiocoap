@@ -14,6 +14,7 @@ needs to be updated."""
 
 import asyncio
 import aiocoap
+from aiocoap.numbers import ContentFormat
 import gc
 import unittest
 
@@ -86,7 +87,7 @@ class ObserveTestingSite(aiocoap.resource.Site):
         super(ObserveTestingSite, self).__init__()
 
         self.add_resource(self.prefix + ['unobservable'], MultiRepresentationResource({
-            'text/plain;charset=utf-8': b'',
+            ContentFormat.TEXT: b'',
             }))
         self.add_resource(self.prefix + ['count'], ObservableCounter())
         self.add_resource(self.prefix + ['echo'], ObservableReplacingResource())

@@ -10,6 +10,7 @@ import asyncio
 import re
 import aiocoap
 import aiocoap.resource
+from aiocoap.numbers import ContentFormat
 import unittest
 import logging
 import os
@@ -25,11 +26,12 @@ class MultiRepresentationResource(aiocoap.resource.Resource):
         super().__init__()
 
     async def render_get(self, request):
-        m = aiocoap.numbers.media_types.get(request.opt.accept or 0, None)
+        m = request.opt.accept or ContentFormat.TEXT
 
         if m in self._representations:
             response = self._representations[m]
         else:
+            print("REQUESTED", repr(m), "HAVING", list(self._representations.keys()))
             return aiocoap.Message(code=aiocoap.NOT_ACCEPTABLE)
 
         return aiocoap.Message(payload=response, content_format=request.opt.accept or 0)
@@ -109,7 +111,7 @@ class WhoAmI(aiocoap.resource.Resource):
                 )
         return aiocoap.Message(
                 code=aiocoap.CONTENT,
-                content_format=aiocoap.numbers.ContentFormat.JSON,
+                content_format=ContentFormat.JSON,
                 payload=json.dumps(p).encode('utf8'),
                 )
 
@@ -121,15 +123,15 @@ class TestingSite(aiocoap.resource.Site):
         self.add_resource(['.well-known', 'core'], aiocoap.resource.WKCResource(self.get_resources_as_linkheader))
 
         self.add_resource(['empty'], MultiRepresentationResource({
-            'application/json': b'{}',
-            'application/link-format': b'<>',
-            'text/plain;charset=utf-8': b'',
+            ContentFormat.JSON: b'{}',
+            ContentFormat.LINKFORMAT: b'<>',
+            ContentFormat.TEXT: b'',
             }))
         self.add_resource(['answer'], MultiRepresentationResource({
-            'application/json': b'{"answer": 42}',
-            'application/cbor': b'\xa1\x66\x61\x6e\x73\x77\x65\x72\x18\x2a',
-            'application/link-format': b'<data:text/plain;42>;rel="answer";anchor="https://en.wikipedia.org/wiki/Phrases_from_The_Hitchhiker%27s_Guide_to_the_Galaxy#Answer_to_the_Ultimate_Question_of_Life,_the_Universe,_and_Everything_(42)"',
-            'text/plain;charset=utf-8': b'The answer to life, the universe, and everything is 42.',
+            ContentFormat.JSON: b'{"answer": 42}',
+            ContentFormat.CBOR: b'\xa1\x66\x61\x6e\x73\x77\x65\x72\x18\x2a',
+            ContentFormat.LINKFORMAT: b'<data:text/plain;42>;rel="answer";anchor="https://en.wikipedia.org/wiki/Phrases_from_The_Hitchhiker%27s_Guide_to_the_Galaxy#Answer_to_the_Ultimate_Question_of_Life,_the_Universe,_and_Everything_(42)"',
+            ContentFormat.TEXT: b'The answer to life, the universe, and everything is 42.',
             }))
         self.add_resource(['slow'], SlowResource())
         self.add_resource(['big'], BigResource())
@@ -232,7 +234,7 @@ class TestServer(WithTestServer, WithClient):
     def test_js_accept(self):
         request = self.build_request()
         request.opt.uri_path = ['empty']
-        request.opt.accept = aiocoap.numbers.ContentFormat.JSON
+        request.opt.accept = ContentFormat.JSON
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "JSON request did not succede")
         self.assertEqual(response.payload, b'{}', "JSON request gave unexpected result")
