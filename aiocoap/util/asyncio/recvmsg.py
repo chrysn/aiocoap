@@ -81,10 +81,12 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
         loop.call_soon(_set_result_unless_cancelled, waiter, None)
 
     def close(self):
-        self._loop.call_soon(self._protocol.connection_lost, None)
-
         if self.__sock is None:
             return
+
+        if not self._loop.is_closed():
+            self._loop.call_soon(self._protocol.connection_lost, None)
+
         self._loop.remove_reader(self.__sock_fileno)
         self.__sock.close()
         self.__sock = None

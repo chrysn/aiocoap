@@ -372,7 +372,7 @@ def sync_main(args=None):
 
     if '--interactive' not in args:
         try:
-            asyncio.get_event_loop().run_until_complete(single_request(args))
+            asyncio.run(single_request(args))
         except KeyboardInterrupt:
             sys.exit(3)
     else:

@@ -51,33 +51,51 @@ class AsyncCLIDaemon:
     * Outside of an async context, run run ``MyClass.sync_main()``, typically
       in the program's ``if __name__ == "__main__":`` section.
 
+      In this mode, the loop that is started is configured to safely shut down
+      the loop when SIGINT is received.
+
     * To run a subclass of this in an existing loop, start it with
       ``MyClass(...)`` (possibly passing in the loop to run it on if not already
       in an async context), and then awaiting its ``.initializing`` future. To
       stop it, await its ``.shutdown()`` method.
 
-      This pattern is going to be deprecated or removed entirely when ported to
-      async context managers.
+      Note that with this usage pattern, the :meth:`.stop()` method has no
+      effect; servers that ``.stop()`` themselves need to signal their desire
+      to be shut down through other channels (but that is an atypical case).
     """
 
     def __init__(self, *args, **kwargs):
-        self.__loop = kwargs.pop('loop', None)
-        if self.__loop is None:
-            self.__loop = asyncio.get_running_loop()
-        self.__exitcode = self.__loop.create_future()
-        self.initializing = self.__loop.create_task(self.start(*args, **kwargs))
+        loop = kwargs.pop('loop', None)
+        if loop is None:
+            loop = asyncio.get_running_loop()
+        self.__exitcode = loop.create_future()
+        self.initializing = loop.create_task(self.start(*args, **kwargs))
 
     def stop(self, exitcode):
         """Stop the operation (and exit sync_main) at the next convenience."""
         self.__exitcode.set_result(exitcode)
 
     @classmethod
-    def sync_main(cls, *args, **kwargs):
+    async def _async_main(cls, *args, **kwargs):
         """Run the application in an AsyncIO main loop, shutting down cleanly
-        on keyboard interrupt."""
-        main = cls(*args, loop=asyncio.new_event_loop(), **kwargs)
+        on keyboard interrupt.
+
+        This is not exposed publicly as it messes with the loop, and we only do
+        that with loops created in sync_main.
+        """
+        main = cls(*args, **kwargs)
+
         try:
-            main.__loop.run_until_complete(main.initializing)
+            asyncio.get_running_loop().add_signal_handler(
+                    signal.SIGTERM,
+                    lambda: main.__exitcode.set_result(143),
+                    )
+        except NotImplementedError:
+            # Impossible on win32 -- just won't make that clean of a shutdown.
+            pass
+
+        try:
+            await main.initializing
             # This is the time when we'd signal setup completion by the parent
             # exiting in case of a daemon setup, or to any other process
             # management.
@@ -85,12 +103,7 @@ class AsyncCLIDaemon:
             # Common options are 143 or 0
             # (<https://github.com/go-task/task/issues/75#issuecomment-339466142> and
             # <https://unix.stackexchange.com/questions/10231/when-does-the-system-send-a-sigterm-to-a-process>)
-            try:
-                main.__loop.add_signal_handler(signal.SIGTERM, lambda: main.__exitcode.set_result(143))
-            except NotImplementedError:
-                # Impossible on win32 -- just won't make that clean of a shutdown.
-                pass
-            exitcode = main.__loop.run_until_complete(main.__exitcode)
+            exitcode = await main.__exitcode
         except KeyboardInterrupt:
             logging.info("Keyboard interupt received, shutting down")
             sys.exit(3)
@@ -98,8 +111,22 @@ class AsyncCLIDaemon:
             sys.exit(exitcode)
         finally:
             if main.initializing.done() and main.initializing.exception():
-                pass # will raise from run_until_complete
+                # The exception if initializing is what we are just watching
+                # fly by. No need to trigger it again, and running shutdown
+                # would be even weirder.
+                pass
             else:
-                main.__loop.run_until_complete(main.initializing)
-                main.__loop.run_until_complete(main.shutdown())
-                main.__loop.stop()
+                # May be done, then it's a no-op, or we might have received a
+                # signal during startup in which case we better fetch the
+                # result and shut down cleanly again
+                await main.initializing
+
+                # And no matter whether that happened during initialization
+                # (which now has finished) or due to a regular signal...
+                await main.shutdown()
+
+    @classmethod
+    def sync_main(cls, *args, **kwargs):
+        """Run the application in an AsyncIO main loop, shutting down cleanly
+        on keyboard interrupt."""
+        asyncio.run(cls._async_main(*args, **kwargs))

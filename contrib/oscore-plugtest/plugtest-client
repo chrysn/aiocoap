@@ -103,6 +103,14 @@ class PlugtestClientProgram:
     ctx = None
 
     async def run_with_shutdown(self):
+        # Having SIGTERM cause a more graceful shutdown (even if it's not
+        # asynchronously awaiting the shutdown, which would be impractical
+        # since we're likely inside some unintended timeout already) allow for
+        # output buffers to be flushed when the unit test program instrumenting
+        # it terminates it.
+        loop = asyncio.get_running_loop()
+        loop.add_signal_handler(signal.SIGTERM, loop.close)
+
         try:
             await self.run()
         finally:
@@ -114,17 +122,6 @@ class PlugtestClientProgram:
             self.ctx.client_credentials.pop("coap://%s/*" % self.host, None)
         else:
             self.ctx.client_credentials["coap://%s/*" % self.host] = ":" + which
-
-    @classmethod
-    def sync_run(cls):
-        loop = asyncio.new_event_loop()
-        task = loop.create_task(cls().run_with_shutdown())
-        # Having SIGTERM cause a more graceful shutdown allow for output
-        # buffers to be flushed when the unit test program instrumenting it
-        # terminates it.
-        signal.signal(signal.SIGTERM,
-                lambda signo, frame: task.throw(KeyboardInterrupt))
-        loop.run_until_complete(task)
 
     async def run_test(self, testno):
         self.testno = testno
@@ -408,4 +405,4 @@ class PlugtestClientProgram:
 #         additional_verify("Options as expected", unprotected_response.opt, Message(**expected).opt)
 
 if __name__ == "__main__":
-    PlugtestClientProgram.sync_run()
+    asyncio.run(PlugtestClientProgram().run_with_shutdown())
