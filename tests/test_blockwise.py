@@ -15,14 +15,14 @@ import unittest
 import aiocoap
 import aiocoap.defaults
 
-from .test_server import WithTestServer, WithClient, no_warnings, asynctest, BigResource, TestingSite
+from .test_server import WithTestServer, WithClient, no_warnings, asynctest, BigResource, BasicTestingSite
 
 class BigChunkyResource(BigResource):
     async def render_get(self, request):
         request.remote.maximum_block_size_exp = 3
         return await super().render_get(request)
 
-class ChunkyTestingSite(TestingSite):
+class ChunkyTestingSite(BasicTestingSite):
     def __init__(self):
         super().__init__()
 

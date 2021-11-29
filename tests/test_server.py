@@ -115,9 +115,9 @@ class WhoAmI(aiocoap.resource.Resource):
                 payload=json.dumps(p).encode('utf8'),
                 )
 
-class TestingSite(aiocoap.resource.Site):
+class BasicTestingSite(aiocoap.resource.Site):
     def __init__(self):
-        super(TestingSite, self).__init__()
+        super(BasicTestingSite, self).__init__()
 
         # Not part of the test suite, but handy when running standalone
         self.add_resource(['.well-known', 'core'], aiocoap.resource.WKCResource(self.get_resources_as_linkheader))
@@ -151,7 +151,7 @@ class TestingSite(aiocoap.resource.Site):
 
 class WithTestServer(WithAsyncLoop, Destructing):
     # to allow overriding the factory class
-    TestingSite = TestingSite
+    TestingSite = BasicTestingSite
 
     def create_testing_site(self):
         return self.TestingSite()
