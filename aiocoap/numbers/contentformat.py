@@ -165,10 +165,6 @@ class ContentFormat(ExtensibleIntEnum):
         should be found later on."""
         cls._by_mt_encoding = {(_normalize_media_type(c.media_type), c.encoding): c for c in cls._value2member_map_.values()}
 
-    def __add__(self, delta):
-        # Does not make sense for media types
-        return NotImplemented
-
     def __repr__(self):
         return "<%s %d%s>" % (type(self).__name__, self, ', media_type=%r, encoding=%r' % (self.media_type, self.encoding) if self.is_known() else "")
 

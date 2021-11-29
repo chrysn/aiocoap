@@ -59,6 +59,11 @@ class OptionNumber(ExtensibleIntEnum):
     # going to be used in overhead comparisons.
     REQUEST_HASH = 548
 
+    def __add__(self, delta):
+        """Addition makes sense on these due to the delta encoding in CoAP
+        serialization"""
+        return type(self)(int(self) + delta)
+
     def is_critical(self):
         return self & 0x01 == 0x01
 
