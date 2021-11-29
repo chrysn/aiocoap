@@ -41,7 +41,6 @@ transport is unavailable due to platform limitations.
 """
 
 import asyncio
-import socket
 from collections import OrderedDict
 
 from aiocoap import interfaces

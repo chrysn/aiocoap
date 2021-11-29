@@ -131,7 +131,7 @@ def _call_from_structureddata(constructor, name, init_data):
     for k, v in init_data.items():
         try:
             annotation = sig.parameters[k].annotation
-        except KeyError as e:
+        except KeyError:
             # let this raise later in binding
             checked_items[k] = object()
 

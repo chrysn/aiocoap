@@ -55,7 +55,9 @@ course unaffected by this.
   server (typically 8684).
 """
 
-from typing import Dict, List, Optional
+from __future__ import annotations
+
+from typing import Dict, List
 from collections import namedtuple
 import asyncio
 import functools
@@ -104,8 +106,7 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
     _connection: websockets.WebSocketCommonProtocol
     # Only used to ensure that remotes are associated to the right pool -- not
     # that there'd be any good reason to have multiple of those.
-    # Python 3.7 hint
-    #_pool: weakref.ReferenceType # [WSPool] -- but that'd be circular
+    _pool: weakref.ReferenceType[WSPool]
 
     scheme = None # Override property -- it's per instance here
 
@@ -157,11 +158,10 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
         self.loop.create_task(send())
 
 class WSPool(interfaces.TokenInterface):
-    # Python 3.7 hint
-    #_outgoing_starting: Dict[PoolKey, asyncio.Task]
-    #_pool: Dict[PoolKey, WSRemote]
-    #
-    #_servers: List[websockets.WebSocketServer]
+    _outgoing_starting: Dict[PoolKey, asyncio.Task]
+    _pool: Dict[PoolKey, WSRemote]
+
+    _servers: List[websockets.WebSocketServer]
 
     def __init__(self, tman, log, loop):
         self.loop = loop
@@ -335,7 +335,7 @@ class WSPool(interfaces.TokenInterface):
         while True:
             try:
                 received = await remote._connection.recv()
-            except websockets.exceptions.ConnectionClosed as e:
+            except websockets.exceptions.ConnectionClosed:
                 # FIXME if deposited somewhere, mark that as stale?
                 self._tokenmanager.dispatch_error(error.RemoteServerShutdown(), remote)
                 return
@@ -346,7 +346,7 @@ class WSPool(interfaces.TokenInterface):
 
             try:
                 msg = _decode_message(received)
-            except error.UnparsableMessage as e:
+            except error.UnparsableMessage:
                 await remote._abort_with_waiting(Message(code=ABORT, payload=b"Message parsing error"), close_code=1007)
                 return
 

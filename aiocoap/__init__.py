@@ -28,6 +28,10 @@ The presence of :class:`.Message` and :class:`.Context` in the root module is
 stable.
 """
 
-from .numbers import *
+import numbers
+# flake8 doesn't see through the global re-export
+from .numbers import * # noqa: F401, F403
 from .message import Message, NoResponse
 from .protocol import Context
+
+__all__ = numbers.__all__ + ['Message', 'NoResponse', 'Context']

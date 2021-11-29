@@ -6,7 +6,7 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-from pygments import token, lexer, lexers
+from pygments import token, lexers
 from pygments.lexer import RegexLexer, bygroups
 
 __all__ = ['LinkFormatLexer']

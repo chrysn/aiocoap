@@ -28,7 +28,7 @@ __all__ = ['Message', 'NoResponse']
 # if they can be parsed into the Proxy-Scheme / Uri-* structure.
 coap_schemes = ['coap', 'coaps', 'coap+tcp', 'coaps+tcp', 'coap+ws', 'coaps+ws']
 
-## Monkey patch urllib to make URL joining available in CoAP
+# Monkey patch urllib to make URL joining available in CoAP
 # This is a workaround for <http://bugs.python.org/issue23759>.
 urllib.parse.uses_relative.extend(coap_schemes)
 urllib.parse.uses_netloc.extend(coap_schemes)

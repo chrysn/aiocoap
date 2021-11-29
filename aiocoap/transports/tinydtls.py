@@ -237,7 +237,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         if self._connection is not None:
             try:
                 self._dtls_socket.close(self._connection)
-            except:
+            except Exception:
                 pass # _dtls_socket actually does raise an empty Exception() here
         # doing this here allows the dtls socket to send a final word, but
         # by closing this, we protect the nascent next connection from any
@@ -278,7 +278,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         # ignoring recipient: it's only _SENTINEL_*
         try:
             t = self._transport
-        except:
+        except Exception:
             # tinydtls sends callbacks very very late during shutdown (ie.
             # `hasattr` and `AttributeError` are all not available any more,
             # and even if the DTLSClientConnection class had a ._transport, it

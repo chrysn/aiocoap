@@ -27,8 +27,8 @@ class BlockResource(resource.Resource):
 
     def __init__(self):
         super().__init__()
-        self.set_content(b"This is the resource's default content. It is padded "\
-                b"with numbers to be large enough to trigger blockwise "\
+        self.set_content(b"This is the resource's default content. It is padded "
+                b"with numbers to be large enough to trigger blockwise "
                 b"transfer.\n")
 
     def set_content(self, content):

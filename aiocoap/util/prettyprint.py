@@ -14,7 +14,9 @@ import pprint
 import re
 
 import cbor2 as cbor
-import pygments, pygments.lexers, pygments.formatters
+import pygments
+import pygments.lexers
+import pygments.formatters
 
 from aiocoap.util import linkformat, contenttype
 
@@ -74,7 +76,7 @@ def pretty_print(message):
     (['Showing hex dump of application/cbor payload: CBOR value is invalid'], 'text/vnd.aiocoap.hexdump', '00000000  61 ...
     """
     infos = []
-    info = lambda m: infos.append(m)
+    info = infos.append
 
     cf = message.opt.content_format or message.request.opt.accept
     if cf.is_known():
@@ -165,10 +167,10 @@ def pretty_print(message):
     while data:
         line, data = data[:16], data[16:]
 
-        formatted.append("%08x  " % offset + \
-                " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8)) + "  " + \
-                " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8, 16)) + "  |" + \
-                "".join(chr(x) if 32 <= x < 127 else '.' for x in line) + \
+        formatted.append("%08x  " % offset +
+                " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8)) + "  " +
+                " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8, 16)) + "  |" +
+                "".join(chr(x) if 32 <= x < 127 else '.' for x in line) +
                 "|\n")
 
         offset += len(line)

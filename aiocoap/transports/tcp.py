@@ -10,9 +10,8 @@ import asyncio
 import socket
 
 from aiocoap.transports import rfc8323common
-from aiocoap import interfaces, optiontypes, error, util
+from aiocoap import interfaces, error, util
 from aiocoap import COAP_PORT, Message
-from aiocoap.numbers.codes import ABORT
 from aiocoap import defaults
 
 def _extract_message_size(data: bytes):

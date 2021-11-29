@@ -11,13 +11,11 @@ read-only fashion via CoAP. It provides directory listings, and guesses the
 media type of files it serves."""
 
 import argparse
-import sys
 import asyncio
 from pathlib import Path
 import logging
 from stat import S_ISREG, S_ISDIR
 import mimetypes
-import socket
 
 import aiocoap
 import aiocoap.error as error
@@ -69,13 +67,15 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
                     continue # this hit before the original response even triggered
                 try:
                     new_stat = path.stat()
-                except:
+                except Exception:
                     new_stat = False
-                relevant = lambda s: (s.st_ino, s.st_dev, s.st_size, s.st_mtime, s.st_ctime)
+                def relevant(s):
+                    return (s.st_ino, s.st_dev, s.st_size, s.st_mtime, s.st_ctime)
                 if relevant(new_stat) != relevant(last_stat):
                     self.log.info("New stat for %s", path)
                     data[0] = new_stat
-                    for cb in callbacks: cb()
+                    for cb in callbacks:
+                        cb()
 
     def request_to_localpath(self, request):
         path = request.opt.uri_path

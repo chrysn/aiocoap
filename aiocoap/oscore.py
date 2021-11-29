@@ -18,8 +18,8 @@ from __future__ import annotations
 import io
 import json
 import binascii
-import os, os.path
-import warnings
+import os
+import os.path
 import tempfile
 import abc
 from typing import Optional
@@ -1185,7 +1185,8 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
         # See https://github.com/benediktschmitt/py-filelock/issues/57
         try:
             self.lockfile.acquire(timeout=0.001)
-        except:
+        # see https://github.com/PyCQA/pycodestyle/issues/703
+        except: # noqa: E722
             # No lock, no loading, no need to fail in __del__
             self.lockfile = None
             raise

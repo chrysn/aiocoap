@@ -35,14 +35,15 @@ listed explicitly in AIOCOAP_SERVER_TRANSPORT.
 import asyncio
 from collections import OrderedDict
 
-import logging
+import time
+
 from ..numbers.constants import COAPS_PORT
 from .generic_udp import GenericMessageInterface
 from .. import error, interfaces
 from . import simplesocketserver
 from .simplesocketserver import _DatagramServerSocketSimple
 
-from .tinydtls import LEVEL_NOALERT, LEVEL_FATAL, DTLS_EVENT_CONNECT, DTLS_EVENT_CONNECTED, CODE_CLOSE_NOTIFY, CloseNotifyReceived, DTLS_TICKS_PER_SECOND, DTLS_CLOCK_OFFSET
+from .tinydtls import LEVEL_NOALERT, LEVEL_FATAL, DTLS_EVENT_CONNECT, DTLS_EVENT_CONNECTED, CODE_CLOSE_NOTIFY, CloseNotifyReceived, DTLS_TICKS_PER_SECOND, DTLS_CLOCK_OFFSET, FatalDTLSError
 
 # tinyDTLS passes address information around in its session data, but the way
 # it's used here that will be ignored; this is the data that is sent to / read
@@ -108,7 +109,6 @@ class _AddressDTLS(interfaces.EndpointAddress):
     def _write(self, recipient, data):
         if _SEND_SLEEP_WORKAROUND and \
                 len(data) > 13 and data[0] == 22 and data[13] == 14:
-            import time
             time.sleep(_SEND_SLEEP_WORKAROUND)
         self._underlying_address.send(data)
         return len(data)
@@ -146,6 +146,9 @@ class _AddressDTLS(interfaces.EndpointAddress):
         when = self._dtls_socket.checkRetransmit() / DTLS_TICKS_PER_SECOND
         if when == 0:
             return
+        # FIXME: Find out whether the DTLS server is ever supposed to send
+        # retransmissions in the first place (this part was missing an import
+        # and it never showed).
         now = time.time() - DTLS_CLOCK_OFFSET
         await asyncio.sleep(when - now)
         self._retransmission_task = asyncio.create_task(self._run_retransmissions())

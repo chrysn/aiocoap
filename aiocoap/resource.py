@@ -72,7 +72,7 @@ def hashing_etag(request, response):
 
 class _ExposesWellknownAttributes:
     def get_link_description(self):
-        ## FIXME which formats are acceptable, and how much escaping and
+        # FIXME which formats are acceptable, and how much escaping and
         # list-to-separated-string conversion needs to happen here
         ret = {}
         if hasattr(self, 'ct'):
@@ -229,9 +229,11 @@ class WKCResource(Resource):
                 continue # no =, not a relevant filter
 
             if v.endswith('*'):
-                matchexp = lambda x: x.startswith(v[:-1])
+                def matchexp(x, v=v):
+                    return x.startswith(v[:-1])
             else:
-                matchexp = lambda x: x == v
+                def matchexp(x, v=v):
+                    return x == v
 
             if k in ('rt', 'if', 'ct'):
                 filters.append(lambda link: any(matchexp(part) for part in (" ".join(getattr(link, k, ()))).split(" ")))

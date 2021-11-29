@@ -6,10 +6,8 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
-import asyncio
 from collections import namedtuple
 import functools
-import os
 import random
 
 from . import error
@@ -20,17 +18,19 @@ from . import interfaces
 from .numbers.types import NON
 
 class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
+
     def __init__(self, context):
         self.context = context
 
         self._token = random.randint(0, 65535)
-        self.outgoing_requests = {}  #: Unfinished outgoing requests (identified by token and remote)
-        self.incoming_requests = {}  #: Unfinished incoming requests.
-                                     #: ``(token, remote): (PlumbingRequest, stopper)``
-                                     #: where stopper is a function unregistes
-                                     #: the PlumbingRequest event handler and
-                                     #: thus indicates to the server the
-                                     #: discontinued interest
+        self.outgoing_requests = {}
+        """Unfinished outgoing requests (identified by token and remote)"""
+        self.incoming_requests = {}
+        """Unfinished incoming requests.
+
+        ``(token, remote): (PlumbingRequest, stopper)`` where stopper is a
+        function unregistes the PlumbingRequest event handler and thus
+        indicates to the server the discontinued interest"""
 
         self.log = self.context.log
         self.loop = self.context.loop
@@ -296,11 +296,10 @@ class PlumbingRequest:
         self.request = request
         self.log = log
 
-        self._event_callbacks = [] # list[(callback, is_interest)],
-                                   # or None during event processing,
-                                   # or False when there were no more event
-                                   # callbacks and an the on_interest_end
-                                   # callbacks have already been called
+        self._event_callbacks = []
+        """list[(callback, is_interest)], or None during event processing, or
+        False when there were no more event callbacks and an the
+        on_interest_end callbacks have already been called"""
 
     def __repr__(self):
         return '<%s at %#x around %r with %r callbacks>'%(type(self).__name__, id(self), self.request, len(self._event_callbacks) if self._event_callbacks else self._event_callbacks)

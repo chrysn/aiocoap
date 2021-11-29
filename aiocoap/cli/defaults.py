@@ -13,8 +13,11 @@ setup.py); run it as `python3 -m aiocoap.cli.defaults`."""
 
 import sys
 from aiocoap.meta import version
-from aiocoap.defaults import *
+from aiocoap.defaults import dtls_missing_modules, oscore_missing_modules, \
+    linkheader_missing_modules, prettyprint_missing_modules, has_reuse_port, \
+    get_default_clienttransports, get_default_servertransports
 import argparse
+import os
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)

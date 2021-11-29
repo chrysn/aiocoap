@@ -75,7 +75,8 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
         # always valid while the transport is around (and the weakref is really
         # only used to break up the reference cycles to ensure the GC is not
         # needed here).
-        rr = lambda s=weakref.ref(self): s()._read_ready()
+        def rr(s=weakref.ref(self)):
+            s()._read_ready()
         loop.call_soon(loop.add_reader, self.__sock_fileno, rr)
         loop.call_soon(_set_result_unless_cancelled, waiter, None)
 
@@ -155,8 +156,8 @@ async def create_recvmsg_datagram_endpoint(loop, factory, sock):
 
     try:
         await waiter
+    # see https://github.com/PyCQA/pycodestyle/issues/703
     except: # noqa: E722
-            # see https://github.com/PyCQA/pycodestyle/issues/703
         transport.close()
         raise
 

@@ -15,6 +15,7 @@ from typing import Optional
 from aiocoap import Message
 from aiocoap import optiontypes, util
 from aiocoap.numbers.codes import CSM, PING, PONG, RELEASE, ABORT
+from aiocoap import error
 
 class RFC8323Remote:
     """Mixin for Remotes for all the common RFC8323 processing
@@ -25,8 +26,7 @@ class RFC8323Remote:
 
     # CSM received from the peer. The receive hook should abort suitably when
     # receiving a non-CSM message and this is not set yet.
-    # Python 3.7 hint
-    #_remote_settings: Optional[Message]
+    _remote_settings: Optional[Message]
 
     # Parameter usually set statically per implementation
     _my_max_message_size = 1024 * 1024

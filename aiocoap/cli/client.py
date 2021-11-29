@@ -13,7 +13,6 @@ import asyncio
 import argparse
 import logging
 import subprocess
-import socket
 from pathlib import Path
 
 import shlex
@@ -375,7 +374,7 @@ def sync_main(args=None):
         try:
             asyncio.get_event_loop().run_until_complete(single_request(args))
         except KeyboardInterrupt:
-                sys.exit(3)
+            sys.exit(3)
     else:
         if len(args) != 1:
             print("No other arguments must be specified when entering interactive mode", file=sys.stderr)

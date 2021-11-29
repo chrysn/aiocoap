@@ -25,7 +25,6 @@ suite to decide which tests to skip.
 import os
 import socket
 import sys
-import asyncio
 
 def get_default_clienttransports(*, loop=None, use_env=True):
     """Return a list of transports that should be connected when a client
@@ -198,15 +197,27 @@ def prettyprint_missing_modules():
     except ImportError:
         missing.append('LinkHeader')
     try:
-        import cbor2
+        import cbor2 # noqa: F401
     except ImportError:
         missing.append('cbor2')
     try:
-        import termcolor
+        import termcolor # noqa: F401
     except ImportError:
         missing.append('termcolor')
     try:
-        import pygments
+        import pygments # noqa: F401
     except ImportError:
         missing.append('pygments')
     return missing
+
+
+__all__ = [
+    'get_default_clienttransports',
+    'get_default_servertransports',
+    'has_reuse_port',
+    'dtls_missing_modules',
+    'oscore_missing_modules',
+    'ws_missing_modules',
+    'linkheader_missing_modules',
+    'prettyprint_missing_modules',
+    ]

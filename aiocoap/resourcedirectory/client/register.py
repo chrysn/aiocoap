@@ -131,7 +131,7 @@ class Registerer:
                     Message(code=GET, uri=lookup_uri, accept=40)
                 ).response_raising
             links = link_header.parse(response.payload.decode('utf8'))
-        except (UnicodeDecodeError, link_header.ParseException) as e:
+        except (UnicodeDecodeError, link_header.ParseException):
             self.log.error("Error parsing the RD's self description")
             raise
 
@@ -147,7 +147,7 @@ class Registerer:
                 raise self._UnrecoverableError("No registration interface found in RD's response")
 
         if len(addresses) > 1:
-            self.log.warn("More than one registration interface found," \
+            self.log.warn("More than one registration interface found,"
                     " picking the first")
 
         return addresses[0]

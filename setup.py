@@ -13,7 +13,8 @@
 (Internet of Things) devices."""
 
 from setuptools import setup, find_packages, Command
-import os, os.path
+import os
+import os.path
 
 name = "aiocoap"
 version = "0.4.3.post0" # Don't forget meta.version and doc/conf.py
@@ -114,8 +115,7 @@ setup(
     tests_require=tests_require,
 
     # see doc/README.doc seciton "dependency hack"
-    install_requires=\
-            # No Rust on readthedocs build servers; just take an old version
+    install_requires=# No Rust on readthedocs build servers; just take an old version
             [x.replace('cryptography (>= 2.0)', 'cryptography (< 3.4)') for x in extras_require['docs']]
             if 'READTHEDOCS' in os.environ
             else [],

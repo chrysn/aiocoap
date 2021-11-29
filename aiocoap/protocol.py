@@ -134,9 +134,12 @@ class Context(interfaces.RequestProvider):
         self.server_credentials = server_credentials or CredentialsMap()
 
         # FIXME: consider introducing a TimeoutDict
-        self._block1_assemblies = {} # mapping block-key to (partial request, timeout handle)
-        self._block2_assemblies = {} # mapping block-key to (complete response, timeout handle)
-                                     # (for both, block-key is as extracted by _extract_block_key)
+        self._block1_assemblies = {}
+        """mapping block-key to (partial request, timeout handle)"""
+        self._block2_assemblies = {}
+        """mapping block-key to (complete response, timeout handle)
+
+        For both, block-key is as extracted by _extract_block_key."""
 
     #
     # convenience methods for class instanciation
@@ -437,12 +440,12 @@ class Context(interfaces.RequestProvider):
             try:
                 response, _ = self._block2_assemblies[block_key]
             except KeyError:
-                    plumbing_request.add_response(Message(
-                            code=REQUEST_ENTITY_INCOMPLETE),
-                        is_last=True)
-                    self.log.info("Received unmatched blockwise response"
-                            " operation message")
-                    return
+                plumbing_request.add_response(Message(
+                        code=REQUEST_ENTITY_INCOMPLETE),
+                    is_last=True)
+                self.log.info("Received unmatched blockwise response"
+                        " operation message")
+                return
 
             # FIXME: update the timeout? maybe remove item when last is
             # requested in a confirmable message?
@@ -612,7 +615,7 @@ class Context(interfaces.RequestProvider):
                     not servobs._late_deregister
 
             if can_continue:
-                ## @TODO handle situations in which this gets called more often than
+                # TODO handle situations in which this gets called more often than
                 #        2^32 times in 256 seconds (or document why we can be sure that
                 #        that will not happen)
                 next_observation_number = next_observation_number + 1
@@ -870,7 +873,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
 
         if app_request.opt.block1 is not None:
             assert app_request.opt.block1.block_number == 0, "Unexpected block number in app_request"
-            assert app_request.opt.block1.more == False, "Unexpected more-flag in app_request"
+            assert not app_request.opt.block1.more, "Unexpected more-flag in app_request"
             # this is where the library user can traditionally pass in size
             # exponent hints into the library.
             size_exp = app_request.opt.block1.size_exponent
@@ -1160,7 +1163,7 @@ class ClientObservation:
         """Cease to generate observation or error events. This will not
         generate an error by itself."""
 
-        assert self.cancelled == False
+        assert not self.cancelled
 
         # make sure things go wrong when someone tries to continue this
         self.errbacks = None

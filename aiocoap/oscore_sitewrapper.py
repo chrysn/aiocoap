@@ -81,7 +81,7 @@ class OscoreSiteWrapper(interfaces.Resource):
                 raise error.BadOption("Failed to decode COSE")
             else:
                 return aiocoap.message.NoResponse
-        except oscore.ProtectionInvalid as e:
+        except oscore.ProtectionInvalid:
             if request.mtype == aiocoap.CON:
                 raise error.BadRequest("Decryption failed")
             else:

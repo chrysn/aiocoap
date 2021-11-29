@@ -16,9 +16,10 @@ are accessible through this module directly; :mod:`.contentformat`'s and
 """
 
 from . import constants, types, codes
-from .constants import *
-from .types import *
-from .codes import *
+# flake8 doesn't see through the global re-export
+from .constants import * # noqa: F401 F403
+from .types import * # noqa: F401 F403
+from .codes import * # noqa: F401 F403
 from .contentformat import ContentFormat, _MediaTypes, _MediaTypesRev
 from .optionnumbers import OptionNumber
 

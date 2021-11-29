@@ -472,12 +472,15 @@ class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
 
             for search_value in search_values:
                 if search_value is not None and search_value.endswith('*'):
-                    matches = lambda x, start=search_value[:-1]: x.startswith(start)
+                    def matches(x, start=search_value[:-1]):
+                        return x.startswith(start)
                 else:
-                    matches = lambda x: x == search_value
+                    def matches(x, search_value=search_value):
+                        return x == search_value
 
                 if search_key in ('if', 'rt'):
-                    matches = lambda x, original_matches=matches: any(original_matches(v) for v in x.split())
+                    def matches(x, original_matches=matches):
+                        return any(original_matches(v) for v in x.split())
 
                 if search_key == 'href':
                     candidates = (c for c in candidates if
@@ -513,12 +516,15 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
 
             for search_value in search_values:
                 if search_value is not None and search_value.endswith('*'):
-                    matches = lambda x, start=search_value[:-1]: x.startswith(start)
+                    def matches(x, start=search_value[:-1]):
+                        return x.startswith(start)
                 else:
-                    matches = lambda x: x == search_value
+                    def matches(x, search_value=search_value):
+                        return x == search_value
 
                 if search_key in ('if', 'rt'):
-                    matches = lambda x, original_matches=matches: any(original_matches(v) for v in x.split())
+                    def matches(x, original_matches=matches):
+                        return any(original_matches(v) for v in x.split())
 
                 if search_key == 'href':
                     candidates = ((e, c) for (e, c) in candidates if

@@ -404,7 +404,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         except socket.gaierror:
             raise error.ResolutionError("No address information found for requests to %r" % host)
 
-        ## @TODO this is very rudimentary; happy-eyeballs or
+        # TODO this is very rudimentary; happy-eyeballs or
         # similar could be employed.
 
         sockaddr = addrinfo[0][-1]
@@ -488,7 +488,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             assert cmsg_level == socket.IPPROTO_IPV6
             if cmsg_type == socknumbers.IPV6_RECVERR:
                 extended_err = SockExtendedErr.load(cmsg_data)
-                self.log.debug("Socket error recevied, details: %s", extended_err);
+                self.log.debug("Socket error recevied, details: %s", extended_err)
                 errno = extended_err.ee_errno
             elif cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == socknumbers.IPV6_PKTINFO:
                 pktinfo = cmsg_data

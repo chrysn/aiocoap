@@ -72,7 +72,7 @@ class Main(AsyncCLIDaemon):
             if kind in ('--namebased', '--subdomainbased'):
                 try:
                     name, dest = data.split(':', 1)
-                except:
+                except Exception:
                     raise parser.error("%s needs NAME:DEST as arguments" % kind)
                 dest, rewrite_uri_host, use_as_proxy = destsplit(dest)
                 if rewrite_uri_host and kind == '--subdomainbased':
@@ -81,7 +81,7 @@ class Main(AsyncCLIDaemon):
             elif kind == '--pathbased':
                 try:
                     path, dest = data.split(':', 1)
-                except:
+                except Exception:
                     raise parser.error("--pathbased needs PATH:DEST as arguments")
                 r = SubresourceVirtualHost(path.split('/'), dest)
             elif kind == '--unconditional':
