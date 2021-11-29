@@ -195,3 +195,19 @@ class BlockOption(TypedOption):
         # `(num, more, sz)` without having to pick the type out of a very long
         # module name
         super()._set_from_opt_value(self.type(*value))
+
+class ContentFormatOption(TypedOption):
+    """Type of numeric options whose number has :class:`ContentFormat`
+    semantics"""
+
+    type = ContentFormat
+
+    def encode(self):
+        return _to_minimum_bytes(int(self.value))
+
+    def decode(self, rawdata):
+        as_integer = int.from_bytes(rawdata, 'big')
+        self._value = ContentFormat(as_integer)
+
+    def _set_from_opt_value(self, value):
+        super()._set_from_opt_value(ContentFormat(value))
