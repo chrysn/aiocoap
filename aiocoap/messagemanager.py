@@ -13,16 +13,20 @@ Currently, it also provides the mechanisms for managing tokens, but those will
 be split into dedicated classes.
 """
 
+import asyncio
 import functools
 import random
+from typing import Dict, Tuple, Optional
 
 from . import error
 from . import interfaces
+from .interfaces import EndpointAddress
 from .message import Message
 from .numbers.types import CON, ACK, RST, NON
 from .numbers.codes import EMPTY
 from .numbers.constants import (EXCHANGE_LIFETIME, ACK_TIMEOUT, EMPTY_ACK_DELAY,
         MAX_RETRANSMIT, ACK_RANDOM_FACTOR)
+
 
 class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     """This MessageManager Drives a message interface following the rules of
@@ -43,13 +47,13 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         self.message_id = random.randint(0, 65535)
         #: Tracker of recently received messages (by remote and message ID).
         #: Maps them to a response message when one is already known.
-        self._recent_messages = {}  # type: Dict[Tuple[Remote, int], Optional[Message]]
+        self._recent_messages: Dict[Tuple[EndpointAddress, int], Optional[Message]] = {}
         self._active_exchanges = {}  #: active exchanges i.e. sent CON messages (remote, message-id): (messageerror_monitor monitor, cancellable timeout)
         self._backlogs = {} #: per-remote list of (backlogged package, messageerror_monitor) tupless (keys exist iff there is an active_exchange with that node)
 
         #: Maps pending remote/token combinations to the MID a response can be
         #: piggybacked on, and the timeout that should be cancelled if it is.
-        self._piggyback_opportunities = {} # type: Dict[Tuple[Remote, bytes], (int, Cancleable)]
+        self._piggyback_opportunities: Dict[Tuple[EndpointAddress, bytes], (int, asyncio.TimerHandle)] = {}
 
         self.log = token_manager.log
         self.loop = token_manager.loop
