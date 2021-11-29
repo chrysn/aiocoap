@@ -65,7 +65,11 @@ Common errors
 When upstream libraries change, or when dependencies of used libraries are not
 there (eg. no C compiler, C libraries missing), the installation process can fail.
 
-In those cases, it is helpful to not install with all extras, but replace the
+On Debian based systems, it helps to install the packages ``python3-dev``,
+``build-essential`` and ``autoconf``; generally, the error output will contain
+some hints as to what is missing.
+
+As a workaround, it can be helpful to not install with all extras, but replace the
 ``all`` with the extras you actually want from the list below. For example, if
 you see errors from DTLSSocket, rather than installing with ``[all,docs]``, you
 can leave out the ``tinydtls`` extra and install with
