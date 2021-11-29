@@ -12,6 +12,7 @@ easier to mock with sending byte sequences than with aiocoap"""
 import sys
 import socket
 import asyncio
+from asyncio import wait_for, TimeoutError
 import signal
 import contextlib
 import os
@@ -19,7 +20,7 @@ import unittest
 
 import aiocoap
 
-from .test_server import WithTestServer, precise_warnings, no_warnings, asynctest
+from .test_server import WithTestServer, precise_warnings, no_warnings, asynctest, WithAsyncLoop
 
 # For some reasons site-local requests do not work on my test setup, resorting
 # to link-local; that means a link needs to be given, and while we never need
@@ -30,45 +31,55 @@ _skip_unless_defaultmcif = unittest.skipIf(
         "Multicast tests require AIOCOAP_TEST_MCIF environment variable to tell"
         " the default multicast interface")
 
-# Windows has no SIGALRM and thus can't do the timeouts. Only when the mocksock
-# becomes async, those can be tested.
-_skip_on_win32 = unittest.skipIf(
-        sys.platform == 'win32',
-        "Mock socket needs platform support for SIGALRM"
-        )
+class MockSockProtocol:
+    def __init__(self, remote_addr):
+        # It should be pointed out here that this whole mocksock thing is not
+        # terribly well thought out, and just hacked together to replace the
+        # blocking sockets that used to be there (which were equally hacked
+        # together)
 
-class TimeoutError(RuntimeError):
-    """Raised when a non-async operation times out"""
+        self.incoming_queue = asyncio.Queue()
+        self.remote_addr = remote_addr
 
-    @classmethod
-    def _signalhandler(cls, *args):
-        raise cls()
+    def connection_made(self, transport):
+        self.transport = transport
 
-    @classmethod
-    @contextlib.contextmanager
-    def after(cls, time):
-        old = signal.signal(signal.SIGALRM, cls._signalhandler)
-        signal.alarm(time)
-        yield
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old)
+    def datagram_received(self, data, addr):
+        self.incoming_queue.put_nowait((data, addr))
 
-class WithMockSock(unittest.TestCase):
+    async def close(self):
+        pass
+
+    # emulating the possibly connected socket.socket this once was
+
+    def send(self, data):
+        self.transport.sendto(data, self.remote_addr)
+
+    def sendto(self, data, addr):
+        self.transport.sendto(data, addr)
+
+    async def recv(self):
+        return (await self.incoming_queue.get())[0]
+
+class WithMockSock(WithAsyncLoop):
     def setUp(self):
         super().setUp()
-
-        self.mocksock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+        _, self.mocksock = self.loop.run_until_complete(
+                self.loop.create_datagram_endpoint(
+                    lambda: MockSockProtocol(self.mocksock_remote_addr),
+                    family=socket.AF_INET6,
+                    ))
 
     def tearDown(self):
-        self.mocksock.close()
+        self.loop.run_until_complete(self.mocksock.close())
 
         super().tearDown()
 
 class TestNoncoapClient(WithTestServer, WithMockSock):
     def setUp(self):
-        super().setUp()
+        self.mocksock_remote_addr = (self.serveraddress, aiocoap.COAP_PORT)
 
-        self.mocksock.connect((self.serveraddress, aiocoap.COAP_PORT))
+        super().setUp()
 
     @precise_warnings(["Ignoring unparsable message from ..."])
     @asynctest
@@ -88,7 +99,6 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
         self.mocksock.send(b'\x80\x01\x99\x98')
         await asyncio.sleep(0.1)
 
-    @_skip_on_win32
     @no_warnings
     @asynctest
     async def test_duplicate(self):
@@ -98,45 +108,35 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
         await asyncio.sleep(0.1)
         r1 = r2 = None
         try:
-            with TimeoutError.after(1):
-                r1 = self.mocksock.recv(1024)
-                r2 = self.mocksock.recv(1024)
+            r1 = await wait_for(self.mocksock.recv(), timeout=1)
+            r2 = await wait_for(self.mocksock.recv(), timeout=1)
         except TimeoutError:
             pass
         self.assertEqual(r1, r2, "Duplicate GETs gave different responses")
         self.assertTrue(r1 is not None, "No responses received to duplicate GET")
 
-    @_skip_on_win32
     @no_warnings
     @asynctest
     async def test_ping(self):
         self.mocksock.send(b'\x40\x00\x99\x9a') # CoAP ping -- should this test be doable in aiocoap?
-        await asyncio.sleep(0.1)
-        with TimeoutError.after(1):
-            response = self.mocksock.recv(1024)
+        response = await asyncio.wait_for(self.mocksock.recv(), timeout=1)
         assert response == b'\x70\x00\x99\x9a'
 
-    @_skip_on_win32
     @no_warnings
     @asynctest
     async def test_noresponse(self):
         self.mocksock.send(b'\x50\x01\x99\x9b\xd1\xf5\x02') # CoAP NON GET / with no-response on 2.xx
-        await asyncio.sleep(0.1)
         try:
-            with TimeoutError.after(1):
-                response = self.mocksock.recv(1024)
+            response = await wait_for(self.mocksock.recv(), timeout=1)
             self.assertTrue(False, "Response was sent when No-Response should have suppressed it")
         except TimeoutError:
             pass
 
-    @_skip_on_win32
     @no_warnings
     @asynctest
     async def test_unknownresponse_reset(self):
         self.mocksock.send(bytes.fromhex("4040ffff"))
-        await asyncio.sleep(0.1)
-        with TimeoutError.after(1):
-            response = self.mocksock.recv(1024)
+        response = await wait_for(self.mocksock.recv(), timeout=1)
         self.assertEqual(response, bytes.fromhex("7000ffff"), "Unknown CON Response did not trigger RST")
 
 # Skipping the whole class when no multicast address was given (as otherwise
@@ -148,24 +148,26 @@ class TestNoncoapMulticastClient(WithTestServer, WithMockSock):
     # explicitly, though.
     serveraddress = '::'
 
+    def setUp(self):
+        # always used with sendto
+        self.mocksock_remote_addr = None
+
+        super().setUp()
+
     @no_warnings
     @asynctest
     async def test_mutlicast_ping(self):
         # exactly like the unicast case -- just to verify we're actually reaching our server
         self.mocksock.sendto(b'\x40\x00\x99\x9a', (aiocoap.numbers.constants.MCAST_IPV6_LINKLOCAL_ALLCOAPNODES, aiocoap.COAP_PORT, 0, socket.if_nametoindex(os.environ['AIOCOAP_TEST_MCIF'])))
-        await asyncio.sleep(0.1)
-        with TimeoutError.after(1):
-            response = self.mocksock.recv(1024)
+        response = await wait_for(self.mocksock.recv(), timeout=1)
         assert response == b'\x70\x00\x99\x9a'
 
     @no_warnings
     @asynctest
     async def test_multicast_unknownresponse_noreset(self):
         self.mocksock.sendto(bytes.fromhex("4040ffff"), (aiocoap.numbers.constants.MCAST_IPV6_LINKLOCAL_ALLCOAPNODES, aiocoap.COAP_PORT, 0, socket.if_nametoindex(os.environ['AIOCOAP_TEST_MCIF'])))
-        await asyncio.sleep(0.1)
         try:
-            with TimeoutError.after(1):
-                response = self.mocksock.recv(1024)
+            response = await wait_for(self.mocksock.recv(), timeout=1)
         except TimeoutError:
             pass
         else:
