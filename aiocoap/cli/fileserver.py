@@ -25,6 +25,7 @@ from aiocoap.util.cli import AsyncCLIDaemon
 from aiocoap.cli.common import (add_server_arguments,
     server_context_from_arguments, extract_server_arguments)
 from aiocoap.resourcedirectory.client.register import Registerer
+from ..util.asyncio import py38args
 
 class InvalidPathError(error.ConstructionRenderableError):
     code = codes.BAD_REQUEST
@@ -214,7 +215,10 @@ class FileServerProgram(AsyncCLIDaemon):
         else:
             self.context = await server_context_from_arguments(server, server_opts)
 
-        self.refreshes = asyncio.create_task(server.check_files_for_refreshes())
+        self.refreshes = asyncio.create_task(
+                server.check_files_for_refreshes(),
+                **py38args(name="Refresh on %r" % (path,))
+                )
 
         if register is not False:
             if register is not None and register.count('/') != 2:

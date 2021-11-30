@@ -53,6 +53,7 @@ import time
 import warnings
 
 from ..util import hostportjoin, hostportsplit
+from ..util.asyncio import py38args
 from ..message import Message
 from .. import interfaces, error
 from ..numbers import COAPS_PORT
@@ -147,7 +148,10 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
             self._dtls_socket.write(self._connection, message)
 
-            self._retransmission_task = asyncio.create_task(self._run_retransmissions())
+            self._retransmission_task = asyncio.create_task(
+                    self._run_retransmissions(),
+                    **py38args(name="DTLS handshake retransmissions")
+                    )
 
     log = property(lambda self: self.coaptransport.log)
 
@@ -189,7 +193,10 @@ class DTLSClientConnection(interfaces.EndpointAddress):
                     )
             self._connection = self._dtls_socket.connect(_SENTINEL_ADDRESS, _SENTINEL_PORT)
 
-            self._retransmission_task = asyncio.create_task(self._run_retransmissions())
+            self._retransmission_task = asyncio.create_task(
+                    self._run_retransmissions(),
+                    **py38args(name="DTLS handshake retransmissions")
+                    )
 
             self._connecting = asyncio.get_running_loop().create_future()
             await self._connecting

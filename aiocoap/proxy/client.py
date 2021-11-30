@@ -11,6 +11,8 @@ import asyncio
 from .. import interfaces
 from ..protocol import ClientObservation
 
+from ..util.asyncio import py38args
+
 class ProxyForwarder(interfaces.RequestProvider):
     """Object that behaves like a Context but only provides the request
     function and forwards all messages to a proxy.
@@ -40,7 +42,10 @@ class ProxyRequest(interfaces.Request):
 
         self.observation = ProxyClientObservation(app_request)
 
-        asyncio.create_task(self._launch())
+        asyncio.create_task(
+                self._launch(),
+                **py38args(name="Proxying %r" % app_request)
+                )
 
     async def _launch(self):
         try:

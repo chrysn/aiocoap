@@ -37,6 +37,7 @@ from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
         OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT)
 from .numbers.optionnumbers import OptionNumber
 from .util.asyncio.coro_or_contextmanager import AwaitOrAenter
+from .util.asyncio import py38args
 
 import warnings
 import logging
@@ -355,7 +356,10 @@ class Context(interfaces.RequestProvider):
             r.cancel()
 
         done, pending = await asyncio.wait([
-                asyncio.create_task(ri.shutdown())
+                asyncio.create_task(
+                    ri.shutdown(),
+                    **py38args(name="Shutdown of %r" % ri)
+                    )
                 for ri
                 in self.request_interfaces],
             timeout=3)
@@ -387,7 +391,10 @@ class Context(interfaces.RequestProvider):
             except Exception as e:
                 plumbing_request.add_exception(e)
                 return
-        self.loop.create_task(send())
+        self.loop.create_task(
+                send(),
+                **py38args(name="Request processing of %r" % result)
+                )
         return result
 
     # the following are under consideration for moving into Site or something
@@ -399,7 +406,9 @@ class Context(interfaces.RequestProvider):
         provided by the site."""
 
         task = self.loop.create_task(
-                self._render_to_plumbing_request(plumbing_request))
+                self._render_to_plumbing_request(plumbing_request),
+                **py38args(name="Rendering for %r" % plumbing_request.request)
+                )
         self._running_renderings.add(task)
         remove_task = functools.partial(self._running_renderings.remove, task)
         task.add_done_callback(lambda result, cb=remove_task: cb())
@@ -859,7 +868,8 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             weakref.ref(self.observation) if self.observation is not None else lambda: None,
             self.protocol,
             self.log,
-            ))
+            ),
+            **py38args(name="Blockwise runner for %r" % app_request))
         self.response.add_done_callback(self._response_cancellation_handler)
 
     def _response_cancellation_handler(self, response_future):
@@ -1011,7 +1021,15 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 lower_observation.cancel()
                 return
             future_weak_observation = protocol.loop.create_future() # packing this up because its destroy callback needs to reference the subtask
-            subtask = asyncio.create_task(cls._run_observation(app_request, lower_observation, future_weak_observation, protocol, log))
+            subtask = asyncio.create_task(
+                    cls._run_observation(
+                        app_request,
+                        lower_observation,
+                        future_weak_observation,
+                        protocol,
+                        log),
+                    **py38args(name="Blockwise observation for %r" % app_request)
+                    )
             future_weak_observation.set_result(weakref.ref(obs, lambda obs: subtask.cancel()))
             obs.on_cancel(subtask.cancel)
             del obs

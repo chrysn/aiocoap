@@ -17,6 +17,8 @@ import logging
 import asyncio
 import signal
 
+from ..util.asyncio import py38args
+
 class ActionNoYes(argparse.Action):
     """Simple action that automatically manages --{,no-}something style options"""
     # adapted from Omnifarious's code on
@@ -69,7 +71,10 @@ class AsyncCLIDaemon:
         if loop is None:
             loop = asyncio.get_running_loop()
         self.__exitcode = loop.create_future()
-        self.initializing = loop.create_task(self.start(*args, **kwargs))
+        self.initializing = loop.create_task(
+                self.start(*args, **kwargs),
+                **py38args(name="Initialization of %r" % (self,))
+                )
 
     def stop(self, exitcode):
         """Stop the operation (and exit sync_main) at the next convenience."""

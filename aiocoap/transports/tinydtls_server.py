@@ -42,6 +42,7 @@ from .generic_udp import GenericMessageInterface
 from .. import error, interfaces
 from . import simplesocketserver
 from .simplesocketserver import _DatagramServerSocketSimple
+from ..util.asyncio import py38args
 
 from .tinydtls import LEVEL_NOALERT, LEVEL_FATAL, DTLS_EVENT_CONNECT, DTLS_EVENT_CONNECTED, CODE_CLOSE_NOTIFY, CloseNotifyReceived, DTLS_TICKS_PER_SECOND, DTLS_CLOCK_OFFSET, FatalDTLSError
 
@@ -78,7 +79,10 @@ class _AddressDTLS(interfaces.EndpointAddress):
                 )
         self._dtls_session = dtls.Session(_SENTINEL_ADDRESS, _SENTINEL_PORT)
 
-        self._retransmission_task = asyncio.create_task(self._run_retransmissions())
+        self._retransmission_task = asyncio.create_task(
+                self._run_retransmissions(),
+                **py38args(name="DTLS server handshake retransmissions")
+                )
 
         self.log = protocol.log
 
@@ -151,7 +155,10 @@ class _AddressDTLS(interfaces.EndpointAddress):
         # and it never showed).
         now = time.time() - DTLS_CLOCK_OFFSET
         await asyncio.sleep(when - now)
-        self._retransmission_task = asyncio.create_task(self._run_retransmissions())
+        self._retransmission_task = asyncio.create_task(
+                self._run_retransmissions(),
+                **py38args(name="DTLS server handshake retransmissions")
+                )
 
 class _DatagramServerSocketSimpleDTLS(_DatagramServerSocketSimple):
     _Address = _AddressDTLS
@@ -201,7 +208,10 @@ class GoingThroughMessageDecryption:
         # Put it into the DTLS processor; that'll forward any actually contained decrypted datagrams on to _received_plaintext
         address._retransmission_task.cancel()
         address._dtls_socket.handleMessage(address._dtls_session, data)
-        address._retransmission_task = asyncio.create_task(address._run_retransmissions())
+        address._retransmission_task = asyncio.create_task(
+                address._run_retransmissions(),
+                **py38args(name="DTLS server handshake retransmissions")
+                )
 
     def _received_exception(self, address, exception):
         self._plaintext_interface._received_exception(address, exception)

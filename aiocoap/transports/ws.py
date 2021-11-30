@@ -66,6 +66,7 @@ import weakref
 
 from aiocoap import Message, interfaces, ABORT, util, error
 from aiocoap.transports import rfc8323common
+from ..util.asyncio import py38args
 
 import websockets
 
@@ -135,7 +136,10 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
     def _abort_with(self, msg, *, close_code=1002):
         # Like _send_message, this may take actual time -- but unlike there,
         # there's no need to regulate back-pressure
-        self.loop.create_task(self._abort_with_waiting(msg, close_code=close_code))
+        self.loop.create_task(
+                self._abort_with_waiting(msg, close_code=close_code),
+                **py38args(name="Abortion WebSocket sonnection with %r" % msg)
+                )
 
     # Unlike _send_message, this is pulled out of the the _abort_with function
     # as it's also used in _run_recv_loop
@@ -155,7 +159,10 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
                 await self._connection.send(_serialize(msg))
             except Exception as e:
                 self.log.error("Sending to a WebSocket should not raise errors", exc_info=e)
-        self.loop.create_task(send())
+        self.loop.create_task(
+                send(),
+                **py38args(name="WebSocket sending of %r" % msg)
+                )
 
 class WSPool(interfaces.TokenInterface):
     _outgoing_starting: Dict[PoolKey, asyncio.Task]
@@ -242,7 +249,10 @@ class WSPool(interfaces.TokenInterface):
     # Helpers for WebScoket client
 
     def _connect(self, key: PoolKey):
-        self._outgoing_starting[key] = self.loop.create_task(self._connect_task(key))
+        self._outgoing_starting[key] = self.loop.create_task(
+                self._connect_task(key),
+                **py38args(name="WebSocket connection opening to %r" % (key,))
+                )
 
     async def _connect_task(self, key: PoolKey):
         try:
@@ -264,7 +274,10 @@ class WSPool(interfaces.TokenInterface):
             remote = WSRemote(self, websocket, self.loop, self.log, scheme=key.scheme, remote_hostinfo=hostinfo_split)
             self._pool[remote] = remote
 
-            self.loop.create_task(self._run_recv_loop(remote))
+            self.loop.create_task(
+                    self._run_recv_loop(remote),
+                    **py38args(name="WebSocket receive loop for %r" % (key,))
+                    )
 
             return remote
         finally:
