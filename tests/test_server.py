@@ -131,6 +131,50 @@ class WhoAmI(aiocoap.resource.Resource):
                 payload=json.dumps(p).encode('utf8'),
                 )
 
+class ObservableToPlumbingRequest(aiocoap.resource.Resource):
+    async def can_render_to_plumbingrequest(self, request):
+        return True
+
+    async def render_to_plumbingrequest(self, plumbingrequest):
+        # This does many things manually that are done automatically in the
+        # remaining Resource implementations -- that's OK because it's early
+        # experimentation:
+
+        try:
+            assert plumbingrequest.request.code == aiocoap.GET
+
+            do_observe = plumbingrequest.request.opt.observe == 0
+
+            plumbingrequest.add_response(aiocoap.Message(
+                code=aiocoap.CONTENT,
+                observe=0 if do_observe else None,
+                payload=b"1",
+                ),
+                is_last=not do_observe)
+
+            if not do_observe:
+                return
+
+            plumbingrequest.add_response(aiocoap.Message(
+                code=aiocoap.CONTENT,
+                observe=1,
+                payload=b"2",
+                ),
+                is_last=False)
+
+            plumbingrequest.add_response(aiocoap.Message(
+                code=aiocoap.CONTENT,
+                payload=b"3",
+                ),
+                is_last=True)
+        except BaseException as e:
+            breakpoint()
+            print(e)
+            raise
+
+    async def render(self, request):
+        raise RuntimeError("Should not be called any more")
+
 class BasicTestingSite(aiocoap.resource.Site):
     def __init__(self):
         super(BasicTestingSite, self).__init__()
@@ -158,6 +202,7 @@ class BasicTestingSite(aiocoap.resource.Site):
         self.add_resource(['error', 'pretty'], PrettyErrorResource())
         self.add_resource(['error', 'double'], DoubleErrorResource())
         self.add_resource(['whoami'], WhoAmI())
+        self.add_resource(['obs-to-plumbing'], ObservableToPlumbingRequest())
         self.add_resource([], RootResource())
 
     class Subsite(aiocoap.resource.Site):
@@ -380,6 +425,24 @@ class TestServer(WithTestServer, WithClient):
         response = self.fetch_response(request)
         self.assertEqual(response.code, aiocoap.CONTENT, "Root resource was not found")
 
+    @no_warnings
+    def test_rendertoplumbing(self):
+        request = self.build_request()
+        request.opt.uri_path = ['obs-to-plumbing']
+        response = self.fetch_response(request)
+        self.assertEqual(response.code, aiocoap.CONTENT, "Response rendered to plumbing failed")
+
+    @no_warnings
+    @asynctest
+    async def test_rendertoplumbing_observe(self):
+        request = self.build_request()
+        request.opt.uri_path = ['obs-to-plumbing']
+        request.opt.observe = 0
+
+        req = self.client.request(request)
+        response = await req.response
+        async for o in req.observation:
+            self.assertEqual(o.code, aiocoap.CONTENT, "Response rendered to plumbing failed")
 
     _empty_ack_logmsg = re.compile("^Incoming message <aiocoap.Message at"
                                    " 0x[0-9a-f]+: Type.ACK EMPTY ([^)]+)")

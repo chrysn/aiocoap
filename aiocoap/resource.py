@@ -35,6 +35,7 @@ from . import meta
 from . import error
 from . import interfaces
 from . import numbers
+from .plumbingrequest import PlumbingRequest
 
 def hashing_etag(request, response):
     """Helper function for render_get handlers that allows them to use ETags based
@@ -410,3 +411,26 @@ class Site(interfaces.ObservableResource, PathCapable):
                 for l in resource.get_resources_as_linkheader().links:
                     links.append(Link('/' + '/'.join(path) + l.href, l.attr_pairs))
         return LinkFormat(links)
+
+    async def can_render_to_plumbingrequest(self, request):
+        try:
+            child, subrequest = self._find_child_and_pathstripped_message(request)
+        except KeyError:
+            # It could by virtue of just raising and the raised errors still
+            # being handled in the Context -- not doing that yet as the OSCORE
+            # wrappers would still require the exception handling to run
+            # through renderable errors.
+            return False
+        else:
+            return await child.can_render_to_plumbingrequest(subrequest)
+
+    async def render_to_plumbingrequest(self, request: PlumbingRequest):
+        try:
+            child, subrequest = self._find_child_and_pathstripped_message(request.request)
+        except KeyError:
+            raise error.NotFound()
+        else:
+            # FIXME consider carefully whether this switching-around is good.
+            # It probably is.
+            request.request = subrequest
+            return await child.render_to_plumbingrequest(request)

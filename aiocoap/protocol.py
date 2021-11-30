@@ -467,6 +467,25 @@ class Context(interfaces.RequestProvider):
             plumbing_request.add_response(Message(code=NOT_FOUND, payload=b"not a server"), is_last=True)
             return
 
+        if await self.serversite.can_render_to_plumbingrequest(request):
+            # On the long run, everything else might become deprecated
+
+            # As this is called exclusively through render_to_plumbingrequest,
+            # we can be sure not to kill anything unrelated when cancelling
+            # this task. (The alternative would be to pass the task along
+            # explicitly, but that's cyclic and unneccesary).
+            our_task = asyncio.current_task()
+            # Not the cleanest way to do all this, but compatible with th rest
+            # of _render_to_plumbing_request. This ensures that even if the
+            # render_to_plumbingrequest coroutine does *not* on its own wait
+            # for the cancellation (by registering .on_interest_end()), it
+            # *still* gets cancelled. (FIXME: On a documentation level, should
+            # it even (and risk different cancellation paths being taken), or
+            # should it just await cancellation?)
+            cancellation_future.add_done_callback(lambda _, f=our_task.cancel: f())
+
+            return await self.serversite.render_to_plumbingrequest(plumbing_request)
+
         needs_blockwise = await self.serversite.needs_blockwise_assembly(request)
         if needs_blockwise:
             block_key = _extract_block_key(request)
