@@ -33,7 +33,7 @@ from .tokenmanager import TokenManager, PlumbingRequest
 from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
-        SERVICE_UNAVAILABLE, CONTINUE, REQUEST_ENTITY_INCOMPLETE,
+        CONTINUE, REQUEST_ENTITY_INCOMPLETE,
         OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT)
 from .numbers.optionnumbers import OptionNumber
 from .util.asyncio.coro_or_contextmanager import AwaitOrAenter
@@ -448,9 +448,19 @@ class Context(interfaces.RequestProvider):
                 msg = Message(code=INTERNAL_SERVER_ERROR)
             plumbing_request.add_response(msg, is_last=True)
         except asyncio.CancelledError:
-            self.log.info("Rendering was interrupted, informing client")
-            plumbing_request.add_response(Message(code=SERVICE_UNAVAILABLE), is_last=True)
-            raise
+            # This currently only happens in the OSCORE plugtest server's
+            # custom code; in general, this would indicate that the network
+            # peer has indicated loss of interest (by closing the TCP
+            # connection or sending an ICMP unreachable), in which case
+            # rendering will be cancelled too (but currently is not --
+            # currently, only cancellation_future is set)
+            #
+            # (Technically, there is no reason to keep this clause in here as
+            # the canceled task itself will not complain if the CancelledError
+            # raises out of it, and CancelledError is only BaseException and
+            # would thus not be caught by the catch-all; this is more for
+            # awareness).
+            pass
         except Exception as e:
             plumbing_request.add_response(Message(code=INTERNAL_SERVER_ERROR), is_last=True)
             self.log.error("An exception occurred while rendering a resource: %r", e, exc_info=e)
