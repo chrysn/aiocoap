@@ -31,7 +31,6 @@ class MultiRepresentationResource(aiocoap.resource.Resource):
         if m in self._representations:
             response = self._representations[m]
         else:
-            print("REQUESTED", repr(m), "HAVING", list(self._representations.keys()))
             return aiocoap.Message(code=aiocoap.NOT_ACCEPTABLE)
 
         return aiocoap.Message(payload=response, content_format=request.opt.accept or 0)
