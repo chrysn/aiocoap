@@ -29,7 +29,8 @@ from .credentials import CredentialsMap
 from .message import Message
 from .optiontypes import BlockOption
 from .messagemanager import MessageManager
-from .tokenmanager import TokenManager, PlumbingRequest
+from .tokenmanager import TokenManager
+from .plumbingrequest import PlumbingRequest, run_driving_plumbing_request
 from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
@@ -400,9 +401,11 @@ class Context(interfaces.RequestProvider):
         :meth:`needs_blockwise_assembly` / :meth:`add_observation` interfaces
         provided by the site."""
 
-        self.loop.create_task(
+        run_driving_plumbing_request(
+                plumbing_request,
                 self._render_to_plumbing_request(plumbing_request),
-                **py38args(name="Rendering for %r" % plumbing_request.request)
+                self.log,
+                name="Rendering for %r" % plumbing_request.request,
                 )
 
     async def _render_to_plumbing_request(self, plumbing_request):
@@ -424,38 +427,6 @@ class Context(interfaces.RequestProvider):
         try:
             await self._render_to_plumbing_request_inner(plumbing_request,
                     cancellation_future)
-        except error.RenderableError as e:
-            # the repr() here is quite imporant for garbage collection
-            self.log.info("Render request raised a renderable error (%s), responding accordingly.", repr(e))
-            try:
-                msg = e.to_message()
-                if msg is None:
-                    # This deserves a separate check because the ABC checks
-                    # that should ensure that the default to_message method is
-                    # never used in concrete classes fails due to the metaclass
-                    # conflict between ABC and Exceptions
-                    raise ValueError("Exception to_message failed to produce a message on %r" % e)
-            except Exception as e2:
-                self.log.error("Rendering the renderable exception failed: %r", e2, exc_info=e2)
-                msg = Message(code=INTERNAL_SERVER_ERROR)
-            plumbing_request.add_response(msg, is_last=True)
-        except asyncio.CancelledError:
-            # This currently only happens in the OSCORE plugtest server's
-            # custom code; in general, this would indicate that the network
-            # peer has indicated loss of interest (by closing the TCP
-            # connection or sending an ICMP unreachable), in which case
-            # rendering will be cancelled too (but currently is not --
-            # currently, only cancellation_future is set)
-            #
-            # (Technically, there is no reason to keep this clause in here as
-            # the canceled task itself will not complain if the CancelledError
-            # raises out of it, and CancelledError is only BaseException and
-            # would thus not be caught by the catch-all; this is more for
-            # awareness).
-            pass
-        except Exception as e:
-            plumbing_request.add_response(Message(code=INTERNAL_SERVER_ERROR), is_last=True)
-            self.log.error("An exception occurred while rendering a resource: %r", e, exc_info=e)
         finally:
             cleanup()
 

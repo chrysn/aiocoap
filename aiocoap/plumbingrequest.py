@@ -6,8 +6,13 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
+import asyncio
 from collections import namedtuple
 import functools
+
+from . import error
+from .numbers import INTERNAL_SERVER_ERROR
+from .util.asyncio import py38args
 
 class PlumbingRequest:
     """Low-level meeting point between a request and a any responses that come
@@ -153,3 +158,63 @@ class PlumbingRequest:
 
     def add_exception(self, exception):
         self._add_event(self.Event(None, exception, True))
+
+def run_driving_plumbing_request(plumbing_request, coroutine, log, name=None):
+    """Create a task from a coroutine where the end of the coroutine produces a
+    terminal event on the plumbing request, and lack of interest in the
+    plumbing request cancels the task.
+
+    The coroutine will typically produce output into the plumbing request; that
+    connection is set up by the caller like as in
+    ``run_driving_plumbing_request(pr, render_to(pr))``.
+
+    The create task is not returned, as the only sensible operation on it would
+    be cancellation and that's already set up from the plumbing request.
+    """
+    # FIXME This does not try to render exceptions that are passed around into
+    # messages; should it? (Or should this really be two wrappers where one
+    # takes a tasks's final exception to finish the PlumbingRequest and the
+    # other turns exceptions into messages?)
+
+    from .message import Message
+
+    async def wrapped():
+        try:
+            await coroutine
+        except error.RenderableError as e:
+            # the repr() here is quite imporant for garbage collection
+            log.info("Render request raised a renderable error (%s), responding accordingly.", repr(e))
+            try:
+                msg = e.to_message()
+                if msg is None:
+                    # This deserves a separate check because the ABC checks
+                    # that should ensure that the default to_message method is
+                    # never used in concrete classes fails due to the metaclass
+                    # conflict between ABC and Exceptions
+                    raise ValueError("Exception to_message failed to produce a message on %r" % e)
+            except Exception as e2:
+                log.error("Rendering the renderable exception failed: %r", e2, exc_info=e2)
+                msg = Message(code=INTERNAL_SERVER_ERROR)
+            plumbing_request.add_response(msg, is_last=True)
+        except asyncio.CancelledError:
+            # This currently only happens in the OSCORE plugtest server's
+            # custom code; in general, this would indicate that the network
+            # peer has indicated loss of interest (by closing the TCP
+            # connection or sending an ICMP unreachable), in which case
+            # rendering will be cancelled too (but currently is not --
+            # currently, only cancellation_future is set)
+            #
+            # (Technically, there is no reason to keep this clause in here as
+            # the canceled task itself will not complain if the CancelledError
+            # raises out of it, and CancelledError is only BaseException and
+            # would thus not be caught by the catch-all; this is more for
+            # awareness).
+            pass
+        except Exception as e:
+            plumbing_request.add_response(Message(code=INTERNAL_SERVER_ERROR), is_last=True)
+            log.error("An exception occurred while rendering a resource: %r", e, exc_info=e)
+
+    asyncio.create_task(
+            wrapped(),
+            **py38args(name=name),
+            )

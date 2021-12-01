@@ -139,7 +139,7 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
 
     async def can_render_to_plumbingrequest(self, request):
         # Should over time become True for all cases
-        return not isinstance(self, ObservableResource) and not await self.needs_blockwise_assembly(request)
+        return not await self.needs_blockwise_assembly(request)
 
     async def render_to_plumbingrequest(self, request: PlumbingRequest):
         request.add_response(await self.render(request.request), is_last=True)
@@ -172,6 +172,9 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         link = super(ObservableResource, self).get_link_description()
         link['obs'] = None
         return link
+
+    async def can_render_to_plumbingrequest(self, request):
+        return False
 
 def link_format_to_message(request, linkformat,
         default_ct=numbers.ContentFormat.LINKFORMAT):
