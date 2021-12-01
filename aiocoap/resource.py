@@ -27,6 +27,7 @@ To serve more than one resource on a site, use the :class:`Site` class to
 dispatch requests based on the Uri-Path header.
 """
 
+import asyncio
 import hashlib
 import warnings
 
@@ -36,6 +37,7 @@ from . import error
 from . import interfaces
 from . import numbers
 from .plumbingrequest import PlumbingRequest
+from .protocol import ServerObservation
 
 def hashing_etag(request, response):
     """Helper function for render_get handlers that allows them to use ETags based
@@ -173,8 +175,53 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         link['obs'] = None
         return link
 
-    async def can_render_to_plumbingrequest(self, request):
-        return False
+    async def render_to_plumbingrequest(self, pr):
+        if pr.request.opt.observe != 0:
+            return await super().render_to_plumbingrequest(pr)
+
+        servobs = ServerObservation()
+        await self.add_observation(pr.request, servobs)
+
+        try:
+            first_response = await self.render(pr.request)
+
+            if not servobs._accepted or servobs._early_deregister or \
+                    not first_response.code.is_successful():
+                pr.add_response(first_response, is_last=True)
+                return
+
+            # FIXME: observation numbers should actually not be per
+            # asyncio.task, but per (remote, token). if a client renews an
+            # observation (possibly with a new ETag or whatever is deemed
+            # legal), the new observation events should still carry larger
+            # numbers. (if they did not, the client might be tempted to discard
+            # them).
+            first_response.opt.observe = next_observation_number = 0
+            pr.add_response(first_response, is_last=False)
+
+            while True:
+                await servobs._trigger
+                # if you wonder why the lines around this are not just `response =
+                # await servobs._trigger`, have a look at the 'double' tests in
+                # test_observe.py: A later triggering could have replaced
+                # servobs._trigger in the meantime.
+                response = servobs._trigger.result()
+                servobs._trigger = asyncio.get_running_loop().create_future()
+
+                if response is None:
+                    response = await self.render(pr.request)
+
+                is_last = servobs._late_deregister or not response.code.is_successful()
+                if not is_last:
+                    next_observation_number += 1
+                    response.opt.observe = next_observation_number
+
+                pr.add_response(response, is_last=is_last)
+
+                if is_last:
+                    return
+        finally:
+            servobs._cancellation_callback()
 
 def link_format_to_message(request, linkformat,
         default_ct=numbers.ContentFormat.LINKFORMAT):
