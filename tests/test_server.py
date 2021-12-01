@@ -140,37 +140,32 @@ class ObservableToPlumbingRequest(aiocoap.resource.Resource):
         # remaining Resource implementations -- that's OK because it's early
         # experimentation:
 
-        try:
-            assert plumbingrequest.request.code == aiocoap.GET
+        assert plumbingrequest.request.code == aiocoap.GET
 
-            do_observe = plumbingrequest.request.opt.observe == 0
+        do_observe = plumbingrequest.request.opt.observe == 0
 
-            plumbingrequest.add_response(aiocoap.Message(
-                code=aiocoap.CONTENT,
-                observe=0 if do_observe else None,
-                payload=b"1",
-                ),
-                is_last=not do_observe)
+        plumbingrequest.add_response(aiocoap.Message(
+            code=aiocoap.CONTENT,
+            observe=0 if do_observe else None,
+            payload=b"1",
+            ),
+            is_last=not do_observe)
 
-            if not do_observe:
-                return
+        if not do_observe:
+            return
 
-            plumbingrequest.add_response(aiocoap.Message(
-                code=aiocoap.CONTENT,
-                observe=1,
-                payload=b"2",
-                ),
-                is_last=False)
+        plumbingrequest.add_response(aiocoap.Message(
+            code=aiocoap.CONTENT,
+            observe=1,
+            payload=b"2",
+            ),
+            is_last=False)
 
-            plumbingrequest.add_response(aiocoap.Message(
-                code=aiocoap.CONTENT,
-                payload=b"3",
-                ),
-                is_last=True)
-        except BaseException as e:
-            breakpoint()
-            print(e)
-            raise
+        plumbingrequest.add_response(aiocoap.Message(
+            code=aiocoap.CONTENT,
+            payload=b"3",
+            ),
+            is_last=True)
 
     async def render(self, request):
         raise RuntimeError("Should not be called any more")

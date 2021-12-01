@@ -137,6 +137,13 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
 
         return response
 
+    async def can_render_to_plumbingrequest(self, request):
+        # Should over time become True for all cases
+        return not isinstance(self, ObservableResource) and not await self.needs_blockwise_assembly(request)
+
+    async def render_to_plumbingrequest(self, request: PlumbingRequest):
+        request.add_response(await self.render(request.request), is_last=True)
+
 class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):
         super(ObservableResource, self).__init__()
