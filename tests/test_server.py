@@ -61,6 +61,23 @@ class SlowBigResource(aiocoap.resource.Resource):
         payload = b"0123456789----------" * 80
         return aiocoap.Message(payload=payload)
 
+class ManualBigResource(aiocoap.resource.Resource):
+    async def needs_blockwise_assembly(self, request):
+        return False
+
+    async def render_get(self, request):
+        BlockwiseTuple =  aiocoap.optiontypes.BlockOption.BlockwiseTuple
+        block2 = request.opt.block2 or BlockwiseTuple(0, 0, 6)
+        # as above
+        body = b"0123456789----------" * 80
+        # in a more realistic example, we wouldn't build this in memory but eg.
+        # seek and read limited length
+        slice = body[block2.start:]
+        more = len(slice) > block2.size
+        slice = slice[:block2.size]
+        block2 = BlockwiseTuple(block2.block_number, more, block2.size_exponent)
+        return aiocoap.Message(payload=slice, block2=block2)
+
 class ReplacingResource(aiocoap.resource.Resource):
     async def render_get(self, request):
         return aiocoap.Message(payload=self.value)
@@ -135,6 +152,7 @@ class BasicTestingSite(aiocoap.resource.Site):
         self.add_resource(['slow'], SlowResource())
         self.add_resource(['big'], BigResource())
         self.add_resource(['slowbig'], SlowBigResource())
+        self.add_resource(['manualbig'], ManualBigResource())
         self.add_resource(['replacing'], self.Subsite())
         self.add_resource(['error', 'generic'], GenericErrorResource())
         self.add_resource(['error', 'pretty'], PrettyErrorResource())
@@ -300,6 +318,14 @@ class TestServer(WithTestServer, WithClient):
         self.assertEqual(len(response.payload), 1600, "SlowBig resource is not as big as expected")
         if response.requested_scheme in (None, 'coap'):
             self.assertEqual(self._count_empty_acks(), 1, "SlowBig resource was not handled in two exchanges")
+
+    @no_warnings
+    def test_manualbig_resource(self):
+        request = self.build_request()
+        request.opt.uri_path = ['manualbig']
+        response = self.fetch_response(request)
+        self.assertEqual(response.code, aiocoap.CONTENT, "ManualBig resource request did not succede")
+        self.assertEqual(len(response.payload), 1600, "ManualBig resource is not as big as expected")
 
     @no_warnings
     def test_replacing_resource(self):
