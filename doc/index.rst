@@ -8,6 +8,7 @@
    stateofoscore
 
    api
+   design
 
    examples
    tools

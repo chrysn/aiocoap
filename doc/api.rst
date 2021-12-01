@@ -1,6 +1,9 @@
 The aiocoap API
 ===============
 
+This is about the Python API of the aiocoap library;
+see :doc:`design` for notes on how CoAP concepts play into the API.
+
 API stability
 -------------
 
