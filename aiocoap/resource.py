@@ -509,11 +509,9 @@ class Site(interfaces.ObservableResource, PathCapable):
         try:
             child, subrequest = self._find_child_and_pathstripped_message(request)
         except KeyError:
-            # It could by virtue of just raising and the raised errors still
-            # being handled in the Context -- not doing that yet as the OSCORE
-            # wrappers would still require the exception handling to run
-            # through renderable errors.
-            return False
+            # raising error.NotFound() works from render_to_plumbingrequest
+            # just as well as from render
+            return True
         else:
             return await child.can_render_to_plumbingrequest(subrequest)
 
