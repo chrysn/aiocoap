@@ -686,6 +686,11 @@ class BaseUnicastRequest(BaseRequest):
 
         Experimental Interface."""
 
+        # FIXME: Can we smuggle error_to_message into the underlying plumbing
+        # request? That should make observe notifications into messages rather
+        # than exceptions as well, plus it has fallbacks for `e.to_message()`
+        # raising.
+
         try:
             return await self.response
         except error.RenderableError as e:
