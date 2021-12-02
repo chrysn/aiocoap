@@ -218,3 +218,57 @@ def run_driving_plumbing_request(plumbing_request, coroutine, log, name=None):
             wrapped(),
             **py38args(name=name),
             )
+
+class IterablePlumbingRequest:
+    """A stand-in for a PlumbingRequest that the requesting party can use
+    instead. It should behave just like a PlumbingRequest to the responding
+    party, but the caller does not register on_event handlers and instead
+    iterates asynchronously over the events.
+
+    Note that the PR can be aitered over only once, and does not support any
+    additional hook settings once asynchronous iteration is started; this is
+    consistent with the usage pattern of plumbing requests.
+    """
+
+    def __init__(self, request):
+        self.request = request
+
+        self.__on_interest_end = []
+
+        # FIXME: This is unbounded -- plumbing requests should gain support for
+        # backpressure.
+        self.__queue = asyncio.Queue()
+
+    def on_interest_end(self, callback):
+        try:
+            self.__on_interest_end.append(callback)
+        except AttributeError:
+            raise RuntimeError("Attempted to declare interest in the end of a IterablePlumbingRequest on which iteration already started") from None
+
+    def __aiter__(self):
+        i = self.Iterator(self.__queue, self.__on_interest_end)
+        del self.__on_interest_end
+        return i
+
+    def _add_event(self, e):
+        self.__queue.put_nowait(e)
+
+    def add_response(self, response, is_last=False):
+        self._add_event(PlumbingRequest.Event(response, None, is_last))
+
+    def add_exception(self, exception):
+        self._add_event(PlumbingRequest.Event(None, exception, True))
+
+    class Iterator:
+        def __init__(self, queue, on_interest_end):
+            self.__queue = queue
+            self.__on_interest_end = on_interest_end
+
+        async def __anext__(self):
+            return await self.__queue.get()
+
+        def __del__(self):
+            # This is pretty reliable as the iterator is only created and
+            # referenced in the desugaring of the `async for`.
+            for c in self.__on_interest_end:
+                c()
