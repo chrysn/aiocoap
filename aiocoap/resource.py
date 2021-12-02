@@ -140,11 +140,35 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
         return response
 
     async def can_render_to_plumbingrequest(self, request):
+        if type(self).render is Resource.render and \
+                not hasattr(self, 'render_post') and not hasattr(self, 'render_put'):
+            # All unsafe methods that need serious payload reassembly are off
+            # anyway
+            return True
+
         # Should over time become True for all cases
         return not await self.needs_blockwise_assembly(request)
 
     async def render_to_plumbingrequest(self, request: PlumbingRequest):
-        request.add_response(await self.render(request.request), is_last=True)
+        req = request.request
+        # If block1 happened in here, req would be fed into the state machine,
+        # and either the complete request gets taken out or a 2.31 flies out of
+        # it
+        #
+        # req = feed(req)
+        #
+        # Note that in the interest of non-idempotent requests, it might be a
+        # good idea to invalidate the block state after it's been taken out
+        # once (even though the retransmit cache should also keep them out).
+        # (But for block2 to work we'd probably still need to provide something
+        # that'll help block2 find the right cache entry).
+
+        # If block2 happened here, we'd decide based on the obtained response
+        # whether to send it right away or to chunk it up; anything not
+        # requesting block2:0 would only look into the cache (as we're really
+        # not expected to provide out-of-sequence access here)
+        res = await self.render(req)
+        request.add_response(res, is_last=True)
 
 class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):
@@ -176,8 +200,13 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         return link
 
     async def render_to_plumbingrequest(self, pr):
+        # If block2:>0 comes along, we'd just ignore the observe
         if pr.request.opt.observe != 0:
             return await super().render_to_plumbingrequest(pr)
+
+        # If block1 happens here, we can probably just not support it for the
+        # time being. (Given that block1 + observe is untested and thus does
+        # not work so far anyway).
 
         servobs = ServerObservation()
         await self.add_observation(pr.request, servobs)
@@ -197,6 +226,8 @@ class ObservableResource(Resource, interfaces.ObservableResource):
             # numbers. (if they did not, the client might be tempted to discard
             # them).
             first_response.opt.observe = next_observation_number = 0
+            # If block2 were to happen here, we'd store the full response
+            # here, and pick out block2:0.
             pr.add_response(first_response, is_last=False)
 
             while True:
@@ -210,6 +241,9 @@ class ObservableResource(Resource, interfaces.ObservableResource):
 
                 if response is None:
                     response = await self.render(pr.request)
+
+                # If block2 were to happen here, we'd store the full response
+                # here, and pick out block2:0.
 
                 is_last = servobs._late_deregister or not response.code.is_successful()
                 if not is_last:
