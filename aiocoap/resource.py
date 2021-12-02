@@ -36,8 +36,10 @@ from . import meta
 from . import error
 from . import interfaces
 from . import numbers
+from .optiontypes import BlockOption
 from .plumbingrequest import PlumbingRequest
-from .protocol import ServerObservation
+from .protocol import ServerObservation, _extract_block_key
+from .util.asyncio.timeoutdict import TimeoutDict
 
 def hashing_etag(request, response):
     """Helper function for render_get handlers that allows them to use ETags based
@@ -107,6 +109,11 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
     returning None.
     """
 
+    def __init__(self):
+        # FIXME: introduce an actual parameter here
+        self._block1_assemblies = TimeoutDict(numbers.MAX_TRANSMIT_WAIT)
+        self._block2_assemblies = TimeoutDict(numbers.MAX_TRANSMIT_WAIT)
+
     async def needs_blockwise_assembly(self, request):
         return True
 
@@ -140,16 +147,14 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
         return response
 
     async def can_render_to_plumbingrequest(self, request):
-        if type(self).render is Resource.render and \
-                not hasattr(self, 'render_post') and not hasattr(self, 'render_put'):
-            # All unsafe methods that need serious payload reassembly are off
-            # anyway
-            return True
-
-        # Should over time become True for all cases
-        return not await self.needs_blockwise_assembly(request)
+        return True
 
     async def render_to_plumbingrequest(self, request: PlumbingRequest):
+        needs_blockwise = await self.needs_blockwise_assembly(request)
+
+        if needs_blockwise:
+            block_key = _extract_block_key(request.request)
+
         req = request.request
         # If block1 happened in here, req would be fed into the state machine,
         # and either the complete request gets taken out or a 2.31 flies out of
@@ -163,11 +168,40 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
         # (But for block2 to work we'd probably still need to provide something
         # that'll help block2 find the right cache entry).
 
-        # If block2 happened here, we'd decide based on the obtained response
-        # whether to send it right away or to chunk it up; anything not
-        # requesting block2:0 would only look into the cache (as we're really
-        # not expected to provide out-of-sequence access here)
-        res = await self.render(req)
+        if needs_blockwise and \
+                req.opt.block2 is not None and \
+                req.opt.block2.block_number != 0:
+            try:
+                res = self._block2_assemblies[block_key]
+            except KeyError:
+                request.add_response(message.Message(
+                        code=numbers.REQUEST_ENTITY_INCOMPLETE),
+                    is_last=True)
+                request.log.info("Received unmatched blockwise response"
+                        " operation message")
+                return
+            # Note that we're not fully accessing req any more -- we're just
+            # looking at its block2 option, and the blockwise key extracted
+            # earlier.
+        else:
+            res = await self.render(req)
+
+        if needs_blockwise and (
+                len(res.payload) > (
+                    req.remote.maximum_payload_size
+                    if req.opt.block2 is None
+                    else req.opt.block2.size)):
+            if needs_blockwise:
+                # on non-zero blocks that's a no-op
+                self._block2_assemblies[block_key] = res
+            block2 = req.opt.block2 or \
+                    BlockOption.BlockwiseTuple(0, 0, req.remote.maximum_block_size_exp)
+            res = res._extract_block(
+                    block2.block_number,
+                    block2.size_exponent,
+                    req.remote.maximum_payload_size
+                    )
+
         request.add_response(res, is_last=True)
 
 class ObservableResource(Resource, interfaces.ObservableResource):
