@@ -30,7 +30,7 @@ from .message import Message
 from .optiontypes import BlockOption
 from .messagemanager import MessageManager
 from .tokenmanager import TokenManager
-from .plumbingrequest import PlumbingRequest, run_driving_plumbing_request
+from .plumbingrequest import PlumbingRequest, run_driving_plumbing_request, error_to_message
 from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
@@ -401,10 +401,11 @@ class Context(interfaces.RequestProvider):
         :meth:`needs_blockwise_assembly` / :meth:`add_observation` interfaces
         provided by the site."""
 
+        pr_that_can_receive_errors = error_to_message(plumbing_request, self.log)
+
         run_driving_plumbing_request(
-                plumbing_request,
+                pr_that_can_receive_errors,
                 self._render_to_plumbing_request(plumbing_request),
-                self.log,
                 name="Rendering for %r" % plumbing_request.request,
                 )
 

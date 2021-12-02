@@ -161,7 +161,7 @@ class PlumbingRequest:
     def add_exception(self, exception):
         self._add_event(self.Event(None, exception, True))
 
-def run_driving_plumbing_request(plumbing_request, coroutine, log, name=None):
+def run_driving_plumbing_request(plumbing_request, coroutine, name=None):
     """Create a task from a coroutine where the end of the coroutine produces a
     terminal event on the plumbing request, and lack of interest in the
     plumbing request cancels the task.
@@ -178,12 +178,40 @@ def run_driving_plumbing_request(plumbing_request, coroutine, log, name=None):
     # takes a tasks's final exception to finish the PlumbingRequest and the
     # other turns exceptions into messages?)
 
-    from .message import Message
-
     async def wrapped():
         try:
             await coroutine
-        except error.RenderableError as e:
+        except Exception as e:
+            plumbing_request.add_exception(e)
+        # Not doing anything special about cancellation: it indicates the
+        # peer's loss of interest, so there's no use in sending anythign out to
+        # someone not listening any more
+
+    asyncio.create_task(
+            wrapped(),
+            **py38args(name=name),
+            )
+
+def error_to_message(old_pr, log):
+    """Given a plumbing request set up by the requester, create a new plumbing
+    request to pass on to a responder.
+
+    Any exceptions produced by the responder will be turned into terminal
+    responses on the original plumbing request, and loss of interest is
+    forwarded."""
+
+    from .message import Message
+
+    next_pr = PlumbingRequest(old_pr.request, log)
+
+    def on_event(event):
+        if event.message is not None:
+            old_pr.add_response(event.message, event.is_last)
+            return not event.is_last
+
+        e = event.exception
+
+        if isinstance(e, error.RenderableError):
             # the repr() here is quite imporant for garbage collection
             log.info("Render request raised a renderable error (%s), responding accordingly.", repr(e))
             try:
@@ -197,29 +225,16 @@ def run_driving_plumbing_request(plumbing_request, coroutine, log, name=None):
             except Exception as e2:
                 log.error("Rendering the renderable exception failed: %r", e2, exc_info=e2)
                 msg = Message(code=INTERNAL_SERVER_ERROR)
-            plumbing_request.add_response(msg, is_last=True)
-        except asyncio.CancelledError:
-            # This currently only happens in the OSCORE plugtest server's
-            # custom code; in general, this would indicate that the network
-            # peer has indicated loss of interest (by closing the TCP
-            # connection or sending an ICMP unreachable), in which case
-            # rendering will be cancelled too (but currently is not --
-            # currently, only cancellation_future is set)
-            #
-            # (Technically, there is no reason to keep this clause in here as
-            # the canceled task itself will not complain if the CancelledError
-            # raises out of it, and CancelledError is only BaseException and
-            # would thus not be caught by the catch-all; this is more for
-            # awareness).
-            pass
-        except Exception as e:
-            plumbing_request.add_response(Message(code=INTERNAL_SERVER_ERROR), is_last=True)
+            old_pr.add_response(msg, is_last=True)
+        else:
             log.error("An exception occurred while rendering a resource: %r", e, exc_info=e)
+            old_pr.add_response(Message(code=INTERNAL_SERVER_ERROR), is_last=True)
 
-    asyncio.create_task(
-            wrapped(),
-            **py38args(name=name),
-            )
+        return False
+
+    remove_interest = next_pr.on_event(on_event)
+    old_pr.on_interest_end(remove_interest)
+    return next_pr
 
 class IterablePlumbingRequest:
     """A stand-in for a PlumbingRequest that the requesting party can use
