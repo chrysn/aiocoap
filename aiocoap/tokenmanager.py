@@ -144,6 +144,9 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                         pr_stop,
                         )
             else:
+                # It'd be tempting to raise here, but typically being called
+                # from a task, it wouldn't propagate any further either, and at
+                # least here we have a logger.
                 self.log.error("Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s", ev)
             if not ev.is_last:
                 return True
