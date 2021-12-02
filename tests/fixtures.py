@@ -113,9 +113,6 @@ class WithLogMonitoring(unittest.TestCase):
             print(complete_log, file=sys.stderr)
             complete_log = "was just printed unconditionally anyway"
 
-        self.assertTrue(is_test_successful(self),
-                "Previous errors were raised." + complete_log)
-
     class ListHandler(logging.Handler):
         """Handler that catches log records into a list for later evaluation
 
