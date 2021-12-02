@@ -88,11 +88,14 @@ class RFC8323Remote:
 
     @property
     def maximum_payload_size(self):
+        # see maximum_payload_size of interfaces comment
+        slack = 100
+
         max_message_size = (self._remote_settings or {}).get('max-message-size', 1152)
         has_blockwise = (self._remote_settings or {}).get('block-wise-transfer', False)
         if max_message_size > 1152 and has_blockwise:
-            return ((max_message_size - 128) // 1024) * 1024
-        return 1024 # FIXME: deal with smaller max-message-size
+            return ((max_message_size - 128) // 1024) * 1024 + slack
+        return 1024 + slack # FIXME: deal with smaller max-message-size
 
     # Utility methods for implementing an RFC8323 transport
 

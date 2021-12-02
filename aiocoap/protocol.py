@@ -925,7 +925,14 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         while True:
             # ... send a chunk
 
-            if len(app_request.payload) > (2 ** (size_exp + 4)):
+            if size_exp >= 6:
+                # FIXME from maximum_payload_size
+                fragmentation_threshold = app_request.remote.maximum_payload_size
+            else:
+                fragmentation_threshold = (2 ** (size_exp + 4))
+
+            if app_request.opt.block1 is not None or \
+                    len(app_request.payload) > fragmentation_threshold:
                 current_block1 = app_request._extract_block(
                         block_cursor,
                         size_exp,
