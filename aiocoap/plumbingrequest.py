@@ -143,12 +143,14 @@ class PlumbingRequest:
             self.log.warning("Response %r added after %r has already ended", event, self)
             return
 
-        cbs = self._event_callbacks
-        # Force an error when during event handling an event is generated
-        self._event_callbacks = None
-        surviving = [(cb, is_interest) for (cb, is_interest) in cbs if cb(event)]
+        for (cb, is_interest) in self._event_callbacks[:]:
+            keep_calling = cb(event)
+            if not keep_calling:
+                if self._event_callbacks is False:
+                    # All interest was just lost during the callback
+                    return
 
-        self._event_callbacks = surviving
+                self._event_callbacks.remove((cb, is_interest))
 
         if not self._any_interest():
             self._end()
