@@ -136,8 +136,6 @@ class Context(interfaces.RequestProvider):
 
         self.request_interfaces = []
 
-        self._running_renderings = set()
-
         self.client_credentials = client_credentials or CredentialsMap()
         self.server_credentials = server_credentials or CredentialsMap()
 
@@ -352,9 +350,6 @@ class Context(interfaces.RequestProvider):
         for _, canceler in self._block2_assemblies.values():
             canceler()
 
-        for r in self._running_renderings:
-            r.cancel()
-
         done, pending = await asyncio.wait([
                 asyncio.create_task(
                     ri.shutdown(),
@@ -405,13 +400,10 @@ class Context(interfaces.RequestProvider):
         :meth:`needs_blockwise_assembly` / :meth:`add_observation` interfaces
         provided by the site."""
 
-        task = self.loop.create_task(
+        self.loop.create_task(
                 self._render_to_plumbing_request(plumbing_request),
                 **py38args(name="Rendering for %r" % plumbing_request.request)
                 )
-        self._running_renderings.add(task)
-        remove_task = functools.partial(self._running_renderings.remove, task)
-        task.add_done_callback(lambda result, cb=remove_task: cb())
 
     async def _render_to_plumbing_request(self, plumbing_request):
         # will receive a result in the finally, so the observation's

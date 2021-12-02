@@ -45,14 +45,22 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         return self.context.client_credentials
 
     async def shutdown(self):
+        while self.incoming_requests:
+            key = next(iter(self.incoming_requests.keys()))
+            (pr, pr_stop) = self.incoming_requests.pop(key)
+            # This cancels them, not sending anything.
+            #
+            # FIXME should we? (RST? 5.00 Server Shutdown? An RST would only
+            # work if we pushed this further down the shutdown chain; a 5.00 we
+            # could raise in the task.)
+            pr_stop()
+        self.incoming_requests = None
+
         while self.outgoing_requests:
             key = next(iter(self.outgoing_requests.keys()))
             request = self.outgoing_requests.pop(key)
             request.add_exception(error.LibraryShutdown())
         self.outgoing_requests = None
-
-        # No handling of self.incoming_requests necssary -- or should we send a
-        # request.add_response(... RST? 5.00 Server Shutdown?) to them?
 
         await self.token_interface.shutdown()
 
