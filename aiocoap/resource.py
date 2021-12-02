@@ -110,6 +110,12 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
     """
 
     def __init__(self):
+        # FIXME: These keep addresses alive, and thus possibly transports.
+        # Going through the shutdown dance per resource seems extraneous.
+        # Options are to accept addresses staying around (making sure they
+        # don't keep their transports alive, if that's a good idea), to hash
+        # them, or to make them weak.
+
         # FIXME: introduce an actual parameter here
         self._block1_assemblies = TimeoutDict(numbers.MAX_TRANSMIT_WAIT)
         self._block2_assemblies = TimeoutDict(numbers.MAX_TRANSMIT_WAIT)
@@ -156,17 +162,36 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
             block_key = _extract_block_key(request.request)
 
         req = request.request
-        # If block1 happened in here, req would be fed into the state machine,
-        # and either the complete request gets taken out or a 2.31 flies out of
-        # it
-        #
-        # req = feed(req)
-        #
-        # Note that in the interest of non-idempotent requests, it might be a
-        # good idea to invalidate the block state after it's been taken out
-        # once (even though the retransmit cache should also keep them out).
-        # (But for block2 to work we'd probably still need to provide something
-        # that'll help block2 find the right cache entry).
+
+        if needs_blockwise and req.opt.block1 is not None:
+            if req.opt.block1.block_number == 0:
+                self._block1_assemblies[block_key] = req
+            else:
+                try:
+                    self._block1_assemblies[block_key]._append_request_block(req)
+                except KeyError:
+                    request.add_response(message.Message(
+                            code=numbers.REQUEST_ENTITY_INCOMPLETE),
+                        is_last=True)
+                    request.log.info("Received unmatched blockwise response"
+                            " operation message")
+                    return
+                except ValueError:
+                    request.add_response(message.Message(
+                            code=numbers.REQUEST_ENTITY_INCOMPLETE),
+                        is_last=True)
+                    request.log.info("Failed to assemble blockwise request (gaps or overlaps)")
+                    return
+
+            if req.opt.block1.more:
+                request.add_response(message.Message(
+                        code=numbers.CONTINUE,
+                        block1=req.opt.block1,
+                        ),
+                    is_last=True)
+                return
+            else:
+                req = self._block1_assemblies[block_key]
 
         if needs_blockwise and \
                 req.opt.block2 is not None and \
@@ -185,6 +210,10 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
             # earlier.
         else:
             res = await self.render(req)
+
+        if needs_blockwise:
+            # Generally right as long as we're on last
+            res.opt.block1 = req.opt.block1
 
         if needs_blockwise and (
                 len(res.payload) > (
