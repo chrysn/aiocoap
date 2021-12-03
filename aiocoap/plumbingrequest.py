@@ -173,10 +173,6 @@ def run_driving_plumbing_request(plumbing_request, coroutine, name=None):
     The create task is not returned, as the only sensible operation on it would
     be cancellation and that's already set up from the plumbing request.
     """
-    # FIXME This does not try to render exceptions that are passed around into
-    # messages; should it? (Or should this really be two wrappers where one
-    # takes a tasks's final exception to finish the PlumbingRequest and the
-    # other turns exceptions into messages?)
 
     async def wrapped():
         try:
@@ -187,10 +183,11 @@ def run_driving_plumbing_request(plumbing_request, coroutine, name=None):
         # peer's loss of interest, so there's no use in sending anythign out to
         # someone not listening any more
 
-    asyncio.create_task(
+    task = asyncio.create_task(
             wrapped(),
             **py38args(name=name),
             )
+    plumbing_request.on_interest_end(task.cancel)
 
 def error_to_message(old_pr, log):
     """Given a plumbing request set up by the requester, create a new plumbing
