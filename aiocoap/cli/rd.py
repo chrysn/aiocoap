@@ -401,6 +401,7 @@ class RegistrationResource(Resource):
     here for better separation of model and interface."""
 
     def __init__(self, registration):
+        super().__init__()
         self.reg = registration
 
     async def render_get(self, request):
@@ -607,8 +608,7 @@ class SimpleRegistration(ThingWithCommonRD, Resource):
 
 class SimpleRegistrationWKC(WKCResource, SimpleRegistration):
     def __init__(self, listgenerator, common_rd, context):
-        WKCResource.__init__(self, listgenerator)
-        SimpleRegistration.__init__(self, common_rd, context)
+        super().__init__(listgenerator=listgenerator, common_rd=common_rd, context=context)
         self.registration_warning = "via .well-known/core"
 
 class StandaloneResourceDirectory(Proxy, Site):

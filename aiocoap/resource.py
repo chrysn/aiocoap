@@ -109,6 +109,8 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
     """
 
     def __init__(self):
+        super().__init__()
+
         # FIXME: These keep addresses alive, and thus possibly transports.
         # Going through the shutdown dance per resource seems extraneous.
         # Options are to accept addresses staying around (making sure they
@@ -299,7 +301,8 @@ class WKCResource(Resource):
 
     ct = link_format_to_message.supported_ct
 
-    def __init__(self, listgenerator, impl_info=meta.library_uri):
+    def __init__(self, listgenerator, impl_info=meta.library_uri, **kwargs):
+        super().__init__(**kwargs)
         self.listgenerator = listgenerator
         self.impl_info = impl_info
 
