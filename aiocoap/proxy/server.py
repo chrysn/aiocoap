@@ -15,7 +15,8 @@ import functools
 import ipaddress
 import logging
 
-from .. import numbers, interfaces, message, error, util
+from .. import numbers, interfaces, message, error, util, resource
+from ..blockwise import Block1Spool, Block2Cache
 
 class CanNotRedirect(error.ConstructionRenderableError):
     message = "Proxy redirection failed"
@@ -70,6 +71,13 @@ class Proxy(interfaces.Resource):
 
     def __init__(self, outgoing_context, logger=None):
         super().__init__()
+        # Provide variables for render_to_plumbingrequest
+        # FIXME this is copied from aiocoap.resource's __init__ -- but on the
+        # long run proxying shouldn't rely on that anyway but implement
+        # render_to_plumbingrequest right on its own
+        self._block1 = Block1Spool()
+        self._block2 = Block2Cache()
+
         self.outgoing_context = outgoing_context
         self.log = logger or logging.getLogger('proxy')
 
@@ -118,6 +126,11 @@ class Proxy(interfaces.Resource):
         response.token = None
 
         return response
+
+    # Not inheriting from them because we do *not* want the .render() in the
+    # resolution tree (it can't deal with None requests, which are used among
+    # proxy implementations)
+    render_to_plumbingrequest = resource.Resource.render_to_plumbingrequest
 
 class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
     def __init__(self, outgoing_context, logger=None):
