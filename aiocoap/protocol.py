@@ -1165,7 +1165,7 @@ class ClientObservation:
                     # This is the case at the end of an observation cancelled
                     # by the server.
                     pass
-                except (error.LibraryShutdown, asyncio.exceptions.CancelledError):
+                except (error.LibraryShutdown, asyncio.CancelledError):
                     pass
 
     def register_callback(self, callback):
