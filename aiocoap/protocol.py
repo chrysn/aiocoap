@@ -20,22 +20,19 @@ messages:
 """
 
 import asyncio
-import functools
 import weakref
 import time
 
 from . import defaults
 from .credentials import CredentialsMap
 from .message import Message
-from .optiontypes import BlockOption
 from .messagemanager import MessageManager
 from .tokenmanager import TokenManager
 from .plumbingrequest import PlumbingRequest, run_driving_plumbing_request, error_to_message
 from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
-        CONTINUE, REQUEST_ENTITY_INCOMPLETE,
-        OBSERVATION_RESET_TIME, MAX_TRANSMIT_WAIT)
+        CONTINUE, OBSERVATION_RESET_TIME)
 from .numbers.optionnumbers import OptionNumber
 from .util.asyncio.coro_or_contextmanager import AwaitOrAenter
 from .util.asyncio import py38args
@@ -139,14 +136,6 @@ class Context(interfaces.RequestProvider):
 
         self.client_credentials = client_credentials or CredentialsMap()
         self.server_credentials = server_credentials or CredentialsMap()
-
-        # FIXME: consider introducing a TimeoutDict
-        self._block1_assemblies = {}
-        """mapping block-key to (partial request, timeout handle)"""
-        self._block2_assemblies = {}
-        """mapping block-key to (complete response, timeout handle)
-
-        For both, block-key is as extracted by _extract_block_key."""
 
     #
     # Asynchronous context manager
@@ -346,10 +335,6 @@ class Context(interfaces.RequestProvider):
         stopped observations (but currently does not)."""
 
         self.log.debug("Shutting down context")
-        for _, canceler in self._block1_assemblies.values():
-            canceler()
-        for _, canceler in self._block2_assemblies.values():
-            canceler()
 
         done, pending = await asyncio.wait([
                 asyncio.create_task(
@@ -433,225 +418,25 @@ class Context(interfaces.RequestProvider):
 
 
     async def _render_to_plumbing_request_inner(self, plumbing_request, cancellation_future):
-        request = plumbing_request.request
-
         if self.serversite is None:
             plumbing_request.add_response(Message(code=NOT_FOUND, payload=b"not a server"), is_last=True)
             return
 
-        if await self.serversite.can_render_to_plumbingrequest(request):
-            # On the long run, everything else might become deprecated
+        # As this is called exclusively through render_to_plumbingrequest,
+        # we can be sure not to kill anything unrelated when cancelling
+        # this task. (The alternative would be to pass the task along
+        # explicitly, but that's cyclic and unneccesary).
+        our_task = asyncio.current_task()
+        # Not the cleanest way to do all this, but compatible with th rest
+        # of _render_to_plumbing_request. This ensures that even if the
+        # render_to_plumbingrequest coroutine does *not* on its own wait
+        # for the cancellation (by registering .on_interest_end()), it
+        # *still* gets cancelled. (FIXME: On a documentation level, should
+        # it even (and risk different cancellation paths being taken), or
+        # should it just await cancellation?)
+        cancellation_future.add_done_callback(lambda _, f=our_task.cancel: f())
 
-            # As this is called exclusively through render_to_plumbingrequest,
-            # we can be sure not to kill anything unrelated when cancelling
-            # this task. (The alternative would be to pass the task along
-            # explicitly, but that's cyclic and unneccesary).
-            our_task = asyncio.current_task()
-            # Not the cleanest way to do all this, but compatible with th rest
-            # of _render_to_plumbing_request. This ensures that even if the
-            # render_to_plumbingrequest coroutine does *not* on its own wait
-            # for the cancellation (by registering .on_interest_end()), it
-            # *still* gets cancelled. (FIXME: On a documentation level, should
-            # it even (and risk different cancellation paths being taken), or
-            # should it just await cancellation?)
-            cancellation_future.add_done_callback(lambda _, f=our_task.cancel: f())
-
-            return await self.serversite.render_to_plumbingrequest(plumbing_request)
-
-        needs_blockwise = await self.serversite.needs_blockwise_assembly(request)
-        if needs_blockwise:
-            block_key = _extract_block_key(request)
-
-        if needs_blockwise and request.opt.block2 and \
-                request.opt.block2.block_number != 0:
-            if request.opt.block1 is not None:
-                raise error.BadOption("Block1 conflicts with non-initial Block2")
-
-            try:
-                response, _ = self._block2_assemblies[block_key]
-            except KeyError:
-                plumbing_request.add_response(Message(
-                        code=REQUEST_ENTITY_INCOMPLETE),
-                    is_last=True)
-                self.log.info("Received unmatched blockwise response"
-                        " operation message")
-                return
-
-            # FIXME: update the timeout? maybe remove item when last is
-            # requested in a confirmable message?
-
-            response = response._extract_block(
-                    request.opt.block2.block_number,
-                    request.opt.block2.size_exponent,
-                    request.remote.maximum_payload_size
-                    )
-            plumbing_request.add_response(
-                    response,
-                    is_last=True)
-            return
-
-        if needs_blockwise and request.opt.block1:
-            if request.opt.block1.block_number == 0:
-                if block_key in self._block1_assemblies:
-                    _, canceler = self._block1_assemblies.pop(block_key)
-                    canceler()
-                    self.log.info("Aborting incomplete Block1 operation at"
-                            " arrival of new start block")
-                new_aggregate = request
-            else:
-                try:
-                    previous, canceler = self._block1_assemblies.pop(block_key)
-                except KeyError:
-                    plumbing_request.add_response(Message(
-                            code=REQUEST_ENTITY_INCOMPLETE),
-                        is_last=True)
-                    self.log.info("Received unmatched blockwise request"
-                            " operation message")
-                    return
-                canceler()
-
-                try:
-                    previous._append_request_block(request)
-                except ValueError:
-                    plumbing_request.add_response(Message(
-                            code=REQUEST_ENTITY_INCOMPLETE),
-                        is_last=True)
-                    self.log.info("Failed to assemble blockwise request (gaps or overlaps)")
-                    return
-                new_aggregate = previous
-
-            if request.opt.block1.more:
-                canceler = self.loop.call_later(
-                        MAX_TRANSMIT_WAIT, # FIXME: introduce an actual parameter here
-                        functools.partial(self._block1_assemblies.pop, block_key)
-                        ).cancel
-
-                self._block1_assemblies[block_key] = (new_aggregate, canceler)
-
-                plumbing_request.add_response(Message(
-                        code=CONTINUE,
-                        block1=BlockOption.BlockwiseTuple(
-                            request.opt.block1.block_number,
-                            True,
-                            request.opt.block1.size_exponent),
-                        ),
-                    is_last=True)
-                return
-            else:
-                immediate_response_block1 = request.opt.block1
-                request = new_aggregate
-        else:
-            immediate_response_block1 = None
-
-        observe_requested = request.opt.observe == 0
-        if observe_requested:
-            servobs = ServerObservation()
-            await self.serversite.add_observation(request, servobs)
-
-            if servobs._accepted:
-                cancellation_future.add_done_callback(
-                        lambda f, cb=servobs._cancellation_callback: cb())
-
-        response = await self.serversite.render(request)
-
-        if response.code is None or not response.code.is_response():
-            self.log.warning("Response does not carry response code (%r),"
-                             " application probably violates protocol.",
-                             response.code)
-
-        if needs_blockwise and (
-                len(response.payload) > (
-                    request.remote.maximum_payload_size
-                    if request.opt.block2 is None
-                    else request.opt.block2.size)):
-
-            if block_key in self._block2_assemblies:
-                _, canceler = self._block2_assemblies.pop(block_key)
-                canceler()
-
-            canceler = self.loop.call_later(
-                    MAX_TRANSMIT_WAIT, # FIXME: introduce an actual parameter here
-                    functools.partial(self._block2_assemblies.pop, block_key)
-                    ).cancel
-
-            self._block2_assemblies[block_key] = (response, canceler)
-
-            szx = request.opt.block2.size_exponent if request.opt.block2 is not None \
-                    else request.remote.maximum_block_size_exp
-            # if a requested block2 number were not 0, the code would have
-            # diverted earlier to serve from active operations
-            response = response._extract_block(0, szx, request.remote.maximum_payload_size)
-
-        if needs_blockwise:
-            response.opt.block1 = immediate_response_block1
-
-        can_continue = observe_requested and servobs._accepted and \
-                response.code.is_successful()
-        if observe_requested:
-            # see comment on _early_deregister in ServerObservation
-            if servobs._early_deregister:
-                can_continue = False
-            servobs._early_deregister = None
-        if can_continue:
-            # FIXME: observation numbers should actually not be per
-            # asyncio.task, but per (remote, token). if a client renews an
-            # observation (possibly with a new ETag or whatever is deemed
-            # legal), the new observation events should still carry larger
-            # numbers. (if they did not, the client might be tempted to discard
-            # them).
-            response.opt.observe = next_observation_number = 0
-        plumbing_request.add_response(response, is_last=not can_continue)
-
-        while can_continue:
-            await servobs._trigger
-            # if you wonder why the lines around this are not just `response =
-            # await servobs._trigger`, have a look at the 'double' tests in
-            # test_observe.py: A later triggering could have replaced
-            # servobs._trigger in the meantime.
-            response = servobs._trigger.result()
-            servobs._trigger = self.loop.create_future()
-
-            if response is None:
-                response = await self.serversite.render(request)
-            if response.code is None or not response.code.is_response():
-                self.log.warning("Response does not carry response code (%r),"
-                                 " application probably violates protocol.",
-                                 response.code)
-
-            # FIXME: this whole block is copy-pasted from the first response
-            if needs_blockwise and (
-                len(response.payload) > (
-                    request.remote.maximum_payload_size
-                    if request.opt.block2 is None
-                    else request.opt.block2.size)):
-                if block_key in self._block2_assemblies:
-                    _, canceler = self._block2_assemblies.pop(block_key)
-                    canceler()
-
-                canceler = self.loop.call_later(
-                        MAX_TRANSMIT_WAIT, # FIXME: introduce an actual parameter here
-                        functools.partial(self._block2_assemblies.pop, block_key)
-                        ).cancel
-
-                self._block2_assemblies[block_key] = (response, canceler)
-
-                szx = request.opt.block2.size_exponent if request.opt.block2 is not None \
-                        else request.remote.maximum_block_size_exp
-                # if a requested block2 number were not 0, the code would have
-                # diverted earlier to serve from active operations
-                response = response._extract_block(0, szx, request.remote.maximum_payload_size)
-
-            can_continue = response.code.is_successful() and \
-                    not servobs._late_deregister
-
-            if can_continue:
-                # TODO handle situations in which this gets called more often than
-                #        2^32 times in 256 seconds (or document why we can be sure that
-                #        that will not happen)
-                next_observation_number = next_observation_number + 1
-                response.opt.observe = next_observation_number
-
-            plumbing_request.add_response(response, is_last=not can_continue)
+        return await self.serversite.render_to_plumbingrequest(plumbing_request)
 
 class BaseRequest(object):
     """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""

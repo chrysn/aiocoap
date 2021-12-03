@@ -150,9 +150,6 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
 
         return response
 
-    async def can_render_to_plumbingrequest(self, request):
-        return True
-
     async def render_to_plumbingrequest(self, request: PlumbingRequest):
         needs_blockwise = await self.needs_blockwise_assembly(request)
 
@@ -504,16 +501,6 @@ class Site(interfaces.ObservableResource, PathCapable):
                 for l in resource.get_resources_as_linkheader().links:
                     links.append(Link('/' + '/'.join(path) + l.href, l.attr_pairs))
         return LinkFormat(links)
-
-    async def can_render_to_plumbingrequest(self, request):
-        try:
-            child, subrequest = self._find_child_and_pathstripped_message(request)
-        except KeyError:
-            # raising error.NotFound() works from render_to_plumbingrequest
-            # just as well as from render
-            return True
-        else:
-            return await child.can_render_to_plumbingrequest(subrequest)
 
     async def render_to_plumbingrequest(self, request: PlumbingRequest):
         try:

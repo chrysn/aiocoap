@@ -289,19 +289,16 @@ class Resource(metaclass=abc.ABCMeta):
         requested blocks from a complete-resource answer (True), or whether
         the resource will do that by itself (False)."""
 
-    async def can_render_to_plumbingrequest(self, request):
-        """Indicates with False that the resource is on the (older) `.render()`
-        interface where the Context manages things like blockwising and
-        observation (in which `.needs_blockwise_assembly()` and
-        `.add_observation()` are used), and with True that
-        `.render_to_plumbingrequest()` is to be called. In the latter case,
-        block management is done by on-demand wrapping, and non-traditional
-        responses like observations are indicated by sending non-last
-        events."""
-        return False
-
+    @abc.abstractmethod
     async def render_to_plumbingrequest(self, request: PlumbingRequest):
-        raise RuntimeError("can_render_to_plumbingrequest reported True but resource can not render to PlumbingRequest")
+        """Create any number of responses (as indicated by the request) into
+        the request stream.
+
+        This method is provided by the base Resource classes; if it is
+        overridden, then :meth:`render`, :meth:`needs_blockwise_assembly` and
+        :meth:`ObservableResource.add_observation` are not used any more.
+        (They still need to be implemented to comply with the interface
+        definition, which is yet to be updated)."""
 
 class ObservableResource(Resource, metaclass=abc.ABCMeta):
     """Interface the :class:`.protocol.ServerObservation` uses to negotiate
