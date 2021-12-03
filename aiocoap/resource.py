@@ -151,11 +151,9 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
         return response
 
     async def render_to_plumbingrequest(self, request: PlumbingRequest):
-        needs_blockwise = await self.needs_blockwise_assembly(request)
-
         req = request.request
 
-        if needs_blockwise:
+        if await self.needs_blockwise_assembly(req):
             req = self._block1.feed_and_take(req)
 
             # Note that unless the lambda get's called, we're not fully
