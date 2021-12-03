@@ -1,0 +1,68 @@
+# This file is part of the Python aiocoap library project.
+#
+# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
+#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+#
+# aiocoap is free software, this file is published under the MIT license as
+# described in the accompanying LICENSE file.
+
+"""Helpers for the implementation of RFC7959 blockwise transfers"""
+
+from . import numbers
+from .error import ConstructionRenderableError
+from .message import Message
+from .protocol import _extract_block_key
+from .util.asyncio.timeoutdict import TimeoutDict
+
+class ContinueException(ConstructionRenderableError):
+    """Not an error in the CoAP sense, but an error in the processing sense,
+    indicating that no complete request message is available for processing.
+
+    It reflects back the request's block1 option when rendered.
+    """
+    def __init__(self, block1):
+        self.block1 = block1
+
+    def to_message(self):
+        m = super().to_message()
+        m.opt.block1 = self.block1
+        return m
+
+    code = numbers.CONTINUE
+
+class IncompleteException(ConstructionRenderableError):
+    code = numbers.REQUEST_ENTITY_INCOMPLETE
+
+class Block1Spool:
+    def __init__(self):
+        # FIXME: introduce an actual parameter here
+        self._assemblies = TimeoutDict(numbers.MAX_TRANSMIT_WAIT)
+
+    def feed_and_take(self, req: Message) -> Message:
+        """Assemble the request into the spool. This either produces a
+        reassembled request message, or raises either a Continue or a Request
+        Entity Incomplete exception.
+
+        Requests without block1 are simply passed through."""
+
+        if req.opt.block1 is None:
+            return req
+
+        block_key = _extract_block_key(req)
+
+        if req.opt.block1.block_number == 0:
+            # silently discarding any old incomplete operation
+            self._assemblies[block_key] = req
+        else:
+            try:
+                self._assemblies[block_key]._append_request_block(req)
+            except KeyError:
+                # KeyError: Received unmatched blockwise response
+                # ValueError: Failed to assemble -- gaps or overlaps in data
+                raise IncompleteException from None
+
+        if req.opt.block1.more:
+            raise ContinueException(req.opt.block1)
+        else:
+            return self._assemblies[block_key]
+            # which happens to carry the last block's block1 option
