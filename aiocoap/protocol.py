@@ -395,46 +395,9 @@ class Context(interfaces.RequestProvider):
                 )
 
     async def _render_to_plumbing_request(self, plumbing_request):
-        # will receive a result in the finally, so the observation's
-        # cancellation callback can just be hooked into that rather than
-        # catching CancellationError here
-        cancellation_future = self.loop.create_future()
-
-        def cleanup(cancellation_future=cancellation_future):
-            if not cancellation_future.done():
-                cancellation_future.set_result(None)
-
-        # not trying to cancel the whole rendering right now, as that would
-        # mean that we'll need to cancel the task in a way that won't cause a
-        # message sent back -- but reacting to an end of interest is very
-        # relevant when network errors arrive from observers.
-        plumbing_request.on_interest_end(cleanup)
-
-        try:
-            await self._render_to_plumbing_request_inner(plumbing_request,
-                    cancellation_future)
-        finally:
-            cleanup()
-
-
-    async def _render_to_plumbing_request_inner(self, plumbing_request, cancellation_future):
         if self.serversite is None:
             plumbing_request.add_response(Message(code=NOT_FOUND, payload=b"not a server"), is_last=True)
             return
-
-        # As this is called exclusively through render_to_plumbingrequest,
-        # we can be sure not to kill anything unrelated when cancelling
-        # this task. (The alternative would be to pass the task along
-        # explicitly, but that's cyclic and unneccesary).
-        our_task = asyncio.current_task()
-        # Not the cleanest way to do all this, but compatible with th rest
-        # of _render_to_plumbing_request. This ensures that even if the
-        # render_to_plumbingrequest coroutine does *not* on its own wait
-        # for the cancellation (by registering .on_interest_end()), it
-        # *still* gets cancelled. (FIXME: On a documentation level, should
-        # it even (and risk different cancellation paths being taken), or
-        # should it just await cancellation?)
-        cancellation_future.add_done_callback(lambda _, f=our_task.cancel: f())
 
         return await self.serversite.render_to_plumbingrequest(plumbing_request)
 
