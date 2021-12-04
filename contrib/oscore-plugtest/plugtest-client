@@ -23,6 +23,7 @@ from pathlib import Path
 import sys
 
 from aiocoap import *
+from aiocoap import error
 from aiocoap import interfaces
 from aiocoap import credentials
 
