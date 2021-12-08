@@ -112,10 +112,23 @@ class OscoreSiteWrapper(interfaces.Resource):
                 message = event.message
                 is_last = event.is_last
 
+            # FIXME: Around several places in the use of plumbing_request (and
+            # now even here), non-final events are hard-coded as observations.
+            # This should shift toward the source telling, or the stream being
+            # annotated as "eventually consistent resource states".
+            if not is_last:
+                message.opt.observe = 0
+
             protected_response, _ = sc.protect(message, seqno)
             if message.opt.observe is not None:
-                # FIXME: should be done in protect
-                protected_response.opt.observe = message.opt.observe
+                # FIXME: should be done in protect, or by something else that
+                # generally handles obs numbers better (sending the
+                # oscore-reconstructed number is nice because it's consistent
+                # with a proxy that doesn't want to keep a counter when it
+                # knows it's OSCORE already), but starting this per obs with
+                # zero (unless it was done on that token recently) would be
+                # most efficient
+                protected_response.opt.observe = sc.sender_sequence_number & 0xffffffff
             self.log.debug("Response %r was encrypted into %r", message, protected_response)
 
             pr.add_response(protected_response, is_last=is_last)
