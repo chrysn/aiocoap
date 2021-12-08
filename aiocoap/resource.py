@@ -27,7 +27,6 @@ To serve more than one resource on a site, use the :class:`Site` class to
 dispatch requests based on the Uri-Path header.
 """
 
-import asyncio
 import hashlib
 import warnings
 
@@ -36,9 +35,7 @@ from . import meta
 from . import error
 from . import interfaces
 from . import numbers
-from .blockwise import Block1Spool, Block2Cache
 from .plumbingrequest import PlumbingRequest
-from .protocol import ServerObservation
 
 def hashing_etag(request, response):
     """Helper function for render_get handlers that allows them to use ETags based
@@ -108,18 +105,6 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
     returning None.
     """
 
-    def __init__(self):
-        super().__init__()
-
-        # FIXME: These keep addresses alive, and thus possibly transports.
-        # Going through the shutdown dance per resource seems extraneous.
-        # Options are to accept addresses staying around (making sure they
-        # don't keep their transports alive, if that's a good idea), to hash
-        # them, or to make them weak.
-
-        self._block1 = Block1Spool()
-        self._block2 = Block2Cache()
-
     async def needs_blockwise_assembly(self, request):
         return True
 
@@ -153,21 +138,11 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
         return response
 
     async def render_to_plumbingrequest(self, request: PlumbingRequest):
-        req = request.request
-
-        if await self.needs_blockwise_assembly(req):
-            req = self._block1.feed_and_take(req)
-
-            # Note that unless the lambda get's called, we're not fully
-            # accessing req any more -- we're just looking at its block2
-            # option, and the blockwise key extracted earlier.
-            res = await self._block2.extract_or_insert(req, lambda: self.render(req))
-
-            res.opt.block1 = req.opt.block1
-        else:
-            res = await self.render(req)
-
-        request.add_response(res, is_last=True)
+        # Silence the deprecation warning
+        if isinstance(self, interfaces.ObservableResource):
+            # See interfaces.Resource.render_to_plumbingrequest
+            return await interfaces.ObservableResource._render_to_plumbingrequest(self, request)
+        return await interfaces.Resource._render_to_plumbingrequest(self, request)
 
 class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):
@@ -198,63 +173,9 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         link['obs'] = None
         return link
 
-    async def render_to_plumbingrequest(self, pr):
-        # If block2:>0 comes along, we'd just ignore the observe
-        if pr.request.opt.observe != 0:
-            return await super().render_to_plumbingrequest(pr)
-
-        # If block1 happens here, we can probably just not support it for the
-        # time being. (Given that block1 + observe is untested and thus does
-        # not work so far anyway).
-
-        servobs = ServerObservation()
-        await self.add_observation(pr.request, servobs)
-
-        try:
-            first_response = await self.render(pr.request)
-
-            if not servobs._accepted or servobs._early_deregister or \
-                    not first_response.code.is_successful():
-                pr.add_response(first_response, is_last=True)
-                return
-
-            # FIXME: observation numbers should actually not be per
-            # asyncio.task, but per (remote, token). if a client renews an
-            # observation (possibly with a new ETag or whatever is deemed
-            # legal), the new observation events should still carry larger
-            # numbers. (if they did not, the client might be tempted to discard
-            # them).
-            first_response.opt.observe = next_observation_number = 0
-            # If block2 were to happen here, we'd store the full response
-            # here, and pick out block2:0.
-            pr.add_response(first_response, is_last=False)
-
-            while True:
-                await servobs._trigger
-                # if you wonder why the lines around this are not just `response =
-                # await servobs._trigger`, have a look at the 'double' tests in
-                # test_observe.py: A later triggering could have replaced
-                # servobs._trigger in the meantime.
-                response = servobs._trigger.result()
-                servobs._trigger = asyncio.get_running_loop().create_future()
-
-                if response is None:
-                    response = await self.render(pr.request)
-
-                # If block2 were to happen here, we'd store the full response
-                # here, and pick out block2:0.
-
-                is_last = servobs._late_deregister or not response.code.is_successful()
-                if not is_last:
-                    next_observation_number += 1
-                    response.opt.observe = next_observation_number
-
-                pr.add_response(response, is_last=is_last)
-
-                if is_last:
-                    return
-        finally:
-            servobs._cancellation_callback()
+    async def render_to_plumbingrequest(self, request: PlumbingRequest):
+        # Silence the deprecation warning
+        return await interfaces.ObservableResource._render_to_plumbingrequest(self, request)
 
 def link_format_to_message(request, linkformat,
         default_ct=numbers.ContentFormat.LINKFORMAT):
