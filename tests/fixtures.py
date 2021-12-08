@@ -182,10 +182,12 @@ class WithAsyncLoop(unittest.TestCase):
 
         self.loop = asyncio.get_event_loop()
 
-        if 'PyPy' in sys.version:
-            # Group OSCORE operations really do take ages with pypy
+        if 'PyPy' in sys.version and 'coverage' in sys.modules:
+            # Instrumenting group OSCORE operations in PyPy makes them slow,
+            # see resolved <https://github.com/chrysn/aiocoap/issues/265>.
             #
-            # Workaround for https://github.com/chrysn/aiocoap/issues/265
+            # Bypassing that one `-Xdev` check under these circumstances; CI
+            # runs tests without coverage again for pypy
             self.loop.slow_callback_duration = 0.9
 
 class Destructing(WithLogMonitoring):

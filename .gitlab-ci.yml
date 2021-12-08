@@ -64,6 +64,10 @@ test:tox-bookworm:
     # Separate run so I don't waste time telling errors in setup apart from errors at runtime
     - tox --notest
     - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+    # Run pypy3-allextras again without coverage, because only then the -Xdev
+    # warnings about slow_callback_duration can be meaningfully evaluated
+    # (otherwise, they're patched out in tests/fixtures.py)
+    - ./.tox/pypy3-allextras/bin/python -X dev -m pytest
     - mkdir collected-coverage/tox-bookworm/ -p
     - mv .coverage* collected-coverage/tox-bookworm/
   artifacts:
