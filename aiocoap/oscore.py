@@ -1315,8 +1315,6 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
             # Just remove the sequence numbers once from the file
             self.replay_window_persisted = False
             self._store()
-        else:
-            self._store()
 
     def post_seqnoincrease(self):
         if self.sender_sequence_number > self.sequence_number_persisted:
