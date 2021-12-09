@@ -179,19 +179,6 @@ class WithAsyncLoop(unittest.TestCase):
 
         self.loop = asyncio.get_event_loop()
 
-        if 'PyPy' in sys.version:
-            def handler(loop, context):
-                if isinstance(context['exception'], asyncio.CancelledError):
-                    # While Python at least in 3.7 ignores these, PyPy doesn't
-                    # in the default handler. Manually silencing them; FIXME
-                    # build a minimal test case that makes this happen in PyPy
-                    # and report (or just wait for later PyPy versions not to
-                    # need that).
-                    return
-                else:
-                    loop.default_exception_handler(context)
-            self.loop.set_exception_handler(handler)
-
 class Destructing(WithLogMonitoring):
     def _del_to_be_sure(self, attribute):
         if isinstance(attribute, str):

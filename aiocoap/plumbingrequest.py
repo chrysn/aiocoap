@@ -9,6 +9,7 @@
 import asyncio
 from collections import namedtuple
 import functools
+import sys
 
 from . import error
 from .numbers import INTERNAL_SERVER_ERROR
@@ -182,11 +183,28 @@ def run_driving_plumbing_request(plumbing_request, coroutine, name=None):
         # Not doing anything special about cancellation: it indicates the
         # peer's loss of interest, so there's no use in sending anythign out to
         # someone not listening any more
+        #
+        # (We'd *like* to do something on the Python 3.7 versions whose
+        # cancelled threads show errors, but there we can't stop it in here
+        # because catching the CancelledError doesn't remove the taint from the
+        # task).
 
     task = asyncio.create_task(
             wrapped(),
             **py38args(name=name),
             )
+    if sys.version_info < (3, 8):
+        # These Python versions used to complain about cancelled tasks, where
+        # really a cancelled task is perfectly natural (especially here where
+        # it's just not needed any more because nobody is listening to what it
+        # produces). As catching CancellationError doesn't help silencing them,
+        # this workaround ensures the cancellations don't raise.
+        def silence_cancellation(task):
+            try:
+                task.result()
+            except asyncio.CancelledError:
+                pass
+        task.add_done_callback(silence_cancellation)
     plumbing_request.on_interest_end(task.cancel)
 
 def error_to_message(old_pr, log):
