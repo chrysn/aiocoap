@@ -61,8 +61,19 @@ class OscoreSiteWrapper(interfaces.Resource):
 
         try:
             unprotected, seqno = sc.unprotect(request)
-        # except error.RenderableError: That happens for the Echo recovery 4.01
-        #     replies, but just travels through.
+        except error.RenderableError as e:
+            # Note that this is flying out of the unprotection (ie. the
+            # security context), which is trusted to not leak unintended
+            # information in unencrypted responses. (By comparison, a
+            # renderable exception flying out of a user
+            # render_to_plumbingrequest could only be be rendered to a
+            # protected message, and we'd need to be weary of rendering errors
+            # during to_message as well).
+            #
+            # Note that this clause is not a no-op: it protects the 4.01 Echo
+            # recovery exception (which is also a ReplayError) from being
+            # treated as such.
+            raise e
         # The other errors could be ported thee but would need some better NoResponse handling.
         except oscore.ReplayError:
             if request.mtype == aiocoap.CON:
