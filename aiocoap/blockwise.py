@@ -11,11 +11,24 @@
 import types
 
 from . import numbers
+from .numbers.optionnumbers import OptionNumber
 from .error import ConstructionRenderableError
 from .message import Message
 from .optiontypes import BlockOption
-from .protocol import _extract_block_key
 from .util.asyncio.timeoutdict import TimeoutDict
+
+def _extract_block_key(message):
+    """Extract a key that hashes equally for all blocks of a blockwise
+    operation from a request message.
+
+    See discussion at <https://mailarchive.ietf.org/arch/msg/core/I-6LzAL6lIUVDA6_g9YM3Zjhg8E>.
+    """
+
+    return (message.remote, message.get_cache_key([
+        OptionNumber.BLOCK1,
+        OptionNumber.BLOCK2,
+        OptionNumber.OBSERVE,
+        ]))
 
 class ContinueException(ConstructionRenderableError):
     """Not an error in the CoAP sense, but an error in the processing sense,

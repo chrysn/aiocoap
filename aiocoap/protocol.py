@@ -33,7 +33,6 @@ from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
         CONTINUE, OBSERVATION_RESET_TIME)
-from .numbers.optionnumbers import OptionNumber
 from .util.asyncio.coro_or_contextmanager import AwaitOrAenter
 from .util.asyncio import py38args
 
@@ -48,19 +47,6 @@ import logging
 #   necessarily indicate a client bug, though; things like requesting a
 #   nonexistent block can just as well happen when a resource's content has
 #   changed between blocks).
-
-def _extract_block_key(message):
-    """Extract a key that hashes equally for all blocks of a blockwise
-    operation from a request message.
-
-    See discussion at <https://mailarchive.ietf.org/arch/msg/core/I-6LzAL6lIUVDA6_g9YM3Zjhg8E>.
-    """
-
-    return (message.remote, message.get_cache_key([
-        OptionNumber.BLOCK1,
-        OptionNumber.BLOCK2,
-        OptionNumber.OBSERVE,
-        ]))
 
 
 class Context(interfaces.RequestProvider):
