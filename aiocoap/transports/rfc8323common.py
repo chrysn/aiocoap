@@ -97,6 +97,10 @@ class RFC8323Remote:
             return ((max_message_size - 128) // 1024) * 1024 + slack
         return 1024 + slack # FIXME: deal with smaller max-message-size
 
+    @property
+    def blockwise_key(self):
+        return (self._remote_hostinfo, self._local_hostinfo)
+
     # Utility methods for implementing an RFC8323 transport
 
     def _send_initial_csm(self):

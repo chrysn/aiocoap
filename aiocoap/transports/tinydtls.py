@@ -115,6 +115,10 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             port = None
         return hostportjoin(host, port)
 
+    @property
+    def blockwise_key(self):
+        return (self._host, self._port, self._pskId, self._psk)
+
     def __init__(self, host, port, pskId, psk, coaptransport):
         self._ready = False
         self._queue = [] # stores sent packages while connection is being built

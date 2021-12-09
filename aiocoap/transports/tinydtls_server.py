@@ -97,6 +97,10 @@ class _AddressDTLS(interfaces.EndpointAddress):
 
     authenticated_claims = property(lambda self: [self._psk_store._claims])
 
+    @property
+    def blockwise_key(self):
+        return (self._underlying_address.blockwise_key, self._psk_store._claims)
+
     # implementing GenericUdp addresses
 
     def send(self, message):

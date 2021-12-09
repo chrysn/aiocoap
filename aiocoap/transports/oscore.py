@@ -94,6 +94,18 @@ class OSCOREAddress(
     maximum_payload_size = 1024
     maximum_block_size_exp = 6
 
+    @property
+    def blockwise_key(self):
+        if hasattr(self.security_context, 'groupcontext'):
+            # it's an aspect, and all aspects work compatibly as long as data
+            # comes from the same recipient ID -- taking the group recipient
+            # key for that one which is stable across switches between pairwise
+            # and group mode
+            detail = self.security_context.groupcontext.recipient_keys[self.security_context.recipient_id]
+        else:
+            detail = self.security_context.recipient_key
+        return (self.underlying_address.blockwise_key, detail)
+
 class TransportOSCORE(interfaces.RequestProvider):
     def __init__(self, context, forward_context):
         self._context = context

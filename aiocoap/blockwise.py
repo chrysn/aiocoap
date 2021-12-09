@@ -24,7 +24,7 @@ def _extract_block_key(message):
     See discussion at <https://mailarchive.ietf.org/arch/msg/core/I-6LzAL6lIUVDA6_g9YM3Zjhg8E>.
     """
 
-    return (message.remote, message.get_cache_key([
+    return (message.remote.blockwise_key, message.get_cache_key([
         OptionNumber.BLOCK1,
         OptionNumber.BLOCK2,
         OptionNumber.OBSERVE,

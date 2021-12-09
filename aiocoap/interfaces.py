@@ -187,6 +187,28 @@ class EndpointAddress(metaclass=abc.ABCMeta):
         # "no claims" is a good default
         return ()
 
+    @property
+    @abc.abstractmethod
+    def blockwise_key(self):
+        """A hashable (ideally, immutable) value that is only the same for
+        remotes from which blocks may be combined. (With all current transports
+        that means that the network addresses need to be in there, and the
+        identity of the security context).
+
+        It does *not* just hinge on the identity of the address object, as a
+        first block may come in an OSCORE group request and follow-ups may come
+        in pairwise requests. (And there might be allowed relaxations on the
+        transport under OSCORE, but that'd need further discussion)."""
+        # FIXME: should this behave like something that keeps the address
+        # alive? Conversely, if the address gets deleted, can this reach the
+        # block keys and make their stuff vanish from the caches?
+        #
+        # FIXME: what do security mechanisms best put here? Currently it's a
+        # wild mix of keys (OSCORE -- only thing guaranteed to never be reused;
+        # DTLS client because it's available) and claims (DTLS server, because
+        # it's available and if the claims set matches it can't be that wrong
+        # either can it?)
+
 class MessageManager(metaclass=abc.ABCMeta):
     """The interface an entity that drives a MessageInterface provides towards
     the MessageInterface for callbacks and object acquisition."""
