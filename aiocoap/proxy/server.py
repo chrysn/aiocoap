@@ -274,6 +274,7 @@ class ForwardProxy(Proxy):
         request.remote = message.UndecidedRemote(request.opt.proxy_scheme, util.hostportjoin(request.opt.uri_host, request.opt.uri_port))
         request.opt.proxy_scheme = None
         request.opt.uri_port = None
+        forward_host = request.opt.uri_host
         try:
             # I'd prefer to not do if-by-try, but the ipaddress doesn't seem to
             # offer any other choice
@@ -282,7 +283,7 @@ class ForwardProxy(Proxy):
             pass
         else:
             request.opt.uri_host = None
-        if request.opt.uri_host.startswith('['):
+        if forward_host.startswith('['):
             # IPv6 or future literals are not recognized by ipaddress which
             # does not look at host-encoded form
             request.opt.uri_host = None
