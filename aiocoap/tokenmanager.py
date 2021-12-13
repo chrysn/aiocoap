@@ -15,7 +15,7 @@ from . import interfaces
 # layer. But the layer below won't even know that messages are responses, so it
 # can't make the informed decisions we make here.
 from .numbers.types import NON
-from .plumbingrequest import PlumbingRequest
+from .pipe import Pipe
 
 class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
 
@@ -28,8 +28,8 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         self.incoming_requests = {}
         """Unfinished incoming requests.
 
-        ``(token, remote): (PlumbingRequest, stopper)`` where stopper is a
-        function unregistes the PlumbingRequest event handler and thus
+        ``(token, remote): (Pipe, stopper)`` where stopper is a
+        function unregistes the Pipe event handler and thus
         indicates to the server the discontinued interest"""
 
         self.log = self.context.log
@@ -118,7 +118,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             (pr, pr_stop) = self.incoming_requests.pop(key)
             pr_stop()
 
-        pr = PlumbingRequest(request, self.log)
+        pr = Pipe(request, self.log)
 
         # FIXME: what can we pass down to the token_interface?  certainly not
         # the request, but maybe the request with a response filter applied?
@@ -164,7 +164,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
 
         self.incoming_requests[key] = (pr, pr_stop)
 
-        self.context.render_to_plumbing_request(pr)
+        self.context.render_to_pipe(pr)
 
     def process_response(self, response):
         key = (response.token, response.remote)

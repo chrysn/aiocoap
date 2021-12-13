@@ -28,7 +28,7 @@ from .credentials import CredentialsMap
 from .message import Message
 from .messagemanager import MessageManager
 from .tokenmanager import TokenManager
-from .plumbingrequest import PlumbingRequest, run_driving_plumbing_request, error_to_message
+from .pipe import Pipe, run_driving_pipe, error_to_message
 from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
@@ -347,16 +347,16 @@ class Context(interfaces.RequestProvider):
         if handle_blockwise:
             return BlockwiseRequest(self, request_message)
 
-        plumbing_request = PlumbingRequest(request_message, self.log)
+        pipe = Pipe(request_message, self.log)
         # Request sets up callbacks at creation
-        result = Request(plumbing_request, self.loop, self.log)
+        result = Request(pipe, self.loop, self.log)
 
         async def send():
             try:
                 request_interface = await self.find_remote_and_interface(request_message)
-                request_interface.request(plumbing_request)
+                request_interface.request(pipe)
             except Exception as e:
-                plumbing_request.add_exception(e)
+                pipe.add_exception(e)
                 return
         self.loop.create_task(
                 send(),
@@ -367,25 +367,25 @@ class Context(interfaces.RequestProvider):
     # the following are under consideration for moving into Site or something
     # mixed into it
 
-    def render_to_plumbing_request(self, plumbing_request):
+    def render_to_pipe(self, pipe):
         """Satisfy a plumbing request from the full :meth:`render` /
         :meth:`needs_blockwise_assembly` / :meth:`add_observation` interfaces
         provided by the site."""
 
-        pr_that_can_receive_errors = error_to_message(plumbing_request, self.log)
+        pr_that_can_receive_errors = error_to_message(pipe, self.log)
 
-        run_driving_plumbing_request(
+        run_driving_pipe(
                 pr_that_can_receive_errors,
-                self._render_to_plumbing_request(plumbing_request),
-                name="Rendering for %r" % plumbing_request.request,
+                self._render_to_pipe(pipe),
+                name="Rendering for %r" % pipe.request,
                 )
 
-    async def _render_to_plumbing_request(self, plumbing_request):
+    async def _render_to_pipe(self, pipe):
         if self.serversite is None:
-            plumbing_request.add_response(Message(code=NOT_FOUND, payload=b"not a server"), is_last=True)
+            pipe.add_response(Message(code=NOT_FOUND, payload=b"not a server"), is_last=True)
             return
 
-        return await self.serversite.render_to_plumbingrequest(plumbing_request)
+        return await self.serversite.render_to_pipe(pipe)
 
 class BaseRequest(object):
     """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
@@ -436,12 +436,12 @@ class Request(interfaces.Request, BaseUnicastRequest):
 
     # FIXME: Implement timing out with REQUEST_TIMEOUT here
 
-    def __init__(self, plumbing_request, loop, log):
-        self._plumbing_request = plumbing_request
+    def __init__(self, pipe, loop, log):
+        self._pipe = pipe
 
         self.response = loop.create_future()
 
-        if plumbing_request.request.opt.observe == 0:
+        if pipe.request.opt.observe == 0:
             self.observation = ClientObservation()
         else:
             self.observation = None
@@ -454,7 +454,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
                 return True
             except StopIteration:
                 return False
-        self._stop_interest = self._plumbing_request.on_event(process)
+        self._stop_interest = self._pipe.on_event(process)
 
         self.log = log
 
@@ -490,7 +490,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
         first_event = yield None
 
         if first_event.message is not None:
-            self._add_response_properties(first_event.message, self._plumbing_request.request)
+            self._add_response_properties(first_event.message, self._pipe.request)
             self.response.set_result(first_event.message)
         else:
             self.response.set_exception(first_event.exception)
@@ -502,10 +502,10 @@ class Request(interfaces.Request, BaseUnicastRequest):
 
         if self.observation is None:
             if not first_event.is_last:
-                self.log.error("PlumbingRequest indicated more possible responses"
+                self.log.error("Pipe indicated more possible responses"
                                " while the Request handler would not know what to"
                                " do with them, stopping any further request.")
-                self._plumbing_request.stop_interest()
+                self._pipe.stop_interest()
             return
 
         if first_event.is_last:
@@ -513,10 +513,10 @@ class Request(interfaces.Request, BaseUnicastRequest):
             return
 
         if first_event.message.opt.observe is None:
-            self.log.error("PlumbingRequest indicated more possible responses"
+            self.log.error("Pipe indicated more possible responses"
                            " while the Request handler would not know what to"
                            " do with them, stopping any further request.")
-            self._plumbing_request.stop_interest()
+            self._pipe.stop_interest()
             return
 
         # variable names from RFC7641 Section 3.4
@@ -534,13 +534,13 @@ class Request(interfaces.Request, BaseUnicastRequest):
             # then.
             next_event = yield True
             if self.observation.cancelled:
-                self._plumbing_request.stop_interest()
+                self._pipe.stop_interest()
                 return
 
             if next_event.exception is not None:
                 self.observation.error(next_event.exception)
                 if not next_event.is_last:
-                    self._plumbing_request.stop_interest()
+                    self._pipe.stop_interest()
                 if not isinstance(next_event.exception, error.Error):
                     self.log.warning(
                            "An exception that is not an aiocoap Error was "
@@ -549,7 +549,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
                            next_event.exception)
                 return
 
-            self._add_response_properties(next_event.message, self._plumbing_request.request)
+            self._add_response_properties(next_event.message, self._pipe.request)
 
             if next_event.message.opt.observe is not None:
                 # check for reordering
@@ -575,10 +575,10 @@ class Request(interfaces.Request, BaseUnicastRequest):
 
             if next_event.message.opt.observe is None:
                 self.observation.error(error.ObservationCancelled())
-                self.log.error("PlumbingRequest indicated more possible responses"
+                self.log.error("Pipe indicated more possible responses"
                                " while the Request handler would not know what to"
                                " do with them, stopping any further request.")
-                self._plumbing_request.stop_interest()
+                self._pipe.stop_interest()
                 return
 
 
@@ -978,7 +978,7 @@ class ServerObservation:
         # sent this flag which is set to None as soon as it is too late for an
         # early deregistration.
         # This mechanism is temporary until more of aiocoap behaves like
-        # PlumbingRequest which does not suffer from this limitation.
+        # Pipe which does not suffer from this limitation.
         self._early_deregister = False
         self._late_deregister = False
 

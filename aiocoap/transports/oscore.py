@@ -180,9 +180,9 @@ class TransportOSCORE(interfaces.RequestProvider):
         wire_request, original_request_seqno = protect(None)
 
         # tempting as it would be, we can't access the request as a
-        # PlumbingRequest here, because it is a BlockwiseRequest to handle
+        # Pipe here, because it is a BlockwiseRequest to handle
         # outer blockwise.
-        # (Might be a good idea to model those after PlumbingRequest too,
+        # (Might be a good idea to model those after Pipe too,
         # though).
 
         def _check(more, unprotected_response):
@@ -213,7 +213,7 @@ class TransportOSCORE(interfaces.RequestProvider):
 
             unprotected_response.remote = OSCOREAddress(secctx, protected_response.remote)
             self.log.debug("Successfully unprotected %r into %r", protected_response, unprotected_response)
-            # FIXME: if i could tap into the underlying PlumbingRequest, that'd
+            # FIXME: if i could tap into the underlying Pipe, that'd
             # be a lot easier -- and also get rid of the awkward _check
             # code moved into its own function just to avoid duplication.
             more = protected_response.opt.observe is not None

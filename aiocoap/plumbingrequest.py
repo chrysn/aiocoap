@@ -15,18 +15,18 @@ from . import error
 from .numbers import INTERNAL_SERVER_ERROR
 from .util.asyncio import py38args
 
-class PlumbingRequest:
+class Pipe:
     """Low-level meeting point between a request and a any responses that come
     back on it.
 
-    A single request message is placed in the PlumbingRequest at creation time.
+    A single request message is placed in the Pipe at creation time.
     Any responses, as well as any exception happening in the course of
-    processing, are passed back to the requester along the PlumbingRequest. A
+    processing, are passed back to the requester along the Pipe. A
     response can carry an indication of whether it is final; an exception
     always is.
 
     This object is used both on the client side (where the Context on behalf of
-    the application creates a PlumbingRequest and passes it to the network
+    the application creates a Pipe and passes it to the network
     transports that send the request and fill in any responses) and on the
     server side (where the Context creates one for an incoming request and
     eventually lets the server implementation populate it with responses).
@@ -35,12 +35,12 @@ class PlumbingRequest:
     something where only awaiting a response drives the proces, though).
 
     Currently, the requester sets up the object, connects callbacks, and then
-    passes the PlumbingRequest on to whatever creates the response.
+    passes the Pipe on to whatever creates the response.
 
-    The creator of responses is notified by the PlumbingRequest of a loss of
+    The creator of responses is notified by the Pipe of a loss of
     interest in a response when there are no more callback handlers registered
     by registering an on_interest_end callback. As the response callbacks need
-    to be already in place when the PlumbingRequest is passed on to the
+    to be already in place when the Pipe is passed on to the
     responder, the absence event callbacks is signalled by callign the callback
     immediately on registration.
 
@@ -48,7 +48,7 @@ class PlumbingRequest:
     two-phase setup of first registering actual callbacks and then producing
     events and/or placing on_interest_end callbacks; this is not clearly
     expressed in type or state yet. (One possibility would be for the
-    PlumbingRequest to carry a preparation boolean, and which prohibits event
+    Pipe to carry a preparation boolean, and which prohibits event
     sending during preparation and is_interest=True callback creation
     afterwards)."""
 
@@ -162,14 +162,14 @@ class PlumbingRequest:
     def add_exception(self, exception):
         self._add_event(self.Event(None, exception, True))
 
-def run_driving_plumbing_request(plumbing_request, coroutine, name=None):
+def run_driving_pipe(pipe, coroutine, name=None):
     """Create a task from a coroutine where the end of the coroutine produces a
     terminal event on the plumbing request, and lack of interest in the
     plumbing request cancels the task.
 
     The coroutine will typically produce output into the plumbing request; that
     connection is set up by the caller like as in
-    ``run_driving_plumbing_request(pr, render_to(pr))``.
+    ``run_driving_pipe(pr, render_to(pr))``.
 
     The create task is not returned, as the only sensible operation on it would
     be cancellation and that's already set up from the plumbing request.
@@ -179,7 +179,7 @@ def run_driving_plumbing_request(plumbing_request, coroutine, name=None):
         try:
             await coroutine
         except Exception as e:
-            plumbing_request.add_exception(e)
+            pipe.add_exception(e)
         # Not doing anything special about cancellation: it indicates the
         # peer's loss of interest, so there's no use in sending anythign out to
         # someone not listening any more
@@ -205,7 +205,7 @@ def run_driving_plumbing_request(plumbing_request, coroutine, name=None):
             except asyncio.CancelledError:
                 pass
         task.add_done_callback(silence_cancellation)
-    plumbing_request.on_interest_end(task.cancel)
+    pipe.on_interest_end(task.cancel)
 
 def error_to_message(old_pr, log):
     """Given a plumbing request set up by the requester, create a new plumbing
@@ -217,7 +217,7 @@ def error_to_message(old_pr, log):
 
     from .message import Message
 
-    next_pr = PlumbingRequest(old_pr.request, log)
+    next_pr = Pipe(old_pr.request, log)
 
     def on_event(event):
         if event.message is not None:
@@ -251,9 +251,9 @@ def error_to_message(old_pr, log):
     old_pr.on_interest_end(remove_interest)
     return next_pr
 
-class IterablePlumbingRequest:
-    """A stand-in for a PlumbingRequest that the requesting party can use
-    instead. It should behave just like a PlumbingRequest to the responding
+class IterablePipe:
+    """A stand-in for a Pipe that the requesting party can use
+    instead. It should behave just like a Pipe to the responding
     party, but the caller does not register on_event handlers and instead
     iterates asynchronously over the events.
 
@@ -275,7 +275,7 @@ class IterablePlumbingRequest:
         try:
             self.__on_interest_end.append(callback)
         except AttributeError:
-            raise RuntimeError("Attempted to declare interest in the end of a IterablePlumbingRequest on which iteration already started") from None
+            raise RuntimeError("Attempted to declare interest in the end of a IterablePipe on which iteration already started") from None
 
     def __aiter__(self):
         i = self.Iterator(self.__queue, self.__on_interest_end)
@@ -286,10 +286,10 @@ class IterablePlumbingRequest:
         self.__queue.put_nowait(e)
 
     def add_response(self, response, is_last=False):
-        self._add_event(PlumbingRequest.Event(response, None, is_last))
+        self._add_event(Pipe.Event(response, None, is_last))
 
     def add_exception(self, exception):
-        self._add_event(PlumbingRequest.Event(None, exception, True))
+        self._add_event(Pipe.Event(None, exception, True))
 
     class Iterator:
         def __init__(self, queue, on_interest_end):

@@ -71,10 +71,10 @@ class Proxy(interfaces.Resource):
 
     def __init__(self, outgoing_context, logger=None):
         super().__init__()
-        # Provide variables for render_to_plumbingrequest
+        # Provide variables for render_to_pipe
         # FIXME this is copied from aiocoap.resource's __init__ -- but on the
         # long run proxying shouldn't rely on that anyway but implement
-        # render_to_plumbingrequest right on its own
+        # render_to_pipe right on its own
         self._block1 = Block1Spool()
         self._block2 = Block2Cache()
 
@@ -130,7 +130,7 @@ class Proxy(interfaces.Resource):
     # Not inheriting from them because we do *not* want the .render() in the
     # resolution tree (it can't deal with None requests, which are used among
     # proxy implementations)
-    render_to_plumbingrequest = resource.Resource.render_to_plumbingrequest
+    render_to_pipe = resource.Resource.render_to_pipe
 
 class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
     def __init__(self, outgoing_context, logger=None):

@@ -21,7 +21,7 @@ import asyncio
 import warnings
 
 from aiocoap.numbers.constants import DEFAULT_BLOCK_SIZE_EXP
-from aiocoap.plumbingrequest import PlumbingRequest
+from aiocoap.pipe import Pipe
 
 from typing import Optional, Callable
 
@@ -264,7 +264,7 @@ class RequestInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def request(self, request: PlumbingRequest):
+    def request(self, request: Pipe):
         pass
 
 class RequestProvider(metaclass=abc.ABCMeta):
@@ -327,7 +327,7 @@ class Resource(metaclass=abc.ABCMeta):
         requested blocks from a complete-resource answer (True), or whether
         the resource will do that by itself (False)."""
 
-    async def _render_to_plumbingrequest(self, request: PlumbingRequest):
+    async def _render_to_pipe(self, request: Pipe):
         req = request.request
 
         if await self.needs_blockwise_assembly(req):
@@ -344,7 +344,7 @@ class Resource(metaclass=abc.ABCMeta):
 
         request.add_response(res, is_last=True)
 
-    async def render_to_plumbingrequest(self, request: PlumbingRequest):
+    async def render_to_pipe(self, request: Pipe):
         """Create any number of responses (as indicated by the request) into
         the request stream.
 
@@ -354,7 +354,7 @@ class Resource(metaclass=abc.ABCMeta):
         (They still need to be implemented to comply with the interface
         definition, which is yet to be updated)."""
         warnings.warn("Request interface is changing: Resources should "
-                "implement render_to_plumbingrequest or inherit from "
+                "implement render_to_pipe or inherit from "
                 "resource.Resource which implements that based on any "
                 "provided render methods", DeprecationWarning)
         if isinstance(self, ObservableResource):
@@ -363,8 +363,8 @@ class Resource(metaclass=abc.ABCMeta):
             # Resource might find itself using this method. When migrating over
             # to inheriting from resource.Resource, this error will become
             # apparent and this can die with the rest of this workaround.
-            return await ObservableResource._render_to_plumbingrequest(self, request)
-        return await self._render_to_plumbingrequest(request)
+            return await ObservableResource._render_to_pipe(self, request)
+        return await self._render_to_pipe(request)
 
 class ObservableResource(Resource, metaclass=abc.ABCMeta):
     """Interface the :class:`.protocol.ServerObservation` uses to negotiate
@@ -386,12 +386,12 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
         request rendered again."""
 
 
-    async def _render_to_plumbingrequest(self, pr):
+    async def _render_to_pipe(self, pr):
         from .protocol import ServerObservation
 
         # If block2:>0 comes along, we'd just ignore the observe
         if pr.request.opt.observe != 0:
-            return await Resource._render_to_plumbingrequest(self, pr)
+            return await Resource._render_to_pipe(self, pr)
 
         # If block1 happens here, we can probably just not support it for the
         # time being. (Given that block1 + observe is untested and thus does
@@ -446,9 +446,9 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
         finally:
             servobs._cancellation_callback()
 
-    async def render_to_plumbingrequest(self, request: PlumbingRequest):
+    async def render_to_pipe(self, request: Pipe):
         warnings.warn("Request interface is changing: Resources should "
-                "implement render_to_plumbingrequest or inherit from "
+                "implement render_to_pipe or inherit from "
                 "resource.Resource which implements that based on any "
                 "provided render methods", DeprecationWarning)
-        return await self._render_to_plumbingrequest(request)
+        return await self._render_to_pipe(request)

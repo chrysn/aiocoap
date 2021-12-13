@@ -17,7 +17,7 @@ import logging
 import aiocoap
 from aiocoap import interfaces
 from aiocoap import oscore, error
-from . import plumbingrequest
+from . import pipe
 from .numbers.codes import FETCH, POST
 
 from aiocoap.transports.oscore import OSCOREAddress
@@ -30,22 +30,22 @@ class OscoreSiteWrapper(interfaces.Resource):
         self.server_credentials = server_credentials
 
     async def render(self, request):
-        raise RuntimeError("OscoreSiteWrapper can only be used through the render_to_plumbingrequest interface")
+        raise RuntimeError("OscoreSiteWrapper can only be used through the render_to_pipe interface")
 
     async def needs_blockwise_assembly(self, request):
-        raise RuntimeError("OscoreSiteWrapper can only be used through the render_to_plumbingrequest interface")
+        raise RuntimeError("OscoreSiteWrapper can only be used through the render_to_pipe interface")
 
     # FIXME: should there be a get_resources_as_linkheader that just forwards
     # all the others and indicates ;osc everywhere?
 
-    async def render_to_plumbingrequest(self, pr):
+    async def render_to_pipe(self, pr):
         request = pr.request
 
         try:
             unprotected = oscore.verify_start(request)
         except oscore.NotAProtectedMessage:
             # ie. if no object_seccurity present
-            await self._inner_site.render_to_plumbingrequest(pr)
+            await self._inner_site.render_to_pipe(pr)
             return
 
         if request.code not in (FETCH, POST):
@@ -66,7 +66,7 @@ class OscoreSiteWrapper(interfaces.Resource):
             # security context), which is trusted to not leak unintended
             # information in unencrypted responses. (By comparison, a
             # renderable exception flying out of a user
-            # render_to_plumbingrequest could only be be rendered to a
+            # render_to_pipe could only be be rendered to a
             # protected message, and we'd need to be weary of rendering errors
             # during to_message as well).
             #
@@ -98,13 +98,13 @@ class OscoreSiteWrapper(interfaces.Resource):
 
         sc = sc.context_for_response()
 
-        inner_pr = plumbingrequest.IterablePlumbingRequest(unprotected)
-        pr_that_can_take_errors = plumbingrequest.error_to_message(inner_pr, self.log)
+        inner_pr = pipe.IterablePipe(unprotected)
+        pr_that_can_take_errors = pipe.error_to_message(inner_pr, self.log)
         # FIXME: do not create a task but run this in here (can this become a
         # feature of the aiterable PR?)
-        plumbingrequest.run_driving_plumbing_request(
+        pipe.run_driving_pipe(
                 pr_that_can_take_errors,
-                self._inner_site.render_to_plumbingrequest(inner_pr),
+                self._inner_site.render_to_pipe(inner_pr),
                 name="OSCORE response rendering for %r" % unprotected,
                 )
 
@@ -113,7 +113,7 @@ class OscoreSiteWrapper(interfaces.Resource):
                 # These are expected to be rare in handlers
                 #
                 # FIXME should we try to render them? (See also
-                # run_driving_plumbing_request). Just raising them
+                # run_driving_pipe). Just raising them
                 # would definitely be bad, as they might be renderable and
                 # then would hit the outer message.
                 self.log.warn("Turning error raised from renderer into nondescript protected error %r", event.exception)
@@ -123,7 +123,7 @@ class OscoreSiteWrapper(interfaces.Resource):
                 message = event.message
                 is_last = event.is_last
 
-            # FIXME: Around several places in the use of plumbing_request (and
+            # FIXME: Around several places in the use of pipe (and
             # now even here), non-final events are hard-coded as observations.
             # This should shift toward the source telling, or the stream being
             # annotated as "eventually consistent resource states".
