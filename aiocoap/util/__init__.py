@@ -114,6 +114,27 @@ def hostportsplit(hostport):
                 "port numbers.")
         raise
 
+def hostportsplit_keepbrackets(hostport):
+    """Variant of hostportsplit that preserves square brackets around IPv6 addresses.
+
+    While the original hostportsplit is useful for handing the netloc off to
+    socket functions (which do not tolerate the square brakcets), this is
+    useful when populating a Uri-Host field from there that does need them.
+
+    >>> hostportsplit_keepbrackets('foo')
+    ('foo', None)
+    >>> hostportsplit_keepbrackets('foo:5683')
+    ('foo', 5683)
+    >>> hostportsplit_keepbrackets('[::1%eth0]:56830')
+    ('[::1%eth0]', 56830)
+    """
+
+    host, port = hostportsplit(hostport)
+    if hostport[0] == '[':
+        return '[' + host + ']', port
+    else:
+        return host, port
+
 def quote_nonascii(s):
     """Like urllib.parse.quote, but explicitly only escaping non-ascii characters.
 

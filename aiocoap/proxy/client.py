@@ -13,7 +13,7 @@ from ..message import UndecidedRemote
 from .. import interfaces
 from ..protocol import ClientObservation
 
-from ..util import hostportsplit
+from ..util import hostportsplit_keepbrackets
 from ..util.asyncio import py38args
 
 class ProxyForwarder(interfaces.RequestProvider):
@@ -39,7 +39,7 @@ class ProxyForwarder(interfaces.RequestProvider):
             raise ValueError(
                 "Message already has a configured "\
                 "remote, set .opt.uri_{host,port} instead of remote")
-        host, port = hostportsplit(message.remote.hostinfo)
+        host, port = hostportsplit_keepbrackets(message.remote.hostinfo)
         message.opt.uri_port = port
         message.opt.uri_host = host
         message.opt.proxy_scheme = self.proxy_address.scheme
