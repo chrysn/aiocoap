@@ -17,7 +17,7 @@ import logging
 import aiocoap
 from aiocoap import interfaces
 from aiocoap import oscore, error
-from . import pipe
+import aiocoap.pipe
 from .numbers.codes import FETCH, POST
 
 from aiocoap.transports.oscore import OSCOREAddress
@@ -38,14 +38,14 @@ class OscoreSiteWrapper(interfaces.Resource):
     # FIXME: should there be a get_resources_as_linkheader that just forwards
     # all the others and indicates ;osc everywhere?
 
-    async def render_to_pipe(self, pr):
-        request = pr.request
+    async def render_to_pipe(self, pipe):
+        request = pipe.request
 
         try:
             unprotected = oscore.verify_start(request)
         except oscore.NotAProtectedMessage:
             # ie. if no object_seccurity present
-            await self._inner_site.render_to_pipe(pr)
+            await self._inner_site.render_to_pipe(pipe)
             return
 
         if request.code not in (FETCH, POST):
@@ -77,7 +77,7 @@ class OscoreSiteWrapper(interfaces.Resource):
         # The other errors could be ported thee but would need some better NoResponse handling.
         except oscore.ReplayError:
             if request.mtype == aiocoap.CON:
-                pr.add_response(
+                pipe.add_response(
                         aiocoap.Message(code=aiocoap.UNAUTHORIZED, max_age=0, payload=b"Replay detected"),
                         is_last=True)
             return
@@ -98,17 +98,17 @@ class OscoreSiteWrapper(interfaces.Resource):
 
         sc = sc.context_for_response()
 
-        inner_pr = pipe.IterablePipe(unprotected)
-        pr_that_can_take_errors = pipe.error_to_message(inner_pr, self.log)
+        inner_pipe = aiocoap.pipe.IterablePipe(unprotected)
+        pr_that_can_take_errors = aiocoap.pipe.error_to_message(inner_pipe, self.log)
         # FIXME: do not create a task but run this in here (can this become a
         # feature of the aiterable PR?)
-        pipe.run_driving_pipe(
+        aiocoap.pipe.run_driving_pipe(
                 pr_that_can_take_errors,
-                self._inner_site.render_to_pipe(inner_pr),
+                self._inner_site.render_to_pipe(inner_pipe),
                 name="OSCORE response rendering for %r" % unprotected,
                 )
 
-        async for event in inner_pr:
+        async for event in inner_pipe:
             if event.exception is not None:
                 # These are expected to be rare in handlers
                 #
@@ -142,8 +142,8 @@ class OscoreSiteWrapper(interfaces.Resource):
                 protected_response.opt.observe = sc.sender_sequence_number & 0xffffffff
             self.log.debug("Response %r was encrypted into %r", message, protected_response)
 
-            pr.add_response(protected_response, is_last=is_last)
+            pipe.add_response(protected_response, is_last=is_last)
             if event.is_last:
                 break
         # The created task gets cancelled here because the __aiter__ result is
-        # dropped and thus all interest in the inner_pr goes away
+        # dropped and thus all interest in the inner_pipe goes away

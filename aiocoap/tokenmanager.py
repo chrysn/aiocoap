@@ -47,13 +47,13 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
     async def shutdown(self):
         while self.incoming_requests:
             key = next(iter(self.incoming_requests.keys()))
-            (pr, pr_stop) = self.incoming_requests.pop(key)
+            (_, stop) = self.incoming_requests.pop(key)
             # This cancels them, not sending anything.
             #
             # FIXME should we? (RST? 5.00 Server Shutdown? An RST would only
             # work if we pushed this further down the shutdown chain; a 5.00 we
             # could raise in the task.)
-            pr_stop()
+            stop()
         self.incoming_requests = None
 
         while self.outgoing_requests:
@@ -115,10 +115,10 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # observation, which gets modelled as a new request at thislevel
             self.log.debug("Incoming request overrides existing request")
             # Popping: FIXME Decide if one of them is sufficient (see `del self.incoming_requests[key]` below)
-            (pr, pr_stop) = self.incoming_requests.pop(key)
-            pr_stop()
+            (pipe, stop) = self.incoming_requests.pop(key)
+            stop()
 
-        pr = Pipe(request, self.log)
+        pipe = Pipe(request, self.log)
 
         # FIXME: what can we pass down to the token_interface?  certainly not
         # the request, but maybe the request with a response filter applied?
@@ -138,10 +138,10 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                         # No more interest from *that* remote; as it's the only
                         # thing keeping the PR alive, it'll go its course of
                         # vanishing for lack of interest (as it would if
-                        # pr_stop were called from its other possible caller,
+                        # stop were called from its other possible caller,
                         # the start of process_request when a new request comes
                         # in on the same token)
-                        pr_stop,
+                        stop,
                         )
             else:
                 # It'd be tempting to raise here, but typically being called
@@ -152,19 +152,19 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                 return True
         def on_end():
             if key in self.incoming_requests:
-                # It may not be, especially if it was popped in `(pr, pr_stop) = self.incoming_requests.pop(keyu)` above
+                # It may not be, especially if it was popped in `(pipe, stop) = self.incoming_requests.pop(keyu)` above
                 # FIXME Decide if one of them is sufficient
                 del self.incoming_requests[key]
             # no further cleanup to do here: any piggybackable ack was already flushed
             # out by the first response, and if there was not even a
             # NoResponse, something went wrong above (and we can't tell easily
             # here).
-        pr_stop = pr.on_event(on_event)
-        pr.on_interest_end(on_end)
+        stop = pipe.on_event(on_event)
+        pipe.on_interest_end(on_end)
 
-        self.incoming_requests[key] = (pr, pr_stop)
+        self.incoming_requests[key] = (pipe, stop)
 
-        self.context.render_to_pipe(pr)
+        self.context.render_to_pipe(pipe)
 
     def process_response(self, response):
         key = (response.token, response.remote)

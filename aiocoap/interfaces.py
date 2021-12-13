@@ -386,26 +386,26 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
         request rendered again."""
 
 
-    async def _render_to_pipe(self, pr):
+    async def _render_to_pipe(self, pipe):
         from .protocol import ServerObservation
 
         # If block2:>0 comes along, we'd just ignore the observe
-        if pr.request.opt.observe != 0:
-            return await Resource._render_to_pipe(self, pr)
+        if pipe.request.opt.observe != 0:
+            return await Resource._render_to_pipe(self, pipe)
 
         # If block1 happens here, we can probably just not support it for the
         # time being. (Given that block1 + observe is untested and thus does
         # not work so far anyway).
 
         servobs = ServerObservation()
-        await self.add_observation(pr.request, servobs)
+        await self.add_observation(pipe.request, servobs)
 
         try:
-            first_response = await self.render(pr.request)
+            first_response = await self.render(pipe.request)
 
             if not servobs._accepted or servobs._early_deregister or \
                     not first_response.code.is_successful():
-                pr.add_response(first_response, is_last=True)
+                pipe.add_response(first_response, is_last=True)
                 return
 
             # FIXME: observation numbers should actually not be per
@@ -417,7 +417,7 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
             first_response.opt.observe = next_observation_number = 0
             # If block2 were to happen here, we'd store the full response
             # here, and pick out block2:0.
-            pr.add_response(first_response, is_last=False)
+            pipe.add_response(first_response, is_last=False)
 
             while True:
                 await servobs._trigger
@@ -429,7 +429,7 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
                 servobs._trigger = asyncio.get_running_loop().create_future()
 
                 if response is None:
-                    response = await self.render(pr.request)
+                    response = await self.render(pipe.request)
 
                 # If block2 were to happen here, we'd store the full response
                 # here, and pick out block2:0.
@@ -439,7 +439,7 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
                     next_observation_number += 1
                     response.opt.observe = next_observation_number
 
-                pr.add_response(response, is_last=is_last)
+                pipe.add_response(response, is_last=is_last)
 
                 if is_last:
                     return

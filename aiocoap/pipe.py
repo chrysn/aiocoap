@@ -169,7 +169,7 @@ def run_driving_pipe(pipe, coroutine, name=None):
 
     The coroutine will typically produce output into the pipe; that
     connection is set up by the caller like as in
-    ``run_driving_pipe(pr, render_to(pr))``.
+    ``run_driving_pipe(pipe, render_to(pipe))``.
 
     The create task is not returned, as the only sensible operation on it would
     be cancellation and that's already set up from the pipe.
