@@ -65,9 +65,7 @@ class WithGroupClient(WithClient):
 
 @_skip_unless_oscore
 class TestGroupOscore(TestServer, WithGroupServer, WithGroupClient):
-    @unittest.expectedFailure # https://github.com/chrysn/aiocoap/issues/220
-    def test_replacing_resource(self):
-        super().test_replacing_resource()
+    pass
 
 @_skip_unless_oscore
 class TestGroupOscoreWithPairwise(TestGroupOscore):

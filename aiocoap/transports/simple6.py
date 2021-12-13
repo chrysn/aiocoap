@@ -104,6 +104,13 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
         return hostportjoin(*sockname[:2])
     uri_base_local = property(lambda self: 'coap://' + self.hostinfo_local)
 
+    @property
+    def blockwise_key(self):
+        # Not pulling in hostinfo_local as that's unreliable anyway -- if we
+        # change identity and the (UDP sever) follows its requests across our
+        # changing port, that's probably fine.
+        return self.hostinfo
+
 # fully disabled because some implementations of asyncio don't make the
 # information available; going the easy route and storing it for all (see
 # attribute population in __init__)

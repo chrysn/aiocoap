@@ -10,23 +10,15 @@
 :class:aiocoap.resource.Site. It enforces no access control, but just indicates
 to the resources whether a client is authenticated by setting the request's
 remote property adaequately.
-
-So far, it needs to be utilized explicitly and manually at server creation. How
-this will later be automated will depend on th edirection Site is going -- if
-all of :meth:`aiocoap.protocol.Context.render_to_plumbing_request` can be moved
-into Site wrappers, this can stay a site wrapper -- otherwise, it may need to
-move in there to start render_to_plumbing_request on the unprotected requests
-again. (This will also influence a future inner-blockwise implementation).
 """
-
-# WIP: TThis is being ported out of plugtest-server, leaving out the block-wise
-# and observation parts for now.
 
 import logging
 
 import aiocoap
 from aiocoap import interfaces
 from aiocoap import oscore, error
+import aiocoap.pipe
+from .numbers.codes import FETCH, POST
 
 from aiocoap.transports.oscore import OSCOREAddress
 
@@ -37,22 +29,27 @@ class OscoreSiteWrapper(interfaces.Resource):
         self._inner_site = inner_site
         self.server_credentials = server_credentials
 
-    async def needs_blockwise_assembly(self, request):
-        if not request.opt.object_security:
-            return await self._inner_site.needs_blockwise_assembly(request)
+    async def render(self, request):
+        raise RuntimeError("OscoreSiteWrapper can only be used through the render_to_pipe interface")
 
-        # enable outer-blockwise
-        return True
+    async def needs_blockwise_assembly(self, request):
+        raise RuntimeError("OscoreSiteWrapper can only be used through the render_to_pipe interface")
 
     # FIXME: should there be a get_resources_as_linkheader that just forwards
     # all the others and indicates ;osc everywhere?
 
-    async def render(self, request):
+    async def render_to_pipe(self, pipe):
+        request = pipe.request
+
         try:
             unprotected = oscore.verify_start(request)
         except oscore.NotAProtectedMessage:
             # ie. if no object_seccurity present
-            return await self._inner_site.render(request)
+            await self._inner_site.render_to_pipe(pipe)
+            return
+
+        if request.code not in (FETCH, POST):
+            raise error.MethodNotAllowed
 
         try:
             sc = self.server_credentials.find_oscore(unprotected)
@@ -60,32 +57,40 @@ class OscoreSiteWrapper(interfaces.Resource):
             if request.mtype == aiocoap.CON:
                 raise error.Unauthorized("Security context not found")
             else:
-                return aiocoap.message.NoResponse
+                return
 
         try:
             unprotected, seqno = sc.unprotect(request)
         except error.RenderableError as e:
-            # Primarily used for the Echo recovery 4.01 reply; the below could
-            # be migrated there, but the behavior (at least as currently
-            # encoded) is not exactly the one a no_response=26 would show, as
-            # we want full responses to CONs but no responses to NONs, wheras
-            # no_response=26 only flushes out an empty ACK and nothing more
-            return e.to_message()
+            # Note that this is flying out of the unprotection (ie. the
+            # security context), which is trusted to not leak unintended
+            # information in unencrypted responses. (By comparison, a
+            # renderable exception flying out of a user
+            # render_to_pipe could only be be rendered to a
+            # protected message, and we'd need to be weary of rendering errors
+            # during to_message as well).
+            #
+            # Note that this clause is not a no-op: it protects the 4.01 Echo
+            # recovery exception (which is also a ReplayError) from being
+            # treated as such.
+            raise e
+        # The other errors could be ported thee but would need some better NoResponse handling.
         except oscore.ReplayError:
             if request.mtype == aiocoap.CON:
-                return aiocoap.Message(code=aiocoap.UNAUTHORIZED, max_age=0, payload=b"Replay detected")
-            else:
-                return aiocoap.message.NoResponse
+                pipe.add_response(
+                        aiocoap.Message(code=aiocoap.UNAUTHORIZED, max_age=0, payload=b"Replay detected"),
+                        is_last=True)
+            return
         except oscore.DecodeError:
             if request.mtype == aiocoap.CON:
                 raise error.BadOption("Failed to decode COSE")
             else:
-                return aiocoap.message.NoResponse
+                return
         except oscore.ProtectionInvalid:
             if request.mtype == aiocoap.CON:
                 raise error.BadRequest("Decryption failed")
             else:
-                return aiocoap.message.NoResponse
+                return
 
         unprotected.remote = OSCOREAddress(sc, request.remote)
 
@@ -93,22 +98,52 @@ class OscoreSiteWrapper(interfaces.Resource):
 
         sc = sc.context_for_response()
 
-        eventual_err = None
-        try:
-            response = await self._inner_site.render(unprotected)
-        except error.RenderableError as err:
-            try:
-                response = err.to_message()
-            except Exception as err:
-                eventual_err = err
-        except Exception as err:
-            eventual_err = err
-        if eventual_err is not None:
-            response = aiocoap.Message(code=aiocoap.INTERNAL_SERVER_ERROR)
-            self.log.error("An exception occurred while rendering a protected resource: %r", eventual_err, exc_info=eventual_err)
+        inner_pipe = aiocoap.pipe.IterablePipe(unprotected)
+        pr_that_can_take_errors = aiocoap.pipe.error_to_message(inner_pipe, self.log)
+        # FIXME: do not create a task but run this in here (can this become a
+        # feature of the aiterable PR?)
+        aiocoap.pipe.run_driving_pipe(
+                pr_that_can_take_errors,
+                self._inner_site.render_to_pipe(inner_pipe),
+                name="OSCORE response rendering for %r" % unprotected,
+                )
 
-        protected_response, _ = sc.protect(response, seqno)
+        async for event in inner_pipe:
+            if event.exception is not None:
+                # These are expected to be rare in handlers
+                #
+                # FIXME should we try to render them? (See also
+                # run_driving_pipe). Just raising them
+                # would definitely be bad, as they might be renderable and
+                # then would hit the outer message.
+                self.log.warn("Turning error raised from renderer into nondescript protected error %r", event.exception)
+                message = aiocoap.Message(code=aiocoap.INTERNAL_SERVER_ERROR)
+                is_last = True
+            else:
+                message = event.message
+                is_last = event.is_last
 
-        self.log.debug("Response %r was encrypted into %r", response, protected_response)
+            # FIXME: Around several places in the use of pipe (and
+            # now even here), non-final events are hard-coded as observations.
+            # This should shift toward the source telling, or the stream being
+            # annotated as "eventually consistent resource states".
+            if not is_last:
+                message.opt.observe = 0
 
-        return protected_response
+            protected_response, _ = sc.protect(message, seqno)
+            if message.opt.observe is not None:
+                # FIXME: should be done in protect, or by something else that
+                # generally handles obs numbers better (sending the
+                # oscore-reconstructed number is nice because it's consistent
+                # with a proxy that doesn't want to keep a counter when it
+                # knows it's OSCORE already), but starting this per obs with
+                # zero (unless it was done on that token recently) would be
+                # most efficient
+                protected_response.opt.observe = sc.sender_sequence_number & 0xffffffff
+            self.log.debug("Response %r was encrypted into %r", message, protected_response)
+
+            pipe.add_response(protected_response, is_last=is_last)
+            if event.is_last:
+                break
+        # The created task gets cancelled here because the __aiter__ result is
+        # dropped and thus all interest in the inner_pipe goes away

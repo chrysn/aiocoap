@@ -17,8 +17,11 @@ It is *completely unrelated* to the concept of "network interfaces".
 from __future__ import annotations
 
 import abc
+import asyncio
+import warnings
+
 from aiocoap.numbers.constants import DEFAULT_BLOCK_SIZE_EXP
-from aiocoap.plumbingrequest import PlumbingRequest
+from aiocoap.pipe import Pipe
 
 from typing import Optional, Callable
 
@@ -184,6 +187,28 @@ class EndpointAddress(metaclass=abc.ABCMeta):
         # "no claims" is a good default
         return ()
 
+    @property
+    @abc.abstractmethod
+    def blockwise_key(self):
+        """A hashable (ideally, immutable) value that is only the same for
+        remotes from which blocks may be combined. (With all current transports
+        that means that the network addresses need to be in there, and the
+        identity of the security context).
+
+        It does *not* just hinge on the identity of the address object, as a
+        first block may come in an OSCORE group request and follow-ups may come
+        in pairwise requests. (And there might be allowed relaxations on the
+        transport under OSCORE, but that'd need further discussion)."""
+        # FIXME: should this behave like something that keeps the address
+        # alive? Conversely, if the address gets deleted, can this reach the
+        # block keys and make their stuff vanish from the caches?
+        #
+        # FIXME: what do security mechanisms best put here? Currently it's a
+        # wild mix of keys (OSCORE -- only thing guaranteed to never be reused;
+        # DTLS client because it's available) and claims (DTLS server, because
+        # it's available and if the claims set matches it can't be that wrong
+        # either can it?)
+
 class MessageManager(metaclass=abc.ABCMeta):
     """The interface an entity that drives a MessageInterface provides towards
     the MessageInterface for callbacks and object acquisition."""
@@ -239,7 +264,7 @@ class RequestInterface(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def request(self, request: PlumbingRequest):
+    def request(self, request: Pipe):
         pass
 
 class RequestProvider(metaclass=abc.ABCMeta):
@@ -270,6 +295,19 @@ class Resource(metaclass=abc.ABCMeta):
     """Interface that is expected by a :class:`.protocol.Context` to be present
     on the serversite, which renders all requests to that context."""
 
+    def __init__(self):
+        super().__init__()
+
+        # FIXME: These keep addresses alive, and thus possibly transports.
+        # Going through the shutdown dance per resource seems extraneous.
+        # Options are to accept addresses staying around (making sure they
+        # don't keep their transports alive, if that's a good idea), to hash
+        # them, or to make them weak.
+
+        from .blockwise import Block1Spool, Block2Cache
+        self._block1 = Block1Spool()
+        self._block2 = Block2Cache()
+
     @abc.abstractmethod
     async def render(self, request):
         """Return a message that can be sent back to the requester.
@@ -289,6 +327,45 @@ class Resource(metaclass=abc.ABCMeta):
         requested blocks from a complete-resource answer (True), or whether
         the resource will do that by itself (False)."""
 
+    async def _render_to_pipe(self, request: Pipe):
+        req = request.request
+
+        if await self.needs_blockwise_assembly(req):
+            req = self._block1.feed_and_take(req)
+
+            # Note that unless the lambda get's called, we're not fully
+            # accessing req any more -- we're just looking at its block2
+            # option, and the blockwise key extracted earlier.
+            res = await self._block2.extract_or_insert(req, lambda: self.render(req))
+
+            res.opt.block1 = req.opt.block1
+        else:
+            res = await self.render(req)
+
+        request.add_response(res, is_last=True)
+
+    async def render_to_pipe(self, request: Pipe):
+        """Create any number of responses (as indicated by the request) into
+        the request stream.
+
+        This method is provided by the base Resource classes; if it is
+        overridden, then :meth:`render`, :meth:`needs_blockwise_assembly` and
+        :meth:`ObservableResource.add_observation` are not used any more.
+        (They still need to be implemented to comply with the interface
+        definition, which is yet to be updated)."""
+        warnings.warn("Request interface is changing: Resources should "
+                "implement render_to_pipe or inherit from "
+                "resource.Resource which implements that based on any "
+                "provided render methods", DeprecationWarning)
+        if isinstance(self, ObservableResource):
+            # While the above deprecation is used, a resource previously
+            # inheriting from (X, ObservableResource) with X inheriting from
+            # Resource might find itself using this method. When migrating over
+            # to inheriting from resource.Resource, this error will become
+            # apparent and this can die with the rest of this workaround.
+            return await ObservableResource._render_to_pipe(self, request)
+        return await self._render_to_pipe(request)
+
 class ObservableResource(Resource, metaclass=abc.ABCMeta):
     """Interface the :class:`.protocol.ServerObservation` uses to negotiate
     whether an observation can be established based on a request.
@@ -307,3 +384,71 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
         call `serverobservation.trigger()` whenever it changes its state; the
         ServerObservation will then initiate notifications by having the
         request rendered again."""
+
+
+    async def _render_to_pipe(self, pipe):
+        from .protocol import ServerObservation
+
+        # If block2:>0 comes along, we'd just ignore the observe
+        if pipe.request.opt.observe != 0:
+            return await Resource._render_to_pipe(self, pipe)
+
+        # If block1 happens here, we can probably just not support it for the
+        # time being. (Given that block1 + observe is untested and thus does
+        # not work so far anyway).
+
+        servobs = ServerObservation()
+        await self.add_observation(pipe.request, servobs)
+
+        try:
+            first_response = await self.render(pipe.request)
+
+            if not servobs._accepted or servobs._early_deregister or \
+                    not first_response.code.is_successful():
+                pipe.add_response(first_response, is_last=True)
+                return
+
+            # FIXME: observation numbers should actually not be per
+            # asyncio.task, but per (remote, token). if a client renews an
+            # observation (possibly with a new ETag or whatever is deemed
+            # legal), the new observation events should still carry larger
+            # numbers. (if they did not, the client might be tempted to discard
+            # them).
+            first_response.opt.observe = next_observation_number = 0
+            # If block2 were to happen here, we'd store the full response
+            # here, and pick out block2:0.
+            pipe.add_response(first_response, is_last=False)
+
+            while True:
+                await servobs._trigger
+                # if you wonder why the lines around this are not just `response =
+                # await servobs._trigger`, have a look at the 'double' tests in
+                # test_observe.py: A later triggering could have replaced
+                # servobs._trigger in the meantime.
+                response = servobs._trigger.result()
+                servobs._trigger = asyncio.get_running_loop().create_future()
+
+                if response is None:
+                    response = await self.render(pipe.request)
+
+                # If block2 were to happen here, we'd store the full response
+                # here, and pick out block2:0.
+
+                is_last = servobs._late_deregister or not response.code.is_successful()
+                if not is_last:
+                    next_observation_number += 1
+                    response.opt.observe = next_observation_number
+
+                pipe.add_response(response, is_last=is_last)
+
+                if is_last:
+                    return
+        finally:
+            servobs._cancellation_callback()
+
+    async def render_to_pipe(self, request: Pipe):
+        warnings.warn("Request interface is changing: Resources should "
+                "implement render_to_pipe or inherit from "
+                "resource.Resource which implements that based on any "
+                "provided render methods", DeprecationWarning)
+        return await self._render_to_pipe(request)

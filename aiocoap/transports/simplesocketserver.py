@@ -83,6 +83,10 @@ class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.E
 
     scheme = 'coap'
 
+    @property
+    def blockwise_key(self):
+        return self.address
+
 class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     # To be overridden by tinydtls_server
     _Address = _Address

@@ -35,6 +35,7 @@ from . import meta
 from . import error
 from . import interfaces
 from . import numbers
+from .pipe import Pipe
 
 def hashing_etag(request, response):
     """Helper function for render_get handlers that allows them to use ETags based
@@ -136,6 +137,13 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
 
         return response
 
+    async def render_to_pipe(self, request: Pipe):
+        # Silence the deprecation warning
+        if isinstance(self, interfaces.ObservableResource):
+            # See interfaces.Resource.render_to_pipe
+            return await interfaces.ObservableResource._render_to_pipe(self, request)
+        return await interfaces.Resource._render_to_pipe(self, request)
+
 class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):
         super(ObservableResource, self).__init__()
@@ -164,6 +172,10 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         link = super(ObservableResource, self).get_link_description()
         link['obs'] = None
         return link
+
+    async def render_to_pipe(self, request: Pipe):
+        # Silence the deprecation warning
+        return await interfaces.ObservableResource._render_to_pipe(self, request)
 
 def link_format_to_message(request, linkformat,
         default_ct=numbers.ContentFormat.LINKFORMAT):
@@ -210,7 +222,8 @@ class WKCResource(Resource):
 
     ct = link_format_to_message.supported_ct
 
-    def __init__(self, listgenerator, impl_info=meta.library_uri):
+    def __init__(self, listgenerator, impl_info=meta.library_uri, **kwargs):
+        super().__init__(**kwargs)
         self.listgenerator = listgenerator
         self.impl_info = impl_info
 
@@ -410,3 +423,14 @@ class Site(interfaces.ObservableResource, PathCapable):
                 for l in resource.get_resources_as_linkheader().links:
                     links.append(Link('/' + '/'.join(path) + l.href, l.attr_pairs))
         return LinkFormat(links)
+
+    async def render_to_pipe(self, request: Pipe):
+        try:
+            child, subrequest = self._find_child_and_pathstripped_message(request.request)
+        except KeyError:
+            raise error.NotFound()
+        else:
+            # FIXME consider carefully whether this switching-around is good.
+            # It probably is.
+            request.request = subrequest
+            return await child.render_to_pipe(request)

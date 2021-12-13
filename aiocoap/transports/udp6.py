@@ -218,6 +218,10 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         # as source address
         return type(self)(self.sockaddr, self.interface)
 
+    @property
+    def blockwise_key(self):
+        return (self.sockaddr, self.pktinfo)
+
 
 class SockExtendedErr(namedtuple("_SockExtendedErr", "ee_errno ee_origin ee_type ee_code ee_pad ee_info ee_data")):
     _struct = struct.Struct("IbbbbII")

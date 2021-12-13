@@ -94,6 +94,18 @@ class OSCOREAddress(
     maximum_payload_size = 1024
     maximum_block_size_exp = 6
 
+    @property
+    def blockwise_key(self):
+        if hasattr(self.security_context, 'groupcontext'):
+            # it's an aspect, and all aspects work compatibly as long as data
+            # comes from the same recipient ID -- taking the group recipient
+            # key for that one which is stable across switches between pairwise
+            # and group mode
+            detail = self.security_context.groupcontext.recipient_keys[self.security_context.recipient_id]
+        else:
+            detail = self.security_context.recipient_key
+        return (self.underlying_address.blockwise_key, detail)
+
 class TransportOSCORE(interfaces.RequestProvider):
     def __init__(self, context, forward_context):
         self._context = context
@@ -168,9 +180,9 @@ class TransportOSCORE(interfaces.RequestProvider):
         wire_request, original_request_seqno = protect(None)
 
         # tempting as it would be, we can't access the request as a
-        # PlumbingRequest here, because it is a BlockwiseRequest to handle
+        # Pipe here, because it is a BlockwiseRequest to handle
         # outer blockwise.
-        # (Might be a good idea to model those after PlumbingRequest too,
+        # (Might be a good idea to model those after Pipe too,
         # though).
 
         def _check(more, unprotected_response):
@@ -201,7 +213,7 @@ class TransportOSCORE(interfaces.RequestProvider):
 
             unprotected_response.remote = OSCOREAddress(secctx, protected_response.remote)
             self.log.debug("Successfully unprotected %r into %r", protected_response, unprotected_response)
-            # FIXME: if i could tap into the underlying PlumbingRequest, that'd
+            # FIXME: if i could tap into the underlying Pipe, that'd
             # be a lot easier -- and also get rid of the awkward _check
             # code moved into its own function just to avoid duplication.
             more = protected_response.opt.observe is not None
