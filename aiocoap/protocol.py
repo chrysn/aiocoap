@@ -368,9 +368,8 @@ class Context(interfaces.RequestProvider):
     # mixed into it
 
     def render_to_pipe(self, pipe):
-        """Satisfy a plumbing request from the full :meth:`render` /
-        :meth:`needs_blockwise_assembly` / :meth:`add_observation` interfaces
-        provided by the site."""
+        """Fill a pipe by running the site's render_to_pipe interface and
+        handling errors."""
 
         pr_that_can_receive_errors = error_to_message(pipe, self.log)
 
@@ -420,8 +419,8 @@ class BaseUnicastRequest(BaseRequest):
 
         Experimental Interface."""
 
-        # FIXME: Can we smuggle error_to_message into the underlying plumbing
-        # request? That should make observe notifications into messages rather
+        # FIXME: Can we smuggle error_to_message into the underlying pipe?
+        # That should make observe notifications into messages rather
         # than exceptions as well, plus it has fallbacks for `e.to_message()`
         # raising.
 

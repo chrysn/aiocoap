@@ -164,15 +164,15 @@ class Pipe:
 
 def run_driving_pipe(pipe, coroutine, name=None):
     """Create a task from a coroutine where the end of the coroutine produces a
-    terminal event on the plumbing request, and lack of interest in the
-    plumbing request cancels the task.
+    terminal event on the pipe, and lack of interest in the pipe cancels the
+    task.
 
-    The coroutine will typically produce output into the plumbing request; that
+    The coroutine will typically produce output into the pipe; that
     connection is set up by the caller like as in
     ``run_driving_pipe(pr, render_to(pr))``.
 
     The create task is not returned, as the only sensible operation on it would
-    be cancellation and that's already set up from the plumbing request.
+    be cancellation and that's already set up from the pipe.
     """
 
     async def wrapped():
@@ -208,12 +208,11 @@ def run_driving_pipe(pipe, coroutine, name=None):
     pipe.on_interest_end(task.cancel)
 
 def error_to_message(old_pr, log):
-    """Given a plumbing request set up by the requester, create a new plumbing
-    request to pass on to a responder.
+    """Given a pipe set up by the requester, create a new pipe to pass on to a
+    responder.
 
     Any exceptions produced by the responder will be turned into terminal
-    responses on the original plumbing request, and loss of interest is
-    forwarded."""
+    responses on the original pipe, and loss of interest is forwarded."""
 
     from .message import Message
 
@@ -259,7 +258,7 @@ class IterablePipe:
 
     Note that the PR can be aitered over only once, and does not support any
     additional hook settings once asynchronous iteration is started; this is
-    consistent with the usage pattern of plumbing requests.
+    consistent with the usage pattern of pipes.
     """
 
     def __init__(self, request):
@@ -267,7 +266,7 @@ class IterablePipe:
 
         self.__on_interest_end = []
 
-        # FIXME: This is unbounded -- plumbing requests should gain support for
+        # FIXME: This is unbounded -- pipes should gain support for
         # backpressure.
         self.__queue = asyncio.Queue()
 
