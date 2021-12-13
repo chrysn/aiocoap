@@ -14,6 +14,7 @@ import asyncio
 import functools
 import ipaddress
 import logging
+import warnings
 
 from .. import numbers, interfaces, message, error, util, resource
 from ..blockwise import Block1Spool, Block2Cache
@@ -279,6 +280,11 @@ class ForwardProxy(Proxy):
             # I'd prefer to not do if-by-try, but the ipaddress doesn't seem to
             # offer any other choice
             ipaddress.ip_address(request.opt.uri_host)
+
+            warnings.warn("URI-Host looks like IPv6 but has no square "
+                    "brackets. This is deprecated, see "
+                    "https://github.com/chrysn/aiocoap/issues/216",
+                    DeprecationWarning)
         except ValueError:
             pass
         else:
