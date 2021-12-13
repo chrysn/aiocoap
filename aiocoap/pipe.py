@@ -50,7 +50,9 @@ class Pipe:
     expressed in type or state yet. (One possibility would be for the
     Pipe to carry a preparation boolean, and which prohibits event
     sending during preparation and is_interest=True callback creation
-    afterwards)."""
+    afterwards).
+
+    This was previously named PlumbingRequest."""
 
     Event = namedtuple("Event", ("message", "exception", "is_last"))
 
