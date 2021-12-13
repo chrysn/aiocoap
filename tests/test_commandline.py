@@ -139,6 +139,24 @@ class TestCommandlineClient(WithTestServer):
                 'coap://' + self.servernetloc + '/empty', '--accept', 'spam/eggs'],
                 stderr=subprocess.STDOUT)
 
+    @no_warnings
+    @asynctest
+    async def test_noproxy(self):
+        await self.loop.run_in_executor(None, self._test_noproxy)
+
+    def _test_noproxy(self):
+        # Having this successful and just return text is a bespoke weirdness of
+        # the /empty resource (and MultiRepresentationResource in general).
+        # Once https://github.com/chrysn/aiocoap/issues/268 is resolved, their
+        # workarounds that make this not just ignore the critical proxy options
+        # in the first place will go away, and this will need to process
+        # aiocoap-client failing regularly.
+        stdout = subprocess.check_output(AIOCOAP_CLIENT + [
+            'coap://0.0.0.0/empty', '--proxy', 'coap://' + self.servernetloc, '--verbose'],
+            stderr=subprocess.STDOUT)
+
+        self.assertEqual(stdout, b"This is no proxy")
+
 class TestCommandlineRD(unittest.TestCase):
     @unittest.skipIf(linkheader_modules, "Modules missing for running RD tests: %s"%(linkheader_modules,))
     def test_help(self):

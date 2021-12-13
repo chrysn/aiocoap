@@ -26,6 +26,10 @@ class MultiRepresentationResource(aiocoap.resource.Resource):
         super().__init__()
 
     async def render_get(self, request):
+        if request.opt.proxy_scheme is not None:
+            # For CLI test_noproxy -- but otherwise a symptom of https://github.com/chrysn/aiocoap/issues/268
+            return aiocoap.Message(code=aiocoap.CONTENT, payload=b"This is no proxy")
+
         m = request.opt.accept or ContentFormat.TEXT
 
         if m in self._representations:
