@@ -39,7 +39,7 @@ def build_parser():
     p.add_argument('--observe', help="Register an observation on the resource", action='store_true')
     p.add_argument('--observe-exec', help="Run the specified program whenever the observed resource changes, feeding the response data to its stdin", metavar='CMD')
     p.add_argument('--accept', help="Content format to request", metavar="MIME")
-    p.add_argument('--proxy', help="Relay the CoAP request to a proxy for execution", metavar="HOST[:PORT]")
+    p.add_argument('--proxy', help="Relay the CoAP request to a proxy for execution", metavar="URI")
     p.add_argument('--payload', help="Send X as request payload (eg. with a PUT). If X starts with an '@', its remainder is treated as a file name and read from; '@-' reads from the console. Non-file data may be recoded, see --content-format.", metavar="X")
     p.add_argument('--payload-initial-szx', help="Size exponent to limit the initial block's size (0 ≙ 16 Byte, 6 ≙ 1024 Byte)", metavar="SZX", type=int)
     p.add_argument('--content-format', help="Content format of the --payload data. If a known format is given and --payload has a non-file argument, conversion is attempted (currently only JSON/Python-literals to CBOR).", metavar="MIME")

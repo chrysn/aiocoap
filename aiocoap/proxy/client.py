@@ -7,10 +7,13 @@
 # described in the accompanying LICENSE file.
 
 import asyncio
+import warnings
 
+from ..message import UndecidedRemote
 from .. import interfaces
 from ..protocol import ClientObservation
 
+from ..util import hostportsplit
 from ..util.asyncio import py38args
 
 class ProxyForwarder(interfaces.RequestProvider):
@@ -20,62 +23,26 @@ class ProxyForwarder(interfaces.RequestProvider):
     This is not a proxy itself, it is just the interface for an external
     one."""
     def __init__(self, proxy_address, context):
-        self.proxy_address = proxy_address
+        if '://' not in proxy_address:
+            warnings.warn("Proxy addresses without scheme are deprecated, "
+                    "please specify like `coap://host`, `coap+tcp://ip:port` "
+                    "etc.", DeprecationWarning)
+            proxy_address = 'coap://' + proxy_address
+
+        self.proxy_address = UndecidedRemote.from_pathless_uri(proxy_address)
         self.context = context
 
     proxy = property(lambda self: self._proxy)
 
     def request(self, message, **kwargs):
-        assert message.remote is None, "Message already has a configured "\
-                "remote, set .opt.uri_{host,port} instead of remote"
-        assert message.opt.uri_host is not None, "Message does not have a "\
-                "destination address"
-        message.opt.proxy_scheme = 'coap'
-        return ProxyRequest(self, message, **kwargs)
+        if not isinstance(message.remote, UndecidedRemote):
+            raise ValueError(
+                "Message already has a configured "\
+                "remote, set .opt.uri_{host,port} instead of remote")
+        host, port = hostportsplit(message.remote.hostinfo)
+        message.opt.uri_port = port
+        message.opt.uri_host = host
+        message.opt.proxy_scheme = self.proxy_address.scheme
+        message.remote = self.proxy_address
 
-class ProxyRequest(interfaces.Request):
-    def __init__(self, proxy, app_request, exchange_monitor_factory=lambda x:None):
-        self.proxy = proxy
-        self.app_request = app_request
-        self.response = asyncio.get_running_loop().create_future()
-        self._exchange_monitor_factory = exchange_monitor_factory
-
-        self.observation = ProxyClientObservation(app_request)
-
-        asyncio.create_task(
-                self._launch(),
-                **py38args(name="Proxying %r" % app_request)
-                )
-
-    async def _launch(self):
-        try:
-            self.app_request.remote = None
-            self.app_request.unresolved_remote = self.proxy.proxy_address
-            proxyrequest = self.proxy.context.request(self.app_request, exchange_monitor_factory=self._exchange_monitor_factory)
-            if proxyrequest.observation is not None:
-                self.observation._hook_onto(proxyrequest.observation)
-            else:
-                self.observation.error(Exception("No proxied observation, this should not have been created in the first place."))
-            self.response.set_result(await proxyrequest.response)
-        except Exception as e:
-            self.response.set_exception(e)
-
-class ProxyClientObservation(ClientObservation):
-    real_observation = None
-    _register = None
-    _unregister = None
-
-    def _hook_onto(self, real_observation):
-        if self.cancelled:
-            real_observation.cancel()
-        else:
-            real_observation.register_callback(self.callback)
-            real_observation.register_errback(self.error)
-
-    def cancel(self):
-        self.errbacks = None
-        self.callbacks = None
-        self.cancelled = True
-        if self.real_observation is not None:
-            # delay to _hook_onto, will be cancelled there as cancelled is set to True
-            self.real_observation.cancel()
+        return self.context.request(message)

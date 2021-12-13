@@ -6,6 +6,8 @@
 # aiocoap is free software, this file is published under the MIT license as
 # described in the accompanying LICENSE file.
 
+from __future__ import annotations
+
 import urllib.parse
 import struct
 import copy
@@ -578,6 +580,28 @@ class UndecidedRemote(
     * :attr:`hostinfo`: The authority component of the URI, as it would occur
       in the URI.
     """
+
+    @classmethod
+    def from_pathless_uri(cls, uri: str) -> UndecidedRemote:
+        """Create an UndecidedRemote for a given URI that has no query, path,
+        fragment or other components not expressed in an UndecidedRemote
+
+        >>> from aiocoap.message import UndecidedRemote
+        >>> UndecidedRemote.from_pathless_uri("coap://localhost")
+        UndecidedRemote(scheme='coap', hostinfo='localhost')
+        >>> UndecidedRemote.from_pathless_uri("coap+tcp://[::1]:1234")
+        UndecidedRemote(scheme='coap+tcp', hostinfo='[::1]:1234')
+        """
+
+        parsed = urllib.parse.urlparse(uri)
+
+        if parsed.username or parsed.password:
+            raise ValueError("User name and password not supported.")
+
+        if parsed.path not in ('', '/') or parsed.query or parsed.fragment:
+            raise ValueError("Paths and query and fragment can not be set on an UndecidedRemote")
+
+        return cls(parsed.scheme, parsed.netloc)
 
 _ascii_lowercase = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 
