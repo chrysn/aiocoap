@@ -45,6 +45,7 @@ Modules with stable components
    module/aiocoap.options
    module/aiocoap.interfaces
    module/aiocoap.error
+   module/aiocoap.pipe
 
    module/aiocoap.defaults
    module/aiocoap.transports

@@ -52,7 +52,21 @@ class Pipe:
     sending during preparation and is_interest=True callback creation
     afterwards).
 
-    This was previously named PlumbingRequest."""
+    This was previously named PlumbingRequest.
+
+    **Stability**
+
+    Sites and resources implemented by provinding a
+    :meth:`~aiocoap.interfaces.Resource.render_to_pipe` method can stably use
+    the :meth:`add_response` method of a Pipe (or something that quacks like
+    it).
+
+    They should not rely on :meth:`add_exception` but rather just raise the
+    exception, and neither register :meth:`on_event` handlers (being the sole
+    producer of events) nor hook to :meth:`on_interest_end` (instead, they can
+    use finally clauses or async context managers to handle any cleanup when
+    the cancellation of the render task indicates the peer's loss of interest).
+    """
 
     Event = namedtuple("Event", ("message", "exception", "is_last"))
 
