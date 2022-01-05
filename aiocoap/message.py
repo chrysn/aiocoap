@@ -313,6 +313,8 @@ class Message(object):
             self.opt.block1 = block1
             self.token = next_block.token
             self.mid = next_block.mid
+            if not block1.more and next_block.opt.block2 is not None:
+                self.opt.block2 = next_block.opt.block2
         else:
             # possible extension point: allow messages with "gaps"; then
             # ValueError would only be raised when trying to overwrite an
