@@ -111,6 +111,14 @@ def apply_credentials(context, credentials, errfn):
 def present(message, options, file=sys.stdout):
     """Write a message payload to the output, pretty printing and/or coloring
     it as configured in the options."""
+    if not options.quiet and (message.opt.location_path or message.opt.location_query):
+        # FIXME: Percent encoding is completely missing; this would be done
+        # most easily with a CRI library
+        location_ref = "/" + "/".join(message.opt.location_path)
+        if message.opt.location_query:
+            location_ref += "?" + "&".join(message.opt.location_query)
+        print(colored(f"Location options indicate new resource: {location_ref}", options, 'green'), file=sys.stderr)
+
     if not message.payload:
         return
 
