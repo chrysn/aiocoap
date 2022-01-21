@@ -216,7 +216,7 @@ class Context(interfaces.RequestProvider):
 
     @classmethod
     @AwaitOrAenter.decorate
-    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicast=[], server_credentials=None):
+    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicast=[], server_credentials=None, transports=[]):
         """Create a context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -250,7 +250,9 @@ class Context(interfaces.RequestProvider):
 
         multicast_done = not multicast
 
-        for transportname in defaults.get_default_servertransports(loop=loop):
+        selected_transports = len(transports) > 0 and transports or defaults.get_default_servertransports(loop=loop)
+
+        for transportname in selected_transports:
             if transportname == 'udp6':
                 from .transports.udp6 import MessageInterfaceUDP6
 
