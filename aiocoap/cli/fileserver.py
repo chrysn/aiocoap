@@ -45,6 +45,7 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
     # Resource is only used to give the nice render_xxx methods
 
     def __init__(self, root, log):
+        super().__init__()
         self.root = root
         self.log = log
 
