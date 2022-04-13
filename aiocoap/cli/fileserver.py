@@ -91,7 +91,8 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
     async def needs_blockwise_assembly(self, request):
         if request.code != codes.GET:
             return True
-        if not request.opt.uri_path or request.opt.uri_path[-1] == '':
+        if not request.opt.uri_path or request.opt.uri_path[-1] == '' or \
+                request.opt.uri_path == ('.well-known', 'core'):
             return True
         # Only GETs to non-directory access handle it explicitly
         return False
