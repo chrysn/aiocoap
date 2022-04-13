@@ -43,6 +43,9 @@ class AbundantTrailingSlashError(error.ConstructionRenderableError):
 class NoSuchFile(error.NotFound): # just for the better error msg
     message = "Error: File not found!"
 
+class PreconditionFailed(error.ConstructionRenderableError):
+    code = codes.PRECONDITION_FAILED
+
 class FileServer(Resource, aiocoap.interfaces.ObservableResource):
     # Resource is only used to give the nice render_xxx methods
 
@@ -140,9 +143,26 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
             # Attempting to write to a directory
             return aiocoap.Message(code=codes.BAD_REQUEST)
 
-        # TBD: Handle If-Match, If-None-Match ... and all critical options
-
         path = self.request_to_localpath(request)
+
+        if request.opt.if_none_match:
+            # FIXME: This is locally a race condition; files could be created
+            # in the "x" mode, but then how would writes to them be made
+            # atomic?
+            if path.exists():
+                raise PreconditionFailed()
+
+        if request.opt.if_match and b"" not in request.opt.if_match:
+            # FIXME: This is locally a race condition; not sure how to prevent
+            # that.
+            try:
+                st = path.stat()
+            except FileNotFoundError:
+                # Absent file in particular doesn't have the expected ETag
+                raise PreconditionFailed()
+            if self.hash_stat(st) not in request.opt.if_match:
+                raise PreconditionFailed()
+
         # Is there a way to get both "Use umask for file creation (or the
         # existing file's permissions)" logic *and* atomic file creation on
         # portable UNIX? If not, all we could do would be emulate the logic of
@@ -171,9 +191,19 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
             # Deleting directories is not supported as they can't be created
             return aiocoap.Message(code=codes.BAD_REQUEST)
 
-        # TBD as with PUT
-
         path = self.request_to_localpath(request)
+
+        if request.opt.if_match and b"" not in request.opt.if_match:
+            # FIXME: This is locally a race condition; not sure how to prevent
+            # that.
+            try:
+                st = path.stat()
+            except FileNotFoundError:
+                # Absent file in particular doesn't have the expected ETag
+                raise NoSuchFile()
+            if self.hash_stat(st) not in request.opt.if_match:
+                raise PreconditionFailed()
+
         try:
             path.unlink()
         except FileNotFoundError:
