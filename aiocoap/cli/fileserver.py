@@ -172,11 +172,11 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
 
         response = ""
         for f in path.iterdir():
-            rel = f.relative_to(path)
+            rel = f.relative_to(self.root)
             if f.is_dir():
-                response += "<%s/>;ct=40,"%rel
+                response += "</%s/>;ct=40,"%rel
             else:
-                response += "<%s>,"%rel
+                response += "</%s>,"%rel
         return aiocoap.Message(payload=response[:-1].encode('utf8'), content_format=40)
 
     async def render_get_file(self, request, path):
