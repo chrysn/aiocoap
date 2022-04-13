@@ -17,6 +17,7 @@ import logging
 from stat import S_ISREG, S_ISDIR
 import mimetypes
 import tempfile
+import hashlib
 
 import aiocoap
 import aiocoap.error as error
@@ -99,6 +100,12 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         # Only GETs to non-directory access handle it explicitly
         return False
 
+    @staticmethod
+    def hash_stat(stat):
+        # The subset that the author expects to (possibly) change if the file changes
+        data = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+        return hashlib.sha256(repr(data).encode('ascii')).digest()[:8]
+
     async def render_get(self, request):
         if request.opt.uri_path == ('.well-known', 'core'):
             return aiocoap.Message(
@@ -112,10 +119,18 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         except FileNotFoundError:
             raise NoSuchFile()
 
-        if S_ISDIR(st.st_mode):
-            return await self.render_get_dir(request, path)
-        elif S_ISREG(st.st_mode):
-            return await self.render_get_file(request, path)
+        etag = self.hash_stat(st)
+
+        if etag in request.opt.etags:
+            response = aiocoap.Message(code=codes.VALID)
+        else:
+            if S_ISDIR(st.st_mode):
+                response = await self.render_get_dir(request, path)
+            elif S_ISREG(st.st_mode):
+                response = await self.render_get_file(request, path)
+
+        response.opt.etag = etag
+        return response
 
     async def render_put(self, request):
         if not self.write:
