@@ -59,7 +59,9 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
     # As we can't possibly register all files in here, we're just registering a
     # single link to the index.
     def get_resources_as_linkheader(self):
-        return '</>;ct=40'
+        # Resource type indicates draft-amsuess-core-coap-kitchensink-00 file
+        # service, might use registered name later
+        return '</>;ct=40;rt="tag:chrysn@fsfe.org,2022:fileserver"'
 
     async def check_files_for_refreshes(self):
         while True:
