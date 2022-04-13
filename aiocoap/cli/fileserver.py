@@ -146,13 +146,13 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         guessed_type, _ = mimetypes.guess_type(str(path))
 
         block_out = aiocoap.optiontypes.BlockOption.BlockwiseTuple(block_in.block_number, len(data) > block_in.size, block_in.size_exponent)
-        try:
-            content_format = aiocoap.numbers.ContentFormat.by_media_type(guessed_type)
-        except KeyError:
-            if guessed_type and guessed_type.startswith('text/'):
-                content_format = aiocoap.numbers.ContentFormat.TEXT
-            else:
-                content_format = aiocoap.numbers.ContentFormat.OCTETSTREAM
+        content_format = None
+        if guessed_type is not None:
+            try:
+                content_format = aiocoap.numbers.ContentFormat.by_media_type(guessed_type)
+            except KeyError:
+                if guessed_type and guessed_type.startswith('text/'):
+                    content_format = aiocoap.numbers.ContentFormat.TEXT
         return aiocoap.Message(
                 payload=data[:block_in.size],
                 block2=block_out,
