@@ -16,6 +16,7 @@ from pathlib import Path
 import logging
 from stat import S_ISREG, S_ISDIR
 import mimetypes
+import tempfile
 
 import aiocoap
 import aiocoap.error as error
@@ -44,10 +45,11 @@ class NoSuchFile(error.NotFound): # just for the better error msg
 class FileServer(Resource, aiocoap.interfaces.ObservableResource):
     # Resource is only used to give the nice render_xxx methods
 
-    def __init__(self, root, log):
+    def __init__(self, root, log, *, write=False):
         super().__init__()
         self.root = root
         self.log = log
+        self.write = write
 
         self._observations = {} # path -> [last_stat, [callbacks]]
 
@@ -87,8 +89,12 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         return self.root / "/".join(path)
 
     async def needs_blockwise_assembly(self, request):
-        # Yes for directory listings, no for everything else
-        return not request.opt.uri_path or request.opt.uri_path[-1] == ''
+        if request.code != codes.GET:
+            return True
+        if not request.opt.uri_path or request.opt.uri_path[-1] == '':
+            return True
+        # Only GETs to non-directory access handle it explicitly
+        return False
 
     async def render_get(self, request):
         if request.opt.uri_path == ('.well-known', 'core'):
@@ -107,6 +113,55 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
             return await self.render_get_dir(request, path)
         elif S_ISREG(st.st_mode):
             return await self.render_get_file(request, path)
+
+    async def render_put(self, request):
+        if not self.write:
+            return aiocoap.Message(code=codes.FORBIDDEN)
+
+        if not request.opt.uri_path or not request.opt.uri_path[-1]:
+            # Attempting to write to a directory
+            return aiocoap.Message(code=codes.BAD_REQUEST)
+
+        # TBD: Handle If-Match, If-None-Match ... and all critical options
+
+        path = self.request_to_localpath(request)
+        # Is there a way to get both "Use umask for file creation (or the
+        # existing file's permissions)" logic *and* atomic file creation on
+        # portable UNIX? If not, all we could do would be emulate the logic of
+        # just opening the file (by interpreting umask and the existing file's
+        # permissions), and that fails horrobly if there are ACLs in place that
+        # bites rsync in https://bugzilla.samba.org/show_bug.cgi?id=9377.
+        #
+        # If there is not, secure temporary file creation is as good as
+        # anything else.
+        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as spool:
+            spool.write(request.payload)
+            temppath = Path(spool.name)
+        try:
+            temppath.rename(path)
+        except Exception:
+            temppath.unlink()
+            raise
+
+        return aiocoap.Message(code=codes.CHANGED)
+
+    async def render_delete(self, request):
+        if not self.write:
+            return aiocoap.Message(code=codes.FORBIDDEN)
+
+        if not request.opt.uri_path or not request.opt.uri_path[-1]:
+            # Deleting directories is not supported as they can't be created
+            return aiocoap.Message(code=codes.BAD_REQUEST)
+
+        # TBD as with PUT
+
+        path = self.request_to_localpath(request)
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            raise NoSuchFile()
+
+        return aiocoap.Message(code=codes.DELETED)
 
     async def render_get_dir(self, request, path):
         if request.opt.uri_path and request.opt.uri_path[-1] != '':
@@ -190,6 +245,7 @@ class FileServerProgram(AsyncCLIDaemon):
         p = argparse.ArgumentParser(description=__doc__)
         p.add_argument("-v", "--verbose", help="Be more verbose (repeat to debug)", action='count', dest="verbosity", default=0)
         p.add_argument("--register", help="Register with a Resource directory", metavar='RD-URI', nargs='?', default=False)
+        p.add_argument("--write", help="Allow writes by any user", action='store_true')
         p.add_argument("path", help="Root directory of the server", nargs="?", default=".", type=Path)
 
         add_server_arguments(p)
@@ -197,7 +253,7 @@ class FileServerProgram(AsyncCLIDaemon):
         return p
 
     async def start_with_options(self, path, verbosity=0, register=False,
-            server_opts=None):
+            server_opts=None, write=False):
         log = logging.getLogger('fileserver')
         coaplog = logging.getLogger('coap-server')
 
@@ -210,7 +266,7 @@ class FileServerProgram(AsyncCLIDaemon):
             log.setLevel(logging.DEBUG)
             coaplog.setLevel(logging.DEBUG)
 
-        server = FileServer(path, log)
+        server = FileServer(path, log, write=write)
         if server_opts is None:
             self.context = await aiocoap.Context.create_server_context(server)
         else:
