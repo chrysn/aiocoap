@@ -8,7 +8,33 @@
 
 """A simple file server that serves the contents of a given directory in a
 read-only fashion via CoAP. It provides directory listings, and guesses the
-media type of files it serves."""
+media type of files it serves.
+
+It follows the conventions set out for the [kitchen-sink fileserver],
+optionally with write support, with some caveats:
+
+* There are some time-of-check / time-of-use race conditions around the
+  handling of ETags, which could probably only be resolved if heavy file system
+  locking were used. Some of these races are a consequence of this server
+  implementing atomic writes through renames.
+
+  As long as no other processes access the working area, and aiocoap is run
+  single threaded, the races should not be visible to CoAP users.
+
+* ETags are constructed based on information in the file's (or directory's)
+  `stat` output -- this avoids reaing the whole file on overwrites etc.
+
+  This means that forcing the MTime to stay constant across a change would
+  confuse clients.
+
+* While GET requests on files are served block by block (reading only what is
+  being requested), PUT operations are spooled in memory rather than on the
+  file system.
+
+* Directory creation and deletion is not supported at the moment.
+
+[kitchen-sink fileserver]: https://www.ietf.org/archive/id/draft-amsuess-core-coap-kitchensink-00.html#name-coap
+"""
 
 import argparse
 import asyncio
