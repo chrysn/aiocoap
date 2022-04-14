@@ -207,7 +207,10 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
             temppath.unlink()
             raise
 
-        return aiocoap.Message(code=codes.CHANGED)
+        st = path.stat()
+        etag = self.hash_stat(st)
+
+        return aiocoap.Message(code=codes.CHANGED, etag=etag)
 
     async def render_delete(self, request):
         if not self.write:

@@ -107,7 +107,9 @@ async def work_fileserver(ctx, base_uri, assert_):
     req = Message(code=PUT, uri=base_uri + "file", payload=file1_body)
     res = await ctx.request(req).response_raising
     assert_(res.code == CHANGED)
-    # TBD: Could send an ETag rgiht away
+    early_etag = res.opt.etag
+    assert_(early_etag is not None, "PUT did not already send an ETag")
+
     # TBD: Could persist a content format
 
     req = Message(code=GET, uri=base_uri + "file")
@@ -115,6 +117,7 @@ async def work_fileserver(ctx, base_uri, assert_):
     assert_(res.code == CONTENT)
     assert_(res.payload == file1_body)
     etag1 = res.opt.etag
+    assert_(etag1 == early_etag, "PUT response ETag is not GET response ETag")
     assert_(etag1 is not None, "No ETag returned")
 
     # Revalidate
