@@ -10,6 +10,7 @@
 
 import sys
 import os
+import asyncio
 
 import aiocoap.defaults
 
@@ -92,6 +93,35 @@ using_simple6 = 'simple6' in list(aiocoap.defaults.get_default_clienttransports(
 tcp_disabled = 'tcp' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'tcp is default')
 ws_disabled = 'ws' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'ws is default')
 dtls_disabled = 'dtls' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'dtls is default')
+
+class CapturingSubprocess(asyncio.SubprocessProtocol):
+    """This protocol just captures stdout and stderr into properties of the
+    same name.
+
+    Unlike using communicate() on a create_subprocess_exec product, this does
+    not discard any output that was collected when the task is cancelled, and
+    thus allows cleanup.
+
+    No way of passing data into the process is implemented, as it is not needed
+    here."""
+
+    def __init__(self):
+        self.stdout = b""
+        self.stderr = b""
+        self.read_more = asyncio.get_running_loop().create_future()
+
+    def pipe_data_received(self, fd, data):
+        self.read_more.set_result(None)
+        self.read_more = asyncio.get_running_loop().create_future()
+        if fd == 1:
+            self.stdout += data
+        elif fd == 2:
+            self.stderr += data
+        else:
+            raise ValueError("Data on unexpected fileno")
+
+    def process_exited(self):
+        self.read_more.set_result(None)
 
 if __name__ == "__main__":
     print("Python prefix:", PYTHON_PREFIX)

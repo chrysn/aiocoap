@@ -8,7 +8,33 @@
 
 """A simple file server that serves the contents of a given directory in a
 read-only fashion via CoAP. It provides directory listings, and guesses the
-media type of files it serves."""
+media type of files it serves.
+
+It follows the conventions set out for the [kitchen-sink fileserver],
+optionally with write support, with some caveats:
+
+* There are some time-of-check / time-of-use race conditions around the
+  handling of ETags, which could probably only be resolved if heavy file system
+  locking were used. Some of these races are a consequence of this server
+  implementing atomic writes through renames.
+
+  As long as no other processes access the working area, and aiocoap is run
+  single threaded, the races should not be visible to CoAP users.
+
+* ETags are constructed based on information in the file's (or directory's)
+  `stat` output -- this avoids reaing the whole file on overwrites etc.
+
+  This means that forcing the MTime to stay constant across a change would
+  confuse clients.
+
+* While GET requests on files are served block by block (reading only what is
+  being requested), PUT operations are spooled in memory rather than on the
+  file system.
+
+* Directory creation and deletion is not supported at the moment.
+
+[kitchen-sink fileserver]: https://www.ietf.org/archive/id/draft-amsuess-core-coap-kitchensink-00.html#name-coap
+"""
 
 import argparse
 import asyncio
@@ -16,6 +42,8 @@ from pathlib import Path
 import logging
 from stat import S_ISREG, S_ISDIR
 import mimetypes
+import tempfile
+import hashlib
 
 import aiocoap
 import aiocoap.error as error
@@ -41,13 +69,17 @@ class AbundantTrailingSlashError(error.ConstructionRenderableError):
 class NoSuchFile(error.NotFound): # just for the better error msg
     message = "Error: File not found!"
 
+class PreconditionFailed(error.ConstructionRenderableError):
+    code = codes.PRECONDITION_FAILED
+
 class FileServer(Resource, aiocoap.interfaces.ObservableResource):
     # Resource is only used to give the nice render_xxx methods
 
-    def __init__(self, root, log):
+    def __init__(self, root, log, *, write=False):
         super().__init__()
         self.root = root
         self.log = log
+        self.write = write
 
         self._observations = {} # path -> [last_stat, [callbacks]]
 
@@ -57,7 +89,9 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
     # As we can't possibly register all files in here, we're just registering a
     # single link to the index.
     def get_resources_as_linkheader(self):
-        return '</>;ct=40'
+        # Resource type indicates draft-amsuess-core-coap-kitchensink-00 file
+        # service, might use registered name later
+        return '</>;ct=40;rt="tag:chrysn@fsfe.org,2022:fileserver"'
 
     async def check_files_for_refreshes(self):
         while True:
@@ -87,8 +121,19 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         return self.root / "/".join(path)
 
     async def needs_blockwise_assembly(self, request):
-        # Yes for directory listings, no for everything else
-        return not request.opt.uri_path or request.opt.uri_path[-1] == ''
+        if request.code != codes.GET:
+            return True
+        if not request.opt.uri_path or request.opt.uri_path[-1] == '' or \
+                request.opt.uri_path == ('.well-known', 'core'):
+            return True
+        # Only GETs to non-directory access handle it explicitly
+        return False
+
+    @staticmethod
+    def hash_stat(stat):
+        # The subset that the author expects to (possibly) change if the file changes
+        data = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+        return hashlib.sha256(repr(data).encode('ascii')).digest()[:8]
 
     async def render_get(self, request):
         if request.opt.uri_path == ('.well-known', 'core'):
@@ -103,10 +148,94 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         except FileNotFoundError:
             raise NoSuchFile()
 
-        if S_ISDIR(st.st_mode):
-            return await self.render_get_dir(request, path)
-        elif S_ISREG(st.st_mode):
-            return await self.render_get_file(request, path)
+        etag = self.hash_stat(st)
+
+        if etag in request.opt.etags:
+            response = aiocoap.Message(code=codes.VALID)
+        else:
+            if S_ISDIR(st.st_mode):
+                response = await self.render_get_dir(request, path)
+            elif S_ISREG(st.st_mode):
+                response = await self.render_get_file(request, path)
+
+        response.opt.etag = etag
+        return response
+
+    async def render_put(self, request):
+        if not self.write:
+            return aiocoap.Message(code=codes.FORBIDDEN)
+
+        if not request.opt.uri_path or not request.opt.uri_path[-1]:
+            # Attempting to write to a directory
+            return aiocoap.Message(code=codes.BAD_REQUEST)
+
+        path = self.request_to_localpath(request)
+
+        if request.opt.if_none_match:
+            # FIXME: This is locally a race condition; files could be created
+            # in the "x" mode, but then how would writes to them be made
+            # atomic?
+            if path.exists():
+                raise PreconditionFailed()
+
+        if request.opt.if_match and b"" not in request.opt.if_match:
+            # FIXME: This is locally a race condition; not sure how to prevent
+            # that.
+            try:
+                st = path.stat()
+            except FileNotFoundError:
+                # Absent file in particular doesn't have the expected ETag
+                raise PreconditionFailed()
+            if self.hash_stat(st) not in request.opt.if_match:
+                raise PreconditionFailed()
+
+        # Is there a way to get both "Use umask for file creation (or the
+        # existing file's permissions)" logic *and* atomic file creation on
+        # portable UNIX? If not, all we could do would be emulate the logic of
+        # just opening the file (by interpreting umask and the existing file's
+        # permissions), and that fails horrobly if there are ACLs in place that
+        # bites rsync in https://bugzilla.samba.org/show_bug.cgi?id=9377.
+        #
+        # If there is not, secure temporary file creation is as good as
+        # anything else.
+        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as spool:
+            spool.write(request.payload)
+            temppath = Path(spool.name)
+        try:
+            temppath.rename(path)
+        except Exception:
+            temppath.unlink()
+            raise
+
+        return aiocoap.Message(code=codes.CHANGED)
+
+    async def render_delete(self, request):
+        if not self.write:
+            return aiocoap.Message(code=codes.FORBIDDEN)
+
+        if not request.opt.uri_path or not request.opt.uri_path[-1]:
+            # Deleting directories is not supported as they can't be created
+            return aiocoap.Message(code=codes.BAD_REQUEST)
+
+        path = self.request_to_localpath(request)
+
+        if request.opt.if_match and b"" not in request.opt.if_match:
+            # FIXME: This is locally a race condition; not sure how to prevent
+            # that.
+            try:
+                st = path.stat()
+            except FileNotFoundError:
+                # Absent file in particular doesn't have the expected ETag
+                raise NoSuchFile()
+            if self.hash_stat(st) not in request.opt.if_match:
+                raise PreconditionFailed()
+
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            raise NoSuchFile()
+
+        return aiocoap.Message(code=codes.DELETED)
 
     async def render_get_dir(self, request, path):
         if request.opt.uri_path and request.opt.uri_path[-1] != '':
@@ -116,11 +245,11 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
 
         response = ""
         for f in path.iterdir():
-            rel = f.relative_to(path)
+            rel = f.relative_to(self.root)
             if f.is_dir():
-                response += "<%s/>;ct=40,"%rel
+                response += "</%s/>;ct=40,"%rel
             else:
-                response += "<%s>,"%rel
+                response += "</%s>,"%rel
         return aiocoap.Message(payload=response[:-1].encode('utf8'), content_format=40)
 
     async def render_get_file(self, request, path):
@@ -146,13 +275,13 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         guessed_type, _ = mimetypes.guess_type(str(path))
 
         block_out = aiocoap.optiontypes.BlockOption.BlockwiseTuple(block_in.block_number, len(data) > block_in.size, block_in.size_exponent)
-        try:
-            content_format = aiocoap.numbers.ContentFormat.by_media_type(guessed_type)
-        except KeyError:
-            if guessed_type and guessed_type.startswith('text/'):
-                content_format = aiocoap.numbers.ContentFormat.TEXT
-            else:
-                content_format = aiocoap.numbers.ContentFormat.OCTETSTREAM
+        content_format = None
+        if guessed_type is not None:
+            try:
+                content_format = aiocoap.numbers.ContentFormat.by_media_type(guessed_type)
+            except KeyError:
+                if guessed_type and guessed_type.startswith('text/'):
+                    content_format = aiocoap.numbers.ContentFormat.TEXT
         return aiocoap.Message(
                 payload=data[:block_in.size],
                 block2=block_out,
@@ -190,6 +319,7 @@ class FileServerProgram(AsyncCLIDaemon):
         p = argparse.ArgumentParser(description=__doc__)
         p.add_argument("-v", "--verbose", help="Be more verbose (repeat to debug)", action='count', dest="verbosity", default=0)
         p.add_argument("--register", help="Register with a Resource directory", metavar='RD-URI', nargs='?', default=False)
+        p.add_argument("--write", help="Allow writes by any user", action='store_true')
         p.add_argument("path", help="Root directory of the server", nargs="?", default=".", type=Path)
 
         add_server_arguments(p)
@@ -197,7 +327,7 @@ class FileServerProgram(AsyncCLIDaemon):
         return p
 
     async def start_with_options(self, path, verbosity=0, register=False,
-            server_opts=None):
+            server_opts=None, write=False):
         log = logging.getLogger('fileserver')
         coaplog = logging.getLogger('coap-server')
 
@@ -210,7 +340,7 @@ class FileServerProgram(AsyncCLIDaemon):
             log.setLevel(logging.DEBUG)
             coaplog.setLevel(logging.DEBUG)
 
-        server = FileServer(path, log)
+        server = FileServer(path, log, write=write)
         if server_opts is None:
             self.context = await aiocoap.Context.create_server_context(server)
         else:
