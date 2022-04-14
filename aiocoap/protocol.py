@@ -309,6 +309,9 @@ class Context(interfaces.RequestProvider):
         if not multicast_done:
             self.log.warning("Multicast was requested, but no multicast capable transport was selected.")
 
+        # This is used in tests to wait for externally launched servers to be ready
+        self.log.debug("Server ready to receive requests")
+
         return self
 
     async def shutdown(self):

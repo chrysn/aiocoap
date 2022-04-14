@@ -23,39 +23,10 @@ from .test_server import WithAsyncLoop, WithClient, asynctest
 from . import common
 from .fixtures import is_test_successful
 
-from .common import PYTHON_PREFIX
+from .common import PYTHON_PREFIX, CapturingSubprocess
 SERVER_ADDRESS = '::1'
 SERVER = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-server', '--verbose', '--bind', hostportjoin(SERVER_ADDRESS, None)]
 CLIENT = PYTHON_PREFIX + ['./contrib/oscore-plugtest/plugtest-client', '--verbose']
-
-class CapturingSubprocess(asyncio.SubprocessProtocol):
-    """This protocol just captures stdout and stderr into properties of the
-    same name.
-
-    Unlike using communicate() on a create_subprocess_exec product, this does
-    not discard any output that was collected when the task is cancelled, and
-    thus allows cleanup.
-
-    No way of passing data into the process is implemented, as it is not needed
-    here."""
-
-    def __init__(self):
-        self.stdout = b""
-        self.stderr = b""
-        self.read_more = asyncio.get_running_loop().create_future()
-
-    def pipe_data_received(self, fd, data):
-        self.read_more.set_result(None)
-        self.read_more = asyncio.get_running_loop().create_future()
-        if fd == 1:
-            self.stdout += data
-        elif fd == 2:
-            self.stderr += data
-        else:
-            raise ValueError("Data on unexpected fileno")
-
-    def process_exited(self):
-        self.read_more.set_result(None)
 
 # those are to be expected to contain bad words -- 'Check passed: X failed' is legitimate
 output_whitelist = ['Check passed: ']
