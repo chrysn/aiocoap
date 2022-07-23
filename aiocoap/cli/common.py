@@ -63,6 +63,10 @@ def add_server_arguments(parser):
         """Wrapper around hostportsplit that gives better error messages than
         'invalid hostportsplit value'"""
 
+        if arg.isnumeric():
+            raise parser.error("Invalid argument to --bind."
+                    f" Did you mean --bind :{arg}?")
+
         try:
             return hostportsplit(arg)
         except ValueError:
