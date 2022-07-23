@@ -39,7 +39,7 @@ from aiocoap.util.cli import AsyncCLIDaemon
 import aiocoap.util.uri
 from aiocoap import error
 from aiocoap.cli.common import add_server_arguments, server_context_from_arguments
-from aiocoap.numbers import ContentFormat
+from aiocoap.numbers import codes, ContentFormat
 import aiocoap.proxy.server
 
 from aiocoap.util.linkformat import Link, LinkFormat, parse
@@ -48,6 +48,10 @@ from ..util.asyncio import py38args
 import link_header
 
 IMMUTABLE_PARAMETERS = ('ep', 'd', 'proxy')
+
+class NoActiveRegistration(error.ConstructionRenderableError):
+    code = codes.PROXYING_NOT_SUPPORTED
+    message = "no registration with that name"
 
 def query_split(msg):
     """Split a message's query up into (key, [*value]) pairs from a
@@ -651,8 +655,10 @@ class StandaloneResourceDirectory(Proxy, Site):
     def apply_redirection(self, request):
         # Fully overriding so we don't need to set an add_redirector
 
-        # infallible as the request only gets here if the proxy path is chosen
-        actual_remote = self.common_rd.proxy_active[request.opt.uri_host]
+        try:
+            actual_remote = self.common_rd.proxy_active[request.opt.uri_host]
+        except KeyError:
+            raise NoActiveRegistration
         request.remote = actual_remote
         request.opt.uri_host = None
         return request
@@ -663,8 +669,8 @@ class StandaloneResourceDirectory(Proxy, Site):
     async def render(self, request):
         # Full override switching which of the parents' behavior to choose
 
-        if request.opt.uri_host in self.common_rd.proxy_active:
-            # This is never the case if proxying is disabled.
+        if self.common_rd.proxy_domain is not None and \
+                request.opt.uri_host.endswith("." + self.common_rd.proxy_domain): # in self.common_rd.proxy_active:
             return await Proxy.render(self, request)
         else:
             return await Site.render(self, request)
