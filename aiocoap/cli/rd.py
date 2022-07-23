@@ -405,7 +405,7 @@ class RegistrationResource(Resource):
         self.reg = registration
 
     async def render_get(self, request):
-        return link_format_from_message(request, self.reg.links)
+        return link_format_to_message(request, self.reg.links)
 
     def _update_params(self, msg):
         query = query_split(msg)
