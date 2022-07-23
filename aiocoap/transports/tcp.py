@@ -291,8 +291,8 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         try:
             server = await loop.create_server(new_connection, bind[0], bind[1],
                     ssl=_server_context, reuse_port=defaults.has_reuse_port())
-        except socket.gaierror:
-            raise error.ResolutionError("No local bindable address found for %s" % bind[0])
+        except socket.gaierror as e:
+            raise error.ResolutionError("No local bindable address found for %s" % bind[0]) from e
         self.server = server
 
         return self
@@ -344,10 +344,10 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
                         is_server=False),
                     host, port,
                     ssl=self._ssl_context_factory(message.unresolved_remote))
-        except socket.gaierror:
-            raise error.ResolutionError("No address information found for requests to %r" % host)
-        except OSError:
-            raise error.NetworkError("Connection failed to %r" % host)
+        except socket.gaierror as e:
+            raise error.ResolutionError("No address information found for requests to %r" % host) from e
+        except OSError as e:
+            raise error.NetworkError("Connection failed to %r" % host) from e
 
         self._pool[(host, port)] = protocol
 
