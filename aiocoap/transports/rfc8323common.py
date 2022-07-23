@@ -56,14 +56,14 @@ class RFC8323Remote:
 
     @property
     def uri_base(self):
-        if self._is_server:
+        if self._local_is_server:
             raise error.AnonymousHost("Client side of %s can not be expressed as a URI" % self._ctx._scheme)
         else:
             return self._ctx._scheme + '://' + self.hostinfo
 
     @property
     def uri_base_local(self):
-        if self._is_server:
+        if self._local_is_server:
             return self._ctx._scheme + '://' + self.hostinfo_local
         else:
             raise error.AnonymousHost("Client side of %s can not be expressed as a URI" % self._ctx._scheme)

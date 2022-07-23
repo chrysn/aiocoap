@@ -118,7 +118,7 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
         self.loop = loop
         self.log = log
 
-        self._is_server = isinstance(connection, websockets.WebSocketServerProtocol)
+        self._local_is_server = isinstance(connection, websockets.WebSocketServerProtocol)
 
         if local_hostinfo is None:
             self._local_hostinfo = self._connection.local_address[:2]
