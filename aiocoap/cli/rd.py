@@ -91,8 +91,10 @@ class CommonRD:
 
     entity_prefix = ("reg",)
 
-    def __init__(self, proxy_domain=None):
+    def __init__(self, proxy_domain=None, log=None):
         super().__init__()
+
+        self.log = log or logging.getLogger('resource-directory')
 
         self._by_key = {} # key -> Registration
         self._by_path = {} # path -> Registration
@@ -390,7 +392,7 @@ class DirectoryResource(ThingWithCommonRD, Resource):
         if self.registration_warning:
             # Conveniently placed so it could be changed to something setting
             # additional registration_parameters instead
-            logging.warning("Warning from registration: %s", self.registration_warning)
+            self.common_rd.log.warning("Warning from registration: %s", self.registration_warning)
 
         regresource = self.common_rd.initialize_endpoint(request.remote, registration_parameters)
         regresource.links = links
@@ -606,7 +608,7 @@ class SimpleRegistration(ThingWithCommonRD, Resource):
         if self.registration_warning:
             # Conveniently placed so it could be changed to something setting
             # additional registration_parameters instead
-            logging.warning("Warning from registration: %s", self.registration_warning)
+            self.common_rd.warning("Warning from registration: %s", self.registration_warning)
         registration = self.common_rd.initialize_endpoint(network_remote, registration_parameters)
         registration.links = links
 
@@ -658,7 +660,9 @@ class StandaloneResourceDirectory(Proxy, Site):
         try:
             actual_remote = self.common_rd.proxy_active[request.opt.uri_host]
         except KeyError:
+            self.common_rd.log.info("Request to proxied host %r rejected: No such registration", request.opt.uri_host)
             raise NoActiveRegistration
+        self.common_rd.log.debug("Forwarding request to %r to remote %s", request.opt.uri_host, actual_remote)
         request.remote = actual_remote
         request.opt.uri_host = None
         return request
@@ -702,12 +706,24 @@ class Main(AsyncCLIDaemon):
         parser.add_argument("--proxy-domain", help="Enable the RD proxy extension. Example: `proxy.example.net` will produce base URIs like `coap://node1.proxy.example.net/`. The names must all resolve to an address the RD is bound to.", type=str)
         parser.add_argument("--lwm2m-compat", help="Compatibility mode for LwM2M clients that can not perform some discovery steps (moving the registration resource to `/rd`)", action='store_true', default=None)
         parser.add_argument("--no-lwm2m-compat", help="Disable all compativility with LwM2M clients that can not perform some discovery steps (not even accepting registrations at `/rd` with warnings)", action='store_false', dest='lwm2m_compat')
+        parser.add_argument("--verbose", help="Increase debug log output (repeat for increased verbosity)", action='count', default=0)
         options = parser.parse_args(args if args is not None else sys.argv[1:])
 
         # Putting in an empty site to construct the site with a context
         self.context = await server_context_from_arguments(None, options)
 
-        self.site = StandaloneResourceDirectory(context=self.context, proxy_domain=options.proxy_domain, lwm2m_compat=options.lwm2m_compat)
+        self.log = logging.getLogger('resource-directory')
+        if options.verbose >= 2:
+            self.log.setLevel(logging.DEBUG)
+        elif options.verbose == 1:
+            self.log.setLevel(logging.INFO)
+
+        self.site = StandaloneResourceDirectory(
+                context=self.context,
+                proxy_domain=options.proxy_domain,
+                lwm2m_compat=options.lwm2m_compat,
+                log=self.log,
+                )
         self.context.serversite = self.site
 
     async def shutdown(self):
