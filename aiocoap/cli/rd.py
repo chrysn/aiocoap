@@ -674,6 +674,7 @@ class StandaloneResourceDirectory(Proxy, Site):
         # Full override switching which of the parents' behavior to choose
 
         if self.common_rd.proxy_domain is not None and \
+                request.opt.uri_host is not None and \
                 request.opt.uri_host.endswith("." + self.common_rd.proxy_domain): # in self.common_rd.proxy_active:
             return await Proxy.render(self, request)
         else:
