@@ -357,7 +357,7 @@ def link_format_from_message(message):
     This expects an explicit media type set on the response (or was explicitly requested)
     """
     certain_format = message.opt.content_format
-    if certain_format is None:
+    if certain_format is None and hasattr(message, 'request'):
         certain_format = message.request.opt.accept
     try:
         if certain_format == ContentFormat.LINKFORMAT:
