@@ -608,7 +608,7 @@ class SimpleRegistration(ThingWithCommonRD, Resource):
         if self.registration_warning:
             # Conveniently placed so it could be changed to something setting
             # additional registration_parameters instead
-            self.common_rd.warning("Warning from registration: %s", self.registration_warning)
+            self.common_rd.log.warning("Warning from registration: %s", self.registration_warning)
         registration = self.common_rd.initialize_endpoint(network_remote, registration_parameters)
         registration.links = links
 
