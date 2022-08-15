@@ -22,6 +22,7 @@ messages:
 import asyncio
 import weakref
 import time
+from typing import Optional, List
 
 from . import defaults
 from .credentials import CredentialsMap
@@ -161,7 +162,7 @@ class Context(interfaces.RequestProvider):
 
     @classmethod
     @AwaitOrAenter.decorate
-    async def create_client_context(cls, *, loggername="coap", loop=None):
+    async def create_client_context(cls, *, loggername="coap", loop=None, transports: Optional[List[str]] = None):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get a context suitable for sending client
@@ -178,8 +179,10 @@ class Context(interfaces.RequestProvider):
 
         self = cls(loop=loop, serversite=None, loggername=loggername)
 
+        selected_transports = transports or defaults.get_default_clienttransports(loop=loop)
+
         # FIXME make defaults overridable (postponed until they become configurable too)
-        for transportname in defaults.get_default_clienttransports(loop=loop):
+        for transportname in selected_transports:
             if transportname == 'udp6':
                 from .transports.udp6 import MessageInterfaceUDP6
                 await self._append_tokenmanaged_messagemanaged_transport(
@@ -216,7 +219,7 @@ class Context(interfaces.RequestProvider):
 
     @classmethod
     @AwaitOrAenter.decorate
-    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicast=[], server_credentials=None):
+    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicast=[], server_credentials=None, transports: Optional[List[str]] = None):
         """Create a context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -250,7 +253,9 @@ class Context(interfaces.RequestProvider):
 
         multicast_done = not multicast
 
-        for transportname in defaults.get_default_servertransports(loop=loop):
+        selected_transports = transports or defaults.get_default_servertransports(loop=loop)
+
+        for transportname in selected_transports:
             if transportname == 'udp6':
                 from .transports.udp6 import MessageInterfaceUDP6
 

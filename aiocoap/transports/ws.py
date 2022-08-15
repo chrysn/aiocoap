@@ -191,7 +191,7 @@ class WSPool(interfaces.TokenInterface):
             host, port = server_bind
             if port is None:
                 port = 8683
-            else:
+            elif port != 0:
                 # FIXME see module documentation
                 port = port + 3000
 
