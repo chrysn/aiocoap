@@ -131,6 +131,11 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
 
         self.scheme = scheme
 
+        # Goes both for client and for server ends; on the server end, it
+        # ensures that role reversal URIs can be used even when passed as URIs
+        # and not as remotes (although that's of course only possible locally).
+        self._poolkey = PoolKey(self.scheme, self.hostinfo)
+
     # Necessary for RFC8323Remote
 
     def _abort_with(self, msg, *, close_code=1002):
@@ -236,6 +241,7 @@ class WSPool(interfaces.TokenInterface):
         local_hostinfo = util.hostportsplit(hostheader)
 
         remote = WSRemote(self, websocket, self.loop, self.log, scheme=scheme, local_hostinfo=local_hostinfo)
+        self._pool[remote._poolkey] = remote
 
         await self._run_recv_loop(remote)
 
@@ -272,7 +278,8 @@ class WSPool(interfaces.TokenInterface):
                 )
 
             remote = WSRemote(self, websocket, self.loop, self.log, scheme=key.scheme, remote_hostinfo=hostinfo_split)
-            self._pool[remote] = remote
+            assert remote._poolkey == key, "Pool key construction is inconsistent"
+            self._pool[key] = remote
 
             self.loop.create_task(
                     self._run_recv_loop(remote),
