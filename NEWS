@@ -1,3 +1,81 @@
+Version next
+------------
+
+New features
+~~~~~~~~~~~~
+
+* Non-traditional responses are now experimentally supported by implementing
+  `.render_to_pipe()` on a resource.
+
+* Content-Format / Accept option now use a dedicated ContentFormat type.
+
+  Applications should be unaffected as the type is still derived from int.
+
+Protocol changes
+~~~~~~~~~~~~~~~~
+
+* The default cut-off for block-wise fragmentation was increased from 1024 to
+  1124 bytes. This allows OSCORE to use the full inner block-wise size without
+  inadvertently causing outer fragmentation, while still fitting within the
+  IPv6 minimum MTU.
+
+Deprecations
+~~~~~~~~~~~~
+
+* Building custom resources by inheriting from `interfaces.Resource` /
+  `interfaces.ObservableResource` and implementing `.render()` etc. is
+  deprecated. Instead, inherit from `resource.Resource` (recommended), or
+  implement `.render_to_pipe()` (eg. when implementing a proxy).
+
+* numbers.media_type and media_type_rev: Use the ContentFormat type's
+  constructor and accessors instead.
+
+Tools
+~~~~~
+
+* aiocoap-client now assembles and displays the Location-* options of
+  responses.
+
+* aiocoap-fileserver now has optiojnal write support, and ETag and If-* option
+  handling.
+
+* aiocoap-rd now has dedicated logging independent of aiocoap's.
+
+* Various small fixes to aiocoap-rd.
+
+* Help and error texts were improved.
+
+Minor enhancements
+~~~~~~~~~~~~~~~~~~
+
+* Documentation now uses `await` idiom, as it is available even inside the
+  asyncio REPL.
+
+* Type annotations are now used more widely.
+
+* Library shutdown works more cleanly by not relying on the presence of the
+  async loop.
+
+* Tasks created by the library are now named for easier debugging.
+
+* OSCORE contexts now only access the disk when necessary.
+
+* OSCORE now supports inner block-wise transfer and observations.
+
+* Bugs fixed around handling of IP literals in proxies.
+
+* WebSocket servers can now pick an ephemeral port (when binding to port 0).
+
+Internal refactoring
+~~~~~~~~~~~~~~~~~~~~
+
+* Pipes (channels for asynchronously producing resposnes, previously called
+  PlumbingResponse) are now used also for resource rendering. Block-wise and
+  observation handling could thus be moved away from the core protocol and into
+  the resource implementations.
+
+* Exception chaining was started to be reworked into explicit re-raises.
+
 Version 0.4.3
 -------------
 
