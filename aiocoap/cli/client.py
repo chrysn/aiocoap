@@ -178,7 +178,7 @@ def present(message, options, file=sys.stdout):
             if file.isatty() and payload[-1] != '\n':
                 file.write("\n")
 
-async def single_request(args, context=None):
+async def single_request(args, context):
     parser = build_parser()
     options = parser.parse_args(args)
 
@@ -202,9 +202,6 @@ async def single_request(args, context=None):
             code = aiocoap.numbers.codes.Code(int(options.method))
         except ValueError:
             raise parser.error("Unknown method")
-
-    if context is None:
-        context = await aiocoap.Context.create_client_context()
 
     if options.credentials is not None:
         apply_credentials(context, options.credentials, parser.error)
@@ -335,6 +332,15 @@ async def single_request(args, context=None):
         if options.observe and not requester.observation.cancelled:
             requester.observation.cancel()
 
+async def single_request_with_context(args):
+    """Wrapper around single_request until sync_main gets made fully async, and
+    async context managers are used to manage contexts."""
+    context = await aiocoap.Context.create_client_context()
+    try:
+        await single_request(args, context)
+    finally:
+        await context.shutdown()
+
 interactive_expecting_keyboard_interrupt = None
 
 async def interactive():
@@ -355,7 +361,7 @@ async def interactive():
         if line in (["help"], ["?"]):
             line = ["--help"]
         if line in (["quit"], ["q"], ["exit"]):
-            return
+            break
 
         current_task = asyncio.create_task(
                 single_request(line, context=context),
@@ -377,6 +383,8 @@ async def interactive():
             except Exception as e:
                 print("Unhandled exception raised: %s"%(e,))
 
+    await context.shutdown()
+
 def sync_main(args=None):
     # interactive mode is a little messy, that's why this is not using aiocoap.util.cli yet
     if args is None:
@@ -384,7 +392,7 @@ def sync_main(args=None):
 
     if '--interactive' not in args:
         try:
-            asyncio.run(single_request(args))
+            asyncio.run(single_request_with_context(args))
         except KeyboardInterrupt:
             sys.exit(3)
     else:
