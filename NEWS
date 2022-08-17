@@ -48,6 +48,9 @@ Minor enhancements
   inadvertently causing outer fragmentation, while still fitting within the
   IPv6 minimum MTU.
 
+* Connection shutdown for TCP and WebSockets has been implemented, they now
+  send Release messages and wait for the peer to close the connection.
+
 * Type annotations are now used more widely.
 
 * Library shutdown works more cleanly by not relying on the presence of the
