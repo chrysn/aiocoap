@@ -37,7 +37,6 @@ import json
 from pathlib import Path
 
 from ..util import hostportsplit
-from ..util.asyncio.coro_or_contextmanager import AwaitOrAenter
 from ..protocol import Context
 from ..credentials import CredentialsMap
 
@@ -104,7 +103,6 @@ def extract_server_arguments(namespace):
 
     return server_arguments
 
-@AwaitOrAenter.decorate
 async def server_context_from_arguments(site, namespace, **kwargs):
     """Create a bound context like
     :meth:`.aiocoap.Context.create_server_context`, but take the bind and TLS

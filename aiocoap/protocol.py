@@ -34,7 +34,6 @@ from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
         CONTINUE, OBSERVATION_RESET_TIME)
-from .util.asyncio.coro_or_contextmanager import AwaitOrAenter
 from .util.asyncio import py38args
 
 import warnings
@@ -79,12 +78,6 @@ class Context(interfaces.RequestProvider):
         :meth:`.shutdown()`, but typical applications will not need to because
         they use the context for the full process lifetime.
 
-        The context creation functions also work as `asynchronous context
-        managers`__, shutting down the (aiocoap) context when the (Python) context
-        ends.
-
-        .. __: https://docs.python.org/3/reference/datamodel.html#async-context-managers
-
     .. automethod:: create_client_context
     .. automethod:: create_server_context
 
@@ -125,20 +118,6 @@ class Context(interfaces.RequestProvider):
         self.server_credentials = server_credentials or CredentialsMap()
 
     #
-    # Asynchronous context manager
-    #
-
-    async def __aenter__(self):
-        # Note that this is usually not called that way; the more common idiom
-        # is `async with Context.create_client_context()` which returns a
-        # future that also has an __aenter__ method.
-
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self.shutdown()
-
-    #
     # convenience methods for class instanciation
     #
 
@@ -161,17 +140,11 @@ class Context(interfaces.RequestProvider):
         self.request_interfaces.append(tman)
 
     @classmethod
-    @AwaitOrAenter.decorate
     async def create_client_context(cls, *, loggername="coap", loop=None, transports: Optional[List[str]] = None):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get a context suitable for sending client
         requests.
-
-        Note that while this looks in the documentation like a function rather
-        than an asynchronous function, it does return an awaitable; the way it
-        is set up allows using the result as an asynchronous context manager as
-        well.
         """
 
         if loop is None:
@@ -218,7 +191,6 @@ class Context(interfaces.RequestProvider):
         return self
 
     @classmethod
-    @AwaitOrAenter.decorate
     async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicast=[], server_credentials=None, transports: Optional[List[str]] = None):
         """Create a context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
