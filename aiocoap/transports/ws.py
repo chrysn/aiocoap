@@ -169,6 +169,16 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
                 **py38args(name="WebSocket sending of %r" % msg)
                 )
 
+    async def release(self):
+        await super().release()
+        try:
+            await self._connection.wait_closed()
+        except asyncio.CancelledError:
+            self.log.warning(
+                    "Connection %s was not closed by peer in time after release",
+                    self
+                    )
+
 class WSPool(interfaces.TokenInterface):
     _outgoing_starting: Dict[PoolKey, asyncio.Task]
     _pool: Dict[PoolKey, WSRemote]
@@ -182,6 +192,9 @@ class WSPool(interfaces.TokenInterface):
         self._outgoing_starting = {}
 
         self._servers = []
+
+        # See where it is used for documentation, remove when not needed any more
+        self._in_shutdown = False
 
         self._tokenmanager = tman
         self.log = log
@@ -332,8 +345,18 @@ class WSPool(interfaces.TokenInterface):
         message.remote._send_message(message)
 
     async def shutdown(self):
+        self._in_shutdown = True
+        self.log.debug("Shutting down any connections on %r", self)
+
+        client_shutdowns = [
+            asyncio.create_task(
+                c.release(),
+                **py38args(name="Close connection %s" % c)
+            )
+            for c in self._pool.values()]
+
+        server_shutdowns = []
         while self._servers:
-            # could be parallelized, but what are the chances there'll actually be multiple
             s = self._servers.pop()
             # We could do something like
             # >>> for websocket in s.websockets:
@@ -343,9 +366,18 @@ class WSPool(interfaces.TokenInterface):
             # tests actually do run a GC collection once and that gets broken
             # up, it's not worth adding fragilty here
             s.close()
-            await s.wait_closed()
+            server_shutdowns.append(asyncio.create_task(
+                s.wait_closed(),
+                **py38args(name="Close server %s" % s)))
 
-        # FIXME any handling needed for outgoing connections?
+        # Placing client shutdowns before server shutdowns to give them a
+        # chance to send out Abort messages; the .close() method could be more
+        # helpful here by stopping new connections but letting us finish off
+        # the old ones
+        shutdowns = client_shutdowns + server_shutdowns
+        if shutdowns:
+            # wait is documented to require a non-empty set
+            await asyncio.wait(shutdowns)
 
     # Incoming message processing
 
@@ -356,8 +388,16 @@ class WSPool(interfaces.TokenInterface):
             try:
                 received = await remote._connection.recv()
             except websockets.exceptions.ConnectionClosed:
-                # FIXME if deposited somewhere, mark that as stale?
-                self._tokenmanager.dispatch_error(error.RemoteServerShutdown(), remote)
+                # This check is purely needed to silence the warning printed
+                # from tokenmanager, "Internal shutdown sequence msismatch:
+                # error dispatched through tokenmanager after shutdown" -- and
+                # is a symptom of https://github.com/chrysn/aiocoap/issues/284
+                # and of the odd circumstance that we can't easily cancel the
+                # _run_recv_loop tasks (as we should while that issue is
+                # unresolved) in the shutdown handler.
+                if not self._in_shutdown:
+                    # FIXME if deposited somewhere, mark that as stale?
+                    self._tokenmanager.dispatch_error(error.RemoteServerShutdown("Peer closed connection"), remote)
                 return
 
             if not isinstance(received, bytes):
@@ -375,7 +415,9 @@ class WSPool(interfaces.TokenInterface):
             if msg.code.is_signalling():
                 try:
                     remote._process_signaling(msg)
-                except rfc8323common.CloseConnection:
+                except rfc8323common.CloseConnection as e:
+                    self._tokenmanager.dispatch_error(e.args[0], msg.remote)
+                    self._pool.pop(remote._poolkey)
                     await remote._connection.close()
                 continue
 
