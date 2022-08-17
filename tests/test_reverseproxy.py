@@ -29,12 +29,6 @@ class WithReverseProxy(WithAsyncLoop, Destructing):
         super(WithReverseProxy, self).tearDown()
         self.loop.run_until_complete(self.reverseproxy.shutdown())
 
-        # creating a reference loop between the cli instance and its contexts,
-        # so that the cli instance's gc-ing is linked o the contexts'.
-        # TODO how can we handle this more smoothly?
-        self.reverseproxy.outgoing_context._cli = self.reverseproxy
-        self.reverseproxy.proxy_context._cli = self.reverseproxy
-
         self._del_to_be_sure('reverseproxy')
 
         self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
