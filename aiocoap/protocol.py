@@ -33,7 +33,7 @@ from .pipe import Pipe, run_driving_pipe, error_to_message
 from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
-        CONTINUE, OBSERVATION_RESET_TIME)
+        CONTINUE, OBSERVATION_RESET_TIME, SHUTDOWN_TIMEOUT)
 from .util.asyncio import py38args
 
 import warnings
@@ -297,8 +297,11 @@ class Context(interfaces.RequestProvider):
         After this coroutine terminates, and once all external references to
         the object are dropped, it should be garbage-collectable.
 
-        This method may take the time to inform communications partners of
-        stopped observations (but currently does not)."""
+        This method takes up to
+        :const:`aiocoap.numbers.constants.SHUTDOWN_TIMEOUT` seconds, allowing
+        transports to perform any cleanup implemented in them (such as orderly
+        connection shutdown and cancelling observations, where the latter is
+        currently not implemented)."""
 
         self.log.debug("Shutting down context")
 
@@ -309,7 +312,7 @@ class Context(interfaces.RequestProvider):
                     )
                 for ri
                 in self.request_interfaces],
-            timeout=3)
+            timeout=SHUTDOWN_TIMEOUT)
         for item in done:
             await item
 
