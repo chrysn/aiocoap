@@ -79,7 +79,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # Not entirely sure where it is so far; better just raise a warning
             # than an exception later, nothing terminally bad should come of
             # this error.
-            self.log.warning("Internal shutdown sequence msismatch: error dispatched through tokenmanager after shutown")
+            self.log.warning("Internal shutdown sequence msismatch: error dispatched through tokenmanager after shutdown")
             return
 
         # NetworkError is what we promise users to raise from request etc; if

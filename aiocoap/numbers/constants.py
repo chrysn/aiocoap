@@ -117,4 +117,7 @@ OBSERVATION_RESET_TIME = 128
 This number is not explicitly named in RFC7641.
 """
 
+SHUTDOWN_TIMEOUT = 3
+"""Maximum time, in seconds, for which the process is kept around during shutdown"""
+
 __all__ = [k for k in dir() if not k.startswith('_')]

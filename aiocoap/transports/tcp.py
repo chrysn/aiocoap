@@ -13,6 +13,7 @@ from aiocoap.transports import rfc8323common
 from aiocoap import interfaces, error, util
 from aiocoap import COAP_PORT, Message
 from aiocoap import defaults
+from ..util.asyncio import py38args
 
 def _extract_message_size(data: bytes):
     """Read out the full length of a CoAP messsage represented by data.
@@ -200,7 +201,11 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
             self._spool = self._spool[msglen:]
 
             if msg.code.is_signalling():
-                self._process_signaling(msg)
+                try:
+                    self._process_signaling(msg)
+                except rfc8323common.CloseConnection as e:
+                    self._ctx._dispatch_error(self, e.args[0])
+                    self._transport.close()
                 continue
 
             if self._remote_settings is None:
@@ -221,6 +226,9 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
     def resume_writing(self):
         # FIXME: do something ;-)
         pass
+
+    # RFC8323Remote.release recommends subclassing this, but there's no easy
+    # awaitable here yet, and no important business to finish, timeout-wise.
 
 class _TCPPooling:
     # implementing TokenInterface
@@ -298,7 +306,10 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         return self
 
     def _evict_from_pool(self, connection):
-        self._pool.remove(connection)
+        # May easily happen twice, once when an error comes in and once when
+        # the connection is (subsequently) closed.
+        if connection in self._pool:
+            self._pool.remove(connection)
 
     # implementing TokenInterface
 
@@ -311,12 +322,24 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         return False
 
     async def shutdown(self):
-        self.server.close()
-        for c in self._pool:
-            # FIXME: it would be nicer to release them
-            c.abort("Server shutdown")
-        await self.server.wait_closed()
+        self.log.debug("Shutting down server %r", self)
         self._tokenmanager = None
+        self.server.close()
+        # This should be quick, no need to make a task of it -- and now all
+        # previously accepted connections should be in to receive their proper
+        # release
+        await self.server.wait_closed()
+        shutdowns = [
+                asyncio.create_task(
+                    c.release(),
+                    **py38args(name="Close client %s" % c))
+                for c
+                in self._pool
+                ]
+        if not shutdowns:
+            # wait is documented to require a non-empty set
+            return
+        await asyncio.wait(shutdowns)
 
 class TCPClient(_TCPPooling, interfaces.TokenInterface):
     def __init__(self):
@@ -400,7 +423,14 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
         return False
 
     async def shutdown(self):
-        for c in self._pool.values():
-            # FIXME: it would be nicer to release them
-            c.abort("Server shutdown")
-        del self._tokenmanager
+        self.log.debug("Shutting down any outgoing connections on on %r", self)
+        self._tokenmanager = None
+
+        shutdowns = [asyncio.create_task(
+            c.release(),
+            **py38args(name="Close client %s" % c))
+            for c in self._pool.values()]
+        if not shutdowns:
+            # wait is documented to require a non-empty set
+            return
+        await asyncio.wait(shutdowns)

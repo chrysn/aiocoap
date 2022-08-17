@@ -11,11 +11,20 @@ RFC8323 mechanisms, but differ in their underlying protocol implementations
 (asyncio stream vs. websockets module) far enough that they only share small
 portions of their code"""
 
+import asyncio
 from typing import Optional
 from aiocoap import Message
 from aiocoap import optiontypes, util
 from aiocoap.numbers.codes import CSM, PING, PONG, RELEASE, ABORT
 from aiocoap import error
+
+class CloseConnection(Exception):
+    """Raised in RFC8323 common processing to trigger a connection shutdown on
+    the TCP / WebSocket side.
+
+    The TCP / WebSocket side should send the exception's argument on to the
+    token manager, close the connection, and does not need to perform further
+    logging."""
 
 class RFC8323Remote:
     """Mixin for Remotes for all the common RFC8323 processing
@@ -144,9 +153,14 @@ class RFC8323Remote:
             elif msg.code == PONG:
                 pass
             elif msg.code == RELEASE:
-                raise NotImplementedError
+                # The behavior SHOULD be enhanced to answer outstanding
+                # requests, but it is unclear to which extent this side may
+                # still use the connection.
+                self.log.info("Received Release, closing on this end (options: %s)", msg.opt)
+                raise CloseConnection(error.RemoteServerShutdown("Peer released connection"))
             elif msg.code == ABORT:
-                raise NotImplementedError
+                self.log.warning("Received Abort (options: %s)", msg.opt)
+                raise CloseConnection(error.RemoteServerShutdown("Peer aborted connection"))
         else:
             self.abort("Unknown signalling code")
 
@@ -159,3 +173,27 @@ class RFC8323Remote:
             bad_csm_option_option = optiontypes.UintOption(2, bad_csm_option)
             abort_msg.opt.add_option(bad_csm_option_option)
         self._abort_with(abort_msg)
+
+    async def release(self):
+        """Send Release message, (not implemented:) wait for connection to be
+        actually closed by the peer.
+
+        Subclasses should extend this to await closing of the connection,
+        especially if they'd get into lock-up states otherwise (was would
+        WebSockets).
+        """
+        self.log.info("Releasing connection %s", self)
+        release_msg = Message(code=RELEASE)
+        self._send_message(release_msg)
+
+        try:
+            # FIXME: we could wait for the peer to close the connection, but a)
+            # that'll need some work on the interface between this module and
+            # ws/tcp, and b) we have no peers to test this with that would
+            # produce any sensible data (as aiocoap on release just closes).
+            pass
+        except asyncio.CancelledError:
+            self.log.warning(
+                    "Connection %s was not closed by peer in time after release",
+                    self
+                    )
