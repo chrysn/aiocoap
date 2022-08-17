@@ -403,4 +403,4 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
         for c in self._pool.values():
             # FIXME: it would be nicer to release them
             c.abort("Server shutdown")
-        del self._tokenmanager
+        self._tokenmanager = None
