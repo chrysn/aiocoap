@@ -44,7 +44,7 @@ This library supports the following standards in full or partially:
   preshared, raw public keys and client certificates are not supported yet.
 * RFC7967_ (No-Response): Supported.
 * RFC8132_ (PATCH/FETCH): Types and codes known, FETCH observation supported.
-* draft-ietf-core-resource-directory_: A standalone resource directory
+* RFC9176_: A standalone resource directory
   server is provided along with a library function to register at one. They
   lack support for groups and security considerations, and are generally rather
   simplistic.
@@ -66,7 +66,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC8132: https://tools.ietf.org/html/rfc8132
 .. _RFC8323: https://tools.ietf.org/html/rfc8323
 .. _RFC8613: https://tools.ietf.org/html/rfc8613
-.. _draft-ietf-core-resource-directory: https://tools.ietf.org/html/draft-ietf-core-resource-directory-27
+.. _RFC9176: https://tools.ietf.org/html/rfc9176
 .. _draft-ietf-core-oscore-groupcomm-11: https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-11
 
 Dependencies
