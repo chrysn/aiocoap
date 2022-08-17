@@ -328,6 +328,15 @@ class Resource(metaclass=abc.ABCMeta):
         the resource will do that by itself (False)."""
 
     async def _render_to_pipe(self, request: Pipe):
+        if not hasattr(self, "_block1"):
+            warnings.warn("No attribute _block1 found on instance of "
+                    f"{type(self).__name__}, make sure its __init__ code "
+                    "properly calls super()!", DeprecationWarning)
+
+            from .blockwise import Block1Spool, Block2Cache
+            self._block1 = Block1Spool()
+            self._block2 = Block2Cache()
+
         req = request.request
 
         if await self.needs_blockwise_assembly(req):
