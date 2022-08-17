@@ -366,7 +366,10 @@ class WSPool(interfaces.TokenInterface):
             msg.remote = remote
 
             if msg.code.is_signalling():
-                remote._process_signaling(msg)
+                try:
+                    remote._process_signaling(msg)
+                except rfc8323common.CloseConnection:
+                    await remote._connection.close()
                 continue
 
             if remote._remote_settings is None:

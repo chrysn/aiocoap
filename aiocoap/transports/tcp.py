@@ -200,7 +200,10 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
             self._spool = self._spool[msglen:]
 
             if msg.code.is_signalling():
-                self._process_signaling(msg)
+                try:
+                    self._process_signaling(msg)
+                except rfc8323common.CloseConnection:
+                    self._transport.close()
                 continue
 
             if self._remote_settings is None:

@@ -17,6 +17,14 @@ from aiocoap import optiontypes, util
 from aiocoap.numbers.codes import CSM, PING, PONG, RELEASE, ABORT
 from aiocoap import error
 
+class CloseConnection(Exception):
+    """Raised in RFC8323 common processing to trigger a connection shutdown on
+    the TCP / WebSocket side.
+
+    The TCP / WebSocket side does not need to do anything further in terms of
+    shutdown (including logging), it can just silently close the connectgion,
+    as the common code takes care of everything else."""
+
 class RFC8323Remote:
     """Mixin for Remotes for all the common RFC8323 processing
 
@@ -144,9 +152,14 @@ class RFC8323Remote:
             elif msg.code == PONG:
                 pass
             elif msg.code == RELEASE:
-                raise NotImplementedError
+                # The behavior SHOULD be enhanced to answer outstanding
+                # requests, but it is unclear to which extent this side may
+                # still use the connection.
+                self.log.info("Received Release, closing on this end (options: %s)", msg.opt)
+                raise CloseConnection
             elif msg.code == ABORT:
-                raise NotImplementedError
+                self.log.warning("Received Abort (options: %s)", msg.opt)
+                raise CloseConnection
         else:
             self.abort("Unknown signalling code")
 
