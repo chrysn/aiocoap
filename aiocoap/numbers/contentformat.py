@@ -193,6 +193,7 @@ class ContentFormat(ExtensibleIntEnum):
 for (_mt, _enc, _i, _source) in _raw:
     if _mt in ["Reserved for Experimental Use", "Reserved, do not use", "Unassigned"]:
         continue
+    _mt, _, _ = _mt.partition(' (TEMPORARY')
     _cf = ContentFormat(int(_i))
     _cf.media_type = _mt
     _cf.encoding = _enc or "identity"
