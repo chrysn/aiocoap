@@ -4,28 +4,20 @@ Version next
 New features
 ~~~~~~~~~~~~
 
-* Non-traditional responses are now experimentally supported by implementing
-  `.render_to_pipe()` on a resource.
-
 * Content-Format / Accept option now use a dedicated ContentFormat type.
 
   Applications should be unaffected as the type is still derived from int.
 
-Protocol changes
-~~~~~~~~~~~~~~~~
-
-* The default cut-off for block-wise fragmentation was increased from 1024 to
-  1124 bytes. This allows OSCORE to use the full inner block-wise size without
-  inadvertently causing outer fragmentation, while still fitting within the
-  IPv6 minimum MTU.
+* Non-traditional responses are now experimentally supported by implementing
+  ``.render_to_pipe()`` on a resource.
 
 Deprecations
 ~~~~~~~~~~~~
 
-* Building custom resources by inheriting from `interfaces.Resource` /
-  `interfaces.ObservableResource` and implementing `.render()` etc. is
-  deprecated. Instead, inherit from `resource.Resource` (recommended), or
-  implement `.render_to_pipe()` (eg. when implementing a proxy).
+* Building custom resources by inheriting from ``interfaces.Resource`` /
+  ``interfaces.ObservableResource`` and implementing ``.render()`` etc. is
+  deprecated. Instead, inherit from ``resource.Resource`` (recommended), or
+  implement ``.render_to_pipe()`` (eg. when implementing a proxy).
 
 * numbers.media_type and media_type_rev: Use the ContentFormat type's
   constructor and accessors instead.
@@ -33,11 +25,11 @@ Deprecations
 Tools
 ~~~~~
 
-* aiocoap-client now assembles and displays the Location-* options of
-  responses.
-
 * aiocoap-fileserver now has optiojnal write support, and ETag and If-* option
   handling.
+
+* aiocoap-client now assembles and displays the Location-* options of
+  responses.
 
 * aiocoap-rd now has dedicated logging independent of aiocoap's.
 
@@ -48,23 +40,28 @@ Tools
 Minor enhancements
 ~~~~~~~~~~~~~~~~~~
 
-* Documentation now uses `await` idiom, as it is available even inside the
+* Documentation now uses ``await`` idiom, as it is available even inside the
   asyncio REPL.
+
+* The default cut-off for block-wise fragmentation was increased from 1024 to
+  1124 bytes. This allows OSCORE to use the full inner block-wise size without
+  inadvertently causing outer fragmentation, while still fitting within the
+  IPv6 minimum MTU.
 
 * Type annotations are now used more widely.
 
 * Library shutdown works more cleanly by not relying on the presence of the
   async loop.
 
-* Tasks created by the library are now named for easier debugging.
-
 * OSCORE contexts now only access the disk when necessary.
 
 * OSCORE now supports inner block-wise transfer and observations.
 
-* Bugs fixed around handling of IP literals in proxies.
-
 * WebSocket servers can now pick an ephemeral port (when binding to port 0).
+
+* Tasks created by the library are now named for easier debugging.
+
+* Bugs fixed around handling of IP literals in proxies.
 
 Internal refactoring
 ~~~~~~~~~~~~~~~~~~~~
@@ -171,7 +168,7 @@ Multicast improvements
   selected using the socket address tuple, but that was limited to link-local
   addresses, but PKTINFO worked just as well for link-local addresses.
 
-* Remote addresses in udp6 now have a `netif` property.
+* Remote addresses in udp6 now have a ``netif`` property.
 
 New features
 ~~~~~~~~~~~~
@@ -206,7 +203,7 @@ Tools updates
 
 * aiocoap-client: New options to
 
-  * set initial Block1 size (`--payload-initial-szx`), and to
+  * set initial Block1 size (``--payload-initial-szx``), and to
   * elide the Uri-Host option from requests to named hosts.
 
 * aiocoap-client: CBOR input now accepts Python literals or JSON automatically,
@@ -260,7 +257,7 @@ Minor fixes
 
 * The repr of udp6 addresses now shows all address components.
 * Debug information output was increased in several spots.
-* The `loop=` parameter was removed where it is deprecated by Python 3.8.
+* The ``loop=`` parameter was removed where it is deprecated by Python 3.8.
 * asyncio Futures are created using create_future in some places.
 * Binding to port 0 works again.
 * The file server's registration at an RD was fixed.
@@ -277,7 +274,7 @@ Minor fixes
 * Various logging improvements and changes.
 * udp6: Show warnings when operating system fails to deliver pktinfo (happens with very old Linux kernels).
 * Reduce installation clobber by excluding tests.
-* Enhanced error reporting for erroneous `coap://2001:db8::1/` style URIs
+* Enhanced error reporting for erroneous ``coap://2001:db8::1/`` style URIs
 * Improve OSCORE's shutdown robustness.
 * Sending to IPv4 literals now does not send the Uri-Host automatically any more.
 
@@ -317,7 +314,7 @@ Other
 ~~~~~
 
 * FAQ section started in the documentation.
-* With `./setup.py test` being phased out, tests are now run via tox.
+* With ``./setup.py test`` being phased out, tests are now run via tox.
 
 Version 0.4b2
 -------------
