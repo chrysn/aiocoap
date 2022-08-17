@@ -208,4 +208,8 @@ class Options(object):
     no_response = _single_value_view(OptionNumber.NO_RESPONSE)
     echo = _single_value_view(OptionNumber.ECHO)
     request_tag = _items_view(OptionNumber.REQUEST_TAG)
-    request_hash = _single_value_view(OptionNumber.REQUEST_HASH)
+    hop_limit = _single_value_view(OptionNumber.HOP_LIMIT)
+    request_hash = _single_value_view(OptionNumber.REQUEST_HASH,
+        "Experimental property for draft-amsuess-core-cachable-oscore")
+    edhoc = _empty_presence_view(OptionNumber.EDHOC)
+    size2 = _single_value_view(OptionNumber.SIZE2)

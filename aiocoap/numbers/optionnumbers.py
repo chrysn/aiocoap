@@ -35,22 +35,27 @@ class OptionNumber(ExtensibleIntEnum):
     OBSERVE = 6
     URI_PORT = 7
     LOCATION_PATH = 8
+    # The OBJECT_SECURITY name is to be deprecated when Python 3.8 support is
+    # dropped, and we can do that easily using a class property.
+    OSCORE = OBJECT_SECURITY = 9
     URI_PATH = 11
     CONTENT_FORMAT = 12
     MAX_AGE = 14
     URI_QUERY = 15
+    HOP_LIMIT = 16
     ACCEPT = 17
+    Q_BLOCK1 = 19
     LOCATION_QUERY = 20
+    EDHOC = 21
     BLOCK2 = 23
     BLOCK1 = 27
     SIZE2 = 28
+    Q_BLOCK2 = 31
     PROXY_URI = 35
     PROXY_SCHEME = 39
     SIZE1 = 60
-    NO_RESPONSE = 258
-    OBJECT_SECURITY = 9
-    # picked for draft-ietf-core-echo-request-tag-09
     ECHO = 252
+    NO_RESPONSE = 258
     REQUEST_TAG = 292
 
     # experimental for draft-amsuess-core-cachable-oscore
@@ -146,12 +151,16 @@ OptionNumber.NO_RESPONSE.format = optiontypes.UintOption
 
 # RFC 8613
 
-OptionNumber.OBJECT_SECURITY.format = optiontypes.OpaqueOption
+OptionNumber.OSCORE.format = optiontypes.OpaqueOption
 
-# draft-ietf-core-echo-request-tag
+# RFC 9175
 
 OptionNumber.ECHO.format = optiontypes.OpaqueOption
 OptionNumber.REQUEST_TAG.format = optiontypes.OpaqueOption
+
+# RFC 8768
+
+OptionNumber.HOP_LIMIT.format = optiontypes.UintOption
 
 # experimental for draft-amsuess-core-cachable-oscore
 
