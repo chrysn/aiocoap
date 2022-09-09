@@ -26,7 +26,7 @@ from typing import Optional
 import secrets
 
 from aiocoap.message import Message
-from aiocoap.util import cryptography_additions
+from aiocoap.util import cryptography_additions, deprecation_getattr
 from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED
 from aiocoap import error
 
@@ -1734,3 +1734,9 @@ def verify_start(message):
     _, _, unprotected, _ = CanUnprotect._extract_encrypted0(message)
 
     return unprotected
+
+
+
+_getattr__ = deprecation_getattr({
+        'COSE_COUNTERSINGATURE0': 'COSE_COUNTERSIGNATURE0'
+        }, globals())
