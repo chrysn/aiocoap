@@ -40,7 +40,14 @@ def is_test_successful(testcase):
     raising errors. This is supposed to be used in tearDown handlers on self
     when additional debug information can be shown that would otherwise be
     discarded, or to skip tests during teardown that are bound to fail."""
-    return not any(e[1] is not None for e in testcase._outcome.errors)
+    errors = getattr(testcase._outcome, 'errors', None)
+    if errors is None:
+        # FIXME after https://github.com/python/cpython/issues/75039,
+        # errors is not longer assigned to.  This will need a better solution.
+        # Per comment below, result is uglier logs on failure.
+        return True
+    else:
+        return not any(e[1] is not None for e in testcase._outcome.errors)
 
 def asynctest(method):
     """Decorator for async WithAsyncLoop fixtures methods that runs them from
