@@ -256,7 +256,13 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         self.outgoing_requests[key] = request
         request.on_interest_end(functools.partial(self.outgoing_requests.pop, key, None))
 
-'''
+'''Not implemented
     def multicast_request(self, request):
         return MulticastRequest(self, request).responses
 '''
+
+'''Not implemented
+    def broadcast_request(self, request):
+        return MulticastRequest(self, request).responses
+'''
+

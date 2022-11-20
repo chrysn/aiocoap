@@ -247,11 +247,20 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         return self.transport.get_extra_info('socket').getsockname()[1]
 
     @classmethod
-    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=[]):
+    async def _create_transport_endpoint(cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=[], broadcast: bool = False):
         try:
             sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVPKTINFO, 1)
         except NameError:
             raise RuntimeError("RFC3542 PKTINFO flags are unavailable, unable to create a udp6 transport.")
+        if broadcast is True:
+            try:
+                # This shouldn't be needed, at least not when using --broadcast
+                # with aiocoap-client.
+                if not sock.getsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST):
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            except Exception:
+                log.fatal("Unable to set socket to SO_BROADCAST; setsockopt() failed")
+                raise
         if socknumbers.HAS_RECVERR:
             sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1)
             # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
@@ -299,9 +308,15 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         return protocol
 
     @classmethod
-    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop):
+    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop, broadcast: bool = False):
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        if broadcast is True:
+            try:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            except Exception:
+                log.fatal("Unable to set socket to SO_BROADCAST; setsockopt() failed")
+                raise
 
         return await cls._create_transport_endpoint(sock, ctx, log, loop)
 

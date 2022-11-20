@@ -140,7 +140,7 @@ class Context(interfaces.RequestProvider):
         self.request_interfaces.append(tman)
 
     @classmethod
-    async def create_client_context(cls, *, loggername="coap", loop=None, transports: Optional[List[str]] = None):
+    async def create_client_context(cls, *, loggername="coap", loop=None, transports: Optional[List[str]] = None, broadcast: bool = False):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get a context suitable for sending client
@@ -159,7 +159,7 @@ class Context(interfaces.RequestProvider):
             if transportname == 'udp6':
                 from .transports.udp6 import MessageInterfaceUDP6
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
+                    lambda mman: MessageInterfaceUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop, broadcast=broadcast))
             elif transportname == 'simple6':
                 from .transports.simple6 import MessageInterfaceSimple6
                 await self._append_tokenmanaged_messagemanaged_transport(
@@ -241,13 +241,11 @@ class Context(interfaces.RequestProvider):
                     lambda mman: MessageInterfaceSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
             elif transportname == 'tinydtls':
                 from .transports.tinydtls import MessageInterfaceTinyDTLS
-
                 await self._append_tokenmanaged_messagemanaged_transport(
                     lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop))
             # FIXME end duplication
             elif transportname == 'tinydtls_server':
                 from .transports.tinydtls_server import MessageInterfaceTinyDTLSServer
-
                 await self._append_tokenmanaged_messagemanaged_transport(
                     lambda mman: MessageInterfaceTinyDTLSServer.create_server(bind, mman, log=self.log, loop=loop, server_credentials=self.server_credentials))
             elif transportname == 'simplesocketserver':
