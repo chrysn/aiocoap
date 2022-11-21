@@ -17,6 +17,8 @@ the :class:`Code` class for details.
 .. _`CoRE Parameters`: https://www.iana.org/assignments/core-parameters/core-parameters.xhtml
 """
 
+import warnings
+
 from ..util import ExtensibleIntEnum
 
 class Code(ExtensibleIntEnum):
@@ -52,7 +54,10 @@ class Code(ExtensibleIntEnum):
     PRECONDITION_FAILED = 140
     REQUEST_ENTITY_TOO_LARGE = 141
     UNSUPPORTED_CONTENT_FORMAT = 143
-    UNSUPPORTED_MEDIA_TYPE = UNSUPPORTED_CONTENT_FORMAT # deprecated alias
+    @property
+    def UNSUPPORTED_MEDIA_TYPE(self):
+        warnings.warn("UNSUPPORTED_MEDIA_TYPE is a deprecated alias for UNSUPPORTED_CONTENT_FORMAT")
+        return self.UNSUPPORTED_CONTENT_FORMAT
     UNPROCESSABLE_ENTITY = (4 << 5) + 22
     TOO_MANY_REQUESTS = (4 << 5) + 29
     INTERNAL_SERVER_ERROR = 160
