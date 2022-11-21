@@ -206,7 +206,7 @@ class Registerer:
         query = dict(base_query, **self._registration_parameters)
 
         initial_message.opt.uri_query = initial_message.opt.uri_query + \
-                tuple("%s=%s" % (k, v) for (k,v) in query.items())
+                tuple("%s=%s" % (k, v) for (k, v) in query.items())
 
         response = await self._request_with_retries(initial_message)
 
