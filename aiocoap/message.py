@@ -67,6 +67,14 @@ class Message(object):
       While a message has not been transmitted, the property is managed by the
       :class:`.Message` itself using the :meth:`.set_request_uri()` or the
       constructor `uri` argument.
+    * :attr:`transport_tuning`: Parameters used by one or more transports to
+      guide transmission. These are purely advisory hints; unknown properties
+      of that object are ignored, and transports consider them over built-in
+      constants on a best-effort basis.
+
+      Note that many attributes are mandatory if this is not None; it is
+      recommended that any objects passed in here are based on the
+      :class:`aiocoap.numbers.constants.TransportTuning` class.
 
     * :attr:`request`: The request to which an incoming response message
       belongs; only available at the client. Managed by the
@@ -129,7 +137,7 @@ class Message(object):
         * Some options or even the payload may differ if a proxy was involved.
     """
 
-    def __init__(self, *, mtype=None, mid=None, code=None, payload=b'', token=b'', uri=None, **kwargs):
+    def __init__(self, *, mtype=None, mid=None, code=None, payload=b'', token=b'', uri=None, transport_tuning=None, **kwargs):
         self.version = 1
         if mtype is None:
             # leave it unspecified for convenience, sending functions will know what to do
@@ -147,6 +155,8 @@ class Message(object):
         self.opt = Options()
 
         self.remote = None
+
+        self.transport_tuning = transport_tuning or TransportTuning
 
         # deprecation error, should go away roughly after 0.2 release
         if self.payload is None:
@@ -182,6 +192,9 @@ class Message(object):
                 code=kwargs.pop('code', self.code),
                 payload=kwargs.pop('payload', self.payload),
                 token=kwargs.pop('token', self.token),
+                # Assuming these are not readily mutated, but rather passed
+                # around in a class-like fashion
+                transport_tuning=kwargs.pop('transport_tuning', self.transport_tuning),
                 )
         new.remote = kwargs.pop('remote', self.remote)
         new.opt = copy.deepcopy(self.opt)
