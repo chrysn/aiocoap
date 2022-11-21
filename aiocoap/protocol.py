@@ -186,7 +186,7 @@ class Context(interfaces.RequestProvider):
                 oscoretransport = TransportOSCORE(self, self)
                 self.request_interfaces.append(oscoretransport)
             else:
-                raise RuntimeError("Transport %r not know for client context creation"%transportname)
+                raise RuntimeError("Transport %r not know for client context creation" % transportname)
 
         return self
 
@@ -281,7 +281,7 @@ class Context(interfaces.RequestProvider):
                 oscoretransport = TransportOSCORE(self, self)
                 self.request_interfaces.append(oscoretransport)
             else:
-                raise RuntimeError("Transport %r not know for server context creation"%transportname)
+                raise RuntimeError("Transport %r not know for server context creation" % transportname)
 
         if not multicast_done:
             self.log.warning("Multicast was requested, but no multicast capable transport was selected.")
@@ -948,7 +948,7 @@ class ClientObservation:
         self._on_cancel.append(callback)
 
     def __repr__(self):
-        return '<%s %s at %#x>'%(type(self).__name__, "(cancelled)" if self.cancelled else "(%s call-, %s errback(s))"%(len(self.callbacks), len(self.errbacks)), id(self))
+        return '<%s %s at %#x>' % (type(self).__name__, "(cancelled)" if self.cancelled else "(%s call-, %s errback(s))" % (len(self.callbacks), len(self.errbacks)), id(self))
 
 class ServerObservation:
     def __init__(self):

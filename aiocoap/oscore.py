@@ -1198,7 +1198,7 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
         try:
             self._load()
         except KeyError as k:
-            raise self.LoadError("Configuration key missing: %s"%(k.args[0],))
+            raise self.LoadError("Configuration key missing: %s" % (k.args[0],))
 
         self.sequence_number_chunksize_start = sequence_number_chunksize_start
         self.sequence_number_chunksize_limit = sequence_number_chunksize_limit
@@ -1227,7 +1227,7 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
                     value = value.encode('ascii')
 
                 if key in data:
-                    raise self.LoadError("Datum %r present in multiple input files at %r."%(key, self.basedir))
+                    raise self.LoadError("Datum %r present in multiple input files at %r." % (key, self.basedir))
 
                 data[key] = value
 

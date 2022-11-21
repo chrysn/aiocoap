@@ -50,7 +50,7 @@ class OSCOREAddress(
     """Remote address type for :cls:`TransportOSCORE`."""
 
     def __repr__(self):
-        return "<%s in context %r to %r>"%(type(self).__name__, self.security_context, self.underlying_address)
+        return "<%s in context %r to %r>" % (type(self).__name__, self.security_context, self.underlying_address)
 
     def _requires_ua(f):
         @wraps(f)

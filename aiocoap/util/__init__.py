@@ -55,7 +55,7 @@ class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
     numbers which are not comprehensively known, like CoAP option numbers."""
 
     def __repr__(self):
-        return '<%s %d%s>'%(type(self).__name__, self, ' "%s"'%self.name if hasattr(self, "name") else "")
+        return '<%s %d%s>' % (type(self).__name__, self, ' "%s"' % self.name if hasattr(self, "name") else "")
 
     def __str__(self):
         return self.name if hasattr(self, "name") else int.__str__(self)
@@ -83,12 +83,12 @@ def hostportjoin(host, port=None):
     '[2001:db8::1]:1234'
     """
     if ':' in host and not (host.startswith('[') and host.endswith(']')):
-        host = '[%s]'%host
+        host = '[%s]' % host
 
     if port is None:
         hostinfo = host
     else:
-        hostinfo = "%s:%d"%(host, port)
+        hostinfo = "%s:%d" % (host, port)
     return hostinfo
 
 def hostportsplit(hostport):

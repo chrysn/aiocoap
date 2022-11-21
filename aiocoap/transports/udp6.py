@@ -115,7 +115,7 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         return self.sockaddr[:-1] == other.sockaddr[:-1]
 
     def __repr__(self):
-        return "<%s %s%s>"%(type(self).__name__, self.hostinfo, " (locally %s)" % self._repr_pktinfo() if self.pktinfo is not None else "")
+        return "<%s %s%s>" % (type(self).__name__, self.hostinfo, " (locally %s)" % self._repr_pktinfo() if self.pktinfo is not None else "")
 
     @staticmethod
     def _strip_v4mapped(address):

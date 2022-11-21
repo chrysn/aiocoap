@@ -45,7 +45,7 @@ class ResponseWrappingError(Error):
         return self.coapmessage
 
     def __repr__(self):
-        return "<%s: %s %r>"%(type(self).__name__, self.coapmessage.code, self.coapmessage.payload)
+        return "<%s: %s %r>" % (type(self).__name__, self.coapmessage.code, self.coapmessage.payload)
 
 class ConstructionRenderableError(RenderableError):
     """

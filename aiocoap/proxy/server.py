@@ -42,7 +42,7 @@ class CanNotRedirectBecauseOfUnsafeOptions(CanNotRedirect):
     code = numbers.codes.BAD_OPTION
 
     def __init__(self, options):
-        self.message = "Unsafe options in request: %s"%(", ".join(str(o.number) for o in options))
+        self.message = "Unsafe options in request: %s" % (", ".join(str(o.number) for o in options))
 
 def raise_unless_safe(request, known_options):
     """Raise a BAD_OPTION CanNotRedirect unless all options in request are
