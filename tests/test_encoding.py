@@ -221,7 +221,7 @@ class TestMessageOptionConstruction(unittest.TestCase):
         self.assertEqual(new_one.mid, 42)
         self.assertEqual(new_one.token, b"xyz")
         self.assertEqual(str(new_one.code), "EMPTY")
-        self.assertEqual(str(new_one.mtype), "Type.RST") # "RST" is also ok if the enum decides to have a different str, but it should be of mtype class and not just a number
+        self.assertEqual(str(new_one.mtype), "RST") # "Type.RST" is also ok if the enum decides to have a different str, but it should be of mtype class and not just a number
         self.assertEqual(new_one.opt.observe, 0)
         self.assertEqual(new_one.opt.content_format, 1234)
 

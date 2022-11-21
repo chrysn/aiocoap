@@ -20,6 +20,9 @@ class Type(IntEnum):
     ACK = 2 # Acknowledgement
     RST = 3 # Reset
 
+    def __str__(self):
+        return self.name
+
 CON, NON, ACK, RST = Type.CON, Type.NON, Type.ACK, Type.RST
 
 __all__ = ['Type', 'CON', 'NON', 'ACK', 'RST']
