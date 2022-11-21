@@ -29,93 +29,109 @@ MCAST_ALL = (
       MCAST_IPV6_SITELOCAL_ALLCOAPNODES,
       )
 
-#   +-------------------+---------------+
-#   | name              | default value |
-#   +-------------------+---------------+
-#   | ACK_TIMEOUT       | 2 seconds     |
-#   | ACK_RANDOM_FACTOR | 1.5           |
-#   | MAX_RETRANSMIT    | 4             |
-#   | NSTART            | 1             |
-#   | DEFAULT_LEISURE   | 5 seconds     |
-#   | PROBING_RATE      | 1 Byte/second |
-#   +-------------------+---------------+
+class TransportTuning:
+    """Base parameters that guide CoAP transport behaviors
 
-ACK_TIMEOUT = 2.0
-"""The time, in seconds, to wait for an acknowledgement of a
-confirmable message. The inter-transmission time doubles
-for each retransmission."""
+    The values in here are recommended values, often defaults from RFCs. They
+    can be tuned in subclasses (and then passed into a message as
+    ``transport_tuning``), although users should be aware that alteing some of
+    these can cause the library to behave in ways violating the specification,
+    especially with respect to congestion control.
+    """
 
-ACK_RANDOM_FACTOR = 1.5
-"""Timeout multiplier for anti-synchronization."""
+    #   +-------------------+---------------+
+    #   | name              | default value |
+    #   +-------------------+---------------+
+    #   | ACK_TIMEOUT       | 2 seconds     |
+    #   | ACK_RANDOM_FACTOR | 1.5           |
+    #   | MAX_RETRANSMIT    | 4             |
+    #   | NSTART            | 1             |
+    #   | DEFAULT_LEISURE   | 5 seconds     |
+    #   | PROBING_RATE      | 1 Byte/second |
+    #   +-------------------+---------------+
 
-MAX_RETRANSMIT = 4
-"""The number of retransmissions of confirmable messages to
-non-multicast endpoints before the infrastructure assumes no
-acknowledgement will be received."""
+    ACK_TIMEOUT = 2.0
+    """The time, in seconds, to wait for an acknowledgement of a
+    confirmable message. The inter-transmission time doubles
+    for each retransmission."""
 
-NSTART = 1
-"""Maximum number of simultaneous outstanding interactions
-   that endpoint maintains to a given server (including proxies)"""
+    ACK_RANDOM_FACTOR = 1.5
+    """Timeout multiplier for anti-synchronization."""
 
-#   +-------------------+---------------+
-#   | name              | default value |
-#   +-------------------+---------------+
-#   | MAX_TRANSMIT_SPAN |          45 s |
-#   | MAX_TRANSMIT_WAIT |          93 s |
-#   | MAX_LATENCY       |         100 s |
-#   | PROCESSING_DELAY  |           2 s |
-#   | MAX_RTT           |         202 s |
-#   | EXCHANGE_LIFETIME |         247 s |
-#   | NON_LIFETIME      |         145 s |
-#   +-------------------+---------------+
+    MAX_RETRANSMIT = 4
+    """The number of retransmissions of confirmable messages to
+    non-multicast endpoints before the infrastructure assumes no
+    acknowledgement will be received."""
 
-MAX_TRANSMIT_SPAN = ACK_TIMEOUT * (2 ** MAX_RETRANSMIT - 1) * ACK_RANDOM_FACTOR
-"""Maximum time from the first transmission
-of a confirmable message to its last retransmission."""
+    NSTART = 1
+    """Maximum number of simultaneous outstanding interactions
+       that endpoint maintains to a given server (including proxies)"""
 
-MAX_TRANSMIT_WAIT = ACK_TIMEOUT * (2 ** (MAX_RETRANSMIT + 1) - 1) * ACK_RANDOM_FACTOR
-"""Maximum time from the first transmission
-of a confirmable message to the time when the sender gives up on
-receiving an acknowledgement or reset."""
+    #   +-------------------+---------------+
+    #   | name              | default value |
+    #   +-------------------+---------------+
+    #   | MAX_TRANSMIT_SPAN |          45 s |
+    #   | MAX_TRANSMIT_WAIT |          93 s |
+    #   | MAX_LATENCY       |         100 s |
+    #   | PROCESSING_DELAY  |           2 s |
+    #   | MAX_RTT           |         202 s |
+    #   | EXCHANGE_LIFETIME |         247 s |
+    #   | NON_LIFETIME      |         145 s |
+    #   +-------------------+---------------+
 
-MAX_LATENCY = 100.0
-"""Maximum time a datagram is expected to take from the start
-of its transmission to the completion of its reception."""
+    MAX_TRANSMIT_SPAN = ACK_TIMEOUT * (2 ** MAX_RETRANSMIT - 1) * ACK_RANDOM_FACTOR
+    """Maximum time from the first transmission
+    of a confirmable message to its last retransmission."""
 
-PROCESSING_DELAY = ACK_TIMEOUT
-""""Time a node takes to turn around a
-confirmable message into an acknowledgement."""
+    MAX_TRANSMIT_WAIT = ACK_TIMEOUT * (2 ** (MAX_RETRANSMIT + 1) - 1) * ACK_RANDOM_FACTOR
+    """Maximum time from the first transmission
+    of a confirmable message to the time when the sender gives up on
+    receiving an acknowledgement or reset."""
 
-MAX_RTT = 2 * MAX_LATENCY + PROCESSING_DELAY
-"""Maximum round-trip time."""
+    MAX_LATENCY = 100.0
+    """Maximum time a datagram is expected to take from the start
+    of its transmission to the completion of its reception."""
 
-EXCHANGE_LIFETIME = MAX_TRANSMIT_SPAN + MAX_RTT
-"""time from starting to send a confirmable message to the time when an
-acknowledgement is no longer expected, i.e. message layer information about the
-message exchange can be purged"""
+    PROCESSING_DELAY = ACK_TIMEOUT
+    """"Time a node takes to turn around a
+    confirmable message into an acknowledgement."""
 
-DEFAULT_BLOCK_SIZE_EXP = 6 # maximum block size 1024
-"""Default size exponent for blockwise transfers."""
+    MAX_RTT = 2 * MAX_LATENCY + PROCESSING_DELAY
+    """Maximum round-trip time."""
 
-EMPTY_ACK_DELAY = 0.1
-"""After this time protocol sends empty ACK, and separate response"""
+    EXCHANGE_LIFETIME = MAX_TRANSMIT_SPAN + MAX_RTT
+    """time from starting to send a confirmable message to the time when an
+    acknowledgement is no longer expected, i.e. message layer information about the
+    message exchange can be purged"""
 
-REQUEST_TIMEOUT = MAX_TRANSMIT_WAIT
-"""Time after which server assumes it won't receive any answer.
-   It is not defined by IETF documents.
-   For human-operated devices it might be preferable to set some small value
-   (for example 10 seconds)
-   For M2M it's application dependent."""
+    DEFAULT_BLOCK_SIZE_EXP = 6 # maximum block size 1024
+    """Default size exponent for blockwise transfers."""
 
-DEFAULT_LEISURE = 5
+    EMPTY_ACK_DELAY = 0.1
+    """After this time protocol sends empty ACK, and separate response"""
 
-MULTICAST_REQUEST_TIMEOUT = REQUEST_TIMEOUT + DEFAULT_LEISURE
+    REQUEST_TIMEOUT = MAX_TRANSMIT_WAIT
+    """Time after which server assumes it won't receive any answer.
+       It is not defined by IETF documents.
+       For human-operated devices it might be preferable to set some small value
+       (for example 10 seconds)
+       For M2M it's application dependent."""
 
-OBSERVATION_RESET_TIME = 128
-"""Time in seconds after which the value of the observe field are ignored.
+    DEFAULT_LEISURE = 5
 
-This number is not explicitly named in RFC7641.
-"""
+    MULTICAST_REQUEST_TIMEOUT = REQUEST_TIMEOUT + DEFAULT_LEISURE
+
+    OBSERVATION_RESET_TIME = 128
+    """Time in seconds after which the value of the observe field are ignored.
+
+    This number is not explicitly named in RFC7641.
+    """
+
+# These should be deprecated and raise on access, but given that they're
+# reexported and reexported in numbers and aiocoap, that's no small endeavour.
+#
+# For now it's a good start that tests pass even when this line is absent.
+locals().update(vars(TransportTuning))
 
 SHUTDOWN_TIMEOUT = 3
 """Maximum time, in seconds, for which the process is kept around during shutdown"""
