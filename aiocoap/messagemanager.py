@@ -218,7 +218,8 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         key = (message.remote, message.mid)
 
         if key not in self._active_exchanges:
-            self.log.warning("Received %s from %s, but could not match it to a running exchange.", message.mtype, message.remote)
+            # Before turning this up to a warning, consider https://github.com/chrysn/aiocoap/issues/288
+            self.log.info("Received %s from %s, but could not match it to a running exchange.", message.mtype, message.remote)
             return
 
         messageerror_monitor, next_retransmission = self._active_exchanges.pop(key)
