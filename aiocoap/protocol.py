@@ -17,6 +17,30 @@ messages:
     track of the response
 
 *   a :class:`Responder` keeps track of a single incoming request
+
+Logging
+~~~~~~~
+
+Several constructors of the Context accept a logger name; these names go into
+the construction of a Python logger.
+
+Log events will be emitted to these on different levels, with "warning" and
+above being a practical default for things that should may warrant reviewing by
+an operator:
+
+* DEBUG is used for things that occur even under perfect conditions.
+* INFO is for things that are well expected, but might be interesting during
+  testing a network of nodes and not just when debugging the library. (This
+  includes timeouts, retransmissions, and pings.)
+* WARNING is for everything that indicates a malbehaved peer. These don't
+  *necessarily* indicate a client bug, though: Things like requesting a
+  nonexistent block can just as well happen when a resource's content has
+  changed between blocks. The library will not go out of its way to determine
+  whether there is a plausible explanation for the odd behavior, and will
+  report something as a warning in case of doubt.
+* ERROR is used when something clearly went wrong. This includes irregular
+  connection terminations and resource handler errors (which are demoted to
+  error responses), and can often contain a backtrace.
 """
 
 import asyncio
@@ -38,15 +62,6 @@ from .util.asyncio import py38args
 
 import warnings
 import logging
-# log levels used:
-# * debug is for things that occur even under perfect conditions.
-# * info is for things that are well expected, but might be interesting during
-#   testing a network of nodes and not debugging the library. (timeouts,
-#   retransmissions, pings)
-# * warning is for everything that indicates a malbehaved client. (these don't
-#   necessarily indicate a client bug, though; things like requesting a
-#   nonexistent block can just as well happen when a resource's content has
-#   changed between blocks).
 
 
 class Context(interfaces.RequestProvider):
