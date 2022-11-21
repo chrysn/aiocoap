@@ -937,8 +937,9 @@ class CanUnprotect(BaseSecurityContext):
             s = tail[0]
             if len(tail) - 1 < s:
                 raise DecodeError("Context hint announced but not present")
-            unprotected[COSE_KID_CONTEXT] = tail[1:s+1]
-            tail = tail[s+1:]
+            tail = tail[1:]
+            unprotected[COSE_KID_CONTEXT] = tail[:s]
+            tail = tail[s:]
 
         if firstbyte & COMPRESSION_BIT_K:
             kid = tail
