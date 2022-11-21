@@ -386,7 +386,7 @@ class TestServer(WithTestServer, WithClient):
 
 
     _empty_ack_logmsg = re.compile("^Incoming message <aiocoap.Message at"
-                                   " 0x[0-9a-f]+: Type.ACK EMPTY ([^)]+)")
+                                   " 0x[0-9a-f]+: ACK EMPTY ([^)]+)")
     def _count_empty_acks(self):
         # only client-side received empty-acks are counted; they typically
         # generate an empty ack back when the separate response is ack'd.
