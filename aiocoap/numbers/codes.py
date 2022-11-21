@@ -110,7 +110,7 @@ class Code(ExtensibleIntEnum):
     @property
     def dotted(self):
         """The numeric value three-decimal-digits (c.dd) form"""
-        return "%d.%02d"%divmod(self, 32)
+        return "%d.%02d" % divmod(self, 32)
 
     @property
     def name_printable(self):
@@ -121,9 +121,9 @@ class Code(ExtensibleIntEnum):
         if self.is_request() or self is self.EMPTY:
             return self.name
         elif self.is_response() or self.is_signalling():
-            return "%s %s"%(self.dotted, self.name_printable)
+            return "%s %s" % (self.dotted, self.name_printable)
         else:
-            return "%d"%self
+            return "%d" % self
 
     def __repr__(self):
         """
@@ -136,7 +136,7 @@ class Code(ExtensibleIntEnum):
         >>> Code(32)
         <Code 32 "32">
         """
-        return '<%s%sCode %d "%s">'%("Successful " if self.is_successful() else "", "Request " if self.is_request() else "Response " if self.is_response() else "", self, self)
+        return '<%s%sCode %d "%s">' % ("Successful " if self.is_successful() else "", "Request " if self.is_request() else "Response " if self.is_response() else "", self, self)
 
     name = property(lambda self: self._name if hasattr(self, "_name") else "(unknown)", lambda self, value: setattr(self, "_name", value), doc="The constant name of the code (equals name_printable readable in all-caps and with underscores)")
 
@@ -144,4 +144,4 @@ for k in vars(Code):
     if isinstance(getattr(Code, k), Code):
         locals()[k] = getattr(Code, k)
 
-__all__ = ['Code'] + [k for (k,v) in locals().items() if isinstance(v, Code)]
+__all__ = ['Code'] + [k for (k, v) in locals().items() if isinstance(v, Code)]
