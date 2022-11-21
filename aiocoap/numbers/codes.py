@@ -118,6 +118,16 @@ class Code(ExtensibleIntEnum):
         return self.name.replace('_', ' ').title()
 
     def __str__(self):
+        """
+        >>> print(Code.GET)
+        GET
+        >>> print(Code.CONTENT)
+        2.05 Content
+        >>> print(Code.BAD_GATEWAY)
+        5.02 Bad Gateway
+        >>> print(Code(32))
+        32
+        """
         if self.is_request() or self is self.EMPTY:
             return self.name
         elif self.is_response() or self.is_signalling():
