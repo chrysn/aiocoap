@@ -352,7 +352,7 @@ class SubdomainVirtualHost(NameBasedVirtualHost):
 class UnconditionalRedirector(Redirector):
     def __init__(self, target, use_as_proxy=False):
         self.target = target
-        self.use_as_proxy= use_as_proxy
+        self.use_as_proxy = use_as_proxy
 
     def apply_redirection(self, request):
         raise_unless_safe(request, ())

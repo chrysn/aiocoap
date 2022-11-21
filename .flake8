@@ -2,7 +2,8 @@
 # E741: because it even triggers inside list expressions
 # W503 and W504: Because they keep sending the user back and forth between each
 # other
-ignore = E501, E128, E302, E302, E261, E265, E225, E222, E126, E123, E127, E301, E306, E303, E305, E124, E227, E116, E121, E131, E741, W504, W503
+# E265: Actively used to distinguish between comments and commented-out code
+ignore = E501, E128, E302, E302, E261, E265, E222, E126, E123, E127, E301, E306, E303, E305, E124, E227, E116, E121, E131, E741, W504, W503
 
 # excluding the client scripts as their heavy reliance on `from aiocoap import
 # *` would decrease their usefullness as easy quick-start script
