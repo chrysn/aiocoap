@@ -24,5 +24,5 @@ def quote_factory(safe_characters):
         raise ValueError("quote_factory does not support non-ASCII safe characters")
     def quote(input_string):
         encoded = input_string.encode('utf8')
-        return "".join(chr(x) if x in safe_set else "%%%02X"%x for x in encoded)
+        return "".join(chr(x) if x in safe_set else "%%%02X" % x for x in encoded)
     return quote

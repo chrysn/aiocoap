@@ -42,7 +42,7 @@ class CanNotRedirectBecauseOfUnsafeOptions(CanNotRedirect):
     code = numbers.codes.BAD_OPTION
 
     def __init__(self, options):
-        self.message = "Unsafe options in request: %s"%(", ".join(str(o.number) for o in options))
+        self.message = "Unsafe options in request: %s" % (", ".join(str(o.number) for o in options))
 
 def raise_unless_safe(request, known_options):
     """Raise a BAD_OPTION CanNotRedirect unless all options in request are
@@ -352,7 +352,7 @@ class SubdomainVirtualHost(NameBasedVirtualHost):
 class UnconditionalRedirector(Redirector):
     def __init__(self, target, use_as_proxy=False):
         self.target = target
-        self.use_as_proxy= use_as_proxy
+        self.use_as_proxy = use_as_proxy
 
     def apply_redirection(self, request):
         raise_unless_safe(request, ())

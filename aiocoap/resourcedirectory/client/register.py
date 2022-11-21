@@ -85,7 +85,7 @@ class Registerer:
         self._task = asyncio.create_task(self._run())
 
     def __repr__(self):
-        return "<%s at %#x: registering at %s as %s (currently %s)>"%(
+        return "<%s at %#x: registering at %s as %s (currently %s)>" % (
                 type(self).__name__, id(self), self._registration_resource or
                 self._directory_resource, self._registration_parameters,
                 self.state)
@@ -206,12 +206,12 @@ class Registerer:
         query = dict(base_query, **self._registration_parameters)
 
         initial_message.opt.uri_query = initial_message.opt.uri_query + \
-                tuple("%s=%s"%(k, v) for (k,v) in query.items())
+                tuple("%s=%s" % (k, v) for (k, v) in query.items())
 
         response = await self._request_with_retries(initial_message)
 
         if not response.code.is_successful():
-            raise self._RetryableError("RD responded with odd error: %s / %r"%(response.code, response.payload))
+            raise self._RetryableError("RD responded with odd error: %s / %r" % (response.code, response.payload))
 
         if not response.opt.location_path:
             raise self._RetryableError("RD responded without a location")
@@ -228,7 +228,7 @@ class Registerer:
             raise self._RetryableError("RD forgot about the registration")
 
         if not response.code.is_successful():
-            raise self._RetryableError("RD responded with odd error: %s / %r"%(response.code, response.payload))
+            raise self._RetryableError("RD responded with odd error: %s / %r" % (response.code, response.payload))
 
     async def _run(self):
         obtain = asyncio.create_task(self._obtain_link_data())

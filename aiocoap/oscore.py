@@ -937,8 +937,9 @@ class CanUnprotect(BaseSecurityContext):
             s = tail[0]
             if len(tail) - 1 < s:
                 raise DecodeError("Context hint announced but not present")
-            unprotected[COSE_KID_CONTEXT] = tail[1:s+1]
-            tail = tail[s+1:]
+            tail = tail[1:]
+            unprotected[COSE_KID_CONTEXT] = tail[:s]
+            tail = tail[s:]
 
         if firstbyte & COMPRESSION_BIT_K:
             kid = tail
@@ -1198,7 +1199,7 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
         try:
             self._load()
         except KeyError as k:
-            raise self.LoadError("Configuration key missing: %s"%(k.args[0],))
+            raise self.LoadError("Configuration key missing: %s" % (k.args[0],))
 
         self.sequence_number_chunksize_start = sequence_number_chunksize_start
         self.sequence_number_chunksize_limit = sequence_number_chunksize_limit
@@ -1227,7 +1228,7 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
                     value = value.encode('ascii')
 
                 if key in data:
-                    raise self.LoadError("Datum %r present in multiple input files at %r."%(key, self.basedir))
+                    raise self.LoadError("Datum %r present in multiple input files at %r." % (key, self.basedir))
 
                 data[key] = value
 

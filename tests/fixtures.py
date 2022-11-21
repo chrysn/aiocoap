@@ -40,7 +40,7 @@ def is_test_successful(testcase):
     raising errors. This is supposed to be used in tearDown handlers on self
     when additional debug information can be shown that would otherwise be
     discarded, or to skip tests during teardown that are bound to fail."""
-    return not any(e[1] is not None for e in testcase._outcome.errors)
+    return testcase._outcome.success
 
 def asynctest(method):
     """Decorator for async WithAsyncLoop fixtures methods that runs them from

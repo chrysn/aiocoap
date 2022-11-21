@@ -17,6 +17,8 @@ the :class:`Code` class for details.
 .. _`CoRE Parameters`: https://www.iana.org/assignments/core-parameters/core-parameters.xhtml
 """
 
+import warnings
+
 from ..util import ExtensibleIntEnum
 
 class Code(ExtensibleIntEnum):
@@ -52,7 +54,10 @@ class Code(ExtensibleIntEnum):
     PRECONDITION_FAILED = 140
     REQUEST_ENTITY_TOO_LARGE = 141
     UNSUPPORTED_CONTENT_FORMAT = 143
-    UNSUPPORTED_MEDIA_TYPE = UNSUPPORTED_CONTENT_FORMAT # deprecated alias
+    @property
+    def UNSUPPORTED_MEDIA_TYPE(self):
+        warnings.warn("UNSUPPORTED_MEDIA_TYPE is a deprecated alias for UNSUPPORTED_CONTENT_FORMAT")
+        return self.UNSUPPORTED_CONTENT_FORMAT
     UNPROCESSABLE_ENTITY = (4 << 5) + 22
     TOO_MANY_REQUESTS = (4 << 5) + 29
     INTERNAL_SERVER_ERROR = 160
@@ -110,7 +115,7 @@ class Code(ExtensibleIntEnum):
     @property
     def dotted(self):
         """The numeric value three-decimal-digits (c.dd) form"""
-        return "%d.%02d"%divmod(self, 32)
+        return "%d.%02d" % divmod(self, 32)
 
     @property
     def name_printable(self):
@@ -118,12 +123,22 @@ class Code(ExtensibleIntEnum):
         return self.name.replace('_', ' ').title()
 
     def __str__(self):
+        """
+        >>> print(Code.GET)
+        GET
+        >>> print(Code.CONTENT)
+        2.05 Content
+        >>> print(Code.BAD_GATEWAY)
+        5.02 Bad Gateway
+        >>> print(Code(32))
+        32
+        """
         if self.is_request() or self is self.EMPTY:
             return self.name
         elif self.is_response() or self.is_signalling():
-            return "%s %s"%(self.dotted, self.name_printable)
+            return "%s %s" % (self.dotted, self.name_printable)
         else:
-            return "%d"%self
+            return "%d" % self
 
     def __repr__(self):
         """
@@ -136,7 +151,7 @@ class Code(ExtensibleIntEnum):
         >>> Code(32)
         <Code 32 "32">
         """
-        return '<%s%sCode %d "%s">'%("Successful " if self.is_successful() else "", "Request " if self.is_request() else "Response " if self.is_response() else "", self, self)
+        return '<%s%sCode %d "%s">' % ("Successful " if self.is_successful() else "", "Request " if self.is_request() else "Response " if self.is_response() else "", self, self)
 
     name = property(lambda self: self._name if hasattr(self, "_name") else "(unknown)", lambda self, value: setattr(self, "_name", value), doc="The constant name of the code (equals name_printable readable in all-caps and with underscores)")
 
@@ -144,4 +159,4 @@ for k in vars(Code):
     if isinstance(getattr(Code, k), Code):
         locals()[k] = getattr(Code, k)
 
-__all__ = ['Code'] + [k for (k,v) in locals().items() if isinstance(v, Code)]
+__all__ = ['Code'] + [k for (k, v) in locals().items() if isinstance(v, Code)]

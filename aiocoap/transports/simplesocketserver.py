@@ -50,7 +50,7 @@ from .. import defaults
 class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.EndpointAddress):
     # hashability and equality follow from being a namedtuple
     def __repr__(self):
-        return '<%s.%s via %s to %s>'%(__name__, type(self).__name__, self.serversocket, self.address)
+        return '<%s.%s via %s to %s>' % (__name__, type(self).__name__, self.serversocket, self.address)
 
     def send(self, data):
         self.serversocket._transport.sendto(data, self.address)

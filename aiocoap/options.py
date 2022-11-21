@@ -69,7 +69,7 @@ def _single_value_view(option_number, doc=None):
     def _deleter(self, option_number=option_number):
         self.delete_option(option_number)
 
-    return property(_getter, _setter, _deleter, doc or "Single-value view on the %s option."%option_number)
+    return property(_getter, _setter, _deleter, doc or "Single-value view on the %s option." % option_number)
 
 def _items_view(option_number, doc=None):
     """Generate a property for a given option number, where the option is
@@ -88,7 +88,7 @@ def _items_view(option_number, doc=None):
     def _deleter(self, option_number=option_number):
         self.delete_option(option_number)
 
-    return property(_getter, _setter, _deleter, doc=doc or "Iterable view on the %s option."%option_number)
+    return property(_getter, _setter, _deleter, doc=doc or "Iterable view on the %s option." % option_number)
 
 def _empty_presence_view(option_number, doc=None):
     """Generate a property for a given option number, where the option is not
@@ -103,7 +103,7 @@ def _empty_presence_view(option_number, doc=None):
         if value:
             self.add_option(option_number.create_option())
 
-    return property(_getter, _setter, doc=doc or "Presence of the %s option."%option_number)
+    return property(_getter, _setter, doc=doc or "Presence of the %s option." % option_number)
 
 class Options(object):
     """Represent CoAP Header Options."""
@@ -124,8 +124,8 @@ class Options(object):
         return self.encode() == other.encode()
 
     def __repr__(self):
-        text = ", ".join("%s: %s"%(OptionNumber(k), " / ".join(map(str, v))) for (k, v) in self._options.items())
-        return "<aiocoap.options.Options at %#x: %s>"%(id(self), text or "empty")
+        text = ", ".join("%s: %s" % (OptionNumber(k), " / ".join(map(str, v))) for (k, v) in self._options.items())
+        return "<aiocoap.options.Options at %#x: %s>" % (id(self), text or "empty")
 
     def decode(self, rawdata):
         """Passed a CoAP message body after the token as rawdata, fill self
