@@ -135,9 +135,19 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
     @no_warnings
     @asynctest
     async def test_unknownresponse_reset(self):
-        self.mocksock.send(bytes.fromhex("4040ffff"))
+        self.mocksock.send(bytes.fromhex("4040ffff")) # CoAP CON 2.00 that the server has not sent a request for
         response = await wait_for(self.mocksock.recv(), timeout=1)
         self.assertEqual(response, bytes.fromhex("7000ffff"), "Unknown CON Response did not trigger RST")
+
+    @no_warnings
+    @asynctest
+    async def test_unknownresponse_noreset(self):
+        self.mocksock.send(bytes.fromhex("6040ffff")) # CoAP ACK 2.00 that the server has not sent a request for
+        try:
+            response = await wait_for(self.mocksock.recv(), timeout=1)
+            self.assertTrue(False, "Unknown ACK Response triggered something")
+        except TimeoutError:
+            pass
 
 # Skipping the whole class when no multicast address was given (as otherwise
 # it'd try binding :: which is bound to fail with a simplesocketserver setting)
