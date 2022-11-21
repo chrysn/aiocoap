@@ -40,7 +40,7 @@ from collections import namedtuple
 from functools import wraps
 
 from .. import interfaces, credentials, oscore
-from ..numbers import UNAUTHORIZED
+from ..numbers import UNAUTHORIZED, MAX_REGULAR_BLOCK_SIZE_EXP
 from ..util.asyncio import py38args
 
 class OSCOREAddress(
@@ -92,7 +92,7 @@ class OSCOREAddress(
     is_multicast = False
 
     maximum_payload_size = 1024
-    maximum_block_size_exp = 6
+    maximum_block_size_exp = MAX_REGULAR_BLOCK_SIZE_EXP
 
     @property
     def blockwise_key(self):

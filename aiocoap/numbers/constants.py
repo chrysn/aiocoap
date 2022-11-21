@@ -29,6 +29,8 @@ MCAST_ALL = (
       MCAST_IPV6_SITELOCAL_ALLCOAPNODES,
       )
 
+MAX_REGULAR_BLOCK_SIZE_EXP = 6
+
 class TransportTuning:
     """Base parameters that guide CoAP transport behaviors
 
@@ -104,7 +106,7 @@ class TransportTuning:
     acknowledgement is no longer expected, i.e. message layer information about the
     message exchange can be purged"""
 
-    DEFAULT_BLOCK_SIZE_EXP = 6 # maximum block size 1024
+    DEFAULT_BLOCK_SIZE_EXP = MAX_REGULAR_BLOCK_SIZE_EXP
     """Default size exponent for blockwise transfers."""
 
     EMPTY_ACK_DELAY = 0.1

@@ -24,8 +24,6 @@ from .interfaces import EndpointAddress
 from .message import Message
 from .numbers.types import CON, ACK, RST, NON
 from .numbers.codes import EMPTY
-from .numbers.constants import (EXCHANGE_LIFETIME, ACK_TIMEOUT, EMPTY_ACK_DELAY,
-        MAX_RETRANSMIT, ACK_RANDOM_FACTOR)
 
 
 class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
@@ -177,7 +175,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             return True
         else:
             self.log.debug('New unique message received')
-            self.loop.call_later(EXCHANGE_LIFETIME, functools.partial(self._recent_messages.pop, key))
+            self.loop.call_later(message.transport_tuning.EXCHANGE_LIFETIME, functools.partial(self._recent_messages.pop, key))
             self._recent_messages[key] = None
             return False
 
@@ -205,7 +203,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         if message.remote not in self._backlogs:
             self._backlogs[message.remote] = []
 
-        timeout = random.uniform(ACK_TIMEOUT, ACK_TIMEOUT * ACK_RANDOM_FACTOR)
+        timeout = random.uniform(message.transport_tuning.ACK_TIMEOUT, message.transport_tuning.ACK_TIMEOUT * message.transport_tuning.ACK_RANDOM_FACTOR)
 
         next_retransmission = self._schedule_retransmit(message, timeout, 0)
         self._active_exchanges[key] = (messageerror_monitor, next_retransmission)
@@ -278,7 +276,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         # this should be a no-op, but let's be sure
         next_retransmission.cancel()
 
-        if retransmission_counter < MAX_RETRANSMIT:
+        if retransmission_counter < message.transport_tuning.MAX_RETRANSMIT:
             self.log.info("Retransmission, Message ID: %d.", message.mid)
             self._send_via_transport(message)
             retransmission_counter += 1
@@ -313,7 +311,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                         (remote, token))
                 self._send_empty_ack(request.remote, mid,
                     "Response took too long to prepare")
-            handle = self.loop.call_later(EMPTY_ACK_DELAY,
+            handle = self.loop.call_later(request.transport_tuning.EMPTY_ACK_DELAY,
                     on_timeout, self, request.remote, request.token)
             key = (request.remote, request.token)
             if key in self._piggyback_opportunities:

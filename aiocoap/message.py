@@ -17,7 +17,7 @@ from collections import namedtuple
 from . import error, optiontypes
 from .numbers.codes import Code, CHANGED
 from .numbers.types import Type
-from .numbers.constants import DEFAULT_BLOCK_SIZE_EXP
+from .numbers.constants import TransportTuning
 from .options import Options
 from .util import hostportjoin, hostportsplit, Sentinel, quote_nonascii
 from .util.uri import quote_factory, unreserved, sub_delims
@@ -392,8 +392,8 @@ class Message(object):
         client with "more" flag set."""
         response = Message(code=CHANGED, token=self.token)
         response.remote = self.remote
-        if self.opt.block1.block_number == 0 and self.opt.block1.size_exponent > DEFAULT_BLOCK_SIZE_EXP:
-            new_size_exponent = DEFAULT_BLOCK_SIZE_EXP
+        if self.opt.block1.block_number == 0 and self.opt.block1.size_exponent > self.transport_tuning.DEFAULT_BLOCK_SIZE_EXP:
+            new_size_exponent = self.transport_tuning.DEFAULT_BLOCK_SIZE_EXP
             response.opt.block1 = (0, True, new_size_exponent)
         else:
             response.opt.block1 = (self.opt.block1.block_number, True, self.opt.block1.size_exponent)

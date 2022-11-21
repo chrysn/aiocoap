@@ -52,7 +52,7 @@ class IncompleteException(ConstructionRenderableError):
 class Block1Spool:
     def __init__(self):
         # FIXME: introduce an actual parameter here
-        self._assemblies = TimeoutDict(numbers.MAX_TRANSMIT_WAIT)
+        self._assemblies = TimeoutDict(numbers.TransportTuning.MAX_TRANSMIT_WAIT)
 
     def feed_and_take(self, req: Message) -> Message:
         """Assemble the request into the spool. This either produces a
@@ -92,7 +92,7 @@ class Block2Cache:
     """
     def __init__(self):
         # FIXME: introduce an actual parameter here
-        self._completes = TimeoutDict(numbers.MAX_TRANSMIT_WAIT)
+        self._completes = TimeoutDict(numbers.TransportTuning.MAX_TRANSMIT_WAIT)
 
     async def extract_or_insert(self, req: Message, response_builder: types.CoroutineType):
         """Given a request message,
