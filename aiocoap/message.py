@@ -267,7 +267,7 @@ class Message(object):
         """Extract block from current message."""
         if size_exp == 7:
             start = number * 1024
-            size = 1024 * max_bert_size // 1024
+            size = 1024 * (max_bert_size // 1024)
         else:
             size = 2 ** (size_exp + 4)
             start = number * size
