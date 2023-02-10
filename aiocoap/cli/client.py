@@ -249,12 +249,13 @@ async def single_request(args, context):
             except OSError as e:
                 raise parser.error("File could not be opened: %s"%e)
         else:
-            if contenttype.categorize(
+            request_classification = contenttype.categorize(
                     request.opt.content_format.media_type
                     if request.opt.content_format is not None and
                         request.opt.content_format.is_known()
                     else ""
-                    ) == 'cbor':
+                    )
+            if request_classification in ('cbor', 'cbor-seq'):
                 try:
                     import cbor2 as cbor
                 except ImportError as e:
@@ -268,7 +269,15 @@ async def single_request(args, context):
                         decoded = ast.literal_eval(options.payload)
                     except ValueError:
                         raise parser.error("JSON and Python recoding failed. Make sure quotation marks are escaped from the shell. JSON error: %s" % e)
-                request.payload = cbor.dumps(decoded)
+
+                if request_classification == 'cbor-seq':
+                    if type(decoded) not in (list, tuple):
+                        raise parser.error("CBOR sequence recoding requires a list or tuple top-level element.")
+                    items = decoded
+                else:
+                    items = [decoded]
+
+                request.payload = b"".join(cbor.dumps(i) for i in items)
             else:
                 request.payload = options.payload.encode('utf8')
 
