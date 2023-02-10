@@ -24,6 +24,9 @@ def categorize(contenttype: str):
     media_type, *_ = contenttype.split(';')
     _, _, subtype = media_type.partition('/')
 
+    if subtype == 'cbor-seq' or subtype.endswith('+cbor-seq'):
+        return 'cbor-seq'
+
     if subtype == 'cbor' or subtype.endswith('+cbor'):
         return 'cbor'
 

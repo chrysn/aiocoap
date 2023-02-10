@@ -109,13 +109,21 @@ def pretty_print(message):
             # Handled later
             pass
 
-    elif category == 'cbor':
+    elif category in ('cbor', 'cbor-seq'):
+        if category == 'cbor-seq':
+            # Faking an indefinite length CBOR array is the easiest way to
+            # parse an array into a list-like data structure, especially as
+            # long as we don't indicate precise locations of invalid CBOR
+            # anyway
+            payload = b'\x9f' + message.payload + b'\xff'
+        else:
+            payload = message.payload
+
         try:
-            parsed = cbor.loads(message.payload)
+            parsed = cbor.loads(payload)
         except cbor.CBORDecodeError:
             show_hex = "CBOR value is invalid"
         else:
-            info("CBOR message shown in naïve Python decoding")
             # Formatting it via Python b/c that's reliably available (as
             # opposed to JSON which might not round-trip well). The repr for
             # tags might still not be parsable, but I think chances of good
@@ -127,7 +135,13 @@ def pretty_print(message):
                 printer = pprint.PrettyPrinter(sort_dicts=False)
             else:
                 printer = pprint.PrettyPrinter()
-            formatted = printer.pformat(parsed)
+
+            if category == 'cbor-seq':
+                info("CBOR sequence message shown in naïve Python decoding")
+                formatted = "\n".join(printer.pformat(i) for i in parsed)
+            else:
+                info("CBOR message shown in naïve Python decoding")
+                formatted = printer.pformat(parsed)
             return (infos, 'text/x-python3', formatted)
 
     elif category == 'json':
