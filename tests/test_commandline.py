@@ -88,8 +88,8 @@ class TestCommandlineClient(WithTestServer):
             self.assertTrue(b'    ' not in json_coloronly, "Indentation in color-printed JSON")
 
             cbor_formatted = subprocess.check_output(AIOCOAP_CLIENT + ['coap://' + self.servernetloc + '/answer', '--accept', 'application/cbor', '--pretty-print'])
-            # Concrete formatting may vary, as it depends on Python repr
-            self.assertEqual(cbor_formatted, b"{'answer': 42}")
+            # Concrete formatting depends on cbor-diag package
+            self.assertEqual(cbor_formatted, b'{"answer": 42_0}')
 
     @no_warnings
     @asynctest

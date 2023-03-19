@@ -9,11 +9,8 @@
 """A pretty-printer for known mime types"""
 
 import json
-import sys
-import pprint
 import re
 
-import cbor2 as cbor
 import pygments
 import pygments.lexers
 import pygments.formatters
@@ -120,29 +117,20 @@ def pretty_print(message):
             payload = message.payload
 
         try:
-            parsed = cbor.loads(payload)
-        except cbor.CBORDecodeError:
-            show_hex = "CBOR value is invalid"
-        else:
-            # Formatting it via Python b/c that's reliably available (as
-            # opposed to JSON which might not round-trip well). The repr for
-            # tags might still not be parsable, but I think chances of good
-            # highlighting are best this way
-            #
-            # Not sorting dicts to give a more faithful representation of the
-            # original CBOR message
-            if sys.version_info >= (3, 8):
-                printer = pprint.PrettyPrinter(sort_dicts=False)
-            else:
-                printer = pprint.PrettyPrinter()
+            import cbor_diag
+
+            formatted = cbor_diag.cbor2diag(payload)
 
             if category == 'cbor-seq':
-                info("CBOR sequence message shown in naïve Python decoding")
-                formatted = "\n".join(printer.pformat(i) for i in parsed)
+                info("CBOR sequence message shown as array in Diagnostic Notation")
             else:
-                info("CBOR message shown in naïve Python decoding")
-                formatted = printer.pformat(parsed)
-            return (infos, 'text/x-python3', formatted)
+                info("CBOR message shown in Diagnostic Notation")
+
+            return (infos, 'text/x-cbor-dianostic', formatted)
+        except ImportError:
+            show_hex = "No CBOR pretty-printer available"
+        except ValueError:
+            show_hex = "CBOR value is invalid"
 
     elif category == 'json':
         try:
