@@ -35,9 +35,6 @@ test:3.7:
 test:tox:
   image: debian:bullseye
   resource_group: uses-coap-ports
-  variables:
-    # Excluding 3.8 means 3.8 is not tested at all :-/
-    TOX_SKIP_ENV: "py3[781]|pypy"
   script:
     - rm -f .coverage* collected-coverage
     - apt-get update
@@ -54,9 +51,6 @@ test:tox:
 test:tox-bookworm:
   image: debian:bookworm
   resource_group: uses-coap-ports
-  variables:
-    # Running only 3.11 and pypy
-    TOX_SKIP_ENV: "py3[789]|py310"
   script:
     - rm -f .coverage* collected-coverage
     - apt-get update
@@ -77,8 +71,6 @@ test:tox-bookworm:
 test:tox-on-buster:
   image: debian:buster
   resource_group: uses-coap-ports
-  variables:
-    TOX_SKIP_ENV: "py3[891]|pypy"
   script:
     - rm -f .coverage* collected-coverage
     - apt-get update
