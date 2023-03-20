@@ -55,12 +55,12 @@ test:tox-bookworm:
   image: debian:bookworm
   resource_group: uses-coap-ports
   variables:
-    # Running only 3.10, 3.11 and pypy
-    TOX_SKIP_ENV: "py3[789]"
+    # Running only 3.11 and pypy
+    TOX_SKIP_ENV: "py3[789]|py310"
   script:
     - rm -f .coverage* collected-coverage
     - apt-get update
-    - apt-get -y install tox build-essential python3.10-dev python3.11-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev pypy3 pypy3-dev
+    - apt-get -y install tox build-essential python3.11-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev pypy3 pypy3-dev
     # Separate run so I don't waste time telling errors in setup apart from errors at runtime
     - tox --notest
     - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
