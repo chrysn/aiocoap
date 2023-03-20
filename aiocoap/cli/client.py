@@ -42,7 +42,7 @@ def build_parser():
     p.add_argument('--proxy', help="Relay the CoAP request to a proxy for execution", metavar="URI")
     p.add_argument('--payload', help="Send X as request payload (eg. with a PUT). If X starts with an '@', its remainder is treated as a file name and read from; '@-' reads from the console. Non-file data may be recoded, see --content-format.", metavar="X")
     p.add_argument('--payload-initial-szx', help="Size exponent to limit the initial block's size (0 ≙ 16 Byte, 6 ≙ 1024 Byte)", metavar="SZX", type=int)
-    p.add_argument('--content-format', help="Content format of the --payload data. If a known format is given and --payload has a non-file argument, conversion is attempted (currently only JSON/Python-literals to CBOR).", metavar="MIME")
+    p.add_argument('--content-format', help="Content format of the --payload data. If a known format is given and --payload has a non-file argument, the payload is converted from CBOR Diagnostic Notation.", metavar="MIME")
     p.add_argument('--no-set-hostname', help="Suppress transmission of Uri-Host even if the host name is not an IP literal", dest="set_hostname", action='store_false', default=True)
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
