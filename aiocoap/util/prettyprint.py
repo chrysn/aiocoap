@@ -126,7 +126,10 @@ def pretty_print(message):
             else:
                 info("CBOR message shown in Diagnostic Notation")
 
-            return (infos, 'text/x-cbor-dianostic', formatted)
+            # It's not exactly CDDL, but it's close enough that the syntax
+            # highlighting looks OK, and tolerant enough to not complain about
+            # missing leading barewords and "=" signs
+            return (infos, 'text/x-cddl', formatted)
         except ImportError:
             show_hex = "No CBOR pretty-printer available"
         except ValueError:
