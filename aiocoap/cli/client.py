@@ -257,27 +257,26 @@ async def single_request(args, context):
                     )
             if request_classification in ('cbor', 'cbor-seq'):
                 try:
-                    import cbor2 as cbor
+                    import cbor_diag
                 except ImportError as e:
-                    raise parser.error("CBOR recoding not available (%s)" % e)
-                import json
+                    raise parser.error(f"CBOR recoding not available ({e})")
+
                 try:
-                    decoded = json.loads(options.payload)
-                except json.JSONDecodeError as e:
-                    import ast
-                    try:
-                        decoded = ast.literal_eval(options.payload)
-                    except ValueError:
-                        raise parser.error("JSON and Python recoding failed. Make sure quotation marks are escaped from the shell. JSON error: %s" % e)
+                    encoded = cbor_diag.diag2cbor(options.payload)
+                except ValueError as e:
+                    raise parser.error(f"Parsing CBOR diagnostic notation failed. Make sure quotation marks are escaped from the shell. Error: {e}")
 
                 if request_classification == 'cbor-seq':
-                    if type(decoded) not in (list, tuple):
-                        raise parser.error("CBOR sequence recoding requires a list or tuple top-level element.")
-                    items = decoded
+                    try:
+                        import cbor2
+                    except ImportError as e:
+                        raise parser.error(f"CBOR sequence recoding not available ({e})")
+                    decoded = cbor2.loads(encoded)
+                    if not isinstance(decoded, list):
+                        raise parser.error("CBOR sequence recoding requires an array as the top-level element.")
+                    request.payload = b"".join(cbor2.dumps(d) for d in decoded)
                 else:
-                    items = [decoded]
-
-                request.payload = b"".join(cbor.dumps(i) for i in items)
+                    request.payload = encoded
             else:
                 request.payload = options.payload.encode('utf8')
 
