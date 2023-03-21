@@ -26,6 +26,14 @@ import os
 import socket
 import sys
 
+try:
+    import pyodide  # noqa: F401
+    import js       # noqa: F401
+except ImportError:
+    is_pyodide = False
+else:
+    is_pyodide = True
+
 def get_default_clienttransports(*, loop=None, use_env=True):
     """Return a list of transports that should be connected when a client
     context is created.
