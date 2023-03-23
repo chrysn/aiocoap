@@ -456,8 +456,9 @@ DEFAULT_WINDOWSIZE = 32
 
 class BaseSecurityContext:
     # The protection and unprotection functions will use the Group OSCORE AADs
-    # rather than the regular OSCORE AADs. (Ie. alg_countersign is added to
-    # the algorithms, and the id_context is added at the end).
+    # rather than the regular OSCORE AADs. (Ie. alg_signature_enc etc are added to
+    # the algorithms, and request_kid_context, OSCORE_option, sender_cred and
+    # gm_cred are added).
     #
     # This is not necessarily identical to is_signing (as pairwise contexts use
     # this but don't sign), and is distinct from the added OSCORE option in the
