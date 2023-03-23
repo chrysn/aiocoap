@@ -47,7 +47,7 @@ _skip_unless_oscore = unittest.skipIf(oscore_modules, "Modules missing for runni
 class TestOSCOAPStatic(unittest.TestCase):
     def test_c1_1(self):
         secctx = NonsavingSecurityContext()
-        secctx.algorithm = default_algorithm
+        secctx.alg_aead = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b""
         secctx.recipient_id = b"\x01"
@@ -67,7 +67,7 @@ class TestOSCOAPStatic(unittest.TestCase):
 
     def test_c1_2(self):
         secctx = NonsavingSecurityContext()
-        secctx.algorithm = default_algorithm
+        secctx.alg_aead = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x01"
         secctx.recipient_id = b""
@@ -87,7 +87,7 @@ class TestOSCOAPStatic(unittest.TestCase):
 
     def test_c2_1(self):
         secctx = NonsavingSecurityContext()
-        secctx.algorithm = default_algorithm
+        secctx.alg_aead = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x00"
         secctx.recipient_id = b"\x01"
@@ -109,7 +109,7 @@ class TestOSCOAPStatic(unittest.TestCase):
 
     def test_c3_1(self):
         secctx = NonsavingSecurityContext()
-        secctx.algorithm = default_algorithm
+        secctx.alg_aead = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b""
         secctx.recipient_id = b"\x01"
@@ -130,7 +130,7 @@ class TestOSCOAPStatic(unittest.TestCase):
 
     def test_c4(self):
         secctx = NonsavingSecurityContext()
-        secctx.algorithm = default_algorithm
+        secctx.alg_aead = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b""
         secctx.recipient_id = b"\x01"
@@ -152,7 +152,7 @@ class TestOSCOAPStatic(unittest.TestCase):
 
     def test_c5(self):
         secctx = NonsavingSecurityContext()
-        secctx.algorithm = default_algorithm
+        secctx.alg_aead = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x00"
         secctx.recipient_id = b"\x01"
@@ -174,7 +174,7 @@ class TestOSCOAPStatic(unittest.TestCase):
 
     def test_c6(self):
         secctx = NonsavingSecurityContext()
-        secctx.algorithm = default_algorithm
+        secctx.alg_aead = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b""
         secctx.recipient_id = b"\x01"
@@ -198,7 +198,7 @@ class TestOSCOAPStatic(unittest.TestCase):
 
     def test_c7(self):
         secctx = NonsavingSecurityContext()
-        secctx.algorithm = default_algorithm
+        secctx.alg_aead = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x01"
         secctx.recipient_id = b""
@@ -222,7 +222,7 @@ class TestOSCOAPStatic(unittest.TestCase):
 
     def test_c8(self):
         secctx = NonsavingSecurityContext()
-        secctx.algorithm = default_algorithm
+        secctx.alg_aead = default_algorithm
         secctx.hashfun = default_hashfun
         secctx.sender_id = b"\x01"
         secctx.recipient_id = b""

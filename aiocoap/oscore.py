@@ -24,6 +24,7 @@ import tempfile
 import abc
 from typing import Optional
 import secrets
+import warnings
 
 from aiocoap.message import Message
 from aiocoap.util import cryptography_additions, deprecation_getattr
@@ -140,7 +141,7 @@ def _xor_bytes(a, b):
     # that possibly needs xor'ing as long integers with an associated length?
     return bytes(_a ^ _b for (_a, _b) in zip(a, b))
 
-class Algorithm(metaclass=abc.ABCMeta):
+class AeadAlgorithm(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def encrypt(cls, plaintext, aad, key, iv):
         """Return ciphertext + tag for given input data"""
@@ -158,7 +159,7 @@ class Algorithm(metaclass=abc.ABCMeta):
 
         return cbor.dumps(enc_structure)
 
-class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
+class AES_CCM(AeadAlgorithm, metaclass=abc.ABCMeta):
     """AES-CCM implemented using the Python cryptography library"""
 
     @classmethod
@@ -229,7 +230,7 @@ class AES_CCM_64_128_256(AES_CCM):
     iv_bytes = 7 # 7-byte nonce
 
 
-class AES_GCM(Algorithm, metaclass=abc.ABCMeta):
+class AES_GCM(AeadAlgorithm, metaclass=abc.ABCMeta):
     """AES-GCM implemented using the Python cryptography library"""
 
     iv_bytes = 12 # 96 bits fixed size of the nonce
@@ -263,7 +264,7 @@ class A256GCM(AES_GCM):
     key_bytes = 32 # 256-bit key
     tag_bytes = 16 # 128-bit tag
 
-class ChaCha20Poly1305(Algorithm):
+class ChaCha20Poly1305(AeadAlgorithm):
     # from RFC8152
     value = 24
     key_bytes = 32 # 256-bit key
@@ -470,11 +471,23 @@ class BaseSecurityContext:
     # externally by whatever creates the security context.
     authenticated_claims = []
 
+    # AEAD algorithm. This may only be None in group contexts that do not use pairwise mode.
+    alg_aead: Optional[AeadAlgorithm]
+
+    @property
+    def algorithm(self):
+        warnings.warn("Property was renamed to 'alg_aead'", DeprecationWarning, stacklevel=2)
+        return self.alg_aead
+    @algorithm.setter
+    def algorithm(self, value):
+        warnings.warn("Property was renamed to 'alg_aead'", DeprecationWarning, stacklevel=2)
+        self.alg_aead = value
+
     def _construct_nonce(self, partial_iv_short, piv_generator_id):
         pad_piv = b"\0" * (5 - len(partial_iv_short))
 
         s = bytes([len(piv_generator_id)])
-        pad_id = b'\0' * (self.algorithm.iv_bytes - 6 - len(piv_generator_id))
+        pad_id = b'\0' * (self.alg_aead.iv_bytes - 6 - len(piv_generator_id))
 
         components = s + \
                 pad_id + \
@@ -497,7 +510,7 @@ class BaseSecurityContext:
         if request_id.request_hash is not None:
             class_i_options = Message(request_hash=request_id.request_hash).opt.encode()
 
-        algorithms = [self.algorithm.value]
+        algorithms = [self.alg_aead.value]
         if self.external_aad_is_group:
             algorithms.extend(self.alg_countersign.value_all_par)
 
@@ -634,11 +647,11 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         external_aad = self._extract_external_aad(outer_message, request_id)
 
-        aad = self.algorithm._build_encrypt0_structure(protected, external_aad)
+        aad = self.alg_aead._build_encrypt0_structure(protected, external_aad)
 
         key = self._get_sender_key(outer_message, external_aad, plaintext, request_id)
 
-        ciphertext = self.algorithm.encrypt(plaintext, aad, key, nonce)
+        ciphertext = self.alg_aead.encrypt(plaintext, aad, key, nonce)
 
         _, payload = self._compress(protected, unprotected, ciphertext)
 
@@ -830,7 +843,7 @@ class CanUnprotect(BaseSecurityContext):
         if unprotected:
             raise DecodeError("Unsupported unprotected option")
 
-        if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
+        if len(ciphertext) < self.alg_aead.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
 
         external_aad = self._extract_external_aad(protected_message, request_id)
@@ -839,7 +852,7 @@ class CanUnprotect(BaseSecurityContext):
 
         key = self._get_recipient_key(protected_message)
 
-        plaintext = self.algorithm.decrypt(ciphertext, aad, key, nonce)
+        plaintext = self.alg_aead.decrypt(ciphertext, aad, key, nonce)
 
         self._post_decrypt_checks(external_aad, plaintext, protected_message, request_id)
 
@@ -977,12 +990,12 @@ class CanUnprotect(BaseSecurityContext):
 
 class SecurityContextUtils(BaseSecurityContext):
     def _kdf(self, master_salt, master_secret, role_id, out_type):
-        out_bytes = {'Key': self.algorithm.key_bytes, 'IV': self.algorithm.iv_bytes}[out_type]
+        out_bytes = {'Key': self.alg_aead.key_bytes, 'IV': self.alg_aead.iv_bytes}[out_type]
 
         info = cbor.dumps([
             role_id,
             self.id_context,
-            self.algorithm.value,
+            self.alg_aead.value,
             out_type,
             out_bytes
             ])
@@ -1233,7 +1246,7 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
 
                 data[key] = value
 
-        self.algorithm = algorithms[data.get('algorithm', DEFAULT_ALGORITHM)]
+        self.alg_aead = algorithms[data.get('algorithm', DEFAULT_ALGORITHM)]
         self.hashfun = hashfunctions[data.get('kdf-hashfun', DEFAULT_HASHFUNCTION)]
 
         windowsize = data.get('window', DEFAULT_WINDOWSIZE)
@@ -1243,8 +1256,8 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
         self.sender_id = data['sender-id']
         self.recipient_id = data['recipient-id']
 
-        if max(len(self.sender_id), len(self.recipient_id)) > self.algorithm.iv_bytes - 6:
-            raise self.LoadError("Sender or Recipient ID too long (maximum length %s for this algorithm)" % (self.algorithm.iv_bytes - 6))
+        if max(len(self.sender_id), len(self.recipient_id)) > self.alg_aead.iv_bytes - 6:
+            raise self.LoadError("Sender or Recipient ID too long (maximum length %s for this algorithm)" % (self.alg_aead.iv_bytes - 6))
 
         master_secret = data['secret']
         master_salt = data.get('salt', b'')
@@ -1390,11 +1403,11 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     # set during initialization
     private_key = None
 
-    def __init__(self, algorithm, hashfun, alg_countersign, group_id, master_secret, master_salt, sender_id, private_key, peers):
+    def __init__(self, alg_aead, hashfun, alg_countersign, group_id, master_secret, master_salt, sender_id, private_key, peers):
         self.sender_id = sender_id
         self.id_context = group_id
         self.private_key = private_key
-        self.algorithm = algorithm
+        self.alg_aead = alg_aead
         self.hashfun = hashfun
         self.alg_countersign = alg_countersign
 
@@ -1490,7 +1503,7 @@ class _GroupContextAspect(GroupContext, CanUnprotect):
                 )
 
     id_context = property(lambda self: self.groupcontext.id_context)
-    algorithm = property(lambda self: self.groupcontext.algorithm)
+    alg_aead = property(lambda self: self.groupcontext.alg_aead)
     alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
     common_iv = property(lambda self: self.groupcontext.common_iv)
 
@@ -1525,7 +1538,7 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
 
     # FIXME: actually, only to be sent in requests
     id_context = property(lambda self: self.groupcontext.id_context)
-    algorithm = property(lambda self: self.groupcontext.algorithm)
+    alg_aead = property(lambda self: self.groupcontext.alg_aead)
     hashfun = property(lambda self: self.groupcontext.hashfun)
     alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
     common_iv = property(lambda self: self.groupcontext.common_iv)
@@ -1632,7 +1645,7 @@ class _DeterministicProtectProtoAspect(CanProtect, SecurityContextUtils):
     external_aad_is_group = True
 
     # details needed for various operations, especially eAAD generation
-    algorithm = property(lambda self: self.groupcontext.algorithm)
+    alg_aead = property(lambda self: self.groupcontext.alg_aead)
     hashfun = property(lambda self: self.groupcontext.hashfun)
     common_iv = property(lambda self: self.groupcontext.common_iv)
     id_context = property(lambda self: self.groupcontext.id_context)
@@ -1717,7 +1730,7 @@ class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
     external_aad_is_group = True
 
     # details needed for various operations, especially eAAD generation
-    algorithm = property(lambda self: self.groupcontext.algorithm)
+    alg_aead = property(lambda self: self.groupcontext.alg_aead)
     hashfun = property(lambda self: self.groupcontext.hashfun)
     common_iv = property(lambda self: self.groupcontext.common_iv)
     id_context = property(lambda self: self.groupcontext.id_context)
@@ -1739,5 +1752,6 @@ def verify_start(message):
 
 
 _getattr__ = deprecation_getattr({
-        'COSE_COUNTERSINGATURE0': 'COSE_COUNTERSIGNATURE0'
+        'COSE_COUNTERSINGATURE0': 'COSE_COUNTERSIGNATURE0',
+        'Algorithm': 'AeadAlgorithm',
         }, globals())
