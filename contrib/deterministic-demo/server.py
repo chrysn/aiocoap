@@ -35,7 +35,7 @@ async def main():
             aiocoap.oscore.SimpleGroupContext(
                     algorithm = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM],
                     hashfun = aiocoap.oscore.hashfunctions[aiocoap.oscore.DEFAULT_HASHFUNCTION],
-                    alg_countersign = aiocoap.oscore.Ed25519(),
+                    alg_signature = aiocoap.oscore.Ed25519(),
                     group_id = bytes.fromhex('DD11'),
                     master_secret = bytes.fromhex('11223344556677889900AABBCCDDEEFF'),
                     master_salt = bytes.fromhex('1F2E3D4C5B6A7081'),

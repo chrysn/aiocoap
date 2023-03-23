@@ -285,7 +285,7 @@ class ChaCha20Poly1305(AeadAlgorithm):
 class AlgorithmCountersign(metaclass=abc.ABCMeta):
     """A fully parameterized COSE countersign algorithm
 
-    An instance is able to provide all the alg_countersign, par_countersign and
+    An instance is able to provide all the alg_signature, par_countersign and
     par_countersign_key parameters taht go into the Group OSCORE algorithms
     field.
     """
@@ -512,7 +512,7 @@ class BaseSecurityContext:
 
         algorithms = [self.alg_aead.value]
         if self.external_aad_is_group:
-            algorithms.extend(self.alg_countersign.value_all_par)
+            algorithms.extend(self.alg_signature.value_all_par)
 
         external_aad = [
                 oscore_version,
@@ -535,7 +535,7 @@ class BaseSecurityContext:
 # FIXME pull interface components from SecurityContext up here
 class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
     # The protection function will add a signature acccording to the context's
-    # alg_countersign attribute if this is true
+    # alg_signature attribute if this is true
     is_signing = False
 
     # Send the KID when protecting responses
@@ -656,7 +656,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         _, payload = self._compress(protected, unprotected, ciphertext)
 
         if self.is_signing:
-            payload += self.alg_countersign.sign(payload, external_aad, self.private_key)
+            payload += self.alg_signature.sign(payload, external_aad, self.private_key)
         outer_message.payload = payload
 
         # FIXME go through options section
@@ -828,11 +828,11 @@ class CanUnprotect(BaseSecurityContext):
 
         if unprotected.pop(COSE_COUNTERSIGNATURE0, None) is not None:
             try:
-                alg_countersign = self.alg_countersign
+                alg_signature = self.alg_signature
             except NameError:
                 raise DecodeError("Group messages can not be decoded with this non-group context")
 
-            siglen = alg_countersign.signature_length
+            siglen = alg_signature.signature_length
             if len(ciphertext) < siglen:
                 raise DecodeError("Message too short for signature")
             signature = ciphertext[-siglen:]
@@ -861,7 +861,7 @@ class CanUnprotect(BaseSecurityContext):
 
         if signature is not None:
             # Only doing the expensive signature validation once the cheaper decyrption passed
-            alg_countersign.verify(signature, ciphertext, external_aad, self.recipient_public_key)
+            alg_signature.verify(signature, ciphertext, external_aad, self.recipient_public_key)
 
         # FIXME add options from unprotected
 
@@ -1369,10 +1369,20 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
         if self.lockfile is not None:
             self._destroy()
 
-class GroupContext:
+class GroupContext(BaseSecurityContext):
     is_signing = True
     external_aad_is_group = True
     responses_send_kid = True
+
+    # This is None iff the group does not support group mode
+    alg_signature_enc: Optional[AeadAlgorithm]
+    # This is None iff the group does not support group mode
+    alg_signature: Optional[AlgorithmCountersign]
+    # This is None iff the group does not support pairwise
+    #
+    # This is also of type AlgorithmCountersign because the staticstatic
+    # function is sitting on the same type.
+    alg_pairwise_key_agreement: Optional[AlgorithmCountersign]
 
     @abc.abstractproperty
     def private_key(self):
@@ -1403,13 +1413,13 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     # set during initialization
     private_key = None
 
-    def __init__(self, alg_aead, hashfun, alg_countersign, group_id, master_secret, master_salt, sender_id, private_key, peers):
+    def __init__(self, alg_aead, hashfun, alg_signature, group_id, master_secret, master_salt, sender_id, private_key, peers):
         self.sender_id = sender_id
         self.id_context = group_id
         self.private_key = private_key
         self.alg_aead = alg_aead
         self.hashfun = hashfun
-        self.alg_countersign = alg_countersign
+        self.alg_signature = alg_signature
 
         self.peers = peers.keys()
         self.recipient_public_keys = peers
@@ -1504,7 +1514,7 @@ class _GroupContextAspect(GroupContext, CanUnprotect):
 
     id_context = property(lambda self: self.groupcontext.id_context)
     alg_aead = property(lambda self: self.groupcontext.alg_aead)
-    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+    alg_signature = property(lambda self: self.groupcontext.alg_signature)
     common_iv = property(lambda self: self.groupcontext.common_iv)
 
     recipient_key = property(lambda self: self.groupcontext.recipient_keys[self.recipient_id])
@@ -1521,7 +1531,7 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
         self.groupcontext = groupcontext
         self.recipient_id = recipient_id
 
-        shared_secret = self.alg_countersign.staticstatic(
+        shared_secret = self.alg_signature.staticstatic(
                 self.groupcontext.private_key,
                 self.groupcontext.recipient_public_keys[recipient_id]
                 )
@@ -1540,7 +1550,7 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
     id_context = property(lambda self: self.groupcontext.id_context)
     alg_aead = property(lambda self: self.groupcontext.alg_aead)
     hashfun = property(lambda self: self.groupcontext.hashfun)
-    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+    alg_signature = property(lambda self: self.groupcontext.alg_signature)
     common_iv = property(lambda self: self.groupcontext.common_iv)
     sender_id = property(lambda self: self.groupcontext.sender_id)
 
@@ -1649,7 +1659,7 @@ class _DeterministicProtectProtoAspect(CanProtect, SecurityContextUtils):
     hashfun = property(lambda self: self.groupcontext.hashfun)
     common_iv = property(lambda self: self.groupcontext.common_iv)
     id_context = property(lambda self: self.groupcontext.id_context)
-    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+    alg_signature = property(lambda self: self.groupcontext.alg_signature)
 
 class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
     """This implements the sending side of Deterministic Requests.
@@ -1734,7 +1744,7 @@ class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
     hashfun = property(lambda self: self.groupcontext.hashfun)
     common_iv = property(lambda self: self.groupcontext.common_iv)
     id_context = property(lambda self: self.groupcontext.id_context)
-    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+    alg_signature = property(lambda self: self.groupcontext.alg_signature)
 
 def verify_start(message):
     """Extract the unprotected COSE options from a
