@@ -17,6 +17,7 @@ import os
 import pprint
 import sys
 import unittest
+import warnings
 import weakref
 
 # time granted to asyncio to receive datagrams sent via loopback, and to close
@@ -73,7 +74,7 @@ def no_warnings(function, expected_warnings=None):
 
         startcount = len(self.handler.list)
         result = function(self, *args)
-        messages = [m.getMessage() for m in self.handler.list[startcount:] if m.levelno >= logging.WARNING]
+        messages = [m.getMessage() for m in self.handler.list[startcount:] if m.levelno >= logging.WARNING and 'There is no current event loop' not in m.getMessage()]
         if len(expected_warnings) != len(messages) or not all(
                 e == m or (e.endswith('...') and m.startswith(e[:-3]))
                 for (e, m)
@@ -98,6 +99,8 @@ class WithLogMonitoring(unittest.TestCase):
 
         logging.root.setLevel(0)
         logging.root.addHandler(self.handler)
+        logging.captureWarnings(True)
+        warnings.simplefilter("always")
 
         super(WithLogMonitoring, self).setUp()
 

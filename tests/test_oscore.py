@@ -388,7 +388,7 @@ class TestOSCORECompression(unittest.TestCase):
         # The flag is registered, but its value is empty (deferring to a later
         # step that'd actually know the algorithm) and relies on the later
         # process to move data over from the plaintext
-        self.compare_all(b"\x2bABC--", b"1234sigsigsig", {}, {aiocoap.oscore.COSE_PIV: b"ABC", aiocoap.oscore.COSE_KID: b"--", aiocoap.oscore.COSE_COUNTERSINGATURE0: b""}, b"1234sigsigsig")
+        self.compare_all(b"\x2bABC--", b"1234sigsigsig", {}, {aiocoap.oscore.COSE_PIV: b"ABC", aiocoap.oscore.COSE_KID: b"--", aiocoap.oscore.COSE_COUNTERSIGNATURE0: b""}, b"1234sigsigsig")
 
     def test_reserved(self):
         self.assertRaises(aiocoap.oscore.DecodeError, lambda: self.compare_uncompress(b"\x4bABC--", b"1234", None, None, None))

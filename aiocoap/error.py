@@ -14,6 +14,7 @@ import warnings
 import abc
 
 from .numbers import codes
+from . import util
 
 class Error(Exception):
     """
@@ -227,16 +228,8 @@ class AnonymousHost(Error):
     accessed for as long as the connection is active, but can not be used any
     more once it is closed or even by another system."""
 
-_deprecated_aliases = {
+__getattr__ = util.deprecation_getattr({
         "UnsupportedMediaType": "UnsupportedContentFormat",
         "RequestTimedOut": "TimeoutError",
         "WaitingForClientTimedOut": "TimeoutError",
-        }
-def __getattr__(name):
-    if name in _deprecated_aliases:
-        modern = _deprecated_aliases[name]
-        from warnings import warn
-        warn(f"{name} is deprecated, use {modern} instead", DeprecationWarning,
-                stacklevel=2)
-        return globals()[modern]
-    raise AttributeError(f"module {__name__} has no attribute {name}")
+        }, globals())
