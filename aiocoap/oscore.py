@@ -51,6 +51,8 @@ COSE_PIV = 6
 COSE_KID_CONTEXT = 10
 # from RFC9338
 COSE_COUNTERSIGNATURE0 = 12
+# from draft-ietf-lake-edhoc-19, guessing the value
+COSE_KCCS = 13131313
 
 COMPRESSION_BITS_N = 0b111
 COMPRESSION_BIT_K = 0b1000
@@ -1496,7 +1498,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     private_key = None
     sender_auth_cred = None
 
-    def __init__(self, alg_aead, hashfun, alg_signature, alg_signature_enc, alg_pairwise_key_agreement, group_id, master_secret, master_salt, sender_id, private_key, sender_auth_cred, peers, group_manager_cred=None):
+    def __init__(self, alg_aead, hashfun, alg_signature, alg_signature_enc, alg_pairwise_key_agreement, group_id, master_secret, master_salt, sender_id, private_key, sender_auth_cred, peers, group_manager_cred=None, cred_fmt=COSE_KCCS):
         self.sender_id = sender_id
         self.id_context = group_id
         self.private_key = private_key
@@ -1507,10 +1509,10 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         self.alg_pairwise_key_agreement = alg_pairwise_key_agreement
         self.sender_auth_cred = sender_auth_cred
         self.group_manager_cred = group_manager_cred
+        self.cred_fmt = cred_fmt
 
         self.peers = peers.keys()
-        # FIXME: Generalize extraction from CCS, and add checks that the keys are of the right type
-        self.recipient_public_keys = {k: cbor.loads(v)[8][1][-2] for (k, v) in peers.items()}
+        self.recipient_public_keys = {k: self._parse_credential(v) for (k, v) in peers.items()}
         self.recipient_auth_creds = peers
         self.recipient_replay_windows = {}
         for k in self.peers:
@@ -1521,6 +1523,62 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
 
         self.derive_keys(master_salt, master_secret)
         self.sender_sequence_number = 0
+
+        sender_public_key = self._parse_credential(sender_auth_cred)
+        if self.alg_signature.public_from_private(self.private_key) != sender_public_key:
+            raise ValueError("The key in the provided sender credential does not match the private key")
+
+    def _parse_credential(self, credential: bytes):
+        """Extract the public key (in the public_key format the respective
+        AlgorithmCountersign needs) from credentials. This raises a ValueError
+        if the credentials do not match the group's cred_fmt, or if the
+        parameters do not match those configured in the group.
+
+        This currently discards any information that is present in the
+        credential that exceeds the key. (In a future version, this could
+        return both the key and extracted other data, where that other data
+        would be stored with the peer this is parsed from).
+        """
+
+        if self.cred_fmt != COSE_KCCS:
+            raise ValueError("Credential parsing is currently only implemented for CCSs")
+
+        try:
+            parsed = cbor.loads(credential)
+        except cbor.CBORDecodeError as e:
+            raise ValueError("CCS not in CBOR format") from e
+
+        CWT_CLAIM_CNF = 8
+        CWT_CNF_COSE_KEY = 1
+        if (
+                CWT_CLAIM_CNF not in parsed
+                or not isinstance(parsed[CWT_CLAIM_CNF], dict)
+                or CWT_CNF_COSE_KEY not in parsed[CWT_CLAIM_CNF]
+                ):
+            raise ValueError("CCS must contain a COSE Key in a CNF")
+
+        COSE_KEY_COMMON_KTY = 1
+        COSE_KTY_OKP = 1
+        COSE_KEY_COMMON_ALG = 3
+        COSE_KEY_OKP_CRV = -1
+        COSE_KEY_OKP_X = -2
+        # eg. {1: 1, 3: -8, -1: 6, -2: h'77 / ... / 88'}
+        cose_key = parsed[CWT_CLAIM_CNF][CWT_CNF_COSE_KEY]
+        if not isinstance(cose_key, dict):
+            raise ValueError("COSE Key in CCS must be a map")
+
+        if (
+                cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_OKP
+                and cose_key.get(COSE_KEY_COMMON_ALG) == Ed25519.value
+                # FIXME: Move this constant into algorithm object?
+                and cose_key.get(COSE_KEY_OKP_CRV) == 6 # Ed25519
+                and COSE_KEY_OKP_X in cose_key
+                ):
+            return cose_key[COSE_KEY_OKP_X]
+        else:
+            raise ValueError("Key type not recognized from CCS key %r" % cose_key)
+
+        return cbor.loads(credential)[8][1][-2]
 
     def __repr__(self):
         return "<%s with group %r sender_id %r and %d peers>" % (
