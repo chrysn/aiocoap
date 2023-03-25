@@ -1551,7 +1551,8 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         CWT_CLAIM_CNF = 8
         CWT_CNF_COSE_KEY = 1
         if (
-                CWT_CLAIM_CNF not in parsed
+                not isinstance(parsed, dict)
+                or CWT_CLAIM_CNF not in parsed
                 or not isinstance(parsed[CWT_CLAIM_CNF], dict)
                 or CWT_CNF_COSE_KEY not in parsed[CWT_CLAIM_CNF]
                 ):
