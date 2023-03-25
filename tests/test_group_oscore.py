@@ -17,6 +17,7 @@ oscore_modules = aiocoap.defaults.oscore_missing_modules()
 if not oscore_modules:
     import aiocoap.oscore
     import aiocoap.oscore_sitewrapper
+    import cbor2
 
 _skip_unless_oscore = unittest.skipIf(oscore_modules, "Modules missing for running OSCORE tests: %s" % (oscore_modules,))
 
@@ -30,7 +31,7 @@ class WithGroupKeys(unittest.TestCase):
         group_id = b"G"
         participants = [b"", b"\x01", b"longname"]
         private_keys = [alg_countersign.generate() for _ in participants]
-        public_keys = [alg_countersign.public_from_private(k) for k in private_keys]
+        creds = [cbor2.dumps({8: {1: {1: 1, 3: -8, -1: 6, -2: alg_countersign.public_from_private(k)}}}) for k in private_keys]
         master_secret = secrets.token_bytes(64)
         master_salt = b"PoCl4"
 
@@ -45,7 +46,8 @@ class WithGroupKeys(unittest.TestCase):
             master_salt,
             participants[i],
             private_keys[i],
-            {participants[j]: public_keys[j] for j, _ in enumerate(participants) if i != j}
+            creds[i],
+            {participants[j]: creds[j] for j, _ in enumerate(participants) if i != j}
             )
             for i, _ in enumerate(participants)]
 
