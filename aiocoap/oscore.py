@@ -58,6 +58,12 @@ COMPRESSION_BIT_H = 0b10000
 COMPRESSION_BIT_G = 0b100000 # Group Flag from draft-ietf-core-oscore-groupcomm-10
 COMPRESSION_BITS_RESERVED = 0b11000000
 
+# While the original values were simple enough to be used in literals, starting
+# with oscore-groupcomm we're using more compact values
+
+INFO_TYPE_KEYSTREAM_REQUEST = True
+INFO_TYPE_KEYSTREAM_RESPONSE = False
+
 class DeterministicKey:
     """Singleton to indicate that for this key member no public or private key
     is available because it is the Deterministic Client (see
@@ -656,7 +662,15 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         _, payload = self._compress(protected, unprotected, ciphertext)
 
         if self.is_signing:
-            payload += self.alg_signature.sign(payload, external_aad, self.private_key)
+            signature = self.alg_signature.sign(payload, external_aad, self.private_key)
+            keystream = self._kdf(
+                    partial_iv_short,
+                    self.group_encryption_key,
+                    self.sender_id,
+                    INFO_TYPE_KEYSTREAM_REQUEST if message.code.is_request() else INFO_TYPE_KEYSTREAM_RESPONSE,
+                    )
+            encrypted_signature = _xor_bytes(signature, keystream)
+            payload += encrypted_signature
         outer_message.payload = payload
 
         # FIXME go through options section
@@ -836,7 +850,16 @@ class CanUnprotect(BaseSecurityContext):
             siglen = alg_signature.signature_length
             if len(ciphertext) < siglen:
                 raise DecodeError("Message too short for signature")
-            signature = ciphertext[-siglen:]
+            encrypted_signature = ciphertext[-siglen:]
+
+            keystream = self._kdf(
+                    partial_iv_short,
+                    self.group_encryption_key,
+                    self.recipient_id,
+                    INFO_TYPE_KEYSTREAM_REQUEST if protected_message.code.is_request() else INFO_TYPE_KEYSTREAM_RESPONSE,
+                    )
+            signature = _xor_bytes(encrypted_signature, keystream)
+
             ciphertext = ciphertext[:-siglen]
         else:
             signature = None
@@ -993,7 +1016,16 @@ class SecurityContextUtils(BaseSecurityContext):
     def _kdf(self, salt, ikm, role_id, out_type):
         """The HKDF as used to derive sender and recipient key and IV in
         RFC8613 Section 3.2.1"""
-        out_bytes = {'Key': self.alg_aead.key_bytes, 'IV': self.alg_aead.iv_bytes}[out_type]
+        if out_type == 'Key':
+            out_bytes = self.alg_aead.key_bytes
+        elif out_type == 'IV':
+            out_bytes = self.alg_aead.iv_bytes
+        elif out_type == INFO_TYPE_KEYSTREAM_REQUEST:
+            out_bytes = self.alg_signature.signature_length
+        elif out_type == INFO_TYPE_KEYSTREAM_RESPONSE:
+            out_bytes = self.alg_signature.signature_length
+        else:
+            raise ValueError("Output type not recognized")
 
         info = [
             role_id,
@@ -1504,7 +1536,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     def for_sending_deterministic_requests(self, deterministic_id, target_server: Optional[bytes]):
         return _DeterministicProtectProtoAspect(self, deterministic_id, target_server)
 
-class _GroupContextAspect(GroupContext, CanUnprotect):
+class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
     """The concrete context this host has with a particular peer
 
     As all actual data is stored in the underlying groupcontext, this acts as
@@ -1530,6 +1562,9 @@ class _GroupContextAspect(GroupContext, CanUnprotect):
     alg_aead = property(lambda self: self.groupcontext.alg_aead)
     alg_signature = property(lambda self: self.groupcontext.alg_signature)
     common_iv = property(lambda self: self.groupcontext.common_iv)
+
+    hashfun = property(lambda self: self.groupcontext.hashfun)
+    group_encryption_key = property(lambda self: self.groupcontext.group_encryption_key)
 
     recipient_key = property(lambda self: self.groupcontext.recipient_keys[self.recipient_id])
     recipient_public_key = property(lambda self: self.groupcontext.recipient_public_keys[self.recipient_id])
