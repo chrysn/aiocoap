@@ -294,10 +294,8 @@ class TestOSCOAAsymmetric(unittest.TestCase):
         self.r2_shared_13 = bytes.fromhex('bb11648af3dfebb35e612914a7a21fc751b001aceb0267c5536528e2b9261450')
 
     def alg(self):
-        all_par = [self.r2_csalg, self.r2_csalg_params]
-        # FIXME we probably need an algorithm finder from value_all_par
         alg = aiocoap.oscore.Ed25519()
-        self.assertEqual(alg.value_all_par, all_par)
+        self.assertEqual(alg.value, self.r2_csalg)
         return alg
 
     def test_publickey_derivation(self):

@@ -374,8 +374,7 @@ class Ed25519(AlgorithmCountersign):
 
         return private_key.exchange(public_key)
 
-    # from https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10#appendix-G
-    value_all_par = [-8, [[1], [1, 6]]]
+    value = -8
 
     signature_length = 64
 
@@ -518,7 +517,9 @@ class BaseSecurityContext:
 
         algorithms = [self.alg_aead.value]
         if self.external_aad_is_group:
-            algorithms.extend(self.alg_signature.value_all_par)
+            algorithms.append(self.alg_signature_enc.value)
+            algorithms.append(self.alg_signature.value)
+            algorithms.append(self.alg_pairwise_key_agreement.value)
 
         external_aad = [
                 oscore_version,
@@ -533,6 +534,9 @@ class BaseSecurityContext:
 
             assert message.opt.object_security is not None
             external_aad.append(message.opt.object_security)
+
+            external_aad.append(self.sender_auth_cred)
+            external_aad.append(self.group_manager_cred)
 
         external_aad = cbor.dumps(external_aad)
 
@@ -1461,7 +1465,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     # set during initialization
     private_key = None
 
-    def __init__(self, alg_aead, hashfun, alg_signature, alg_signature_enc, group_id, master_secret, master_salt, sender_id, private_key, peers):
+    def __init__(self, alg_aead, hashfun, alg_signature, alg_signature_enc, alg_pairwise_key_agreement, group_id, master_secret, master_salt, sender_id, private_key, peers, group_manager_cred=None):
         self.sender_id = sender_id
         self.id_context = group_id
         self.private_key = private_key
@@ -1469,6 +1473,8 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         self.hashfun = hashfun
         self.alg_signature = alg_signature
         self.alg_signature_enc = alg_signature_enc
+        self.alg_pairwise_key_agreement = alg_pairwise_key_agreement
+        self.group_manager_cred = group_manager_cred
 
         self.peers = peers.keys()
         self.recipient_public_keys = peers
@@ -1568,6 +1574,9 @@ class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
     id_context = property(lambda self: self.groupcontext.id_context)
     alg_aead = property(lambda self: self.groupcontext.alg_aead)
     alg_signature = property(lambda self: self.groupcontext.alg_signature)
+    alg_signature_enc = property(lambda self: self.groupcontext.alg_signature_enc)
+    alg_pairwise_key_agreement = property(lambda self: self.groupcontext.alg_pairwise_key_agreement)
+    group_manager_cred = property(lambda self: self.groupcontext.group_manager_cred)
     common_iv = property(lambda self: self.groupcontext.common_iv)
 
     hashfun = property(lambda self: self.groupcontext.hashfun)
@@ -1607,6 +1616,9 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
     alg_aead = property(lambda self: self.groupcontext.alg_aead)
     hashfun = property(lambda self: self.groupcontext.hashfun)
     alg_signature = property(lambda self: self.groupcontext.alg_signature)
+    alg_signature_enc = property(lambda self: self.groupcontext.alg_signature_enc)
+    alg_pairwise_key_agreement = property(lambda self: self.groupcontext.alg_pairwise_key_agreement)
+    group_manager_cred = property(lambda self: self.groupcontext.group_manager_cred)
     common_iv = property(lambda self: self.groupcontext.common_iv)
     sender_id = property(lambda self: self.groupcontext.sender_id)
 
