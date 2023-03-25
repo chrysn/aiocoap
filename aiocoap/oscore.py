@@ -463,7 +463,7 @@ DEFAULT_WINDOWSIZE = 32
 class BaseSecurityContext:
     # The protection and unprotection functions will use the Group OSCORE AADs
     # rather than the regular OSCORE AADs. (Ie. alg_signature_enc etc are added to
-    # the algorithms, and request_kid_context, OSCORE_option, sender_cred and
+    # the algorithms, and request_kid_context, OSCORE_option, sender_auth_cred and
     # gm_cred are added).
     #
     # This is not necessarily identical to is_signing (as pairwise contexts use
@@ -1464,8 +1464,9 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
 
     # set during initialization
     private_key = None
+    sender_auth_cred = None
 
-    def __init__(self, alg_aead, hashfun, alg_signature, alg_signature_enc, alg_pairwise_key_agreement, group_id, master_secret, master_salt, sender_id, private_key, peers, group_manager_cred=None):
+    def __init__(self, alg_aead, hashfun, alg_signature, alg_signature_enc, alg_pairwise_key_agreement, group_id, master_secret, master_salt, sender_id, private_key, sender_auth_cred, peers, group_manager_cred=None):
         self.sender_id = sender_id
         self.id_context = group_id
         self.private_key = private_key
@@ -1474,10 +1475,13 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         self.alg_signature = alg_signature
         self.alg_signature_enc = alg_signature_enc
         self.alg_pairwise_key_agreement = alg_pairwise_key_agreement
+        self.sender_auth_cred = sender_auth_cred
         self.group_manager_cred = group_manager_cred
 
         self.peers = peers.keys()
-        self.recipient_public_keys = peers
+        # FIXME: Generalize extraction from CCS, and add checks that the keys are of the right type
+        self.recipient_public_keys = {k: cbor.loads(v)[8][1][-2] for (k, v) in peers.items()}
+        self.recipient_auth_creds = peers
         self.recipient_replay_windows = {}
         for k in self.peers:
             # no need to persist, the whole group is ephemeral
@@ -1584,10 +1588,15 @@ class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
 
     recipient_key = property(lambda self: self.groupcontext.recipient_keys[self.recipient_id])
     recipient_public_key = property(lambda self: self.groupcontext.recipient_public_keys[self.recipient_id])
+    recipient_auth_cred = property(lambda self: self.groupcontext.recipient_auth_creds[self.recipient_id])
     recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])
 
     def context_for_response(self):
         return self.groupcontext.pairwise_for(self.recipient_id)
+
+    @property
+    def sender_auth_cred(self):
+        raise RuntimeError("Could relay the sender auth credential from the group context, but it shouldn't matter here")
 
 class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityContextUtils):
     is_signing = False
