@@ -125,15 +125,15 @@ class RequestIdentifiers:
 
         self.request_hash = None
 
-    def get_reusable_nonce(self):
-        """Return the nonce if can_reuse_nonce is True, and set can_reuse_nonce
-        to False."""
+    def get_reusable_nonce_and_piv(self):
+        """Return the nonce and the partial IV if can_reuse_nonce is True, and
+        set can_reuse_nonce to False."""
 
         if self.can_reuse_nonce:
             self.can_reuse_nonce = False
-            return self.nonce
+            return (self.nonce, self.partial_iv)
         else:
-            return None
+            return (None, None)
 
 def _xor_bytes(a, b):
     assert len(a) == len(b)
@@ -616,7 +616,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         nonce = None
         unprotected = {}
         if request_id is not None:
-            nonce = request_id.get_reusable_nonce()
+            nonce, partial_iv_short = request_id.get_reusable_nonce_and_piv()
 
         if nonce is None:
             nonce, partial_iv_short = self._build_new_nonce()
@@ -807,6 +807,7 @@ class CanUnprotect(BaseSecurityContext):
 
             nonce = request_id.nonce
             seqno = None # sentinel for not striking out anyting
+            partial_iv_short = request_id.partial_iv
         else:
             partial_iv_short = unprotected.pop(COSE_PIV)
 
