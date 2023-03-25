@@ -378,6 +378,13 @@ class Ed25519(AlgorithmCountersign):
 
     signature_length = 64
 
+# FIXME: The staticstatic and public/private parts need to be split, both in
+# the types and in AlgorithmCountersign. Until that is done, we'll have the
+# same object only in the minimal variation that's needed to produce the right
+# values where the COSE differentiates between them.
+class EcdhSsHkdf256(Ed25519):
+    value = -27
+
 class ECDSA_SHA256_P256(AlgorithmCountersign):
     # Trying a new construction approach -- should work just as well given
     # we're just passing Python objects around

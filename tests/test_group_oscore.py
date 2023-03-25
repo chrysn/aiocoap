@@ -25,6 +25,7 @@ class WithGroupKeys(unittest.TestCase):
         algorithm = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
         hashfun = aiocoap.oscore.hashfunctions[aiocoap.oscore.DEFAULT_HASHFUNCTION]
         alg_countersign = aiocoap.oscore.Ed25519()
+        alg_pairwise_key_agreement = aiocoap.oscore.EcdhSsHkdf256()
 
         group_id = b"G"
         participants = [b"", b"\x01", b"longname"]
@@ -38,7 +39,7 @@ class WithGroupKeys(unittest.TestCase):
             hashfun,
             alg_countersign,
             algorithm,
-            alg_countersign,
+            alg_pairwise_key_agreement,
             group_id,
             master_secret,
             master_salt,
