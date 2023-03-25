@@ -674,7 +674,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         if self.is_signing:
             signature = self.alg_signature.sign(payload, external_aad, self.private_key)
-            keystream = self._kdf(
+            keystream = self._kdf_no_keytype(
                     partial_iv_short,
                     self.group_encryption_key,
                     self.sender_id,
@@ -863,7 +863,7 @@ class CanUnprotect(BaseSecurityContext):
                 raise DecodeError("Message too short for signature")
             encrypted_signature = ciphertext[-siglen:]
 
-            keystream = self._kdf(
+            keystream = self._kdf_no_keytype(
                     partial_iv_short,
                     self.group_encryption_key,
                     self.recipient_id,
@@ -1026,15 +1026,12 @@ class CanUnprotect(BaseSecurityContext):
 class SecurityContextUtils(BaseSecurityContext):
     def _kdf(self, salt, ikm, role_id, out_type):
         """The HKDF as used to derive sender and recipient key and IV in
-        RFC8613 Section 3.2.1"""
+        RFC8613 Section 3.2.1, and analogously the Group Encryption Key of oscore-groupcomm.
+        """
         if out_type == 'Key':
             out_bytes = self.alg_aead.key_bytes
         elif out_type == 'IV':
             out_bytes = self.alg_aead.iv_bytes
-        elif out_type == INFO_TYPE_KEYSTREAM_REQUEST:
-            out_bytes = self.alg_signature.signature_length
-        elif out_type == INFO_TYPE_KEYSTREAM_RESPONSE:
-            out_bytes = self.alg_signature.signature_length
         elif out_type == "Group Encryption Key":
             out_bytes = self.alg_signature_enc.key_bytes
         else:
@@ -1049,6 +1046,21 @@ class SecurityContextUtils(BaseSecurityContext):
             ]
         return self._kdf_lowlevel(salt, ikm, info, out_bytes)
 
+    def _kdf_no_keytype(self, salt, ikm, role_id, out_type):
+        """The HKDF as used to derive the keystreams of oscore-groupcomm."""
+
+        out_bytes = self.alg_signature.signature_length
+
+        assert out_type in (INFO_TYPE_KEYSTREAM_REQUEST, INFO_TYPE_KEYSTREAM_RESPONSE), "Output type not recognized"
+
+        info = [
+            role_id,
+            self.id_context,
+            out_type,
+            out_bytes
+            ]
+        return self._kdf_lowlevel(salt, ikm, info, out_bytes)
+
     def _kdf_lowlevel(self, salt: bytes, ikm: bytes, info: list, l: int) -> bytes:
         """The HKDF function as used in RFC8613 and oscore-groupcomm (notated
         there as ``something = HKDF(...)``
@@ -1057,7 +1069,8 @@ class SecurityContextUtils(BaseSecurityContext):
 
         When `info` takes the conventional structure of pid, id_context,
         ald_aead, type, L], it may make sense to extend the `_kdf` function to
-        support that case, as it is the more high-level tool."""
+        support that case, or `_kdf_no_keytype` for a different structure, as
+        they are the more high-level tools."""
         hkdf = HKDF(
                 algorithm=self.hashfun,
                 length=l,
