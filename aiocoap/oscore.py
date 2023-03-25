@@ -1459,13 +1459,14 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     # set during initialization
     private_key = None
 
-    def __init__(self, alg_aead, hashfun, alg_signature, group_id, master_secret, master_salt, sender_id, private_key, peers):
+    def __init__(self, alg_aead, hashfun, alg_signature, alg_signature_enc, group_id, master_secret, master_salt, sender_id, private_key, peers):
         self.sender_id = sender_id
         self.id_context = group_id
         self.private_key = private_key
         self.alg_aead = alg_aead
         self.hashfun = hashfun
         self.alg_signature = alg_signature
+        self.alg_signature_enc = alg_signature_enc
 
         self.peers = peers.keys()
         self.recipient_public_keys = peers

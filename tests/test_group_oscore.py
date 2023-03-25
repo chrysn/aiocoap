@@ -37,6 +37,7 @@ class WithGroupKeys(unittest.TestCase):
             algorithm,
             hashfun,
             alg_countersign,
+            algorithm,
             group_id,
             master_secret,
             master_salt,
