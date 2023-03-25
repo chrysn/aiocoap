@@ -511,7 +511,14 @@ class BaseSecurityContext:
 
         return nonce
 
-    def _extract_external_aad(self, message, request_id):
+    def _extract_external_aad(self, message, request_id, local_is_sender: bool) -> bytes:
+        """Build the serialized external AAD from information in the message
+        and the request_id.
+
+        Information about whether the local context is the sender of the
+        message is only relevant to group contexts, where it influences whose
+        authentication credentials are placed in the AAD.
+        """
         # If any option were actually Class I, it would be something like
         #
         # the_options = pick some of(message)
@@ -542,7 +549,10 @@ class BaseSecurityContext:
             assert message.opt.object_security is not None
             external_aad.append(message.opt.object_security)
 
-            external_aad.append(self.sender_auth_cred)
+            if local_is_sender:
+                external_aad.append(self.sender_auth_cred)
+            else:
+                external_aad.append(self.recipient_auth_cred)
             external_aad.append(self.group_manager_cred)
 
         external_aad = cbor.dumps(external_aad)
@@ -662,7 +672,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         outer_message.opt.object_security = option_data
 
-        external_aad = self._extract_external_aad(outer_message, request_id)
+        external_aad = self._extract_external_aad(outer_message, request_id, local_is_sender=True)
 
         aad = self.alg_aead._build_encrypt0_structure(protected, external_aad)
 
@@ -881,7 +891,7 @@ class CanUnprotect(BaseSecurityContext):
         if len(ciphertext) < self.alg_aead.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
 
-        external_aad = self._extract_external_aad(protected_message, request_id)
+        external_aad = self._extract_external_aad(protected_message, request_id, local_is_sender=False)
         enc_structure = ['Encrypt0', protected_serialized, external_aad]
         aad = cbor.dumps(enc_structure)
 
