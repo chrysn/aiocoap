@@ -989,24 +989,37 @@ class CanUnprotect(BaseSecurityContext):
         return self # FIXME justify by moving into a mixin for CanProtectAndUnprotect
 
 class SecurityContextUtils(BaseSecurityContext):
-    def _kdf(self, master_salt, master_secret, role_id, out_type):
+    def _kdf(self, salt, ikm, role_id, out_type):
+        """The HKDF as used to derive sender and recipient key and IV in
+        RFC8613 Section 3.2.1"""
         out_bytes = {'Key': self.alg_aead.key_bytes, 'IV': self.alg_aead.iv_bytes}[out_type]
 
-        info = cbor.dumps([
+        info = [
             role_id,
             self.id_context,
             self.alg_aead.value,
             out_type,
             out_bytes
-            ])
+            ]
+        return self._kdf_lowlevel(salt, ikm, info, out_bytes)
+
+    def _kdf_lowlevel(self, salt: bytes, ikm: bytes, info: list, l: int) -> bytes:
+        """The HKDF function as used in RFC8613 and oscore-groupcomm (notated
+        there as ``something = HKDF(...)``
+
+        Note that `info` typically contains `L` at some point.
+
+        When `info` takes the conventional structure of pid, id_context,
+        ald_aead, type, L], it may make sense to extend the `_kdf` function to
+        support that case, as it is the more high-level tool."""
         hkdf = HKDF(
                 algorithm=self.hashfun,
-                length=out_bytes,
-                salt=master_salt,
-                info=info,
+                length=l,
+                salt=salt,
+                info=cbor.dumps(info),
                 backend=_hash_backend,
                 )
-        expanded = hkdf.derive(master_secret)
+        expanded = hkdf.derive(ikm)
         return expanded
 
     def derive_keys(self, master_salt, master_secret):
