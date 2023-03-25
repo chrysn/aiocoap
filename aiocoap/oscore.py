@@ -1024,6 +1024,8 @@ class SecurityContextUtils(BaseSecurityContext):
             out_bytes = self.alg_signature.signature_length
         elif out_type == INFO_TYPE_KEYSTREAM_RESPONSE:
             out_bytes = self.alg_signature.signature_length
+        elif out_type == "Group Encryption Key":
+            out_bytes = self.alg_signature_enc.key_bytes
         else:
             raise ValueError("Output type not recognized")
 
@@ -1499,6 +1501,10 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         self.recipient_keys = {recipient_id: self._kdf(master_salt, master_secret, recipient_id, 'Key') for recipient_id in self.peers}
 
         self.common_iv = self._kdf(master_salt, master_secret, b"", 'IV')
+
+        # but this one is new
+
+        self.group_encryption_key = self._kdf(master_salt, master_secret, b"", "Group Encryption Key")
 
     def post_seqnoincrease(self):
         """No-op because it's ephemeral"""
