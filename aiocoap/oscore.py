@@ -49,8 +49,8 @@ MAX_SEQNO = 2**40 - 1
 COSE_KID = 4
 COSE_PIV = 6
 COSE_KID_CONTEXT = 10
-# from https://tools.ietf.org/html/draft-ietf-cose-countersign-01
-COSE_COUNTERSIGNATURE0 = 11
+# from RFC9338
+COSE_COUNTERSIGNATURE0 = 12
 
 COMPRESSION_BITS_N = 0b111
 COMPRESSION_BIT_K = 0b1000
