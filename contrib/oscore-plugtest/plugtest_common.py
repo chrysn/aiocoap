@@ -8,8 +8,8 @@ from aiocoap import oscore
 contextdir = Path(__file__).parent / 'common-context'
 
 class LoggingFilesystemSecurityContext(oscore.FilesystemSecurityContext):
-    def _extract_external_aad(self, message, request_id):
-        result = super()._extract_external_aad(message, request_id)
+    def _extract_external_aad(self, message, request_id, local_is_sender):
+        result = super()._extract_external_aad(message, request_id, local_is_sender)
         print("Verify: External AAD: bytes.fromhex(%r), %r"%(result.hex(), cbor.loads(result)))
         return result
 
