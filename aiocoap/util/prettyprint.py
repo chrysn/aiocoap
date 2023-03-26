@@ -9,11 +9,8 @@
 """A pretty-printer for known mime types"""
 
 import json
-import sys
-import pprint
 import re
 
-import cbor2 as cbor
 import pygments
 import pygments.lexers
 import pygments.formatters
@@ -109,26 +106,34 @@ def pretty_print(message):
             # Handled later
             pass
 
-    elif category == 'cbor':
-        try:
-            parsed = cbor.loads(message.payload)
-        except cbor.CBORDecodeError:
-            show_hex = "CBOR value is invalid"
+    elif category in ('cbor', 'cbor-seq'):
+        if category == 'cbor-seq':
+            # Faking an indefinite length CBOR array is the easiest way to
+            # parse an array into a list-like data structure, especially as
+            # long as we don't indicate precise locations of invalid CBOR
+            # anyway
+            payload = b'\x9f' + message.payload + b'\xff'
         else:
-            info("CBOR message shown in naïve Python decoding")
-            # Formatting it via Python b/c that's reliably available (as
-            # opposed to JSON which might not round-trip well). The repr for
-            # tags might still not be parsable, but I think chances of good
-            # highlighting are best this way
-            #
-            # Not sorting dicts to give a more faithful representation of the
-            # original CBOR message
-            if sys.version_info >= (3, 8):
-                printer = pprint.PrettyPrinter(sort_dicts=False)
+            payload = message.payload
+
+        try:
+            import cbor_diag
+
+            formatted = cbor_diag.cbor2diag(payload)
+
+            if category == 'cbor-seq':
+                info("CBOR sequence message shown as array in Diagnostic Notation")
             else:
-                printer = pprint.PrettyPrinter()
-            formatted = printer.pformat(parsed)
-            return (infos, 'text/x-python3', formatted)
+                info("CBOR message shown in Diagnostic Notation")
+
+            # It's not exactly CDDL, but it's close enough that the syntax
+            # highlighting looks OK, and tolerant enough to not complain about
+            # missing leading barewords and "=" signs
+            return (infos, 'text/x-cddl', formatted)
+        except ImportError:
+            show_hex = "No CBOR pretty-printer available"
+        except ValueError:
+            show_hex = "CBOR value is invalid"
 
     elif category == 'json':
         try:

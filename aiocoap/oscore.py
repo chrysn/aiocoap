@@ -26,7 +26,7 @@ from typing import Optional
 import secrets
 
 from aiocoap.message import Message
-from aiocoap.util import cryptography_additions
+from aiocoap.util import cryptography_additions, deprecation_getattr
 from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED
 from aiocoap import error
 
@@ -49,7 +49,7 @@ COSE_KID = 4
 COSE_PIV = 6
 COSE_KID_CONTEXT = 10
 # from https://tools.ietf.org/html/draft-ietf-cose-countersign-01
-COSE_COUNTERSINGATURE0 = 11
+COSE_COUNTERSIGNATURE0 = 11
 
 COMPRESSION_BITS_N = 0b111
 COMPRESSION_BIT_K = 0b1000
@@ -563,13 +563,13 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         else:
             s_kid_context = b""
 
-        if COSE_COUNTERSINGATURE0 in unprotected:
+        if COSE_COUNTERSIGNATURE0 in unprotected:
             firstbyte |= COMPRESSION_BIT_G
 
             # In theory at least. In practice, that's an empty value to later
             # be squished in when the compressed option value is available for
             # signing.
-            ciphertext += unprotected.pop(COSE_COUNTERSINGATURE0)
+            ciphertext += unprotected.pop(COSE_COUNTERSIGNATURE0)
 
         if unprotected:
             raise RuntimeError("Protection produced a message that has uncompressable fields.")
@@ -625,7 +625,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         # Putting in a dummy value as the signature calculation will already need some of the compression result
         if self.is_signing:
-            unprotected[COSE_COUNTERSINGATURE0] = b""
+            unprotected[COSE_COUNTERSIGNATURE0] = b""
         # FIXME: Running this twice quite needlessly (just to get the object_security option for sending)
         option_data, _ = self._compress(protected, unprotected, b"")
 
@@ -812,7 +812,7 @@ class CanUnprotect(BaseSecurityContext):
 
                 request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=replay_error is None)
 
-        if unprotected.pop(COSE_COUNTERSINGATURE0, None) is not None:
+        if unprotected.pop(COSE_COUNTERSIGNATURE0, None) is not None:
             try:
                 alg_countersign = self.alg_countersign
             except NameError:
@@ -950,7 +950,7 @@ class CanUnprotect(BaseSecurityContext):
             # context is even known, because it's just getting extracted), this
             # is returning an incomplete value here and leaves it to the later
             # processing to strip the right number of bytes from the ciphertext
-            unprotected[COSE_COUNTERSINGATURE0] = b""
+            unprotected[COSE_COUNTERSIGNATURE0] = b""
 
         return b"", {}, unprotected, payload
 
@@ -1440,7 +1440,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         except KeyError:
             raise DecodeError("Group server failed to send own sender KID")
 
-        if COSE_COUNTERSINGATURE0 in unprotected_bag:
+        if COSE_COUNTERSIGNATURE0 in unprotected_bag:
             return _GroupContextAspect(self, sender_kid)
         else:
             return _PairwiseContextAspect(self, sender_kid)
@@ -1451,7 +1451,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
 
         kid = unprotected.get(COSE_KID, None)
         if kid in self.peers:
-            if COSE_COUNTERSINGATURE0 in unprotected:
+            if COSE_COUNTERSIGNATURE0 in unprotected:
                 return _GroupContextAspect(self, kid)
             elif self.recipient_public_keys[kid] is DETERMINISTIC_KEY:
                 return _DeterministicUnprotectProtoAspect(self, kid)
@@ -1554,7 +1554,7 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
         if unprotected_bag.get(COSE_KID, self.recipient_id) != self.recipient_id:
             raise DecodeError("Response coming from a different server than requested, not attempting to decrypt")
 
-        if COSE_COUNTERSINGATURE0 in unprotected_bag:
+        if COSE_COUNTERSIGNATURE0 in unprotected_bag:
             # It'd be an odd thing to do, but it's source verified, so the
             # server hopefully has reasons to make this readable to other group
             # members.
@@ -1597,7 +1597,7 @@ class _DeterministicProtectProtoAspect(CanProtect, SecurityContextUtils):
             if unprotected_bag.get(COSE_KID, self.target_server) != self.target_server:
                 raise DecodeError("Response coming from a different server than requested, not attempting to decrypt")
 
-        if COSE_COUNTERSINGATURE0 not in unprotected_bag:
+        if COSE_COUNTERSIGNATURE0 not in unprotected_bag:
             # Could just as well pass and later barf when the group context doesn't find a signature
             raise DecodeError("Response to deterministic request came from unsecure pairwise context")
 
@@ -1734,3 +1734,9 @@ def verify_start(message):
     _, _, unprotected, _ = CanUnprotect._extract_encrypted0(message)
 
     return unprotected
+
+
+
+_getattr__ = deprecation_getattr({
+        'COSE_COUNTERSINGATURE0': 'COSE_COUNTERSIGNATURE0'
+        }, globals())

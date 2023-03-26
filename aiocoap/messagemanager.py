@@ -115,13 +115,15 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                 if message.mtype is CON:
                     self._send_empty_ack(message.remote, message.mid, reason="acknowledging incoming response")
             else:
-                if message.remote.is_multicast_locally:
-                    self.log.info("Ignoring response incoming with multicast destination.")
-                else:
+                # A peer mustn't send a CON to multicast, but if a malicious
+                # peer does, we better not answer
+                if message.mtype == CON and not message.remote.is_multicast_locally:
                     self.log.info("Response not recognized - sending RST.")
                     rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload='')
                     rst.remote = message.remote.as_response_address()
                     self._send_initially(rst)
+                else:
+                    self.log.info("Ignoring unknown response (which is not a unicast CON)")
         else:
             self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it.", message.code, message.mtype, message.remote)
 

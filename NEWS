@@ -1,3 +1,25 @@
+Version 0.4.5
+-------------
+
+Behavioral changes
+~~~~~~~~~~~~~~~~~~
+
+* RSTs are not sent on unrecognized responses any more unless the received
+  message was a CON; the previous behavior was violating the specification.
+
+Deprecations
+~~~~~~~~~~~~
+
+* UNSUPPORTED_MEDIA_TYPE is now formally deprecated, use
+  UNSUPPORTED_CONTENT_FORMAT instead.
+
+Minor enhancements
+~~~~~~~~~~~~~
+
+* Fix tests for Python 3.11.
+* Lower log level of "but could not match it to a running exchange" from warning to info.
+* Shorten the string representation of message types (to "CON", "ACK" etc.)
+
 Version 0.4.4
 -------------
 

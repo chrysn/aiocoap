@@ -134,3 +134,24 @@ class Sentinel:
 
     def __repr__(self):
         return '<%s>' % self._label
+
+def deprecation_getattr(_deprecated_aliases: dict, _globals: dict):
+    """Factory for a module-level ``__getattr__`` function
+
+    This creates deprecation warnings whenever a module level item by one of
+    the keys of the alias dict is accessed by its old name rather than by its
+    new name (which is in the values):
+
+    >>> FOOBAR = 42
+    >>>
+    >>> __getattr__ = deprecation_getattr({'FOOBRA': 'FOOBAR'}, globals())
+    """
+    def __getattr__(name):
+        if name in _deprecated_aliases:
+            modern = _deprecated_aliases[name]
+            from warnings import warn
+            warn(f"{name} is deprecated, use {modern} instead", DeprecationWarning,
+                    stacklevel=2)
+            return _globals[modern]
+        raise AttributeError(f"module {__name__} has no attribute {name}")
+    return __getattr__
