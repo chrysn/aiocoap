@@ -44,6 +44,7 @@ def build_parser():
     p.add_argument('--payload-initial-szx', help="Size exponent to limit the initial block's size (0 ≙ 16 Byte, 6 ≙ 1024 Byte)", metavar="SZX", type=int)
     p.add_argument('--content-format', help="Content format of the --payload data. If a known format is given and --payload has a non-file argument, the payload is converted from CBOR Diagnostic Notation.", metavar="MIME")
     p.add_argument('--no-set-hostname', help="Suppress transmission of Uri-Host even if the host name is not an IP literal", dest="set_hostname", action='store_false', default=True)
+    p.add_argument('-b', '--broadcast', help="Set SO_BROADCAST for UDP non-interative/single requests", dest="broadcast", action='store_true', default=False)
     p.add_argument('-v', '--verbose', help="Increase the debug output", action="count")
     p.add_argument('-q', '--quiet', help="Decrease the debug output", action="count")
     p.add_argument('--interactive', help="Enter interactive mode", action="store_true") # careful: picked before parsing
@@ -343,7 +344,10 @@ async def single_request(args, context):
 async def single_request_with_context(args):
     """Wrapper around single_request until sync_main gets made fully async, and
     async context managers are used to manage contexts."""
-    context = await aiocoap.Context.create_client_context()
+    parser = build_parser()
+    options = parser.parse_args(args)
+
+    context = await aiocoap.Context.create_client_context(broadcast=options.broadcast)
     try:
         await single_request(args, context)
     finally:
