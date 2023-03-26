@@ -29,7 +29,7 @@ extras_require = {
         'oscore': ['cbor2', 'cryptography (>= 2.0)', 'filelock', 'ge25519'],
         'tinydtls': ['DTLSSocket >= 0.1.11a1'],
         'ws': ['websockets'],
-        'prettyprint': ['termcolor', 'cbor2', 'LinkHeader', 'pygments'],
+        'prettyprint': ['termcolor', 'cbor2', 'LinkHeader', 'pygments', 'cbor-diag'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         'all': [], # populated below, contains everything but documentation dependencies for easier installation
         }
