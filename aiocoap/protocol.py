@@ -57,7 +57,7 @@ from .pipe import Pipe, run_driving_pipe, error_to_message
 from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
-        CONTINUE, OBSERVATION_RESET_TIME, SHUTDOWN_TIMEOUT)
+        CONTINUE, SHUTDOWN_TIMEOUT)
 from .util.asyncio import py38args
 
 import warnings
@@ -555,7 +555,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
 
                 is_recent = (v1 < v2 and v2 - v1 < 2**23) or \
                         (v1 > v2 and v1 - v2 > 2**23) or \
-                        (t2 > t1 + OBSERVATION_RESET_TIME)
+                        (t2 > t1 + self._pipe.request.transport_tuning.OBSERVATION_RESET_TIME)
                 if is_recent:
                     t1 = t2
                     v1 = v2

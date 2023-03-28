@@ -20,8 +20,8 @@ import abc
 import asyncio
 import warnings
 
-from aiocoap.numbers.constants import DEFAULT_BLOCK_SIZE_EXP
 from aiocoap.pipe import Pipe
+from aiocoap.numbers.constants import MAX_REGULAR_BLOCK_SIZE_EXP
 
 from typing import Optional, Callable
 
@@ -147,7 +147,7 @@ class EndpointAddress(metaclass=abc.ABCMeta):
         communication. (Should there ever be a scheme that addresses the
         participants differently, a scheme_local will be added.)"""
 
-    maximum_block_size_exp = DEFAULT_BLOCK_SIZE_EXP
+    maximum_block_size_exp = MAX_REGULAR_BLOCK_SIZE_EXP
     """The maximum negotiated block size that can be sent to this remote."""
 
     # Giving some slack so that barely-larger messages (like OSCORE typically

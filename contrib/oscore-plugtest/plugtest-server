@@ -138,7 +138,7 @@ class InnerBlockMixin:
     # handler some day -- right now, i'm only doing the absolute minimum
     # necessary to satisfy the use case
 
-    inner_default_szx = aiocoap.DEFAULT_BLOCK_SIZE_EXP
+    inner_default_szx = aiocoap.MAX_REGULAR_BLOCK_SIZE_EXP
 
     async def render(self, request):
         response = await super().render(request)
