@@ -11,6 +11,9 @@ of ways to determine eg. the estimated round trip time). Some parameters are
 invented here for practical purposes of the implementation (eg.
 DEFAULT_BLOCK_SIZE_EXP, EMPTY_ACK_DELAY)."""
 
+import warnings
+import string
+
 COAP_PORT = 5683
 """The IANA-assigned standard port for COAP services."""
 
@@ -129,13 +132,14 @@ class TransportTuning:
     This number is not explicitly named in RFC7641.
     """
 
-# These should be deprecated and raise on access, but given that they're
-# reexported and reexported in numbers and aiocoap, that's no small endeavour.
-#
-# For now it's a good start that tests pass even when this line is absent.
-locals().update(vars(TransportTuning))
+_default_transport_tuning = TransportTuning()
+def __getattr__(name):
+    if name[0] in string.ascii_uppercase and hasattr(_default_transport_tuning, name):
+        warnings.warn(f"{name} is deprecated, use through the message's transport_tuning instead", DeprecationWarning, stacklevel=2)
+        return getattr(_default_transport_tuning, name)
+    raise AttributeError(f"module {__name__} has no attribute {name}")
 
 SHUTDOWN_TIMEOUT = 3
 """Maximum time, in seconds, for which the process is kept around during shutdown"""
 
-__all__ = [k for k in dir() if not k.startswith('_')]
+__all__ = [k for k in dir() if not k.startswith('_') and k not in ('warnings', 'strings')]
