@@ -275,11 +275,7 @@ class WSPool(interfaces.TokenInterface):
 
     async def _connect_task(self, key: PoolKey):
         try:
-            if key.scheme == 'coaps+ws':
-                ssl_context = self._client_credentials.ssl_client_context(key.scheme, key.hostinfo)
-            else:
-                # websockets library would not appreciate the extra info when connecting to ws://
-                ssl_context = None
+            ssl_context = self._client_credentials.ssl_client_context(key.scheme, key.hostinfo)
 
             hostinfo_split = util.hostportsplit(key.hostinfo)
 
