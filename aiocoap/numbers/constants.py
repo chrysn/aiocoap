@@ -84,30 +84,40 @@ class TransportTuning:
     #   | NON_LIFETIME      |         145 s |
     #   +-------------------+---------------+
 
-    MAX_TRANSMIT_SPAN = ACK_TIMEOUT * (2 ** MAX_RETRANSMIT - 1) * ACK_RANDOM_FACTOR
-    """Maximum time from the first transmission
-    of a confirmable message to its last retransmission."""
+    @property
+    def MAX_TRANSMIT_SPAN(self):
+        """Maximum time from the first transmission
+        of a confirmable message to its last retransmission."""
+        return self.ACK_TIMEOUT * (2 ** self.MAX_RETRANSMIT - 1) * self.ACK_RANDOM_FACTOR
 
-    MAX_TRANSMIT_WAIT = ACK_TIMEOUT * (2 ** (MAX_RETRANSMIT + 1) - 1) * ACK_RANDOM_FACTOR
-    """Maximum time from the first transmission
-    of a confirmable message to the time when the sender gives up on
-    receiving an acknowledgement or reset."""
+    @property
+    def MAX_TRANSMIT_WAIT(self):
+        """Maximum time from the first transmission
+        of a confirmable message to the time when the sender gives up on
+        receiving an acknowledgement or reset."""
+        return self.ACK_TIMEOUT * (2 ** (self.MAX_RETRANSMIT + 1) - 1) * self.ACK_RANDOM_FACTOR
 
     MAX_LATENCY = 100.0
     """Maximum time a datagram is expected to take from the start
     of its transmission to the completion of its reception."""
 
-    PROCESSING_DELAY = ACK_TIMEOUT
-    """"Time a node takes to turn around a
-    confirmable message into an acknowledgement."""
+    @property
+    def PROCESSING_DELAY(self):
+        """"Time a node takes to turn around a
+        confirmable message into an acknowledgement."""
+        return self.ACK_TIMEOUT
 
-    MAX_RTT = 2 * MAX_LATENCY + PROCESSING_DELAY
-    """Maximum round-trip time."""
+    @property
+    def MAX_RTT(self):
+        """Maximum round-trip time."""
+        return 2 * self.MAX_LATENCY + self.PROCESSING_DELAY
 
-    EXCHANGE_LIFETIME = MAX_TRANSMIT_SPAN + MAX_RTT
-    """time from starting to send a confirmable message to the time when an
-    acknowledgement is no longer expected, i.e. message layer information about the
-    message exchange can be purged"""
+    @property
+    def EXCHANGE_LIFETIME(self):
+        """time from starting to send a confirmable message to the time when an
+        acknowledgement is no longer expected, i.e. message layer information about the
+        message exchange can be purged"""
+        return self.MAX_TRANSMIT_SPAN + self.MAX_RTT
 
     DEFAULT_BLOCK_SIZE_EXP = MAX_REGULAR_BLOCK_SIZE_EXP
     """Default size exponent for blockwise transfers."""
@@ -124,7 +134,9 @@ class TransportTuning:
 
     DEFAULT_LEISURE = 5
 
-    MULTICAST_REQUEST_TIMEOUT = REQUEST_TIMEOUT + DEFAULT_LEISURE
+    @property
+    def MULTICAST_REQUEST_TIMEOUT(self):
+        return self.REQUEST_TIMEOUT + self.DEFAULT_LEISURE
 
     OBSERVATION_RESET_TIME = 128
     """Time in seconds after which the value of the observe field are ignored.

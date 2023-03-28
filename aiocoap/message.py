@@ -156,7 +156,7 @@ class Message(object):
 
         self.remote = None
 
-        self.transport_tuning = transport_tuning or TransportTuning
+        self.transport_tuning = transport_tuning or TransportTuning()
 
         # deprecation error, should go away roughly after 0.2 release
         if self.payload is None:
