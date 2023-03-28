@@ -177,6 +177,10 @@ def oscore_missing_modules():
 def ws_missing_modules():
     """Return a list of modules that are missing in order to user CoAP-over-WS,
     or a false value if everything is present"""
+
+    if is_pyodide:
+        return []
+
     missing = []
     try:
         import websockets # noqa: F401
