@@ -140,6 +140,9 @@ class Code(ExtensibleIntEnum):
         else:
             return "%d" % self
 
+    def _classification(self):
+        return ("Successful " if self.is_successful() else "") + ("Request " if self.is_request() else "Response " if self.is_response() else "")
+
     def __repr__(self):
         """
         >>> Code.GET
@@ -151,9 +154,16 @@ class Code(ExtensibleIntEnum):
         >>> Code(32)
         <Code 32 "32">
         """
-        return '<%s%sCode %d "%s">' % ("Successful " if self.is_successful() else "", "Request " if self.is_request() else "Response " if self.is_response() else "", self, self)
+        return '<%sCode %d "%s">' % (self._classification(), self, self)
 
     name = property(lambda self: self._name if hasattr(self, "_name") else "(unknown)", lambda self, value: setattr(self, "_name", value), doc="The constant name of the code (equals name_printable readable in all-caps and with underscores)")
+
+    def _repr_html_(self):
+        import html
+        if hasattr(self, "_name"):
+            return f'<abbr title="{self._classification()}Code {self.dotted}">{html.escape(self.name)}</abbr>'
+        else:
+            return f'<abbr title="Unknown {self._classification()}Code">{self.dotted}</abbr>'
 
 for k in vars(Code):
     if isinstance(getattr(Code, k), Code):

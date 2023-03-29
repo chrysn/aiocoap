@@ -170,6 +170,33 @@ class Message(object):
                 ", %s byte(s) payload" % len(self.payload) if self.payload else ""
                 )
 
+    def _repr_html_(self):
+        import html
+        if not self.payload:
+            payload_rendered = '<p>No payload</p>'
+        else:
+            from . import defaults
+            if defaults.prettyprint_missing_modules():
+                payload_rendered = f"<code>{html.escape(repr(self.payload))}</code>"
+            else:
+                from .util.prettyprint import pretty_print, lexer_for_mime
+                (notes, mediatype, text) = pretty_print(self)
+                import pygments
+                from pygments.formatters import HtmlFormatter
+                try:
+                    lexer = lexer_for_mime(mediatype)
+                    text = pygments.highlight(text, lexer, HtmlFormatter())
+                except pygments.util.ClassNotFound:
+                    text = html.escape(text)
+                payload_rendered = (
+                        "<div>"
+                        + "".join(f'<p style="color:gray;font-size:small;">{html.escape(n)}</p>' for n in notes)
+                        + f"<pre>{text}</pre>"
+                        + "</div>"
+                        )
+        return f"""<details style="padding-left:1em"><summary style="margin-left:-1em">Message with code {self.code._repr_html_() if self.code is not None else 'None'}, remote {html.escape(str(self.remote))}</summary>
+                {self.opt._repr_html_()}{payload_rendered}"""
+
     def copy(self, **kwargs):
         """Create a copy of the Message. kwargs are treated like the named
         arguments in the constructor, and update the copy."""
