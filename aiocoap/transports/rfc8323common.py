@@ -26,6 +26,9 @@ class CloseConnection(Exception):
     token manager, close the connection, and does not need to perform further
     logging."""
 
+class NoAddressAvailable(Exception):
+    """The requested property is unavailable on this transport"""
+
 class RFC8323Remote:
     """Mixin for Remotes for all the common RFC8323 processing
 
@@ -49,7 +52,11 @@ class RFC8323Remote:
     # implementing interfaces.EndpointAddress
 
     def __repr__(self):
-        return "<%s at %#x, hostinfo %s, local %s>" % (type(self).__name__, id(self), self.hostinfo, self.hostinfo_local)
+        try:
+            hostinfo_local = self.hostinfo_local
+        except NoAddressAvailable:
+            hostinfo_local = "address not available"
+        return "<%s at %#x, hostinfo %s, local %s>" % (type(self).__name__, id(self), self.hostinfo, hostinfo_local)
 
     @property
     def hostinfo(self):
@@ -61,7 +68,10 @@ class RFC8323Remote:
 
     @property
     def hostinfo_local(self):
-        return util.hostportjoin(*self._local_hostinfo)
+        if self._local_hostinfo:
+            return util.hostportjoin(*self._local_hostinfo)
+        else:
+            raise NoAddressAvailable()
 
     @property
     def uri_base(self):
