@@ -1,3 +1,43 @@
+Version next
+------------
+
+CLI changes
+~~~~~~~~~~~
+
+* aiocoap-client now uses CBOR Diagnostic Notation both for pretty-printed
+  output and when adjusting a ``--payload`` argument to a CBOR
+  ``--content-format``. This should be a compatible change for users who
+  previously used JSON for input, but needs adjustments for users who used
+  Python literals.
+
+* CBOR sequences are now recognized for pretty-printing, and accepted (wrapped
+  in an array) for ``--payload`` format adjustment.
+
+New features
+~~~~~~~~~~~~
+
+* Initial support for pyodide (eg. in Jupyter):
+
+  * The websockets client transport is made available through the browser's
+    APIs.
+  * Messages and other elements are available for HTML pretty-printing.
+
+* Messages now have a ``.transport_tuning`` property, which may be overwritten
+  to influence transmission characteristics.
+
+Bug fixes
+~~~~~~~~~
+
+* BERT blocks are now extracted correctly.
+* oscore: Constant with typo renamed (``COSE_COUNTERSI(NG→GN)ATURE0``).
+
+Deprecations
+~~~~~~~~~~~~
+
+* numbers.constants: Transport related parameters are deprecated, use
+  ``.transport_tuning`` (see above).
+
+
 Version 0.4.5
 -------------
 
