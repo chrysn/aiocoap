@@ -114,6 +114,16 @@ class OptionNumber(ExtensibleIntEnum):
             option.value = value
         return option
 
+    def _repr_html_(self):
+        import html
+        properties = f"{'critical' if self.is_critical() else 'elective'}, {'safe-to-forward' if self.is_safetoforward() else 'proxy unsafe'}"
+        if self.is_safetoforward():
+            properties += ", part of the cache key" if self.is_cachekey() else ", not part of the cache key"
+        if hasattr(self, "name"):
+            return f'<abbr title="option {int(self)}: {properties}">{html.escape(self.name)}</abbr>'
+        else:
+            return f'<abbr title="{properties}">Option {int(self)}</abbr>'
+
 # OpaqueOption is set on formats where it is known to be used even though it is
 # the default. This allows developers to rely on those interfaces to be stable
 # (or at least to be notified visibly in the release notes).

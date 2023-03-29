@@ -26,6 +26,14 @@ import os
 import socket
 import sys
 
+try:
+    import pyodide  # noqa: F401
+    import js       # noqa: F401
+except ImportError:
+    is_pyodide = False
+else:
+    is_pyodide = True
+
 def get_default_clienttransports(*, loop=None, use_env=True):
     """Return a list of transports that should be connected when a client
     context is created.
@@ -169,6 +177,10 @@ def oscore_missing_modules():
 def ws_missing_modules():
     """Return a list of modules that are missing in order to user CoAP-over-WS,
     or a false value if everything is present"""
+
+    if is_pyodide:
+        return []
+
     missing = []
     try:
         import websockets # noqa: F401

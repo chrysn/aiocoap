@@ -296,10 +296,9 @@ class CredentialsMap(dict):
         scheme and hostinfo (no full message is to be processed here, as
         connections are used across requests to the same origin).
 
-        If no credentials are configured, this returns the default SSL client
-        context."""
-
-        import ssl
+        If no credentials are configured, this returns None (for which the user
+        may need to fill in ssl.create_default_context() if None is not already
+        a good indicator for the eventual consumer to use the default)."""
 
         ssl_params = {}
         tlscert = self.get('%s://%s/*' % (scheme, hostinfo), None)
@@ -307,7 +306,9 @@ class CredentialsMap(dict):
             tlscert = self.get('%s://*' % scheme, None)
         if tlscert is not None:
             ssl_params = tlscert.as_ssl_params()
-        return ssl.create_default_context(**ssl_params)
+        if ssl_params:
+            import ssl
+            return ssl.create_default_context(**ssl_params)
 
     # used by a server
 

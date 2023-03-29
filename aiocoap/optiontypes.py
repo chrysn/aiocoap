@@ -40,6 +40,10 @@ class OptionType(metaclass=abc.ABCMeta):
     def decode(self, rawdata):
         """Set the option's value from the bytes in rawdata"""
 
+    def _repr_html_(self):
+        import html
+        return f"<tt>{html.escape(repr(self))}</tt>"
+
 class StringOption(OptionType):
     """String CoAP option - used to represent string options. Always encoded in
     UTF8 per CoAP specification."""
@@ -59,6 +63,10 @@ class StringOption(OptionType):
     def __str__(self):
         return self.value
 
+    def _repr_html_(self):
+        import html
+        return f"<tt>{html.escape(repr(self.value))}</tt>"
+
 class OpaqueOption(OptionType):
     """Opaque CoAP option - used to represent options that just have their
     uninterpreted bytes as value."""
@@ -77,6 +85,9 @@ class OpaqueOption(OptionType):
     def __str__(self):
         return repr(self.value)
 
+    def _repr_html_(self):
+        return f'<tt>{self.value.hex()}</tt>'
+
 class UintOption(OptionType):
     """Uint CoAP option - used to represent integer options."""
 
@@ -92,6 +103,10 @@ class UintOption(OptionType):
 
     def __str__(self):
         return str(self.value)
+
+    def _repr_html_(self):
+        import html
+        return f"<tt>{html.escape(repr(self.value))}</tt>"
 
 class TypedOption(OptionType, metaclass=abc.ABCMeta):
     @property
@@ -118,6 +133,13 @@ class TypedOption(OptionType, metaclass=abc.ABCMeta):
 
     def __str__(self):
         return str(self.value)
+
+    def _repr_html_(self):
+        if hasattr(self.value, "_repr_html_"):
+            return self.value._repr_html_()
+        else:
+            import html
+            return f"<tt>{html.escape(repr(self.value))}</tt>"
 
 class BlockOption(TypedOption):
     """Block CoAP option - special option used only for Block1 and Block2 options.

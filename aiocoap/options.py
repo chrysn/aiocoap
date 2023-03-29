@@ -127,6 +127,14 @@ class Options(object):
         text = ", ".join("%s: %s" % (OptionNumber(k), " / ".join(map(str, v))) for (k, v) in self._options.items())
         return "<aiocoap.options.Options at %#x: %s>" % (id(self), text or "empty")
 
+    def _repr_html_(self):
+        if self._options:
+            n_opt = sum(len(o) for o in self._options.values())
+            items = (f'<li value="{int(k)}">{OptionNumber(k)._repr_html_()}: {", ".join(vi._repr_html_() for vi in v)}' for (k, v) in sorted(self._options.items()))
+            return f"""<details><summary>{n_opt} option{'s' if n_opt != 1 else ''}</summary><ol>{''.join(items)}</ol></details>"""
+        else:
+            return "<div>No options</div>"
+
     def decode(self, rawdata):
         """Passed a CoAP message body after the token as rawdata, fill self
         with the options starting at the beginning of rawdata, an return the

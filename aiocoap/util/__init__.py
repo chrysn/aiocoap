@@ -60,6 +60,13 @@ class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
     def __str__(self):
         return self.name if hasattr(self, "name") else int.__str__(self)
 
+    def _repr_html_(self):
+        import html
+        if hasattr(self, "name"):
+            return f'<abbr title="{html.escape(type(self).__name__)} {int(self)}">{html.escape(self.name)}</abbr>'
+        else:
+            return f'<abbr title="Unknown {html.escape(type(self).__name__)}">{int(self)}</abbr>'
+
 def hostportjoin(host, port=None):
     """Join a host and optionally port into a hostinfo-style host:port
     string

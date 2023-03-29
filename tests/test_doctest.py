@@ -34,6 +34,8 @@ def _load_tests():
                 continue
             if p in ('aiocoap.util.prettyprint', 'aiocoap.util.linkformat_pygments') and aiocoap.defaults.prettyprint_missing_modules():
                 continue
+            if p in ('aiocoap.util.pyodide_websockets',) and not aiocoap.defaults.is_pyodide:
+                continue
             if 'udp6' in p and (
                     # due to https://foss.heptapod.net/pypy/pypy/issues/3249
                     'PyPy' in sys.version
