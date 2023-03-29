@@ -31,6 +31,7 @@ class WebSocketClientProtocol(WebSocketCommonProtocol):
         # FIXME: This is a workaround for WebSockets' shortcomings, while
         # WebSocketStreams are not deployed (see
         # https://developer.chrome.com/articles/websocketstream/ for details)
+
         self._queue = asyncio.Queue()
 
         # The initial setting doesn't matter too much because we're not handing
@@ -55,9 +56,8 @@ class WebSocketClientProtocol(WebSocketCommonProtocol):
         blob = js.Blob.new([js.Uint8Array.new(msg)])
         self._socket.send(blob)
 
-    # The real websockets module only has None while opening, but we just don't
-    # have the information, so aiocoap just has to adjust to limited transports.
-    local_address = None
+    # FIXME
+    local_address = ("::", 1234)
 
     def on_message(self, event):
         self._queue.put_nowait(("message", event))

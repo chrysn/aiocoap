@@ -96,10 +96,7 @@ class EndpointAddress(metaclass=abc.ABCMeta):
 
         Note that the presence of a hostinfo does not necessarily mean that
         globally meaningful or even syntactically valid URI can be constructed
-        out of it; use the :attr:`.uri` property for this.
-
-        As a a last resort, if there is not even unusable data is available,
-        this may raise an exception."""
+        out of it; use the :attr:`.uri` property for this."""
 
     @property
     @abc.abstractmethod
@@ -108,10 +105,7 @@ class EndpointAddress(metaclass=abc.ABCMeta):
         requests are sent from it.
 
         As with :attr:`.hostinfo`, this does not necessarily produce sufficient
-        input for a URI; use :attr:`.uri_local` instead.
-
-        As a a last resort, if there is not even unusable data is available,
-        this may raise an exception."""
+        input for a URI; use :attr:`.uri_local` instead."""
 
     @property
     def uri(self):
