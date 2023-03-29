@@ -183,6 +183,14 @@ class ContentFormat(ExtensibleIntEnum):
     def __bool__(self):
         return True
 
+    def _repr_html_(self):
+        # The name with title thing isn't too pretty for these ones
+        if self.is_known():
+            import html
+            return f"""<abbr title="Content format {int(self)}{', named ContentFormat.' + html.escape(self.name) if hasattr(self, 'name') else ''}">{html.escape(self.media_type)}{'@' + self.encoding if self.encoding != 'identity' else ''}</abbr>"""
+        else:
+            return f"""<abbr title="Unknown content format">{int(self)}</abbr>"""
+
     TEXT = 0
     LINKFORMAT = 40
     OCTETSTREAM = 42

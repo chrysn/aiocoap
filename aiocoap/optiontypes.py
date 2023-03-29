@@ -135,8 +135,11 @@ class TypedOption(OptionType, metaclass=abc.ABCMeta):
         return str(self.value)
 
     def _repr_html_(self):
-        import html
-        return f"<tt>{html.escape(repr(self.value))}</tt>"
+        if hasattr(self.value, "_repr_html_"):
+            return self.value._repr_html_()
+        else:
+            import html
+            return f"<tt>{html.escape(repr(self.value))}</tt>"
 
 class BlockOption(TypedOption):
     """Block CoAP option - special option used only for Block1 and Block2 options.
