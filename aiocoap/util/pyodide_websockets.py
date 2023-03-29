@@ -56,8 +56,13 @@ class WebSocketClientProtocol(WebSocketCommonProtocol):
         blob = js.Blob.new([js.Uint8Array.new(msg)])
         self._socket.send(blob)
 
-    # FIXME
-    local_address = ("::", 1234)
+    # FIXME: It'd be preferable if we could make this an unassigned property
+    # that'd raise if anybody tried to access it (for neither do we know the
+    # value, nor could anything useful be done with it), but as things are,
+    # we'll have to rely on all users' sensibilities to not send around
+    # addresses that are not globally usable. (The port, indicating the default
+    # port, is an outright lie, though.)
+    local_address = ("localhost", None)
 
     def on_message(self, event):
         self._queue.put_nowait(("message", event))
