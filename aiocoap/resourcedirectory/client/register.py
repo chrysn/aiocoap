@@ -82,13 +82,14 @@ class Registerer:
 
         self.log = logging.getLogger(loggername)
 
+        self._set_state("starting")
         self._task = asyncio.create_task(self._run())
 
     def __repr__(self):
         return "<%s at %#x: registering at %s as %s (currently %s)>" % (
                 type(self).__name__, id(self), self._registration_resource or
-                self._directory_resource, self._registration_parameters,
-                self.state)
+                self._directory_resource or self._initial_rd,
+                self._registration_parameters, self.state)
 
     def _set_state(self, newstate):
         self.log.debug("Entering state %s", newstate)
