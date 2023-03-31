@@ -130,6 +130,7 @@ Licensing
 ---------
 
 aiocoap is published under the MIT License, and follows the best practice of `reuse.software`_.
+Files in ``aiocoap/util/vendored/`` may have different (but compatible and OSI approved) licenses.
 
 When using aiocoap for a publication, please cite it according to the output of
 ``./setup.py cite [--bibtex]``.
