@@ -458,6 +458,12 @@ class Message(object):
         # maybe this function does not belong exactly *here*, but it belongs to
         # the results of .request(message), which is currently a message itself.
 
+        if hasattr(self, '_original_request_uri'):
+            # During server-side processing, a message's options may be altered
+            # to the point where its options don't accurately reflect its URI
+            # any more. In that case, this is stored.
+            return self._original_request_uri
+
         if self.code.is_response():
             refmsg = self.request
 
