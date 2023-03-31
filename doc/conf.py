@@ -22,7 +22,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 project = 'aiocoap'
-copyright = '2014, Maciej Wasilak, Christian Amsüss'
+copyright = 'Christian Amsüss and the aiocoap contributors'
 
 # The short X.Y version.
 version = '0.4'
