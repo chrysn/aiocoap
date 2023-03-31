@@ -90,6 +90,12 @@ test:flake:
     - pip install flake8
     - flake8 .
 
+reuse:
+  image: python:3
+  script:
+    - pip install reuse
+    - reuse lint
+
 pages:
   image: "debian"
   stage: deploy
