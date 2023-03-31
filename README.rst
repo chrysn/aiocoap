@@ -129,7 +129,7 @@ Relevant URLs
 Licensing
 ---------
 
-aiocoap is published under the MIT License, see LICENSE_ for details.
+aiocoap is published under the MIT License, and follows the best practice of `reuse.software`_.
 
 When using aiocoap for a publication, please cite it according to the output of
 ``./setup.py cite [--bibtex]``.
@@ -146,5 +146,5 @@ The full list of aiocoap contributors can be obtained from the version control h
 .. _tools: http://aiocoap.readthedocs.io/en/latest/tools.html
 .. _installation: http://aiocoap.readthedocs.io/en/latest/installation.html
 .. _`aiocoap module`: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.html
-.. _LICENSE: LICENSE
+.. _reuse.software: https://reuse.software/
 .. _txThings: https://github.com/siskin/txThings
