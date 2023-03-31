@@ -1,4 +1,7 @@
-# This requires Python 3.6 as it makes use of __init_subclass__
+# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
+# Copyright (c) 2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+#
+# SPDX-License-Identifier: MIT
 
 from collections import namedtuple, defaultdict
 import functools
