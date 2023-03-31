@@ -1,4 +1,4 @@
 LICENSE
 =======
 
-.. include:: ../LICENSE
+.. include:: ../LICENSES/MIT.txt

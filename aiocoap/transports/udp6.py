@@ -1,10 +1,6 @@
-# This file is part of the Python aiocoap library project.
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
 #
-# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
-#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
-#
-# aiocoap is free software, this file is published under the MIT license as
-# described in the accompanying LICENSE file.
+# SPDX-License-Identifier: MIT
 
 """This module implements a MessageInterface for UDP based on a variation of
 the asyncio DatagramProtocol.
@@ -70,7 +66,7 @@ class InterfaceOnlyPktinfo(bytes):
     plain `bytes`, things must still work)."""
 
 class UDP6EndpointAddress(interfaces.EndpointAddress):
-    """Remote address type for :cls:`MessageInterfaceUDP6`. Remote address is
+    """Remote address type for :class:`MessageInterfaceUDP6`. Remote address is
     stored in form of a socket address; local address can be roundtripped by
     opaque pktinfo data.
 

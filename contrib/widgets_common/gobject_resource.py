@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
+#
+# SPDX-License-Identifier: MIT
+
 from gi.repository import Gtk
 from gi.repository import Gdk
 

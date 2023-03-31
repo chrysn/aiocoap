@@ -1,10 +1,6 @@
-# This file is part of the Python aiocoap library project.
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
 #
-# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
-#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
-#
-# aiocoap is free software, this file is published under the MIT license as
-# described in the accompanying LICENSE file.
+# SPDX-License-Identifier: MIT
 
 """This module contains the classes that are responsible for keeping track of
 messages:
@@ -103,8 +99,6 @@ class Context(interfaces.RequestProvider):
     CoAP requests can be sent using the following functions:
 
     .. automethod:: request
-
-    .. automethod:: multicast_request
 
     If more control is needed, you can create a :class:`Request` yourself and
     pass the context to it.

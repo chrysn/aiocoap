@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 
-# This file is part of the Python aiocoap library project.
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
 #
-# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
-#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
-#
-# aiocoap is free software, this file is published under the MIT license as
-# described in the accompanying LICENSE file.
+# SPDX-License-Identifier: MIT
 
 """aiocoap is a Python library for writing servers and clients for the CoAP
 (Constrained Application) Protocol, which is used mainly in the context of IoT
@@ -71,14 +67,13 @@ class Cite(Command):
         else:
             print(self.plain_text)
 
-    plain_text = """Amsüss, Christian and Wasilak, Maciej. aiocoap: Python CoAP Library. Energy Harvesting Solutions, 2013–. http://github.com/chrysn/aiocoap/"""
+    plain_text = """Amsüss, Christian and the aiocoap contributors. aiocoap: Python CoAP Library. 2013–. https://christian.amsuess.com/tools/aiocoap/"""
 
     bibtex_text = """@Misc{,
-        author = {Christian Amsüss and Maciej Wasilak},
-        organization = {Energy Harvesting Solutions},
+        author = {Christian Amsüss and aiocoap contributors},
         title = {{aiocoap}: Python CoAP Library},
         year = {2013--},
-        url = {http://github.com/chrysn/aiocoap/},
+        url = {https://christian.amsuess.com/tools/aiocoap/},
         }"""
 
 setup(
@@ -89,9 +84,10 @@ setup(
     long_description_content_type='text/x-rst',
     packages=find_packages(exclude=["tests"]),
 
-    author="Maciej Wasilak, Christian Amsüss",
-    author_email="c.amsuess@energyharvesting.at",
-    url="https://github.com/chrysn/aiocoap",
+    author="Christian Amsüss and the aiocoap contributors",
+    author_email="chrysn@fsfe.org",
+    url="https://christian.amsuess.com/tools/aiocoap/",
+    download_url="https://github.com/chrysn/aiocoap/",
 
     license='MIT',
     keywords=['coap', 'asyncio', 'iot'],

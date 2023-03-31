@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
+#
+# SPDX-License-Identifier: MIT
+
 """This module provides a slimmed-down replacement of the websockets_ module
 (that regularly powers :mod:`aiocoap.transports.ws`) -- but implemented through
 pyodide_'s JavaScript adapter towards the WebSocket module of the hosting

@@ -1,4 +1,6 @@
-# This requires Python 3.6 as it makes use of __init_subclass__
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
+#
+# SPDX-License-Identifier: MIT
 
 from collections import namedtuple, defaultdict
 import functools

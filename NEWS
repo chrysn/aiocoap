@@ -54,7 +54,7 @@ Deprecations
   UNSUPPORTED_CONTENT_FORMAT instead.
 
 Minor enhancements
-~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 * Fix tests for Python 3.11.
 * Lower log level of "but could not match it to a running exchange" from warning to info.

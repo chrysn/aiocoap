@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
+#
+# SPDX-License-Identifier: MIT
+
 import functools
 import re
 import os
@@ -93,6 +97,9 @@ def build_moduledocs(app):
                     {x}.*
                 """).format(x=x)
         elif x.startswith('aiocoap.cli.'):
+            if x in ('aiocoap.cli.defaults', 'aiocoap.cli.common'):
+                # These neither have a man page, nor do they go into the documentation
+                continue
             executablename = "aiocoap-" + x[len('aiocoap.cli.'):]
             # no ".. automodule:: {x}" because the doc string is already used
             # by the argparse, and thus would be repeated

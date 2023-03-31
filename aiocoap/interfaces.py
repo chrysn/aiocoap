@@ -1,10 +1,6 @@
-# This file is part of the Python aiocoap library project.
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
 #
-# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
-#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
-#
-# aiocoap is free software, this file is published under the MIT license as
-# described in the accompanying LICENSE file.
+# SPDX-License-Identifier: MIT
 
 """This module provides interface base classes to various aiocoap software
 components, especially with respect to request and response handling. It
@@ -358,8 +354,8 @@ class Resource(metaclass=abc.ABCMeta):
         the request stream.
 
         This method is provided by the base Resource classes; if it is
-        overridden, then :meth:`render`, :meth:`needs_blockwise_assembly` and
-        :meth:`ObservableResource.add_observation` are not used any more.
+        overridden, then :meth:`~.Resource.render`, :meth:`needs_blockwise_assembly` and
+        :meth:`~.ObservableResource.add_observation` are not used any more.
         (They still need to be implemented to comply with the interface
         definition, which is yet to be updated)."""
         warnings.warn("Request interface is changing: Resources should "
@@ -381,11 +377,11 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
 
     This adds only functionality for registering and unregistering observations;
     the notification contents will be retrieved from the resource using the
-    regular :meth:`.render` method from crafted (fake) requests.
+    regular :meth:`~.Resource.render` method from crafted (fake) requests.
     """
     @abc.abstractmethod
     async def add_observation(self, request, serverobservation):
-        """Before the incoming request is sent to :meth:`.render`, the
+        """Before the incoming request is sent to :meth:`~.Resource.render`, the
         :meth:`.add_observation` method is called. If the resource chooses to
         accept the observation, it has to call the
         `serverobservation.accept(cb)` with a callback that will be called when

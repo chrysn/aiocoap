@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
+#
+# SPDX-License-Identifier: MIT
+
 import shutil
 from pathlib import Path
 

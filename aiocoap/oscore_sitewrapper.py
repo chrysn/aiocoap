@@ -1,10 +1,6 @@
-# This file is part of the Python aiocoap library project.
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
 #
-# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
-#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
-#
-# aiocoap is free software, this file is published under the MIT license as
-# described in the accompanying LICENSE file.
+# SPDX-License-Identifier: MIT
 
 """This module assists in creating OSCORE servers by proving a wrapper around a
 :class:aiocoap.resource.Site. It enforces no access control, but just indicates

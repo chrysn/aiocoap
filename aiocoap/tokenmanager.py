@@ -1,10 +1,6 @@
-# This file is part of the Python aiocoap library project.
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
 #
-# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
-#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
-#
-# aiocoap is free software, this file is published under the MIT license as
-# described in the accompanying LICENSE file.
+# SPDX-License-Identifier: MIT
 
 import functools
 import random
@@ -255,8 +251,3 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             key = (msg.token, msg.remote)
         self.outgoing_requests[key] = request
         request.on_interest_end(functools.partial(self.outgoing_requests.pop, key, None))
-
-'''
-    def multicast_request(self, request):
-        return MulticastRequest(self, request).responses
-'''

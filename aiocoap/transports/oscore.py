@@ -1,10 +1,6 @@
-# This file is part of the Python aiocoap library project.
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
 #
-# Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
-#               2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
-#
-# aiocoap is free software, this file is published under the MIT license as
-# described in the accompanying LICENSE file.
+# SPDX-License-Identifier: MIT
 
 # WORK IN PROGRESS: TransportEndpoint has been renamed to MessageInterface
 # here, but actually we'll be providing a RequestInterface -- that's one of the
@@ -47,7 +43,7 @@ class OSCOREAddress(
         namedtuple("_OSCOREAddress", ["security_context", "underlying_address"]),
         interfaces.EndpointAddress
         ):
-    """Remote address type for :cls:`TransportOSCORE`."""
+    """Remote address type for :class:`TransportOSCORE`."""
 
     def __repr__(self):
         return "<%s in context %r to %r>" % (type(self).__name__, self.security_context, self.underlying_address)
