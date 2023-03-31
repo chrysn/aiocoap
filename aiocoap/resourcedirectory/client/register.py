@@ -10,7 +10,7 @@ import logging
 
 from socket import getfqdn
 
-import link_header
+from ...util.linkformat import link_header
 
 from ...message import Message
 from ...numbers import GET, POST, DELETE, SERVICE_UNAVAILABLE, NOT_FOUND

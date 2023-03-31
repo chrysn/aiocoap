@@ -190,20 +190,14 @@ def linkheader_missing_modules():
     functionaity (eg. running a resource directory), of a false value if
     everything is present."""
     missing = []
-    try:
-        import link_header # noqa: F401
-    except ImportError:
-        missing.append('LinkHeader')
+    # The link_header module is now provided in-tree
     return missing
 
 def prettyprint_missing_modules():
     """Return a list of modules that are missing in order to use pretty
     printing (ie. full aiocoap-client)"""
     missing = []
-    try:
-        import link_header # noqa: F401
-    except ImportError:
-        missing.append('LinkHeader')
+    missing.extend(linkheader_missing_modules())
     try:
         import cbor2 # noqa: F401
     except ImportError:

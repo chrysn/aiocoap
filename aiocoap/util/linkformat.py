@@ -9,7 +9,7 @@ It is a general nursery for what aiocoap needs of link-format management before
 any of this is split out into its own package.
 """
 
-import link_header
+from .vendored import link_header
 
 class LinkFormat(link_header.LinkHeader):
     def __str__(self):

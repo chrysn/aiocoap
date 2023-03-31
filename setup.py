@@ -18,14 +18,15 @@ description = "Python CoAP library"
 
 # When introducing something new, make sure to update doc/installation.rst
 extras_require = {
-        'linkheader': ['LinkHeader'],
+        # Extra is still present for compatibility, but its dependency has been vendored in.
+        'linkheader': [],
         # ge25519 is a workaround for
         # <https://github.com/pyca/cryptography/issues/5557>; being pure python
         # it's light enough to not warrant a dedicated group-oscore extra.
         'oscore': ['cbor2', 'cryptography (>= 2.0)', 'filelock', 'ge25519'],
         'tinydtls': ['DTLSSocket >= 0.1.11a1'],
         'ws': ['websockets'],
-        'prettyprint': ['termcolor', 'cbor2', 'LinkHeader', 'pygments', 'cbor-diag'],
+        'prettyprint': ['termcolor', 'cbor2', 'pygments', 'cbor-diag'],
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         'all': [], # populated below, contains everything but documentation dependencies for easier installation
         }
