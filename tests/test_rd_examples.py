@@ -17,7 +17,7 @@ from .test_server import WithAsyncLoop, Destructing, WithClient, asynctest
 linkheader_modules = aiocoap.defaults.linkheader_missing_modules()
 _skip_unless_linkheader = unittest.skipIf(linkheader_modules, "Modules missing for running RD tests: %s"%(linkheader_modules,))
 if not linkheader_modules:
-    import link_header
+    from aiocoap.util.linkformat import link_header
     import aiocoap.cli.rd
 
 class WithResourceDirectory(WithAsyncLoop, Destructing):

@@ -41,7 +41,7 @@ import aiocoap.proxy.server
 from aiocoap.util.linkformat import Link, LinkFormat, parse
 from ..util.asyncio import py38args
 
-import link_header
+from ..util.linkformat import link_header
 
 IMMUTABLE_PARAMETERS = ('ep', 'd', 'proxy')
 
