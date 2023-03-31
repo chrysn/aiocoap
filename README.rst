@@ -7,13 +7,8 @@ Protocol`_.
 It is written in Python 3 using its `native asyncio`_ methods to facilitate
 concurrent operations while maintaining an easy to use interface.
 
-aiocoap is originally based on txThings_. If you want to use CoAP in your
-existing Twisted application, or can not migrate to Python 3 yet, that is
-probably more useful to you than aiocoap.
-
 .. _`Constrained Application Protocol`: http://coap.technology/
 .. _`native asyncio`: https://docs.python.org/3/library/asyncio
-.. _txThings: https://github.com/siskin/txThings
 
 Usage
 -----
@@ -139,9 +134,12 @@ aiocoap is published under the MIT License, see LICENSE_ for details.
 When using aiocoap for a publication, please cite it according to the output of
 ``./setup.py cite [--bibtex]``.
 
-Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
-              2013-2014 Christian Amsüss <c.amsuess@energyharvesting.at>
+Copyright Christian Amsüss and the aiocoap contributors.
 
+aiocoap was originally based on txThings_ by Maciej Wasilak.
+The full list of aiocoap contributors can be obtained from the version control history.
+
+.. Any filtering by a mailmap would apply, but no need to state that unless we do get a mailmap.
 
 .. _guidedtour: http://aiocoap.readthedocs.io/en/latest/guidedtour.html
 .. _examples: http://aiocoap.readthedocs.io/en/latest/examples.html
@@ -149,3 +147,4 @@ Copyright (c) 2012-2014 Maciej Wasilak <http://sixpinetrees.blogspot.com/>,
 .. _installation: http://aiocoap.readthedocs.io/en/latest/installation.html
 .. _`aiocoap module`: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.html
 .. _LICENSE: LICENSE
+.. _txThings: https://github.com/siskin/txThings
