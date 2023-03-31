@@ -251,8 +251,3 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             key = (msg.token, msg.remote)
         self.outgoing_requests[key] = request
         request.on_interest_end(functools.partial(self.outgoing_requests.pop, key, None))
-
-'''
-    def multicast_request(self, request):
-        return MulticastRequest(self, request).responses
-'''

@@ -100,8 +100,6 @@ class Context(interfaces.RequestProvider):
 
     .. automethod:: request
 
-    .. automethod:: multicast_request
-
     If more control is needed, you can create a :class:`Request` yourself and
     pass the context to it.
 
