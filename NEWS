@@ -1,3 +1,20 @@
+Version 0.4.6-alpha2
+--------------------
+
+Bug fixes
+~~~~~~~~~
+
+* ``request.get_request_uri()`` in a server handler now reports the URI with
+  the correct path.
+* Broken links fixed in documentation.
+
+Meta
+~~~~
+
+* Copyright statements updated, now complying with reuse.software specs.
+* LinkHeader dependency moved from unmaintained PyPI package into vendored copy
+  to avoid trouble with missing .whl (wheel) files.
+
 Version 0.4.6-alpha1
 --------------------
 
