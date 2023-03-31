@@ -7,4 +7,4 @@ ignore = E501, E128, E302, E302, E261, E265, E126, E123, E127, E301, E306, E303,
 
 # excluding the client scripts as their heavy reliance on `from aiocoap import
 # *` would decrease their usefullness as easy quick-start script
-exclude = .eggs, contrib, tests, doc, .tox, client*.py
+exclude = .eggs, contrib, tests, doc, .tox, client*.py, aiocoap/util/vendored/
