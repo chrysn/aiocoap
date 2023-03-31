@@ -67,13 +67,13 @@ class Cite(Command):
         else:
             print(self.plain_text)
 
-    plain_text = """Amsüss, Christian and the aiocoap contributors. aiocoap: Python CoAP Library. 2013–. http://github.com/chrysn/aiocoap/"""
+    plain_text = """Amsüss, Christian and the aiocoap contributors. aiocoap: Python CoAP Library. 2013–. https://christian.amsuess.com/tools/aiocoap/"""
 
     bibtex_text = """@Misc{,
         author = {Christian Amsüss and aiocoap contributors},
         title = {{aiocoap}: Python CoAP Library},
         year = {2013--},
-        url = {http://github.com/chrysn/aiocoap/},
+        url = {https://christian.amsuess.com/tools/aiocoap/},
         }"""
 
 setup(
@@ -86,7 +86,8 @@ setup(
 
     author="Christian Amsüss and the aiocoap contributors",
     author_email="chrysn@fsfe.org",
-    url="https://github.com/chrysn/aiocoap",
+    url="https://christian.amsuess.com/tools/aiocoap/",
+    download_url="https://github.com/chrysn/aiocoap/",
 
     license='MIT',
     keywords=['coap', 'asyncio', 'iot'],
