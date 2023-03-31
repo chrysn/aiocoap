@@ -66,7 +66,7 @@ class InterfaceOnlyPktinfo(bytes):
     plain `bytes`, things must still work)."""
 
 class UDP6EndpointAddress(interfaces.EndpointAddress):
-    """Remote address type for :cls:`MessageInterfaceUDP6`. Remote address is
+    """Remote address type for :class:`MessageInterfaceUDP6`. Remote address is
     stored in form of a socket address; local address can be roundtripped by
     opaque pktinfo data.
 

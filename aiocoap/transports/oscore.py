@@ -43,7 +43,7 @@ class OSCOREAddress(
         namedtuple("_OSCOREAddress", ["security_context", "underlying_address"]),
         interfaces.EndpointAddress
         ):
-    """Remote address type for :cls:`TransportOSCORE`."""
+    """Remote address type for :class:`TransportOSCORE`."""
 
     def __repr__(self):
         return "<%s in context %r to %r>" % (type(self).__name__, self.security_context, self.underlying_address)
