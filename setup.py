@@ -67,11 +67,10 @@ class Cite(Command):
         else:
             print(self.plain_text)
 
-    plain_text = """Amsüss, Christian and Wasilak, Maciej. aiocoap: Python CoAP Library. Energy Harvesting Solutions, 2013–. http://github.com/chrysn/aiocoap/"""
+    plain_text = """Amsüss, Christian and the aiocoap contributors. aiocoap: Python CoAP Library. 2013–. http://github.com/chrysn/aiocoap/"""
 
     bibtex_text = """@Misc{,
-        author = {Christian Amsüss and Maciej Wasilak},
-        organization = {Energy Harvesting Solutions},
+        author = {Christian Amsüss and aiocoap contributors},
         title = {{aiocoap}: Python CoAP Library},
         year = {2013--},
         url = {http://github.com/chrysn/aiocoap/},
@@ -85,8 +84,8 @@ setup(
     long_description_content_type='text/x-rst',
     packages=find_packages(exclude=["tests"]),
 
-    author="Maciej Wasilak, Christian Amsüss",
-    author_email="c.amsuess@energyharvesting.at",
+    author="Christian Amsüss and the aiocoap contributors",
+    author_email="chrysn@fsfe.org",
     url="https://github.com/chrysn/aiocoap",
 
     license='MIT',
