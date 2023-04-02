@@ -13,7 +13,7 @@ import os
 import os.path
 
 name = "aiocoap"
-version = "0.4.7" # Don't forget meta.version and doc/conf.py
+version = "0.4.7.post0" # Don't forget meta.version and doc/conf.py
 description = "Python CoAP library"
 
 # When introducing something new, make sure to update doc/installation.rst
