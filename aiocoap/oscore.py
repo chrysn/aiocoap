@@ -1720,8 +1720,26 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
                 self.groupcontext.recipient_public_keys[recipient_id]
                 )
 
-        self.sender_key = self._kdf(self.groupcontext.sender_key, shared_secret, self.groupcontext.sender_id, 'Key')
-        self.recipient_key = self._kdf(self.groupcontext.recipient_keys[recipient_id], shared_secret, self.recipient_id, 'Key')
+        self.sender_key = self._kdf(
+                self.groupcontext.sender_key,
+                (
+                    self.groupcontext.sender_auth_cred
+                    + self.groupcontext.recipient_auth_creds[recipient_id]
+                    + shared_secret
+                ),
+                self.groupcontext.sender_id,
+                'Key',
+                )
+        self.recipient_key = self._kdf(
+                self.groupcontext.recipient_keys[recipient_id],
+                (
+                    self.groupcontext.recipient_auth_creds[recipient_id]
+                    + self.groupcontext.sender_auth_cred
+                    + shared_secret
+                ),
+                self.recipient_id,
+                'Key',
+                )
 
     def __repr__(self):
         return "<%s based on %r with the peer %r>" % (
@@ -1740,6 +1758,9 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
     group_manager_cred = property(lambda self: self.groupcontext.group_manager_cred)
     common_iv = property(lambda self: self.groupcontext.common_iv)
     sender_id = property(lambda self: self.groupcontext.sender_id)
+
+    recipient_auth_cred = property(lambda self: self.groupcontext.recipient_auth_creds[self.recipient_id])
+    sender_auth_cred = property(lambda self: self.groupcontext.sender_auth_cred)
 
     recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])
 
