@@ -210,7 +210,7 @@ class TestOSCOAPStatic(unittest.TestCase):
         request_sender_id = secctx.recipient_id
         request_piv_short = b"\x14"
         request_nonce = secctx._construct_nonce(request_piv_short, request_sender_id)
-        outer_message, _ = secctx.protect(unprotected, aiocoap.oscore.RequestIdentifiers(request_sender_id, request_piv_short, request_nonce, True))
+        outer_message, _ = secctx.protect(unprotected, aiocoap.oscore.RequestIdentifiers(request_sender_id, request_piv_short, request_nonce, True, aiocoap.POST))
         outer_message.mid = unprotected.mid
         outer_message.token = unprotected.token
         outer_message.mtype = unprotected.mtype
@@ -235,7 +235,7 @@ class TestOSCOAPStatic(unittest.TestCase):
         request_sender_id = secctx.recipient_id
         request_piv_short = b"\x14"
         request_nonce = secctx._construct_nonce(request_piv_short, request_sender_id)
-        outer_message, _ = secctx.protect(unprotected, aiocoap.oscore.RequestIdentifiers(request_sender_id, request_piv_short, request_nonce, False))
+        outer_message, _ = secctx.protect(unprotected, aiocoap.oscore.RequestIdentifiers(request_sender_id, request_piv_short, request_nonce, False, aiocoap.POST))
         outer_message.mid = unprotected.mid
         outer_message.token = unprotected.token
         outer_message.mtype = unprotected.mtype

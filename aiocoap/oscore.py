@@ -15,6 +15,7 @@ the larger aiocoap stack of having a context or requests; that's what
 
 from __future__ import annotations
 
+from collections import namedtuple
 import io
 import json
 import binascii
@@ -28,7 +29,7 @@ import warnings
 
 from aiocoap.message import Message
 from aiocoap.util import cryptography_additions, deprecation_getattr
-from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED
+from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED, CONTENT
 from aiocoap import error
 
 from cryptography.hazmat.primitives.ciphers import aead
@@ -65,6 +66,20 @@ COMPRESSION_BITS_RESERVED = 0b11000000
 
 INFO_TYPE_KEYSTREAM_REQUEST = True
 INFO_TYPE_KEYSTREAM_RESPONSE = False
+
+class CodeStyle(namedtuple("_CodeStyle", ("request", "response"))):
+    @classmethod
+    def from_request(cls, request) -> CodeStyle:
+        if request == FETCH:
+            return cls.FETCH_CONTENT
+        elif request == POST:
+            return cls.POST_CHANGED
+        else:
+            raise ValueError("Invalid request code %r" % request)
+
+CodeStyle.FETCH_CONTENT = CodeStyle(FETCH, CONTENT)
+CodeStyle.POST_CHANGED = CodeStyle(POST, CHANGED)
+
 
 class DeterministicKey:
     """Singleton to indicate that for this key member no public or private key
@@ -125,11 +140,12 @@ class RequestIdentifiers:
     Users of this module should never create or interact with instances, but
     just pass them around.
     """
-    def __init__(self, kid, partial_iv, nonce, can_reuse_nonce):
+    def __init__(self, kid, partial_iv, nonce, can_reuse_nonce, request_code):
         self.kid = kid
         self.partial_iv = partial_iv
         self.nonce = nonce
         self.can_reuse_nonce = can_reuse_nonce
+        self.code_style = CodeStyle.from_request(request_code)
 
         self.request_hash = None
 
@@ -653,7 +669,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         assert (request_id is None) == message.code.is_request()
 
-        outer_message, plaintext = self._split_message(message)
+        outer_message, plaintext = self._split_message(message, request_id)
 
         protected = {}
         nonce = None
@@ -672,7 +688,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         if message.code.is_request():
             unprotected[COSE_KID] = self.sender_id
 
-            request_id = RequestIdentifiers(self.sender_id, partial_iv_short, nonce, can_reuse_nonce=None)
+            request_id = RequestIdentifiers(self.sender_id, partial_iv_short, nonce, can_reuse_nonce=None, request_code=outer_message.code)
 
             if kid_context is True:
                 if self.id_context is not None:
@@ -730,7 +746,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         unprotect the response."""
         return self.sender_key
 
-    def _split_message(self, message):
+    def _split_message(self, message, request_id):
         """Given a protected message, return the outer message that contains
         all Class I and Class U options (but without payload or Object-Security
         option), and the encoded inner message that contains all Class E
@@ -770,8 +786,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
             inner_message = message.copy()
 
-            # FIXME actually CHANGED or CONTENT, but that means the original code needs to be dragged along in RequestIdentifiers
-            outer_code = CHANGED
+            outer_code = request_id.code_style.response
 
         # no max-age because these are always successsful responses
         outer_message = Message(code=outer_code,
@@ -882,7 +897,7 @@ class CanUnprotect(BaseSecurityContext):
                     # Don't even try decoding if there is no reason to
                     raise replay_error
 
-                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=replay_error is None)
+                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=replay_error is None, request_code=protected_message.code)
 
         if unprotected.pop(COSE_COUNTERSIGNATURE0, None) is not None:
             try:
