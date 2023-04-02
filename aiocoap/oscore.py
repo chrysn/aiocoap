@@ -314,10 +314,6 @@ class AlgorithmCountersign(metaclass=abc.ABCMeta):
     def public_from_private(self, private_key):
         """Given a private key, derive the publishable key"""
 
-    @abc.abstractmethod
-    def staticstatic(self, private_key, public_key):
-        """Derive a shared static-static secret from a private and a public key"""
-
     @staticmethod
     def _build_countersign_structure(body, external_aad):
         countersign_structure = [
@@ -334,6 +330,11 @@ class AlgorithmCountersign(metaclass=abc.ABCMeta):
     @abc.abstractproperty
     def signature_length(self):
         """The length of a signature using this algorithm"""
+
+class AlgorithmStaticStatic(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def staticstatic(self, private_key, public_key):
+        """Derive a shared static-static secret from a private and a public key"""
 
 class Ed25519(AlgorithmCountersign):
     def sign(self, body, aad, private_key):
@@ -367,6 +368,23 @@ class Ed25519(AlgorithmCountersign):
             format=serialization.PublicFormat.Raw,
             )
 
+    value = -8
+
+    signature_length = 64
+
+class EcdhSsHkdf256(AlgorithmStaticStatic):
+    # FIXME: This class uses the Edwards keys as private and public keys, and
+    # not the converted ones. This will be problematic if pairwise-only
+    # contexts are to be set up.
+
+    value = -27 # FIXME: or -28? (see shepherd review)
+
+    # FIXME these two will be different when using the Montgomery keys directly
+
+    # This one will only be used when establishing and distributing pairwise-only keys
+    generate = Ed25519.generate
+    public_from_private = Ed25519.public_from_private
+
     def staticstatic(self, private_key, public_key):
         private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(private_key)
         private_key = cryptography_additions.sk_to_curve25519(private_key)
@@ -376,18 +394,7 @@ class Ed25519(AlgorithmCountersign):
 
         return private_key.exchange(public_key)
 
-    value = -8
-
-    signature_length = 64
-
-# FIXME: The staticstatic and public/private parts need to be split, both in
-# the types and in AlgorithmCountersign. Until that is done, we'll have the
-# same object only in the minimal variation that's needed to produce the right
-# values where the COSE differentiates between them.
-class EcdhSsHkdf256(Ed25519):
-    value = -27
-
-class ECDSA_SHA256_P256(AlgorithmCountersign):
+class ECDSA_SHA256_P256(AlgorithmCountersign, AlgorithmStaticStatic):
     # Trying a new construction approach -- should work just as well given
     # we're just passing Python objects around
     def from_public_parts(self, x: bytes, y: bytes):
@@ -431,7 +438,7 @@ class ECDSA_SHA256_P256(AlgorithmCountersign):
     def staticstatic(self, private_key, public_key):
         return private_key.exchange(asymmetric.ec.ECDH(), public_key)
 
-    value = -7
+    value = -7 # FIXME: when used as a static-static algorithm, does this become -27? see shepherd review.
 
     signature_length = 64
 
