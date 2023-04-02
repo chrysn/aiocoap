@@ -20,13 +20,6 @@ aiocoap. This is done using a simple::
 
 (In some cases, the program is called ``pip`` only).
 
-If ``pip3`` is not available on your platform, you can manually download and
-unpack the latest ``.tar.gz`` file from the `Python package index`_ and run
-
-::
-
-    $ ./setup.py install
-
 
 .. _installation-development:
 
