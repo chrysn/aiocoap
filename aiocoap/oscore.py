@@ -457,6 +457,10 @@ algorithms_countersign = {
         'ECDSA w/ SHA-256 on P-256': ECDSA_SHA256_P256(),
         }
 
+algorithms_staticstatic = {
+        'ECDH-SS + HKDF-256': EcdhSsHkdf256(),
+        }
+
 DEFAULT_ALGORITHM = 'AES-CCM-16-64-128'
 
 _hash_backend = cryptography.hazmat.backends.default_backend()
@@ -1715,7 +1719,7 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
         self.groupcontext = groupcontext
         self.recipient_id = recipient_id
 
-        shared_secret = self.alg_signature.staticstatic(
+        shared_secret = self.alg_pairwise_key_agreement.staticstatic(
                 self.groupcontext.private_key,
                 self.groupcontext.recipient_public_keys[recipient_id]
                 )
