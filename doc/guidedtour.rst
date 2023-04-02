@@ -146,6 +146,7 @@ session, as support for the asynchronous shell is always available there.
 
 ::
 
+    >>> from aiocoap import *
     >>> protocol = await Context.create_client_context()
     >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
     >>> response = await protocol.request(msg).response
