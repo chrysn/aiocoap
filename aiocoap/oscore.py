@@ -558,6 +558,8 @@ class BaseSecurityContext:
                 ]
 
         if self.external_aad_is_group:
+            # FIXME: We may need to carry this over in the request_id when
+            # observation span group rekeyings
             external_aad.append(self.id_context)
 
             assert message.opt.object_security is not None
