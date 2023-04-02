@@ -1,3 +1,20 @@
+Version 0.4.7
+-------------
+
+Compatibility
+~~~~~~~~~~~~~
+
+* Group OSCORE updated to -17.
+
+  The setup of group contexts requires altered parameters, as the descriptions
+  of these contexts changed in the underlying specification.
+
+Minor fixes
+~~~~~~~~~~~
+
+* Several minor documentation fixes.
+
+
 Version 0.4.6-alpha3
 --------------------
 
