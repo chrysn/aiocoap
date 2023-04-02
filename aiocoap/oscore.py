@@ -11,6 +11,7 @@ the larger aiocoap stack of having a context or requests; that's what
 
 from __future__ import annotations
 
+from collections import namedtuple
 import io
 import json
 import binascii
@@ -20,10 +21,11 @@ import tempfile
 import abc
 from typing import Optional
 import secrets
+import warnings
 
 from aiocoap.message import Message
 from aiocoap.util import cryptography_additions, deprecation_getattr
-from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED
+from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED, CONTENT
 from aiocoap import error
 
 from cryptography.hazmat.primitives.ciphers import aead
@@ -44,14 +46,36 @@ MAX_SEQNO = 2**40 - 1
 COSE_KID = 4
 COSE_PIV = 6
 COSE_KID_CONTEXT = 10
-# from https://tools.ietf.org/html/draft-ietf-cose-countersign-01
-COSE_COUNTERSIGNATURE0 = 11
+# from RFC9338
+COSE_COUNTERSIGNATURE0 = 12
+# from draft-ietf-lake-edhoc-19, guessing the value
+COSE_KCCS = 13131313
 
 COMPRESSION_BITS_N = 0b111
 COMPRESSION_BIT_K = 0b1000
 COMPRESSION_BIT_H = 0b10000
 COMPRESSION_BIT_G = 0b100000 # Group Flag from draft-ietf-core-oscore-groupcomm-10
 COMPRESSION_BITS_RESERVED = 0b11000000
+
+# While the original values were simple enough to be used in literals, starting
+# with oscore-groupcomm we're using more compact values
+
+INFO_TYPE_KEYSTREAM_REQUEST = True
+INFO_TYPE_KEYSTREAM_RESPONSE = False
+
+class CodeStyle(namedtuple("_CodeStyle", ("request", "response"))):
+    @classmethod
+    def from_request(cls, request) -> CodeStyle:
+        if request == FETCH:
+            return cls.FETCH_CONTENT
+        elif request == POST:
+            return cls.POST_CHANGED
+        else:
+            raise ValueError("Invalid request code %r" % request)
+
+CodeStyle.FETCH_CONTENT = CodeStyle(FETCH, CONTENT)
+CodeStyle.POST_CHANGED = CodeStyle(POST, CHANGED)
+
 
 class DeterministicKey:
     """Singleton to indicate that for this key member no public or private key
@@ -112,23 +136,24 @@ class RequestIdentifiers:
     Users of this module should never create or interact with instances, but
     just pass them around.
     """
-    def __init__(self, kid, partial_iv, nonce, can_reuse_nonce):
+    def __init__(self, kid, partial_iv, nonce, can_reuse_nonce, request_code):
         self.kid = kid
         self.partial_iv = partial_iv
         self.nonce = nonce
         self.can_reuse_nonce = can_reuse_nonce
+        self.code_style = CodeStyle.from_request(request_code)
 
         self.request_hash = None
 
-    def get_reusable_nonce(self):
-        """Return the nonce if can_reuse_nonce is True, and set can_reuse_nonce
-        to False."""
+    def get_reusable_nonce_and_piv(self):
+        """Return the nonce and the partial IV if can_reuse_nonce is True, and
+        set can_reuse_nonce to False."""
 
         if self.can_reuse_nonce:
             self.can_reuse_nonce = False
-            return self.nonce
+            return (self.nonce, self.partial_iv)
         else:
-            return None
+            return (None, None)
 
 def _xor_bytes(a, b):
     assert len(a) == len(b)
@@ -136,7 +161,7 @@ def _xor_bytes(a, b):
     # that possibly needs xor'ing as long integers with an associated length?
     return bytes(_a ^ _b for (_a, _b) in zip(a, b))
 
-class Algorithm(metaclass=abc.ABCMeta):
+class AeadAlgorithm(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def encrypt(cls, plaintext, aad, key, iv):
         """Return ciphertext + tag for given input data"""
@@ -154,7 +179,7 @@ class Algorithm(metaclass=abc.ABCMeta):
 
         return cbor.dumps(enc_structure)
 
-class AES_CCM(Algorithm, metaclass=abc.ABCMeta):
+class AES_CCM(AeadAlgorithm, metaclass=abc.ABCMeta):
     """AES-CCM implemented using the Python cryptography library"""
 
     @classmethod
@@ -225,7 +250,7 @@ class AES_CCM_64_128_256(AES_CCM):
     iv_bytes = 7 # 7-byte nonce
 
 
-class AES_GCM(Algorithm, metaclass=abc.ABCMeta):
+class AES_GCM(AeadAlgorithm, metaclass=abc.ABCMeta):
     """AES-GCM implemented using the Python cryptography library"""
 
     iv_bytes = 12 # 96 bits fixed size of the nonce
@@ -259,7 +284,7 @@ class A256GCM(AES_GCM):
     key_bytes = 32 # 256-bit key
     tag_bytes = 16 # 128-bit tag
 
-class ChaCha20Poly1305(Algorithm):
+class ChaCha20Poly1305(AeadAlgorithm):
     # from RFC8152
     value = 24
     key_bytes = 32 # 256-bit key
@@ -280,7 +305,7 @@ class ChaCha20Poly1305(Algorithm):
 class AlgorithmCountersign(metaclass=abc.ABCMeta):
     """A fully parameterized COSE countersign algorithm
 
-    An instance is able to provide all the alg_countersign, par_countersign and
+    An instance is able to provide all the alg_signature, par_countersign and
     par_countersign_key parameters taht go into the Group OSCORE algorithms
     field.
     """
@@ -301,10 +326,6 @@ class AlgorithmCountersign(metaclass=abc.ABCMeta):
     def public_from_private(self, private_key):
         """Given a private key, derive the publishable key"""
 
-    @abc.abstractmethod
-    def staticstatic(self, private_key, public_key):
-        """Derive a shared static-static secret from a private and a public key"""
-
     @staticmethod
     def _build_countersign_structure(body, external_aad):
         countersign_structure = [
@@ -321,6 +342,18 @@ class AlgorithmCountersign(metaclass=abc.ABCMeta):
     @abc.abstractproperty
     def signature_length(self):
         """The length of a signature using this algorithm"""
+
+    @property
+    @abc.abstractproperty
+    def curve_number(self):
+        """Registered curve number used with this algorithm.
+
+        Only used for verification of credentials' details"""
+
+class AlgorithmStaticStatic(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def staticstatic(self, private_key, public_key):
+        """Derive a shared static-static secret from a private and a public key"""
 
 class Ed25519(AlgorithmCountersign):
     def sign(self, body, aad, private_key):
@@ -354,6 +387,24 @@ class Ed25519(AlgorithmCountersign):
             format=serialization.PublicFormat.Raw,
             )
 
+    value = -8
+    curve_number = 6
+
+    signature_length = 64
+
+class EcdhSsHkdf256(AlgorithmStaticStatic):
+    # FIXME: This class uses the Edwards keys as private and public keys, and
+    # not the converted ones. This will be problematic if pairwise-only
+    # contexts are to be set up.
+
+    value = -27 # FIXME: or -28? (see shepherd review)
+
+    # FIXME these two will be different when using the Montgomery keys directly
+
+    # This one will only be used when establishing and distributing pairwise-only keys
+    generate = Ed25519.generate
+    public_from_private = Ed25519.public_from_private
+
     def staticstatic(self, private_key, public_key):
         private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(private_key)
         private_key = cryptography_additions.sk_to_curve25519(private_key)
@@ -363,12 +414,7 @@ class Ed25519(AlgorithmCountersign):
 
         return private_key.exchange(public_key)
 
-    # from https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10#appendix-G
-    value_all_par = [-8, [[1], [1, 6]]]
-
-    signature_length = 64
-
-class ECDSA_SHA256_P256(AlgorithmCountersign):
+class ECDSA_SHA256_P256(AlgorithmCountersign, AlgorithmStaticStatic):
     # Trying a new construction approach -- should work just as well given
     # we're just passing Python objects around
     def from_public_parts(self, x: bytes, y: bytes):
@@ -412,8 +458,8 @@ class ECDSA_SHA256_P256(AlgorithmCountersign):
     def staticstatic(self, private_key, public_key):
         return private_key.exchange(asymmetric.ec.ECDH(), public_key)
 
-    # from https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10#appendix-G
-    value_all_par = [-7, [[2], [2, 1]]]
+    value = -7 # FIXME: when used as a static-static algorithm, does this become -27? see shepherd review.
+    curve_number = 1
 
     signature_length = 64
 
@@ -439,11 +485,17 @@ algorithms_countersign = {
         'ECDSA w/ SHA-256 on P-256': ECDSA_SHA256_P256(),
         }
 
+algorithms_staticstatic = {
+        'ECDH-SS + HKDF-256': EcdhSsHkdf256(),
+        }
+
 DEFAULT_ALGORITHM = 'AES-CCM-16-64-128'
 
 _hash_backend = cryptography.hazmat.backends.default_backend()
 hashfunctions = {
         'sha256': hashes.SHA256(),
+        'sha384': hashes.SHA384(),
+        'sha512': hashes.SHA512(),
         }
 
 DEFAULT_HASHFUNCTION = 'sha256'
@@ -452,8 +504,9 @@ DEFAULT_WINDOWSIZE = 32
 
 class BaseSecurityContext:
     # The protection and unprotection functions will use the Group OSCORE AADs
-    # rather than the regular OSCORE AADs. (Ie. alg_countersign is added to
-    # the algorithms, and the id_context is added at the end).
+    # rather than the regular OSCORE AADs. (Ie. alg_signature_enc etc are added to
+    # the algorithms, and request_kid_context, OSCORE_option, sender_auth_cred and
+    # gm_cred are added).
     #
     # This is not necessarily identical to is_signing (as pairwise contexts use
     # this but don't sign), and is distinct from the added OSCORE option in the
@@ -465,11 +518,23 @@ class BaseSecurityContext:
     # externally by whatever creates the security context.
     authenticated_claims = []
 
+    # AEAD algorithm. This may only be None in group contexts that do not use pairwise mode.
+    alg_aead: Optional[AeadAlgorithm]
+
+    @property
+    def algorithm(self):
+        warnings.warn("Property was renamed to 'alg_aead'", DeprecationWarning, stacklevel=2)
+        return self.alg_aead
+    @algorithm.setter
+    def algorithm(self, value):
+        warnings.warn("Property was renamed to 'alg_aead'", DeprecationWarning, stacklevel=2)
+        self.alg_aead = value
+
     def _construct_nonce(self, partial_iv_short, piv_generator_id):
         pad_piv = b"\0" * (5 - len(partial_iv_short))
 
         s = bytes([len(piv_generator_id)])
-        pad_id = b'\0' * (self.algorithm.iv_bytes - 6 - len(piv_generator_id))
+        pad_id = b'\0' * (self.alg_aead.iv_bytes - 6 - len(piv_generator_id))
 
         components = s + \
                 pad_id + \
@@ -481,7 +546,14 @@ class BaseSecurityContext:
 
         return nonce
 
-    def _extract_external_aad(self, message, request_id):
+    def _extract_external_aad(self, message, request_id, local_is_sender: bool) -> bytes:
+        """Build the serialized external AAD from information in the message
+        and the request_id.
+
+        Information about whether the local context is the sender of the
+        message is only relevant to group contexts, where it influences whose
+        authentication credentials are placed in the AAD.
+        """
         # If any option were actually Class I, it would be something like
         #
         # the_options = pick some of(message)
@@ -492,9 +564,11 @@ class BaseSecurityContext:
         if request_id.request_hash is not None:
             class_i_options = Message(request_hash=request_id.request_hash).opt.encode()
 
-        algorithms = [self.algorithm.value]
+        algorithms = [self.alg_aead.value]
         if self.external_aad_is_group:
-            algorithms.extend(self.alg_countersign.value_all_par)
+            algorithms.append(self.alg_signature_enc.value)
+            algorithms.append(self.alg_signature.value)
+            algorithms.append(self.alg_pairwise_key_agreement.value)
 
         external_aad = [
                 oscore_version,
@@ -505,10 +579,18 @@ class BaseSecurityContext:
                 ]
 
         if self.external_aad_is_group:
+            # FIXME: We may need to carry this over in the request_id when
+            # observation span group rekeyings
             external_aad.append(self.id_context)
 
             assert message.opt.object_security is not None
             external_aad.append(message.opt.object_security)
+
+            if local_is_sender:
+                external_aad.append(self.sender_auth_cred)
+            else:
+                external_aad.append(self.recipient_auth_cred)
+            external_aad.append(self.group_manager_cred)
 
         external_aad = cbor.dumps(external_aad)
 
@@ -517,7 +599,7 @@ class BaseSecurityContext:
 # FIXME pull interface components from SecurityContext up here
 class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
     # The protection function will add a signature acccording to the context's
-    # alg_countersign attribute if this is true
+    # alg_signature attribute if this is true
     is_signing = False
 
     # Send the KID when protecting responses
@@ -592,23 +674,26 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         assert (request_id is None) == message.code.is_request()
 
-        outer_message, plaintext = self._split_message(message)
+        outer_message, plaintext = self._split_message(message, request_id)
 
         protected = {}
         nonce = None
         unprotected = {}
         if request_id is not None:
-            nonce = request_id.get_reusable_nonce()
+            nonce, partial_iv_short = request_id.get_reusable_nonce_and_piv()
+            if nonce is not None:
+                partial_iv_generated_by = request_id.kid
 
         if nonce is None:
             nonce, partial_iv_short = self._build_new_nonce()
+            partial_iv_generated_by = self.sender_id
 
             unprotected[COSE_PIV] = partial_iv_short
 
         if message.code.is_request():
             unprotected[COSE_KID] = self.sender_id
 
-            request_id = RequestIdentifiers(self.sender_id, partial_iv_short, nonce, can_reuse_nonce=None)
+            request_id = RequestIdentifiers(self.sender_id, partial_iv_short, nonce, can_reuse_nonce=None, request_code=outer_message.code)
 
             if kid_context is True:
                 if self.id_context is not None:
@@ -627,18 +712,27 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         outer_message.opt.object_security = option_data
 
-        external_aad = self._extract_external_aad(outer_message, request_id)
+        external_aad = self._extract_external_aad(outer_message, request_id, local_is_sender=True)
 
-        aad = self.algorithm._build_encrypt0_structure(protected, external_aad)
+        aad = self.alg_aead._build_encrypt0_structure(protected, external_aad)
 
         key = self._get_sender_key(outer_message, external_aad, plaintext, request_id)
 
-        ciphertext = self.algorithm.encrypt(plaintext, aad, key, nonce)
+        ciphertext = self.alg_aead.encrypt(plaintext, aad, key, nonce)
 
         _, payload = self._compress(protected, unprotected, ciphertext)
 
         if self.is_signing:
-            payload += self.alg_countersign.sign(payload, external_aad, self.private_key)
+            signature = self.alg_signature.sign(payload, external_aad, self.private_key)
+            keystream = self._kdf_for_keystreams(
+                    partial_iv_generated_by,
+                    partial_iv_short,
+                    self.group_encryption_key,
+                    self.sender_id,
+                    INFO_TYPE_KEYSTREAM_REQUEST if message.code.is_request() else INFO_TYPE_KEYSTREAM_RESPONSE,
+                    )
+            encrypted_signature = _xor_bytes(signature, keystream)
+            payload += encrypted_signature
         outer_message.payload = payload
 
         # FIXME go through options section
@@ -657,7 +751,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         unprotect the response."""
         return self.sender_key
 
-    def _split_message(self, message):
+    def _split_message(self, message, request_id):
         """Given a protected message, return the outer message that contains
         all Class I and Class U options (but without payload or Object-Security
         option), and the encoded inner message that contains all Class E
@@ -697,8 +791,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
             inner_message = message.copy()
 
-            # FIXME actually CHANGED or CONTENT, but that means the original code needs to be dragged along in RequestIdentifiers
-            outer_code = CHANGED
+            outer_code = request_id.code_style.response
 
         # no max-age because these are always successsful responses
         outer_message = Message(code=outer_code,
@@ -789,8 +882,11 @@ class CanUnprotect(BaseSecurityContext):
 
             nonce = request_id.nonce
             seqno = None # sentinel for not striking out anyting
+            partial_iv_short = request_id.partial_iv
+            partial_iv_generated_by = request_id.kid
         else:
             partial_iv_short = unprotected.pop(COSE_PIV)
+            partial_iv_generated_by = self.recipient_id
 
             nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
@@ -806,18 +902,28 @@ class CanUnprotect(BaseSecurityContext):
                     # Don't even try decoding if there is no reason to
                     raise replay_error
 
-                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=replay_error is None)
+                request_id = RequestIdentifiers(self.recipient_id, partial_iv_short, nonce, can_reuse_nonce=replay_error is None, request_code=protected_message.code)
 
         if unprotected.pop(COSE_COUNTERSIGNATURE0, None) is not None:
             try:
-                alg_countersign = self.alg_countersign
+                alg_signature = self.alg_signature
             except NameError:
                 raise DecodeError("Group messages can not be decoded with this non-group context")
 
-            siglen = alg_countersign.signature_length
+            siglen = alg_signature.signature_length
             if len(ciphertext) < siglen:
                 raise DecodeError("Message too short for signature")
-            signature = ciphertext[-siglen:]
+            encrypted_signature = ciphertext[-siglen:]
+
+            keystream = self._kdf_for_keystreams(
+                    partial_iv_generated_by,
+                    partial_iv_short,
+                    self.group_encryption_key,
+                    self.recipient_id,
+                    INFO_TYPE_KEYSTREAM_REQUEST if protected_message.code.is_request() else INFO_TYPE_KEYSTREAM_RESPONSE,
+                    )
+            signature = _xor_bytes(encrypted_signature, keystream)
+
             ciphertext = ciphertext[:-siglen]
         else:
             signature = None
@@ -825,16 +931,16 @@ class CanUnprotect(BaseSecurityContext):
         if unprotected:
             raise DecodeError("Unsupported unprotected option")
 
-        if len(ciphertext) < self.algorithm.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
+        if len(ciphertext) < self.alg_aead.tag_bytes + 1: # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
 
-        external_aad = self._extract_external_aad(protected_message, request_id)
+        external_aad = self._extract_external_aad(protected_message, request_id, local_is_sender=False)
         enc_structure = ['Encrypt0', protected_serialized, external_aad]
         aad = cbor.dumps(enc_structure)
 
         key = self._get_recipient_key(protected_message)
 
-        plaintext = self.algorithm.decrypt(ciphertext, aad, key, nonce)
+        plaintext = self.alg_aead.decrypt(ciphertext, aad, key, nonce)
 
         self._post_decrypt_checks(external_aad, plaintext, protected_message, request_id)
 
@@ -843,7 +949,7 @@ class CanUnprotect(BaseSecurityContext):
 
         if signature is not None:
             # Only doing the expensive signature validation once the cheaper decyrption passed
-            alg_countersign.verify(signature, ciphertext, external_aad, self.recipient_public_key)
+            alg_signature.verify(signature, ciphertext, external_aad, self.recipient_public_key)
 
         # FIXME add options from unprotected
 
@@ -971,24 +1077,61 @@ class CanUnprotect(BaseSecurityContext):
         return self # FIXME justify by moving into a mixin for CanProtectAndUnprotect
 
 class SecurityContextUtils(BaseSecurityContext):
-    def _kdf(self, master_salt, master_secret, role_id, out_type):
-        out_bytes = {'Key': self.algorithm.key_bytes, 'IV': self.algorithm.iv_bytes}[out_type]
+    def _kdf(self, salt, ikm, role_id, out_type):
+        """The HKDF as used to derive sender and recipient key and IV in
+        RFC8613 Section 3.2.1, and analogously the Group Encryption Key of oscore-groupcomm.
+        """
+        if out_type == 'Key':
+            out_bytes = self.alg_aead.key_bytes
+        elif out_type == 'IV':
+            out_bytes = self.alg_aead.iv_bytes
+        elif out_type == "Group Encryption Key":
+            out_bytes = self.alg_signature_enc.key_bytes
+        else:
+            raise ValueError("Output type not recognized")
 
-        info = cbor.dumps([
+        info = [
             role_id,
             self.id_context,
-            self.algorithm.value,
+            self.alg_aead.value,
             out_type,
             out_bytes
-            ])
+            ]
+        return self._kdf_lowlevel(salt, ikm, info, out_bytes)
+
+    def _kdf_for_keystreams(self, piv_generated_by, salt, ikm, role_id, out_type):
+        """The HKDF as used to derive the keystreams of oscore-groupcomm."""
+
+        out_bytes = self.alg_signature.signature_length
+
+        assert out_type in (INFO_TYPE_KEYSTREAM_REQUEST, INFO_TYPE_KEYSTREAM_RESPONSE), "Output type not recognized"
+
+        info = [
+            piv_generated_by,
+            self.id_context,
+            out_type,
+            out_bytes
+            ]
+        return self._kdf_lowlevel(salt, ikm, info, out_bytes)
+
+    def _kdf_lowlevel(self, salt: bytes, ikm: bytes, info: list, l: int) -> bytes:
+        """The HKDF function as used in RFC8613 and oscore-groupcomm (notated
+        there as ``something = HKDF(...)``
+
+        Note that `info` typically contains `L` at some point.
+
+        When `info` takes the conventional structure of pid, id_context,
+        ald_aead, type, L], it may make sense to extend the `_kdf` function to
+        support that case, or `_kdf_for_keystreams` for a different structure, as
+        they are the more high-level tools."""
         hkdf = HKDF(
                 algorithm=self.hashfun,
-                length=out_bytes,
-                salt=master_salt,
-                info=info,
+                length=l,
+                salt=salt,
+                info=cbor.dumps(info),
                 backend=_hash_backend,
                 )
-        expanded = hkdf.derive(master_secret)
+        expanded = hkdf.derive(ikm)
         return expanded
 
     def derive_keys(self, master_salt, master_secret):
@@ -1228,7 +1371,7 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
 
                 data[key] = value
 
-        self.algorithm = algorithms[data.get('algorithm', DEFAULT_ALGORITHM)]
+        self.alg_aead = algorithms[data.get('algorithm', DEFAULT_ALGORITHM)]
         self.hashfun = hashfunctions[data.get('kdf-hashfun', DEFAULT_HASHFUNCTION)]
 
         windowsize = data.get('window', DEFAULT_WINDOWSIZE)
@@ -1238,8 +1381,8 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
         self.sender_id = data['sender-id']
         self.recipient_id = data['recipient-id']
 
-        if max(len(self.sender_id), len(self.recipient_id)) > self.algorithm.iv_bytes - 6:
-            raise self.LoadError("Sender or Recipient ID too long (maximum length %s for this algorithm)" % (self.algorithm.iv_bytes - 6))
+        if max(len(self.sender_id), len(self.recipient_id)) > self.alg_aead.iv_bytes - 6:
+            raise self.LoadError("Sender or Recipient ID too long (maximum length %s for this algorithm)" % (self.alg_aead.iv_bytes - 6))
 
         master_secret = data['secret']
         master_salt = data.get('salt', b'')
@@ -1351,10 +1494,20 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
         if self.lockfile is not None:
             self._destroy()
 
-class GroupContext:
+class GroupContext(BaseSecurityContext):
     is_signing = True
     external_aad_is_group = True
     responses_send_kid = True
+
+    # This is None iff the group does not support group mode
+    alg_signature_enc: Optional[AeadAlgorithm]
+    # This is None iff the group does not support group mode
+    alg_signature: Optional[AlgorithmCountersign]
+    # This is None iff the group does not support pairwise
+    #
+    # This is also of type AlgorithmCountersign because the staticstatic
+    # function is sitting on the same type.
+    alg_pairwise_key_agreement: Optional[AlgorithmCountersign]
 
     @abc.abstractproperty
     def private_key(self):
@@ -1384,17 +1537,24 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
 
     # set during initialization
     private_key = None
+    sender_auth_cred = None
 
-    def __init__(self, algorithm, hashfun, alg_countersign, group_id, master_secret, master_salt, sender_id, private_key, peers):
+    def __init__(self, alg_aead, hashfun, alg_signature, alg_signature_enc, alg_pairwise_key_agreement, group_id, master_secret, master_salt, sender_id, private_key, sender_auth_cred, peers, group_manager_cred=None, cred_fmt=COSE_KCCS):
         self.sender_id = sender_id
         self.id_context = group_id
         self.private_key = private_key
-        self.algorithm = algorithm
+        self.alg_aead = alg_aead
         self.hashfun = hashfun
-        self.alg_countersign = alg_countersign
+        self.alg_signature = alg_signature
+        self.alg_signature_enc = alg_signature_enc
+        self.alg_pairwise_key_agreement = alg_pairwise_key_agreement
+        self.sender_auth_cred = sender_auth_cred
+        self.group_manager_cred = group_manager_cred
+        self.cred_fmt = cred_fmt
 
         self.peers = peers.keys()
-        self.recipient_public_keys = peers
+        self.recipient_public_keys = {k: self._parse_credential(v) for (k, v) in peers.items()}
+        self.recipient_auth_creds = peers
         self.recipient_replay_windows = {}
         for k in self.peers:
             # no need to persist, the whole group is ephemeral
@@ -1404,6 +1564,75 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
 
         self.derive_keys(master_salt, master_secret)
         self.sender_sequence_number = 0
+
+        sender_public_key = self._parse_credential(sender_auth_cred)
+        if self.alg_signature.public_from_private(self.private_key) != sender_public_key:
+            raise ValueError("The key in the provided sender credential does not match the private key")
+
+    def _parse_credential(self, credential: bytes):
+        """Extract the public key (in the public_key format the respective
+        AlgorithmCountersign needs) from credentials. This raises a ValueError
+        if the credentials do not match the group's cred_fmt, or if the
+        parameters do not match those configured in the group.
+
+        This currently discards any information that is present in the
+        credential that exceeds the key. (In a future version, this could
+        return both the key and extracted other data, where that other data
+        would be stored with the peer this is parsed from).
+        """
+
+        if self.cred_fmt != COSE_KCCS:
+            raise ValueError("Credential parsing is currently only implemented for CCSs")
+
+        try:
+            parsed = cbor.loads(credential)
+        except cbor.CBORDecodeError as e:
+            raise ValueError("CCS not in CBOR format") from e
+
+        CWT_CLAIM_CNF = 8
+        CWT_CNF_COSE_KEY = 1
+        if (
+                not isinstance(parsed, dict)
+                or CWT_CLAIM_CNF not in parsed
+                or not isinstance(parsed[CWT_CLAIM_CNF], dict)
+                or CWT_CNF_COSE_KEY not in parsed[CWT_CLAIM_CNF]
+                ):
+            raise ValueError("CCS must contain a COSE Key in a CNF")
+
+        COSE_KEY_COMMON_KTY = 1
+        COSE_KTY_OKP = 1
+        COSE_KTY_EC2 = 2
+        COSE_KEY_COMMON_ALG = 3
+        COSE_KEY_OKP_CRV = -1
+        COSE_KEY_OKP_X = -2
+        COSE_KEY_EC2_X = -2
+        COSE_KEY_EC2_Y = -3
+        # eg. {1: 1, 3: -8, -1: 6, -2: h'77 / ... / 88'}
+        cose_key = parsed[CWT_CLAIM_CNF][CWT_CNF_COSE_KEY]
+        if not isinstance(cose_key, dict):
+            raise ValueError("COSE Key in CCS must be a map")
+
+        if (
+                cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_OKP
+                and cose_key.get(COSE_KEY_COMMON_ALG) == Ed25519.value
+                and cose_key.get(COSE_KEY_OKP_CRV) == Ed25519.curve_number
+                and COSE_KEY_OKP_X in cose_key
+                ):
+            return cose_key[COSE_KEY_OKP_X]
+        elif (
+                cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_EC2
+                and cose_key.get(COSE_KEY_COMMON_ALG) == ECDSA_SHA256_P256.value
+                and COSE_KEY_EC2_X in cose_key
+                and COSE_KEY_EC2_Y in cose_key
+                ):
+            return ECDSA_SHA256_P256().from_public_parts(
+                    x=cose_key[COSE_KEY_EC2_X],
+                    y=cose_key[COSE_KEY_EC2_Y],
+                    )
+        else:
+            raise ValueError("Key type not recognized from CCS key %r" % cose_key)
+
+        return cbor.loads(credential)[8][1][-2]
 
     def __repr__(self):
         return "<%s with group %r sender_id %r and %d peers>" % (
@@ -1424,6 +1653,10 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         self.recipient_keys = {recipient_id: self._kdf(master_salt, master_secret, recipient_id, 'Key') for recipient_id in self.peers}
 
         self.common_iv = self._kdf(master_salt, master_secret, b"", 'IV')
+
+        # but this one is new
+
+        self.group_encryption_key = self._kdf(master_salt, master_secret, b"", "Group Encryption Key")
 
     def post_seqnoincrease(self):
         """No-op because it's ephemeral"""
@@ -1462,7 +1695,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     def for_sending_deterministic_requests(self, deterministic_id, target_server: Optional[bytes]):
         return _DeterministicProtectProtoAspect(self, deterministic_id, target_server)
 
-class _GroupContextAspect(GroupContext, CanUnprotect):
+class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
     """The concrete context this host has with a particular peer
 
     As all actual data is stored in the underlying groupcontext, this acts as
@@ -1485,16 +1718,27 @@ class _GroupContextAspect(GroupContext, CanUnprotect):
                 )
 
     id_context = property(lambda self: self.groupcontext.id_context)
-    algorithm = property(lambda self: self.groupcontext.algorithm)
-    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+    alg_aead = property(lambda self: self.groupcontext.alg_aead)
+    alg_signature = property(lambda self: self.groupcontext.alg_signature)
+    alg_signature_enc = property(lambda self: self.groupcontext.alg_signature_enc)
+    alg_pairwise_key_agreement = property(lambda self: self.groupcontext.alg_pairwise_key_agreement)
+    group_manager_cred = property(lambda self: self.groupcontext.group_manager_cred)
     common_iv = property(lambda self: self.groupcontext.common_iv)
+
+    hashfun = property(lambda self: self.groupcontext.hashfun)
+    group_encryption_key = property(lambda self: self.groupcontext.group_encryption_key)
 
     recipient_key = property(lambda self: self.groupcontext.recipient_keys[self.recipient_id])
     recipient_public_key = property(lambda self: self.groupcontext.recipient_public_keys[self.recipient_id])
+    recipient_auth_cred = property(lambda self: self.groupcontext.recipient_auth_creds[self.recipient_id])
     recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])
 
     def context_for_response(self):
         return self.groupcontext.pairwise_for(self.recipient_id)
+
+    @property
+    def sender_auth_cred(self):
+        raise RuntimeError("Could relay the sender auth credential from the group context, but it shouldn't matter here")
 
 class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityContextUtils):
     is_signing = False
@@ -1503,13 +1747,31 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
         self.groupcontext = groupcontext
         self.recipient_id = recipient_id
 
-        shared_secret = self.alg_countersign.staticstatic(
+        shared_secret = self.alg_pairwise_key_agreement.staticstatic(
                 self.groupcontext.private_key,
                 self.groupcontext.recipient_public_keys[recipient_id]
                 )
 
-        self.sender_key = self._kdf(self.groupcontext.sender_key, shared_secret, self.groupcontext.sender_id, 'Key')
-        self.recipient_key = self._kdf(self.groupcontext.recipient_keys[recipient_id], shared_secret, self.recipient_id, 'Key')
+        self.sender_key = self._kdf(
+                self.groupcontext.sender_key,
+                (
+                    self.groupcontext.sender_auth_cred
+                    + self.groupcontext.recipient_auth_creds[recipient_id]
+                    + shared_secret
+                ),
+                self.groupcontext.sender_id,
+                'Key',
+                )
+        self.recipient_key = self._kdf(
+                self.groupcontext.recipient_keys[recipient_id],
+                (
+                    self.groupcontext.recipient_auth_creds[recipient_id]
+                    + self.groupcontext.sender_auth_cred
+                    + shared_secret
+                ),
+                self.recipient_id,
+                'Key',
+                )
 
     def __repr__(self):
         return "<%s based on %r with the peer %r>" % (
@@ -1520,11 +1782,17 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
 
     # FIXME: actually, only to be sent in requests
     id_context = property(lambda self: self.groupcontext.id_context)
-    algorithm = property(lambda self: self.groupcontext.algorithm)
+    alg_aead = property(lambda self: self.groupcontext.alg_aead)
     hashfun = property(lambda self: self.groupcontext.hashfun)
-    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+    alg_signature = property(lambda self: self.groupcontext.alg_signature)
+    alg_signature_enc = property(lambda self: self.groupcontext.alg_signature_enc)
+    alg_pairwise_key_agreement = property(lambda self: self.groupcontext.alg_pairwise_key_agreement)
+    group_manager_cred = property(lambda self: self.groupcontext.group_manager_cred)
     common_iv = property(lambda self: self.groupcontext.common_iv)
     sender_id = property(lambda self: self.groupcontext.sender_id)
+
+    recipient_auth_cred = property(lambda self: self.groupcontext.recipient_auth_creds[self.recipient_id])
+    sender_auth_cred = property(lambda self: self.groupcontext.sender_auth_cred)
 
     recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])
 
@@ -1627,11 +1895,11 @@ class _DeterministicProtectProtoAspect(CanProtect, SecurityContextUtils):
     external_aad_is_group = True
 
     # details needed for various operations, especially eAAD generation
-    algorithm = property(lambda self: self.groupcontext.algorithm)
+    alg_aead = property(lambda self: self.groupcontext.alg_aead)
     hashfun = property(lambda self: self.groupcontext.hashfun)
     common_iv = property(lambda self: self.groupcontext.common_iv)
     id_context = property(lambda self: self.groupcontext.id_context)
-    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+    alg_signature = property(lambda self: self.groupcontext.alg_signature)
 
 class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
     """This implements the sending side of Deterministic Requests.
@@ -1712,11 +1980,11 @@ class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
     external_aad_is_group = True
 
     # details needed for various operations, especially eAAD generation
-    algorithm = property(lambda self: self.groupcontext.algorithm)
+    alg_aead = property(lambda self: self.groupcontext.alg_aead)
     hashfun = property(lambda self: self.groupcontext.hashfun)
     common_iv = property(lambda self: self.groupcontext.common_iv)
     id_context = property(lambda self: self.groupcontext.id_context)
-    alg_countersign = property(lambda self: self.groupcontext.alg_countersign)
+    alg_signature = property(lambda self: self.groupcontext.alg_signature)
 
 def verify_start(message):
     """Extract the unprotected COSE options from a
@@ -1734,5 +2002,6 @@ def verify_start(message):
 
 
 _getattr__ = deprecation_getattr({
-        'COSE_COUNTERSINGATURE0': 'COSE_COUNTERSIGNATURE0'
+        'COSE_COUNTERSINGATURE0': 'COSE_COUNTERSIGNATURE0',
+        'Algorithm': 'AeadAlgorithm',
         }, globals())

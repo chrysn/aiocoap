@@ -171,3 +171,6 @@ for x in range(0, 17):
         # enforcing them to sort properly is purely a readability thing, they
         # execute correctly out-of-order too.
         setattr(cls, 'test_%03d'%x, t)
+    # Let's not leak a global that'd be picked up for testing, given these are
+    # already being tested
+    del cls
