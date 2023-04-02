@@ -347,6 +347,13 @@ class AlgorithmCountersign(metaclass=abc.ABCMeta):
     def signature_length(self):
         """The length of a signature using this algorithm"""
 
+    @property
+    @abc.abstractproperty
+    def curve_number(self):
+        """Registered curve number used with this algorithm.
+
+        Only used for verification of credentials' details"""
+
 class AlgorithmStaticStatic(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def staticstatic(self, private_key, public_key):
@@ -385,6 +392,7 @@ class Ed25519(AlgorithmCountersign):
             )
 
     value = -8
+    curve_number = 6
 
     signature_length = 64
 
@@ -455,6 +463,7 @@ class ECDSA_SHA256_P256(AlgorithmCountersign, AlgorithmStaticStatic):
         return private_key.exchange(asymmetric.ec.ECDH(), public_key)
 
     value = -7 # FIXME: when used as a static-static algorithm, does this become -27? see shepherd review.
+    curve_number = 1
 
     signature_length = 64
 
@@ -1610,8 +1619,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         if (
                 cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_OKP
                 and cose_key.get(COSE_KEY_COMMON_ALG) == Ed25519.value
-                # FIXME: Move this constant into algorithm object?
-                and cose_key.get(COSE_KEY_OKP_CRV) == 6 # Ed25519
+                and cose_key.get(COSE_KEY_OKP_CRV) == Ed25519.curve_number
                 and COSE_KEY_OKP_X in cose_key
                 ):
             return cose_key[COSE_KEY_OKP_X]
