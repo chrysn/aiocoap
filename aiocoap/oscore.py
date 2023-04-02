@@ -647,9 +647,12 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         unprotected = {}
         if request_id is not None:
             nonce, partial_iv_short = request_id.get_reusable_nonce_and_piv()
+            if nonce is not None:
+                partial_iv_generated_by = request_id.kid
 
         if nonce is None:
             nonce, partial_iv_short = self._build_new_nonce()
+            partial_iv_generated_by = self.sender_id
 
             unprotected[COSE_PIV] = partial_iv_short
 
@@ -687,7 +690,8 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         if self.is_signing:
             signature = self.alg_signature.sign(payload, external_aad, self.private_key)
-            keystream = self._kdf_no_keytype(
+            keystream = self._kdf_for_keystreams(
+                    partial_iv_generated_by,
                     partial_iv_short,
                     self.group_encryption_key,
                     self.sender_id,
@@ -846,8 +850,10 @@ class CanUnprotect(BaseSecurityContext):
             nonce = request_id.nonce
             seqno = None # sentinel for not striking out anyting
             partial_iv_short = request_id.partial_iv
+            partial_iv_generated_by = request_id.kid
         else:
             partial_iv_short = unprotected.pop(COSE_PIV)
+            partial_iv_generated_by = self.recipient_id
 
             nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
@@ -876,7 +882,8 @@ class CanUnprotect(BaseSecurityContext):
                 raise DecodeError("Message too short for signature")
             encrypted_signature = ciphertext[-siglen:]
 
-            keystream = self._kdf_no_keytype(
+            keystream = self._kdf_for_keystreams(
+                    partial_iv_generated_by,
                     partial_iv_short,
                     self.group_encryption_key,
                     self.recipient_id,
@@ -1059,7 +1066,7 @@ class SecurityContextUtils(BaseSecurityContext):
             ]
         return self._kdf_lowlevel(salt, ikm, info, out_bytes)
 
-    def _kdf_no_keytype(self, salt, ikm, role_id, out_type):
+    def _kdf_for_keystreams(self, piv_generated_by, salt, ikm, role_id, out_type):
         """The HKDF as used to derive the keystreams of oscore-groupcomm."""
 
         out_bytes = self.alg_signature.signature_length
@@ -1067,7 +1074,7 @@ class SecurityContextUtils(BaseSecurityContext):
         assert out_type in (INFO_TYPE_KEYSTREAM_REQUEST, INFO_TYPE_KEYSTREAM_RESPONSE), "Output type not recognized"
 
         info = [
-            role_id,
+            piv_generated_by,
             self.id_context,
             out_type,
             out_bytes
@@ -1082,7 +1089,7 @@ class SecurityContextUtils(BaseSecurityContext):
 
         When `info` takes the conventional structure of pid, id_context,
         ald_aead, type, L], it may make sense to extend the `_kdf` function to
-        support that case, or `_kdf_no_keytype` for a different structure, as
+        support that case, or `_kdf_for_keystreams` for a different structure, as
         they are the more high-level tools."""
         hkdf = HKDF(
                 algorithm=self.hashfun,
