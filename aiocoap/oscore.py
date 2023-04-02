@@ -431,8 +431,7 @@ class ECDSA_SHA256_P256(AlgorithmCountersign):
     def staticstatic(self, private_key, public_key):
         return private_key.exchange(asymmetric.ec.ECDH(), public_key)
 
-    # from https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-10#appendix-G
-    value_all_par = [-7, [[2], [2, 1]]]
+    value = -7
 
     signature_length = 64
 
@@ -1562,9 +1561,12 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
 
         COSE_KEY_COMMON_KTY = 1
         COSE_KTY_OKP = 1
+        COSE_KTY_EC2 = 2
         COSE_KEY_COMMON_ALG = 3
         COSE_KEY_OKP_CRV = -1
         COSE_KEY_OKP_X = -2
+        COSE_KEY_EC2_X = -2
+        COSE_KEY_EC2_Y = -3
         # eg. {1: 1, 3: -8, -1: 6, -2: h'77 / ... / 88'}
         cose_key = parsed[CWT_CLAIM_CNF][CWT_CNF_COSE_KEY]
         if not isinstance(cose_key, dict):
@@ -1578,6 +1580,16 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
                 and COSE_KEY_OKP_X in cose_key
                 ):
             return cose_key[COSE_KEY_OKP_X]
+        elif (
+                cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_EC2
+                and cose_key.get(COSE_KEY_COMMON_ALG) == ECDSA_SHA256_P256.value
+                and COSE_KEY_EC2_X in cose_key
+                and COSE_KEY_EC2_Y in cose_key
+                ):
+            return ECDSA_SHA256_P256().from_public_parts(
+                    x=cose_key[COSE_KEY_EC2_X],
+                    y=cose_key[COSE_KEY_EC2_Y],
+                    )
         else:
             raise ValueError("Key type not recognized from CCS key %r" % cose_key)
 
