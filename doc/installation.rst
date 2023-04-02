@@ -20,13 +20,6 @@ aiocoap. This is done using a simple::
 
 (In some cases, the program is called ``pip`` only).
 
-If ``pip3`` is not available on your platform, you can manually download and
-unpack the latest ``.tar.gz`` file from the `Python package index`_ and run
-
-::
-
-    $ ./setup.py install
-
 
 .. _installation-development:
 
@@ -86,11 +79,6 @@ installation.
 
 The extras currently supported are:
 
-* ``linkheader``: Needed for generating and parsing files in RFC6690_ link
-  format, eg. ``.well-known/core`` files. Running or interacting with a
-  Resource Directory is impossible without this module, as are many other
-  discovery steps that applications will want to do.
-
 * ``oscore``: Required for the :mod:`aiocoap.transports.oscore` transport.
 
 * ``tinydtls``: Required for using CoAP over DTLS.
@@ -102,6 +90,10 @@ The extras currently supported are:
 
 * ``docs``: Installs tools needed to build the documentation (not part of
   ``all``).
+
+* ``linkheader``: Originally needed for generating and parsing files in
+  RFC6690_ link format, eg. ``.well-known/core`` files. This extra does not
+  contain any external dependencies, but was left in place for compatibility.
 
 Which libraries and versions are pulled in by this exactly is documented in the
 ``setup.py`` file.

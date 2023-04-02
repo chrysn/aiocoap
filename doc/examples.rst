@@ -21,12 +21,12 @@ Client
 .. literalinclude:: ../clientGET.py
    :language: python
    :linenos:
-   :lines: 15-
+   :lines: 11-
 
 .. literalinclude:: ../clientPUT.py
    :language: python
    :linenos:
-   :lines: 15-
+   :lines: 11-
 
 Server
 ------
@@ -34,4 +34,4 @@ Server
 .. literalinclude:: ../server.py
    :language: python
    :linenos:
-   :lines: 15-
+   :lines: 11-
