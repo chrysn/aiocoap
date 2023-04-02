@@ -463,6 +463,8 @@ DEFAULT_ALGORITHM = 'AES-CCM-16-64-128'
 _hash_backend = cryptography.hazmat.backends.default_backend()
 hashfunctions = {
         'sha256': hashes.SHA256(),
+        'sha384': hashes.SHA384(),
+        'sha512': hashes.SHA512(),
         }
 
 DEFAULT_HASHFUNCTION = 'sha256'
