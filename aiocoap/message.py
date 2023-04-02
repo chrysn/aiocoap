@@ -200,7 +200,7 @@ class Message(object):
                         + f"<pre>{text}</pre>"
                         + "</div>"
                         )
-        return f"""<details style="padding-left:1em"><summary style="margin-left:-1em">Message with code {self.code._repr_html_() if self.code is not None else 'None'}, remote {html.escape(str(self.remote))}</summary>
+        return f"""<details style="padding-left:1em"><summary style="margin-left:-1em;display:list-item;">Message with code {self.code._repr_html_() if self.code is not None else 'None'}, remote {html.escape(str(self.remote))}</summary>
                 {self.opt._repr_html_()}{payload_rendered}"""
 
     def copy(self, **kwargs):

@@ -127,7 +127,7 @@ class Options(object):
         if self._options:
             n_opt = sum(len(o) for o in self._options.values())
             items = (f'<li value="{int(k)}">{OptionNumber(k)._repr_html_()}: {", ".join(vi._repr_html_() for vi in v)}' for (k, v) in sorted(self._options.items()))
-            return f"""<details><summary>{n_opt} option{'s' if n_opt != 1 else ''}</summary><ol>{''.join(items)}</ol></details>"""
+            return f"""<details><summary style="display:list-item">{n_opt} option{'s' if n_opt != 1 else ''}</summary><ol>{''.join(items)}</ol></details>"""
         else:
             return "<div>No options</div>"
 
