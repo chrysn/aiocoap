@@ -54,13 +54,11 @@ It tells that there is a resource at the path ``/time`` that has the ``obs``\
 ervable attribute, a resource at the path ``/.well-known/core``, and more at
 ``/other/...`` and ``/whoami``.
 
-.. note:: Getting "5.00 Internal Server Error" instead, all lines in a single
+.. note:: Getting all lines in a single
     row or no color? Then there are third party modules missing. Run ``python3
     -m aiocoap.cli.defaults`` to see which they are, or just go back to the
     :ref:`installation step<installation-development>` and make sure to include
     the "``[all]``" part.
-
-.. _`link_header module`: https://pypi.python.org/pypi/LinkHeader
 
 .. note:: There can be a "(No newline at end of message)" line below your
     output. This just makes sure your prompt does not start in the middle of
