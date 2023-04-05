@@ -26,7 +26,7 @@ classifiers= [
     "Topic :: System :: Networking",
     ]
 
-dynamic = [ "version", "optional-dependencies" ]
+dynamic = [ "version" ]
 
 # When changing this, also look into doc/faq.rst and README.rst
 requires-python = ">=3.7"
@@ -42,6 +42,29 @@ aiocoap-client = "aiocoap.cli.client:sync_main"
 aiocoap-proxy = "aiocoap.cli.proxy:sync_main"
 aiocoap-rd = "aiocoap.cli.rd:sync_main"
 aiocoap-fileserver = "aiocoap.cli.fileserver:FileServerProgram.sync_main"
+
+[project.optional-dependencies]
+# Extra is still present for compatibility, but its dependency has been
+# vendored in.
+linkheader = []
+# ge25519 is a workaround for
+# <https://github.com/pyca/cryptography/issues/5557>; being pure python it's
+# light enough to not warrant a dedicated group-oscore extra.
+oscore = [ "cbor2", "cryptography (>= 2.0)", "filelock", "ge25519" ]
+tinydtls = [ "DTLSSocket >= 0.1.11a1" ]
+# technically websockets is not needed when running on pyodide, but that's hard
+# to express here
+ws = [ "websockets" ]
+prettyprint = [ "termcolor", "cbor2", "pygments", "cbor-diag" ]
+docs = [ "sphinx", "sphinx-argparse" ]
+
+# manually kept up to date to include everything except docs
+all = [
+    "cbor2", "cryptography (>= 2.0)", "filelock", "ge25519",
+    "DTLSSocket >= 0.1.11a1",
+    "websockets",
+    "termcolor", "cbor2", "pygments", "cbor-diag",
+]
 
 [tool.setuptools.dynamic]
 version = { attr = "aiocoap.meta.version" }
