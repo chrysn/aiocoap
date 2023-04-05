@@ -59,6 +59,8 @@ prettyprint = [ "termcolor", "cbor2", "pygments", "cbor-diag" ]
 docs = [ "sphinx", "sphinx-argparse" ]
 
 # manually kept up to date to include everything except docs
+#
+# when updating this, also check what is needed to build in .readthedocs.yaml
 all = [
     "cbor2", "cryptography (>= 2.0)", "filelock", "ge25519",
     "DTLSSocket >= 0.1.11a1",
