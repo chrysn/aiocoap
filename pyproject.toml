@@ -48,4 +48,6 @@ version = { attr = "aiocoap.meta.version" }
 
 [tool.setuptools.packages.find]
 where = [ "." ]
-include = [ "aiocoap" ]
+# It's unclear why, but in some environments including aiocoap included also
+# its submodules, in others it didn't. Listing both is safe for both.
+include = [ "aiocoap", "aiocoap.*" ]
