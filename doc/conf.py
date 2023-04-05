@@ -7,6 +7,10 @@ import os
 
 # for aiocoap_index.py
 sys.path.insert(0, os.path.abspath('.'))
+# for aiocoap.meta
+sys.path.insert(0, os.path.abspath('..'))
+
+import aiocoap.meta
 
 extensions = [
     'sphinx.ext.autodoc',
@@ -24,10 +28,10 @@ master_doc = 'index'
 project = 'aiocoap'
 copyright = 'Christian Amsüss and the aiocoap contributors'
 
-# The short X.Y version.
-version = '0.4'
 # The full version, including alpha/beta/rc tags.
-release = '0.4.7.post0'
+release = aiocoap.meta.version
+# The short X.Y version.
+version = ".".join(release.split(".")[:2])
 
 html_logo = 'logo.svg'
 html_favicon = 'logo-square.svg'
