@@ -8,11 +8,8 @@
 (Constrained Application) Protocol, which is used mainly in the context of IoT
 (Internet of Things) devices."""
 
-from setuptools import setup, find_packages, Command
+from setuptools import setup, Command
 import os
-import os.path
-
-version = "0.4.7.post0" # Don't forget meta.version and doc/conf.py
 
 # When introducing something new, make sure to update doc/installation.rst
 extras_require = {
@@ -76,16 +73,6 @@ class Cite(Command):
         }"""
 
 setup(
-    # Once out of beta (ie. when the pesky warnings are gone), we could do
-    #
-    # [tool.setuptools.dynamic]
-    # version = { attr = "aiocoap.meta.version" }
-    #
-    # in pyproject.toml instead
-    version=version,
-    # Likewise, this could be done with [tool.setuptools.packages.find]
-    packages=find_packages(exclude=["tests"]),
-
     extras_require=extras_require,
     tests_require=tests_require,
 
