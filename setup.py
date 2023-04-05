@@ -9,7 +9,6 @@
 (Internet of Things) devices."""
 
 from setuptools import setup, Command
-import os
 
 # When introducing something new, make sure to update doc/installation.rst
 extras_require = {
@@ -67,9 +66,6 @@ class Cite(Command):
 
 setup(
     extras_require=extras_require,
-
-    # see doc/README.doc seciton "dependency hack"
-    install_requires=extras_require['docs'] if 'READTHEDOCS' in os.environ else [],
 
     cmdclass={
         'cite': Cite,
