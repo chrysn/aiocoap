@@ -25,11 +25,6 @@ extras_require = {
         'docs': ['sphinx', 'sphinx-argparse'], # extended below
         'all': [], # populated below, contains everything but documentation dependencies for easier installation
         }
-tests_require = [] # populated below
-
-test_extras = extras_require.keys()
-if 'AIOCOAP_TEST_EXTRAS' in os.environ:
-    test_extras = os.environ['AIOCOAP_TEST_EXTRAS'].split(':')
 
 for k, v in extras_require.items():
     if k.startswith(':') or k == 'all' or k == 'docs':
@@ -42,8 +37,6 @@ for k, v in extras_require.items():
         extras_require['docs'].extend(v)
 
     extras_require['all'].extend(v)
-    if k in test_extras:
-        tests_require.extend(v)
 
 class Cite(Command):
     description = """Print how to cite aiocoap in a publication"""
@@ -74,7 +67,6 @@ class Cite(Command):
 
 setup(
     extras_require=extras_require,
-    tests_require=tests_require,
 
     # see doc/README.doc seciton "dependency hack"
     install_requires=extras_require['docs'] if 'READTHEDOCS' in os.environ else [],
