@@ -56,7 +56,7 @@ tinydtls = [ "DTLSSocket >= 0.1.11a1" ]
 # to express here
 ws = [ "websockets" ]
 prettyprint = [ "termcolor", "cbor2", "pygments", "cbor-diag" ]
-docs = [ "sphinx", "sphinx-argparse" ]
+docs = [ "sphinx >= 5", "sphinx-argparse" ]
 
 # manually kept up to date to include everything except docs
 #
