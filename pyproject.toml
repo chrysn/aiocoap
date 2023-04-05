@@ -1,0 +1,44 @@
+[build-system]
+requires = [ "setuptools" ]
+build-backend = "setuptools.build_meta"
+ 
+[project]
+name = "aiocoap"
+description = "Python CoAP library"
+readme = "README.rst"
+authors = [
+    { name = "Christian Amsüss", email = "chrysn@fsfe.org" },
+    { name = "the aiocoap contributors" },
+]
+license = { text = "MIT" }
+keywords = [ "coap", "asyncio", "iot" ]
+classifiers= [
+    "Development Status :: 5 - Production/Stable",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Topic :: Internet",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Networking",
+    ]
+
+dynamic = [ "version", "optional-dependencies" ]
+
+# When changing this, also look into doc/faq.rst and README.rst
+requires-python = ">=3.7"
+
+[project.urls]
+homepage = "https://christian.amsuess.com/tools/aiocoap/"
+repository = "https://github.com/chrysn/aiocoap/"
+documentation = "https://aiocoap.readthedocs.org/"
+changelog = "https://github.com/chrysn/aiocoap/blob/master/NEWS"
+
+[project.scripts]
+aiocoap-client = "aiocoap.cli.client:sync_main"
+aiocoap-proxy = "aiocoap.cli.proxy:sync_main"
+aiocoap-rd = "aiocoap.cli.rd:sync_main"
+aiocoap-fileserver = "aiocoap.cli.fileserver:FileServerProgram.sync_main"

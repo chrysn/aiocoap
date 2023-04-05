@@ -12,9 +12,7 @@ from setuptools import setup, find_packages, Command
 import os
 import os.path
 
-name = "aiocoap"
 version = "0.4.7.post0" # Don't forget meta.version and doc/conf.py
-description = "Python CoAP library"
 
 # When introducing something new, make sure to update doc/installation.rst
 extras_require = {
@@ -78,52 +76,21 @@ class Cite(Command):
         }"""
 
 setup(
-    name=name,
+    # Once out of beta (ie. when the pesky warnings are gone), we could do
+    #
+    # [tool.setuptools.dynamic]
+    # version = { attr = "aiocoap.meta.version" }
+    #
+    # in pyproject.toml instead
     version=version,
-    description=description,
-    long_description=open(os.path.join(os.path.dirname(__file__), 'README.rst')).read(),
-    long_description_content_type='text/x-rst',
+    # Likewise, this could be done with [tool.setuptools.packages.find]
     packages=find_packages(exclude=["tests"]),
 
-    author="Christian Amsüss and the aiocoap contributors",
-    author_email="chrysn@fsfe.org",
-    url="https://christian.amsuess.com/tools/aiocoap/",
-    download_url="https://github.com/chrysn/aiocoap/",
-
-    license='MIT',
-    keywords=['coap', 'asyncio', 'iot'],
-    classifiers=[
-        'Development Status :: 5 - Production/Stable',
-        'Framework :: AsyncIO',
-        'Intended Audience :: Developers',
-        'License :: OSI Approved :: MIT License',
-        'Operating System :: OS Independent',
-        'Programming Language :: Python',
-        'Programming Language :: Python :: 3',
-        'Topic :: Internet',
-        'Topic :: Security',
-        'Topic :: Software Development :: Libraries :: Python Modules',
-        'Topic :: System :: Networking',
-        ],
-
-    # When changing this, also look into doc/faq.rst and README.rst
-    python_requires='>=3.7',
     extras_require=extras_require,
     tests_require=tests_require,
 
     # see doc/README.doc seciton "dependency hack"
     install_requires=extras_require['docs'] if 'READTHEDOCS' in os.environ else [],
-
-    entry_points={
-        'console_scripts': [
-            'aiocoap-client = aiocoap.cli.client:sync_main',
-            'aiocoap-proxy = aiocoap.cli.proxy:sync_main',
-            'aiocoap-rd = aiocoap.cli.rd:sync_main [linkheader]',
-            # link header is no important dependency (only used for RD
-            # registration), but currently a hard one
-            'aiocoap-fileserver = aiocoap.cli.fileserver:FileServerProgram.sync_main [linkheader]',
-            ]
-        },
 
     cmdclass={
         'cite': Cite,
