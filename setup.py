@@ -4,10 +4,6 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""aiocoap is a Python library for writing servers and clients for the CoAP
-(Constrained Application) Protocol, which is used mainly in the context of IoT
-(Internet of Things) devices."""
-
 from setuptools import setup, Command
 
 class Cite(Command):
@@ -41,8 +37,4 @@ setup(
     cmdclass={
         'cite': Cite,
         },
-
-    # not strictly required any more since tests are now runnable as `-m
-    # unittest`, but results in more concise output
-    test_suite='tests',
 )
