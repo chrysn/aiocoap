@@ -1,0 +1,78 @@
+[build-system]
+requires = [ "setuptools >= 66.0" ]
+build-backend = "setuptools.build_meta"
+ 
+[project]
+name = "aiocoap"
+description = "Python CoAP library"
+readme = "README.rst"
+authors = [
+    { name = "Christian Amsüss", email = "chrysn@fsfe.org" },
+    { name = "the aiocoap contributors" },
+]
+license = { text = "MIT" }
+keywords = [ "coap", "asyncio", "iot" ]
+classifiers= [
+    "Development Status :: 5 - Production/Stable",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Topic :: Internet",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Networking",
+    ]
+
+dynamic = [ "version" ]
+
+# When changing this, also look into doc/faq.rst and README.rst
+requires-python = ">=3.7"
+
+[project.urls]
+homepage = "https://christian.amsuess.com/tools/aiocoap/"
+repository = "https://github.com/chrysn/aiocoap/"
+documentation = "https://aiocoap.readthedocs.org/"
+changelog = "https://github.com/chrysn/aiocoap/blob/master/NEWS"
+
+[project.scripts]
+aiocoap-client = "aiocoap.cli.client:sync_main"
+aiocoap-proxy = "aiocoap.cli.proxy:sync_main"
+aiocoap-rd = "aiocoap.cli.rd:sync_main"
+aiocoap-fileserver = "aiocoap.cli.fileserver:FileServerProgram.sync_main"
+
+[project.optional-dependencies]
+# Extra is still present for compatibility, but its dependency has been
+# vendored in.
+linkheader = []
+# ge25519 is a workaround for
+# <https://github.com/pyca/cryptography/issues/5557>; being pure python it's
+# light enough to not warrant a dedicated group-oscore extra.
+oscore = [ "cbor2", "cryptography (>= 2.0)", "filelock", "ge25519" ]
+tinydtls = [ "DTLSSocket >= 0.1.11a1" ]
+# technically websockets is not needed when running on pyodide, but that's hard
+# to express here
+ws = [ "websockets" ]
+prettyprint = [ "termcolor", "cbor2", "pygments", "cbor-diag" ]
+docs = [ "sphinx >= 5", "sphinx-argparse" ]
+
+# manually kept up to date to include everything except docs
+#
+# when updating this, also check what is needed to build in .readthedocs.yaml
+all = [
+    "cbor2", "cryptography (>= 2.0)", "filelock", "ge25519",
+    "DTLSSocket >= 0.1.11a1",
+    "websockets",
+    "termcolor", "cbor2", "pygments", "cbor-diag",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "aiocoap.meta.version" }
+
+[tool.setuptools.packages.find]
+where = [ "." ]
+# It's unclear why, but in some environments including aiocoap included also
+# its submodules, in others it didn't. Listing both is safe for both.
+include = [ "aiocoap", "aiocoap.*" ]

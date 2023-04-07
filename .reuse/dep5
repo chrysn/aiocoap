@@ -17,6 +17,7 @@ Files:
   .github/ISSUE_TEMPLATE/new_issue.md
   .gitignore
   .gitlab-ci.yml
+  .readthedocs.yaml
   MANIFEST.in
   NEWS
   README.rst
@@ -48,6 +49,7 @@ Files:
   doc/release-checklist
   doc/stateofoscore.rst
   doc/tools.rst
+  pyproject.toml
   tests/test_credentials_oscore_context/sequence.json
   tests/test_credentials_oscore_context/settings.json
   tox.ini
