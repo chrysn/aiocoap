@@ -117,8 +117,6 @@ class WidgetApplication(AsyncCLIDaemon):
 
 def sync_main():
     asyncio.set_event_loop_policy(gbulb.gtk.GtkEventLoopPolicy())
-
-    # this will not react correctly to ctrl-c yet because of https://github.com/nathan-hoad/gbulb/issues/20
     WidgetApplication.sync_main()
 
 if __name__ == "__main__":
