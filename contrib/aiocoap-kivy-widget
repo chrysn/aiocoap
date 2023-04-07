@@ -3,7 +3,15 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""A demo that opens a Kivy window and exposes it as a text display via CoAP"""
+"""A demo that opens a Kivy window and exposes it as a text display via CoAP
+
+This can fundamentally also be run on Android by using the `Kivy launcher`_,
+packing all the dependencies (aiocoap, cbor2, widgets_common) into a new
+application's directory, placing this as main.py and adding a suitable
+android.txt file. (Tested only with CoAP-over-TCP so far).
+
+.. _`Kivy launcher`: https://github.com/kivy/kivy-launcher
+"""
 
 import asyncio
 
