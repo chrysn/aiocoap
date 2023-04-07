@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""A demo that opens a Kivy window and exposes it as a text display via CoAP
-
-Running this example requires a version of Kivy that has asyncio support merged
-(see <https://github.com/kivy/kivy/pull/5241>).
-"""
+"""A demo that opens a Kivy window and exposes it as a text display via CoAP"""
 
 import asyncio
 
@@ -47,5 +43,4 @@ class CoAPDisplay(App):
         asyncio.get_event_loop().create_task(self.main())
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(CoAPDisplay().async_run())
+    asyncio.run(CoAPDisplay().async_run())

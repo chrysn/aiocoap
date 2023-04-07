@@ -15,11 +15,7 @@ class KivyPropertyBacked(SenmlResource):
     def __init__(self):
         super().__init__()
         throttler = _Throttler(self.value_changed)
-        asyncio.get_event_loop().create_task(self._monitor(throttler))
-
-    async def _monitor(self, throttler):
-        async for evt in self.backend_widget.async_bind(self.widget_property):
-            throttler()
+        self.backend_widget.bind(**{self.widget_property: lambda *args: throttler()})
 
     def _get_value(self):
         return getattr(self.backend_widget, self.widget_property)

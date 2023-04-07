@@ -45,9 +45,6 @@ These tools are currently present:
 
 * ``aiocoap-kivy-widget``: A similar (and smaller) widget implemented in Kivy_.
 
-  As asyncio support is not merged in Kivy yet, be sure to build the library
-  from `the asyncio pull request`_.
-
 * ``oscore-plugtest``: Server and client for the interoperability tests
   conducted during the development of OSCORE.
 
@@ -65,5 +62,4 @@ These tools are currently present:
 
 .. _gbulb: https://github.com/nathan-hoad/gbulb
 .. _Kivy: https://kivy.org/
-.. _`the asyncio pull request`: https://github.com/kivy/kivy/pull/5241
 .. _`a live version of Jupyter Lite`: https://jupyter.org/try-jupyter/lab/
