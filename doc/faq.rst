@@ -72,7 +72,7 @@ while it is not clear where to better put them).
 
 * **aiocoap fails to start if IPv6 is disabled system-wide.**
 
-  Yes. `Don't do that`__
+  Yes. `Don't do that.`__
   It is not a supported mode of operation with the default implementation.
 
   .. __: https://howtodisableipv6.com/
