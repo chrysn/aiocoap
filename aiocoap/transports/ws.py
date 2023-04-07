@@ -49,6 +49,16 @@ course unaffected by this.
   port plus 3000 (resulting in the abovementioned 8683 for 5683). If TLS server
   keys are given, the TLS server is launched on the next port after the HTTP
   server (typically 8684).
+
+Using on pyodide_
+-----------------
+
+When use  on pyodide_,
+instead of using the ``websockets`` module,
+a simplified client-only back-end is used,
+which utilizes the browser's WebSocket API.
+
+.. _pyodide: https://pyodide.org/
 """
 
 from __future__ import annotations

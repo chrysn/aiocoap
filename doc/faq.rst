@@ -27,8 +27,17 @@ while it is not clear where to better put them).
   (``add_reader`` for udp6, ``sockname`` extra for role reversal on simple6).
   It is known to work with uvloop_ and gbulb_.
 
+  When aiocoap is used with pyodide_
+  (that is, in a web browser, with a Python interpreter compiled through emscripten),
+  for example in a `Jupyter notebook`_,
+  the "regular" transports are not functional.
+  An alternative is provided transparently
+  in the :mod:`WebSockets transport<aiocoap.transports.ws>`.
+
 .. _uvloop: https://uvloop.readthedocs.io/
 .. _gbulb: https://github.com/nathan-hoad/gbulb
+.. _pyodide: https://pyodide.org/
+.. _`Jupyter notebook`: https://jupyter.org/try-jupyter/lab/
 
 * **How can a server be scaled up to use multiple cores?**
 
