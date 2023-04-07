@@ -57,6 +57,13 @@ These tools are currently present:
   discovered during a Resource Directory discovery process, but does not serve
   as the full resource directory itself and redirects the client there.
 
+* ``*.ipynb``: Jupyter notebooks
+  in which aiocoap is run in a web browser
+  and accesses the larger network through WebSockets.
+
+  These files can be uploaded to `a live version of Jupyter Lite`_.
+
 .. _gbulb: https://github.com/nathan-hoad/gbulb
 .. _Kivy: https://kivy.org/
 .. _`the asyncio pull request`: https://github.com/kivy/kivy/pull/5241
+.. _`a live version of Jupyter Lite`: https://jupyter.org/try-jupyter/lab/
