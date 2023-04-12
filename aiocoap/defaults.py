@@ -30,6 +30,8 @@ except ImportError:
 else:
     is_pyodide = True
 
+is_android = sys.getandroidapilevel() if 'getandroidapilevel' in dir(sys) else None
+
 def get_default_clienttransports(*, loop=None, use_env=True):
     """Return a list of transports that should be connected when a client
     context is created.
