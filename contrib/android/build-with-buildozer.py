@@ -30,8 +30,9 @@ version = 0.1
 # docutils for kivy rst widget
 #
 # everything after that is aiocoap[prettyprint,oscore,ws] spelled out (without
-# aiocoap as that's copied in below)
-requirements = python3,kivy,docutils,termcolor,cbor2,pygments,cbor-diag,cryptography,filelock,ge25519,websockets
+# aiocoap as that's copied in below). for some reason, ge25519's dependency on
+# fe25519 needs to be spelled out.
+requirements = python3,kivy,docutils,termcolor,cbor2,pygments,cbor-diag,cryptography,filelock,ge25519,fe25519,websockets
 orientation = portrait
 
 fullscreen = 0
