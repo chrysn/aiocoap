@@ -132,7 +132,10 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         identifier if set."""
 
         if self.sockaddr[3] != 0:
-            scopepart = "%" + socket.if_indextoname(self.sockaddr[3])
+            try:
+                scopepart = "%" + socket.if_indextoname(self.sockaddr[3])
+            except Exception: # could be an OS error, could just be that there is no function of this name, as it is on Android
+                scopepart = "%" + str(self.sockaddr[3])
         else:
             scopepart = ""
         if '%' in self.sockaddr[0]:
