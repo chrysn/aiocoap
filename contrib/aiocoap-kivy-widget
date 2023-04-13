@@ -10,17 +10,6 @@ The example is more comprehensive than the GTK ``./aiocoap-widgets`` demo (in
 that it offers GUI for registering at an RD, and to display log output) because
 unlike GTK it can also be run on Android, where neither command line arguments
 nor debug output are easily accessible.
-
-Running this on Android either needs
-
-* the `Kivy launcher`_ -- then, all dependencies (aiocoap, widgets_common,
-  cbor2) need to be copied together, and an andorid.txt file needs to be
-  present, or
-* a dedicated buildozer spec.
-
-In both cases, this main program needs to be named ``main.py``.
-
-.. _`Kivy launcher`: https://github.com/kivy/kivy-launcher
 """
 
 import asyncio
