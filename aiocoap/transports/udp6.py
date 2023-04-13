@@ -330,7 +330,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         assert bind, "getaddrinfo returned zero-length list rather than erring out"
         (*_, bind), *additional = bind
         if additional:
-            log.warning("Multiple addresses to bind to, ")
+            log.warning("Multiple addresses to bind to, only selecting %r and discarding %r", bind, additional)
 
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         if defaults.has_reuse_port():
