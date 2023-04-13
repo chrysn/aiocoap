@@ -9,9 +9,8 @@ setup.py); run it as `python3 -m aiocoap.cli.defaults`."""
 
 import sys
 from aiocoap.meta import version
-from aiocoap.defaults import dtls_missing_modules, oscore_missing_modules, \
-    linkheader_missing_modules, prettyprint_missing_modules, has_reuse_port, \
-    get_default_clienttransports, get_default_servertransports
+from aiocoap.defaults import has_reuse_port, get_default_clienttransports, \
+    get_default_servertransports, missing_module_functions
 import argparse
 import os
 
@@ -29,10 +28,8 @@ if __name__ == "__main__":
     print("Python version: %s" % sys.version)
     print("aiocoap version: %s" % version)
     print("Modules missing for subsystems:")
-    missmods = [dtls_missing_modules, oscore_missing_modules, linkheader_missing_modules, prettyprint_missing_modules]
-    for m in missmods:
-        name = m.__name__[:-len("_missing_modules")]
-        missing = m()
+    for (name, f) in missing_module_functions.items():
+        missing = f()
         if missing and args.expect_all:
             error = 1
         print("    %s: %s" % (name, "everything there" if not missing else "missing " + ", ".join(missing)))

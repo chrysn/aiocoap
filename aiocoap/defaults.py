@@ -222,6 +222,13 @@ def prettyprint_missing_modules():
         missing.append('pygments')
     return missing
 
+missing_module_functions = {
+        'dtls': dtls_missing_modules,
+        'oscore': oscore_missing_modules,
+        'linkheader': linkheader_missing_modules,
+        'prettyprint': prettyprint_missing_modules,
+        'ws': ws_missing_modules,
+        }
 
 __all__ = [
     'get_default_clienttransports',
@@ -232,4 +239,5 @@ __all__ = [
     'ws_missing_modules',
     'linkheader_missing_modules',
     'prettyprint_missing_modules',
+    'missing_module_functions',
     ]

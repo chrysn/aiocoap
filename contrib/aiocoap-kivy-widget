@@ -15,7 +15,7 @@ nor debug output are easily accessible.
 import asyncio
 import logging
 
-from aiocoap import Context, Message, CHANGED
+from aiocoap import Context, Message, CHANGED, defaults
 from aiocoap.resource import Site, Resource, ObservableResource, WKCResource
 from aiocoap.resourcedirectory.client.register import Registerer
 
@@ -158,10 +158,17 @@ class CoAPDisplay(App):
     def build(self):
         built = Builder.load_string(kv)
 
-        self.coap_logger = logging.getLogger('coap')
-        self.coap_logger.setLevel(logging.DEBUG)
-        self.coap_logger.addHandler(HandlerToTextWidget(built.ids.logs))
-        self.coap_logger.info("Logging CoAP events")
+        coap_logger = logging.getLogger('coap')
+        coap_logger.setLevel(logging.DEBUG)
+        coap_logger.addHandler(HandlerToTextWidget(built.ids.logs))
+
+        coap_logger.info("aiocoap's selected server transports are "
+                + ":".join(defaults.get_default_servertransports()))
+
+        for (name, f) in defaults.missing_module_functions.items():
+            missing = f()
+            if missing:
+                coap_logger.warning("Missing modules for feature %s: %s", name, missing)
 
         return built
 
