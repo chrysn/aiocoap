@@ -15,11 +15,7 @@ class KivyPropertyBacked(SenmlResource):
     def __init__(self):
         super().__init__()
         throttler = _Throttler(self.value_changed)
-        asyncio.get_event_loop().create_task(self._monitor(throttler))
-
-    async def _monitor(self, throttler):
-        async for evt in self.backend_widget.async_bind(self.widget_property):
-            throttler()
+        self.backend_widget.bind(**{self.widget_property: lambda *args: throttler()})
 
     def _get_value(self):
         return getattr(self.backend_widget, self.widget_property)
@@ -28,6 +24,25 @@ class KivyPropertyBacked(SenmlResource):
         setattr(self.backend_widget, self.widget_property, updated)
 
     value = property(_get_value, _set_value)
+
+class Color(KivyPropertyBacked):
+    def __init__(self, kivy_backend, widget_property):
+        self.backend_widget = kivy_backend
+        self.widget_property = widget_property
+        super().__init__()
+
+    @ContenttypeRendered.get_handler('text/plain;charset=utf-8', default=True)
+    def __regular_get(self):
+        return '#' + "".join("%02x"%int(255 * c) for c in self._get_value()[:3])
+
+    @ContenttypeRendered.put_handler('text/plain;charset=utf-8', default=True)
+    def render_put(self, payload):
+        if len(payload) == 7 and payload[0:1] == b'#':
+            values = tuple(int(payload[i:i+2].decode('ascii'), 16)/255 for i in (1, 3, 5))
+        else:
+            return Message(code=BAD_REQUEST)
+
+        self._set_value(values + (1,))
 
 class Text(StringResource, KivyPropertyBacked):
     """A resource that represents a Kivy widget's text"""

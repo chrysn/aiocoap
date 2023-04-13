@@ -3,49 +3,247 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""A demo that opens a Kivy window and exposes it as a text display via CoAP
+"""A demo that opens a Kivy window and exposes it as a text and color display
+via CoAP
 
-Running this example requires a version of Kivy that has asyncio support merged
-(see <https://github.com/kivy/kivy/pull/5241>).
+The example is more comprehensive than the GTK ``./aiocoap-widgets`` demo (in
+that it offers GUI for registering at an RD, and to display log output) because
+unlike GTK it can also be run on Android, where neither command line arguments
+nor debug output are easily accessible.
 """
 
 import asyncio
+import logging
 
-from aiocoap import Context, Message, CHANGED
+from aiocoap import Context, Message, CHANGED, defaults
 from aiocoap.resource import Site, Resource, ObservableResource, WKCResource
+from aiocoap.resourcedirectory.client.register import Registerer
 
 from kivy.app import App
 from kivy.lang.builder import Builder
+from kivy.utils import escape_markup
 
 from widgets_common.kivy_resource import *
 
 kv = '''
-BoxLayout:
-    orientation: 'vertical'
-    Button:
-        id: btn
-        text: 'Use CoAP discovery to write here or receive notifications \
-of clicks.'
-        background_normal: ''
-        color: (0, 0, 0, 1)
+TabbedPanel:
+    do_default_tab: False
+    TabbedPanelItem:
+        text: 'Widgets'
+        BoxLayout:
+            padding: '5sp'
+            spacing: '5sp'
+            orientation: 'vertical'
+            RstDocument:
+                # Not that we'd intend to do any ReStructured text -- this is
+                # just the most plain widget that just has a background color
+                id: colorfield
+                size_hint: 1, 1
+                background_color: (0, 0, 0, 1)
+            Button:
+                size_hint: 1, 0.1
+                id: btn
+                text: 'Use CoAP discovery to write here or receive notifications of clicks.'
+    TabbedPanelItem:
+        text: 'RD'
+        BoxLayout:
+            pos: (0, 0)
+            orientation: 'vertical'
+            spacing: '5sp'
+            BoxLayout:
+                size_hint_max_y: '30sp'
+                spacing: '5sp'
+                orientation: 'horizontal'
+                Label:
+                    text: 'RD URI:'
+                TextInput:
+                    id: rd_uri
+                    text: 'coap://rd.coap.amsuess.com'
+                    multiline: False
+                    size_hint: 3, 1
+            BoxLayout:
+                size_hint_max_y: '30sp'
+                spacing: '5sp'
+                orientation: 'horizontal'
+                Label:
+                    text: 'Endpoint name:'
+                TextInput:
+                    id: rd_ep
+                    text: 'kivy'
+                    multiline: False
+                    size_hint: 3, 1
+            BoxLayout:
+                size_hint_max_y: '30sp'
+                spacing: '5sp'
+                orientation: 'horizontal'
+                Label:
+                    text: 'Request reverse proxying:'
+                CheckBox:
+                    id: rd_proxy
+                    size_hint: 3, 1
+            ToggleButton:
+                size_hint_max_y: '30sp'
+                id: rd_active
+                text: 'Register'
+            Label:
+                size_hint_max_y: '30sp'
+                id: rd_status
+                text: ''
+            Label:
+    TabbedPanelItem:
+        text: 'Logs'
+        ScrollView:
+            do_scroll_x: False
+            do_scroll_y: True
+            Label:
+                id: logs
+                markup: True
+                # as recommended in ScrollView example
+                size_hint_y: None
+                height: self.texture_size[1]
+                text_size: self.width, None
 '''
 
+class KivyLogFormatter(logging.Formatter):
+    """A logging.Formatter implementation that produces colored and escaped
+    output for Kivy markup using widgets"""
+    def usesTime(self):
+        return True
+
+    def color(self, level) -> str:
+        normalized = (level - logging.DEBUG) / (logging.ERROR - logging.DEBUG)
+        clipped = max(min(normalized, 1), 0)
+        # gradient: white, green, red
+        GREEN_X = 0.25
+        if clipped < GREEN_X:
+            remapped = clipped / GREEN_X
+            return (1 - remapped, 1, 1 - remapped)
+        else:
+            remapped = (clipped - GREEN_X) / (1 - GREEN_X)
+            return (remapped ** 0.5, (1 - remapped) ** 0.5, 0)
+
+    def formatMessage(self, record):
+        color = bytes(int(c * 255) for c in self.color(record.levelno)).hex()
+        return f'[color=808080][font_family=Roboto]{escape_markup(record.asctime)}[/font_family][/color] – [color={color}]{escape_markup(record.levelname)}[/color] – [color=808080]{escape_markup(record.name)}[/color]  – {escape_markup(record.message)}'
+
+    def formatException(self, record):
+        result = super().formatException(record)
+        return escape_markup(result)
+
+    def formatStack(self, record):
+        result = super().formatStack(record)
+        return escape_markup(result)
+
+class HandlerToTextWidget(logging.Handler):
+    """A logging handler that renders into a Kivy text widget, and truncates
+    early output to avoid ever-increasing memory requirements"""
+
+    BUFLEN = 80000
+
+    def __init__(self, widget):
+        super().__init__()
+        self._widget = widget
+        self._formatter = KivyLogFormatter()
+
+    def emit(self, record):
+        old_text = self._widget.text
+        if len(old_text) > self.BUFLEN:
+            old_text = old_text[-self.BUFLEN:]
+            old_text = "…" + old_text[old_text.find('\n'):]
+        self._widget.text = old_text + self._formatter.format(record) + "\n"
+
 class CoAPDisplay(App):
+    rd_task = None
+
     def build(self):
-        return Builder.load_string(kv)
+        built = Builder.load_string(kv)
+
+        coap_logger = logging.getLogger('coap')
+        coap_logger.setLevel(logging.DEBUG)
+        coap_logger.addHandler(HandlerToTextWidget(built.ids.logs))
+
+        coap_logger.info("aiocoap's selected server transports are "
+                + ":".join(defaults.get_default_servertransports()))
+
+        for (name, f) in defaults.missing_module_functions.items():
+            missing = f()
+            if missing:
+                coap_logger.warning("Missing modules for feature %s: %s", name, missing)
+
+        return built
 
     async def main(self):
+        try:
+            # Wrap main so that we have a chance of seeing exceptions raised
+            # during CoAP setup
+            await self._inner_main()
+        except BaseException as e:
+            log = logging.getLogger("coap")
+            log.exception(e)
+            raise e
+
+    async def _inner_main(self):
         site = Site()
         site.add_resource(['text'], Text(self.root.ids.btn))
         site.add_resource(['pressed'], PressState(self.root.ids.btn))
+        site.add_resource(['color'], Color(self.root.ids.colorfield, 'background_color'))
         site.add_resource(['.well-known', 'core'],
                 WKCResource(site.get_resources_as_linkheader))
 
-        self.context = await Context.create_server_context(site)
+        self.context = await Context.create_server_context(site, loggername='coap')
+
+        self.root.ids.rd_active.bind(on_press=self.on_rd_active_pressed)
+
+    def on_rd_active_pressed(self, btn):
+        if btn.state == 'down':
+            self.rd_task = asyncio.create_task(self.register_rd())
+            self.root.ids.rd_uri.disabled = True
+            self.root.ids.rd_ep.disabled = True
+            self.root.ids.rd_proxy.disabled = True
+        else:
+            btn.state = 'down'
+            if self.rd_task is not None:
+                self.rd_task.cancel()
+            self.rd_task = None
+
+    async def register_rd(self):
+        try:
+            rd_uri = self.root.ids.rd_uri.text
+            rd_ep = self.root.ids.rd_ep.text
+            rd_proxy = self.root.ids.rd_proxy.active
+
+            params = {'ep': rd_ep}
+            if rd_proxy:
+                params['proxy'] = 'on'
+
+            registerer = Registerer(
+                    self.context,
+                    rd=rd_uri,
+                    registration_parameters=params,
+                    loggername='coap.rd-ep',
+                    )
+            old_set_state = registerer._set_state
+            def new_set_state(state):
+                self.root.ids.rd_status.text = 'Current status: %s' % state
+                return old_set_state(state)
+            registerer._set_state = new_set_state
+            await asyncio.Future()
+        except Exception as e:
+            self.root.ids.rd_status.text = 'Failed (%s)' % e
+            logging.getLogger("coap").exception(e)
+        except asyncio.CancelledError:
+            self.root.ids.rd_status.text = 'Shutting down registration…'
+            await registerer.shutdown()
+            self.root.ids.rd_status.text = 'Registration terminated'
+        finally:
+            self.root.ids.rd_active.state = 'normal'
+
+            self.root.ids.rd_uri.disabled = False
+            self.root.ids.rd_ep.disabled = False
+            self.root.ids.rd_proxy.disabled = False
 
     def on_start(self):
         asyncio.get_event_loop().create_task(self.main())
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(CoAPDisplay().async_run())
+    asyncio.run(CoAPDisplay().async_run())

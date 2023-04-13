@@ -5,7 +5,6 @@
 
 """Graphical utility to represent typical CoAP interfaces"""
 
-import asyncio
 import argparse
 
 from aiocoap.util.cli import AsyncCLIDaemon
@@ -16,7 +15,7 @@ from aiocoap.resourcedirectory.client.register import Registerer
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
-import gbulb.gtk
+import gbulb
 
 from widgets_common.gobject_resource import *
 
@@ -116,9 +115,7 @@ class WidgetApplication(AsyncCLIDaemon):
         self.shutdown = await start_context(site, args)
 
 def sync_main():
-    asyncio.set_event_loop_policy(gbulb.gtk.GtkEventLoopPolicy())
-
-    # this will not react correctly to ctrl-c yet because of https://github.com/nathan-hoad/gbulb/issues/20
+    gbulb.install(gtk=True)
     WidgetApplication.sync_main()
 
 if __name__ == "__main__":

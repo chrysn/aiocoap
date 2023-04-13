@@ -48,6 +48,7 @@ from .. import error
 from .. import interfaces
 from ..numbers import COAP_PORT
 from ..util.asyncio.recvmsg import RecvmsgDatagramProtocol, create_recvmsg_datagram_endpoint
+from ..util.asyncio.getaddrinfo_v4mapped import getaddrinfo
 from ..util import hostportjoin, hostportsplit
 from ..util import socknumbers
 
@@ -132,7 +133,10 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         identifier if set."""
 
         if self.sockaddr[3] != 0:
-            scopepart = "%" + socket.if_indextoname(self.sockaddr[3])
+            try:
+                scopepart = "%" + socket.if_indextoname(self.sockaddr[3])
+            except Exception: # could be an OS error, could just be that there is no function of this name, as it is on Android
+                scopepart = "%" + str(self.sockaddr[3])
         else:
             scopepart = ""
         if '%' in self.sockaddr[0]:
@@ -315,7 +319,8 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # without a getaddrinfo (or manual mapping of the name to a number) to
         # bind to a specific link-local interface
         try:
-            bind = await loop.getaddrinfo(
+            bind = await getaddrinfo(
+                loop,
                 bind[0],
                 bind[1],
                 family=socket.AF_INET6,
@@ -327,7 +332,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         assert bind, "getaddrinfo returned zero-length list rather than erring out"
         (*_, bind), *additional = bind
         if additional:
-            log.warning("Multiple addresses to bind to, ")
+            log.warning("Multiple addresses to bind to, only selecting %r and discarding %r", bind, additional)
 
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         if defaults.has_reuse_port():
@@ -390,7 +395,8 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
         try:
             own_sock = self.transport.get_extra_info('socket')
-            addrinfo = await self.loop.getaddrinfo(
+            addrinfo = await getaddrinfo(
+                self.loop,
                 host,
                 port,
                 family=own_sock.family,

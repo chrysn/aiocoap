@@ -22,9 +22,11 @@ Files:
   NEWS
   README.rst
   aiocoap/credentials.cddl
+  contrib/aiocoap.ipynb
   contrib/aiocoap-proxy.ipynb
   contrib/aiocoap-server.ipynb
-  contrib/aiocoap.ipynb
+  contrib/android/.gitignore
+  contrib/android/README.rst
   contrib/deterministic-demo/README.rst
   contrib/oscore-plugtest/.gitignore
   contrib/oscore-plugtest/common-context/a/secret.json

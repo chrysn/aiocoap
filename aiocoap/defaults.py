@@ -30,6 +30,8 @@ except ImportError:
 else:
     is_pyodide = True
 
+is_android = sys.getandroidapilevel() if 'getandroidapilevel' in dir(sys) else None
+
 def get_default_clienttransports(*, loop=None, use_env=True):
     """Return a list of transports that should be connected when a client
     context is created.
@@ -125,6 +127,14 @@ def has_reuse_port(*, use_env=True):
 
     return hasattr(socket, 'SO_REUSEPORT')
 
+def use_ai_v4mapped_emulation():
+    """Returns True on platforms that do support V6ONLY=0 sockets (ie. that can
+    bind a socket to [::] and accept V4 requests, and that can connect to
+    [::ffff:192.168.0.1] and still use the V6 APIs), but whose libc does not
+    accept the AI_V4MAPPED argument to the getaddrinfo function. On these
+    platforms, V4MAPPED can be emulated."""
+    return is_android is not None
+
 # FIXME: If there were a way to check for the extras defined in setup.py, or to link these lists to what is descibed there, that'd be great.
 
 def dtls_missing_modules():
@@ -212,6 +222,13 @@ def prettyprint_missing_modules():
         missing.append('pygments')
     return missing
 
+missing_module_functions = {
+        'dtls': dtls_missing_modules,
+        'oscore': oscore_missing_modules,
+        'linkheader': linkheader_missing_modules,
+        'prettyprint': prettyprint_missing_modules,
+        'ws': ws_missing_modules,
+        }
 
 __all__ = [
     'get_default_clienttransports',
@@ -222,4 +239,5 @@ __all__ = [
     'ws_missing_modules',
     'linkheader_missing_modules',
     'prettyprint_missing_modules',
+    'missing_module_functions',
     ]
