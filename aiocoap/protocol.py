@@ -658,6 +658,8 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                         block_cursor,
                         size_exp,
                         app_request.remote.maximum_payload_size)
+                if block_cursor == 0:
+                    current_block1.opt.size1 = len(app_request.payload)
             else:
                 current_block1 = app_request
 
