@@ -96,7 +96,7 @@ Documentation is built using sphinx_ with ``./setup.py build_sphinx``; hacks
 used there are described in ``./doc/README.doc``.
 
 Unit tests are implemented in the ``./tests/`` directory and easiest run using
-tox_ (though still available through ``./setup.py test`` for the time being);
+tox_ (but also available through ``python3 -m unittest`` to test the local environment);
 complete test coverage is aimed for, but not yet complete (and might never be,
 as the error handling for pathological network partners is hard to trigger with
 a library designed not to misbehave). The tests are regularly run at the `CI

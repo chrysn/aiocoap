@@ -9,20 +9,20 @@ test:3.7:
     - echo Using cache:; ls .eggs/ || echo No cached .eggs found
     - rm -f .coverage* collected-coverage
     - pip3 install coverage
-    - python3 -m coverage run --parallel ./setup.py test
+    - python3 -m coverage run --parallel -m unittest -v
     - pip install --upgrade ".[all]" # really just done for the requirements
-    - python3 -m coverage run --parallel ./setup.py test
+    - python3 -m coverage run --parallel -m unittest -v
     - pip3 install uvloop
-    - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel ./setup.py test
+    - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel -m unittest -v
     # Could just as well do this on the default main loop, but AFAIR uvloop
     # required occasional workarounds
-    - AIOCOAP_TESTS_LOOP=uvloop AIOCOAP_CLIENT_TRANSPORT=oscore:simple6 AIOCOAP_SERVER_TRANSPORT=oscore:simplesocketserver python3 -m coverage run --parallel ./setup.py test
+    - AIOCOAP_TESTS_LOOP=uvloop AIOCOAP_CLIENT_TRANSPORT=oscore:simple6 AIOCOAP_SERVER_TRANSPORT=oscore:simplesocketserver python3 -m coverage run --parallel -m unittest -v
     # Not installing python3-gi directly, as Debian's dist-modules is not in
     # docker image's Python path
     - apt-get update
     - apt-get -y install libgirepository1.0-dev
     - pip3 install pygobject gbulb
-    - AIOCOAP_TESTS_LOOP=gbulb timeout 10m python3 -m coverage run --parallel ./setup.py test || echo Letting failing gbulb test slide
+    - AIOCOAP_TESTS_LOOP=gbulb timeout 10m python3 -m coverage run --parallel -m unittest -v || echo Letting failing gbulb test slide
     - mkdir collected-coverage/3.7/ -p
     - mv .coverage* collected-coverage/3.7/
   artifacts:
