@@ -7,7 +7,7 @@ Protocol`_.
 It is written in Python 3 using its `native asyncio`_ methods to facilitate
 concurrent operations while maintaining an easy to use interface.
 
-.. _`Constrained Application Protocol`: http://coap.technology/
+.. _`Constrained Application Protocol`: http://coap.space/
 .. _`native asyncio`: https://docs.python.org/3/library/asyncio
 
 Usage
