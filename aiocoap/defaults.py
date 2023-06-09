@@ -220,6 +220,10 @@ def prettyprint_missing_modules():
         import pygments # noqa: F401
     except ImportError:
         missing.append('pygments')
+    try:
+        import cbor_diag # noqa: F401
+    except ImportError:
+        missing.append('cbor-diag')
     return missing
 
 missing_module_functions = {
