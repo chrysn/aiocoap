@@ -87,6 +87,26 @@ test:tox-on-buster:
     paths:
       - collected-coverage/tox-buster/
 
+test:3.12:
+  image: docker.io/python:3.12-rc
+  resource_group: uses-coap-ports
+  variables:
+    # Necessary because the image uses some Debian as a base that has a Python 3.9 installed
+    TOX_SKIP_ENV: "py39-"
+  script:
+    - apt-get update
+    - apt-get -y install iproute2
+    - rm -f .coverage* collected-coverage
+    - pip install tox
+    # Separate run so I don't waste time telling errors in setup apart from errors at runtime
+    - tox --notest
+    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+    - mkdir collected-coverage/tox-3.12/ -p
+    - mv .coverage* collected-coverage/tox-3.12/
+  artifacts:
+    paths:
+      - collected-coverage/tox-python312/
+
 test:flake:
   image: python:3
   script:
@@ -107,6 +127,7 @@ pages:
     - test:tox
     - test:tox-on-buster
     - test:tox-bookworm
+    - test:3.12
   script:
     - apt-get update
     - apt-get -y install python3-pip
