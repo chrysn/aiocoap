@@ -91,8 +91,8 @@ test:3.12:
   image: docker.io/python:3.12-rc
   resource_group: uses-coap-ports
   variables:
-    # Necessary because the image uses some Debian as a base that has a Python 3.9 installed
-    TOX_SKIP_ENV: "py39-"
+    # Necessary because the image uses some Debian as a base that has another Python installed
+    TOXENV: "py312-noextras,py312-allextras"
   script:
     - apt-get update
     - apt-get -y install iproute2
