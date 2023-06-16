@@ -120,7 +120,7 @@ reuse:
     - reuse lint
 
 pages:
-  image: "debian"
+  image: docker.io/python:3
   stage: deploy
   dependencies:
     - test:3.7
@@ -129,8 +129,6 @@ pages:
     - test:tox-bookworm
     - test:3.12
   script:
-    - apt-get update
-    - apt-get -y install python3-pip
     - python3 -m pip install coverage
     - rm -f .coverage* public
     - mv collected-coverage/*/.coverage* .
