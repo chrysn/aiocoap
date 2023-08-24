@@ -40,7 +40,7 @@ from . import simplesocketserver
 from .simplesocketserver import _DatagramServerSocketSimple
 from ..util.asyncio import py38args
 
-from .tinydtls import LEVEL_NOALERT, LEVEL_FATAL, DTLS_EVENT_CONNECT, DTLS_EVENT_CONNECTED, CODE_CLOSE_NOTIFY, CloseNotifyReceived, DTLS_TICKS_PER_SECOND, DTLS_CLOCK_OFFSET, FatalDTLSError
+from .tinydtls import LEVEL_NOALERT, LEVEL_WARNING, LEVEL_FATAL, DTLS_EVENT_CONNECT, DTLS_EVENT_CONNECTED, CODE_CLOSE_NOTIFY, CloseNotifyReceived, DTLS_TICKS_PER_SECOND, DTLS_CLOCK_OFFSET, FatalDTLSError
 
 # tinyDTLS passes address information around in its session data, but the way
 # it's used here that will be ignored; this is the data that is sent to / read
@@ -123,7 +123,7 @@ class _AddressDTLS(interfaces.EndpointAddress):
         elif (level, code) == (LEVEL_NOALERT, DTLS_EVENT_CONNECTED):
             # No need to react to "connected": We're not the ones sending the first message
             return
-        elif (level, code) == (LEVEL_FATAL, CODE_CLOSE_NOTIFY):
+        elif (level, code) == (LEVEL_WARNING, CODE_CLOSE_NOTIFY):
             self._inject_error(CloseNotifyReceived())
         elif level == LEVEL_FATAL:
             self._inject_error(FatalDTLSError(code))

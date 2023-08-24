@@ -300,7 +300,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             return
         elif (level, code) == (LEVEL_NOALERT, DTLS_EVENT_CONNECTED):
             self._connecting.set_result(True)
-        elif (level, code) == (LEVEL_FATAL, CODE_CLOSE_NOTIFY):
+        elif (level, code) == (LEVEL_WARNING, CODE_CLOSE_NOTIFY):
             self._inject_error(CloseNotifyReceived())
         elif level == LEVEL_FATAL:
             self._inject_error(FatalDTLSError(code))
