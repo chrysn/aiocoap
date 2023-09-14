@@ -416,11 +416,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                 host,
                 port,
                 family=own_sock.family,
-                type=0, # Not setting the sock's proto as that fails up to
-                        # Python 3.6; setting that would make debugging around
-                        # here less confusing but otherwise has no effect
-                        # (unless maybe very exotic protocols show up).
-                proto=own_sock.proto,
+                type=socket.SOCK_DGRAM,
                 flags=socket.AI_V4MAPPED,
                 )
         except socket.gaierror:
