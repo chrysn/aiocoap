@@ -35,6 +35,7 @@ and the options can not be added easily to your platform, consider using the
 """
 
 import asyncio
+import contextvars
 import socket
 import ipaddress
 import struct
@@ -240,6 +241,16 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
         self.ready = asyncio.get_running_loop().create_future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
 
+        # This is set while a send is underway to determine in the
+        # error_received call site whom we were actually sending something to.
+        # This is a workaround for the abysmal error handling unconnected
+        # sockets have :-/
+        #
+        # FIXME: Figure out whether aiocoap can at all support a context being
+        # used with multiple aiocoap contexts, and if not, raise an error early
+        # rather than just-in-case doing extra stuff here.
+        self._remote_being_sent_to = contextvars.ContextVar('_remote_being_sent_to', default=None)
+
     def _local_port(self):
         # FIXME: either raise an error if this is 0, or send a message to self
         # to force the OS to decide on a port. Right now, this reports wrong
@@ -358,7 +369,12 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         if message.remote.pktinfo is not None:
             ancdata.append((socket.IPPROTO_IPV6, socknumbers.IPV6_PKTINFO,
                 message.remote.pktinfo))
-        self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
+        assert self._remote_being_sent_to.get(None) is None, "udp6.MessageInterfaceUDP6.send was reentered in a single task"
+        self._remote_being_sent_to.set(message.remote)
+        try:
+            self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
+        finally:
+            self._remote_being_sent_to.set(None)
 
     async def recognize_remote(self, remote):
         return isinstance(remote, UDP6EndpointAddress) and \
@@ -518,8 +534,22 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
     def error_received(self, exc):
         """Implementation of the DatagramProtocol interface, called by the transport."""
-        # TODO: what can we do about errors we *only* receive here? (eg. sending to 127.0.0.0)
-        self.log.error("Error received and ignored in this codepath: %s", exc)
+
+        remote = self._remote_being_sent_to.get()
+
+        if remote is None:
+            # TODO: Are there any errors left that wind up here? (sending to 127.0.0.0 takes the later half of this function)
+            self.log.error("Error received in situation with no way to to determine which sending caused the error; this should be accompanied by an error in another code path: %s", exc)
+            return
+
+        try:
+            self._ctx.dispatch_error(exc, remote)
+        except BaseException as exc:
+            # Catching here because util.asyncio.recvmsg inherits
+            # _SelectorDatagramTransport's bad handling of callback errors;
+            # this is the last time we have a log at hand.
+            self.log.error("Exception raised through dispatch_error: %s", exc, exc_info=exc)
+            raise
 
     def connection_lost(self, exc):
         # TODO better error handling -- find out what can cause this at all
