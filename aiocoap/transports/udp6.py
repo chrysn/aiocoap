@@ -409,25 +409,37 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         else:
             zone = None
 
+        # What we want from getaddrinfo is that it gives us the best address it
+        # has on the target, as long as it can be routed on the current system,
+        # and dress it as a V4MAPPED address. From the getaddrinfo man page
+        # it'd stand to assume that family=AF_INET6, flags=AI_V4MAPPED |
+        # AI_ADDRCONFIG would do that. (Instead, that raises gaierror when no
+        # v6 can be routed but one is available).
+        #
+        # So instead, we have to do this on foot -- get the family-unspecific
+        # list with AI_ADDRCONFIG (which in that situation does work), use the
+        # v6 if there is one, and dress up the v4 if not
+
         try:
-            own_sock = self.transport.get_extra_info('socket')
             addrinfo = await getaddrinfo(
                 self.loop,
                 host,
                 port,
-                family=own_sock.family,
                 type=socket.SOCK_DGRAM,
-                flags=socket.AI_V4MAPPED,
+                flags=socket.AI_ADDRCONFIG,
                 )
         except socket.gaierror:
             raise error.ResolutionError("No address information found for requests to %r" % host)
 
-        # TODO this is very rudimentary; happy-eyeballs or
-        # similar could be employed.
+        v6_addresses = [a[-1] for a in addrinfo if a[0] == socket.AF_INET6]
+        v4_addresses = [a[-1] for a in addrinfo if a[0] == socket.AF_INET]
 
-        sockaddr = addrinfo[0][-1]
-
-        ip, port, flowinfo, scopeid = sockaddr
+        if v6_addresses:
+            ip, port, flowinfo, scopeid = v6_addresses[0]
+        else:
+            ip, port = v4_addresses[0]
+            ip = '::ffff:' + ip
+            flowinfo = scopeid = 0
 
         if zone is not None:
             # Still trying to preserve the information returned (libc can't do
