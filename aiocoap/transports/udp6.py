@@ -49,6 +49,7 @@ from .. import error
 from .. import interfaces
 from ..numbers import COAP_PORT
 from ..util.asyncio.recvmsg import RecvmsgDatagramProtocol, create_recvmsg_datagram_endpoint
+from ..util.asyncio.getaddrinfo_addrconfig import getaddrinfo_routechecked as getaddrinfo
 from ..util import hostportjoin, hostportsplit
 from ..util import socknumbers
 
@@ -329,19 +330,27 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # without a getaddrinfo (or manual mapping of the name to a number) to
         # bind to a specific link-local interface
         try:
-            bind = await self.loop.getaddrinfo(
-                bind[0],
-                bind[1],
-                family=socket.AF_INET6,
-                type=socket.SOCK_DGRAM,
-                flags=socket.AI_V4MAPPED,
-                )
+            addriter = getaddrinfo(
+                    loop,
+                    log,
+                    bind[0],
+                    bind[1],
+                    )
+            try:
+                bind = await addriter.__anext__()
+            except StopAsyncIteration:
+                raise RuntimeError("getaddrinfo returned zero-length list rather than erring out")
         except socket.gaierror:
             raise error.ResolutionError("No local bindable address found for %s" % bind[0])
-        assert bind, "getaddrinfo returned zero-length list rather than erring out"
-        (*_, bind), *additional = bind
-        if additional:
-            log.warning("Multiple addresses to bind to, only selecting %r and discarding %r", bind, additional)
+
+        try:
+            additional = await addriter.__anext__()
+        except StopAsyncIteration:
+            pass
+        except Exception as e:
+            log.error("Ignoring exception raised when checking for additional addresses that match the bind address", exc_info=e)
+        else:
+            log.warning("Multiple addresses to bind to, only selecting %r and discarding %r and any later", bind, additional)
 
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         if defaults.has_reuse_port():
@@ -407,36 +416,17 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         else:
             zone = None
 
-        # What we want from getaddrinfo is that it gives us the best address it
-        # has on the target, as long as it can be routed on the current system,
-        # and dress it as a V4MAPPED address. From the getaddrinfo man page
-        # it'd stand to assume that family=AF_INET6, flags=AI_V4MAPPED |
-        # AI_ADDRCONFIG would do that. (Instead, that raises gaierror when no
-        # v6 can be routed but one is available).
-        #
-        # So instead, we have to do this on foot -- get the family-unspecific
-        # list with AI_ADDRCONFIG (which in that situation does work), use the
-        # v6 if there is one, and dress up the v4 if not
-
         try:
-            addrinfo = await self.loop.getaddrinfo(
-                host,
-                port,
-                type=socket.SOCK_DGRAM,
-                flags=socket.AI_ADDRCONFIG,
-                )
+            # Note that this is our special addrinfo that ensures there is a
+            # route.
+            ip, port, flowinfo, scopeid = await getaddrinfo(
+                    self.loop,
+                    self.log,
+                    host,
+                    port,
+                    ).__anext__()
         except socket.gaierror:
             raise error.ResolutionError("No address information found for requests to %r" % host)
-
-        v6_addresses = [a[-1] for a in addrinfo if a[0] == socket.AF_INET6]
-        v4_addresses = [a[-1] for a in addrinfo if a[0] == socket.AF_INET]
-
-        if v6_addresses:
-            ip, port, flowinfo, scopeid = v6_addresses[0]
-        else:
-            ip, port = v4_addresses[0]
-            ip = '::ffff:' + ip
-            flowinfo = scopeid = 0
 
         if zone is not None:
             # Still trying to preserve the information returned (libc can't do
