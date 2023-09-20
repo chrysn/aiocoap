@@ -49,7 +49,6 @@ from .. import error
 from .. import interfaces
 from ..numbers import COAP_PORT
 from ..util.asyncio.recvmsg import RecvmsgDatagramProtocol, create_recvmsg_datagram_endpoint
-from ..util.asyncio.getaddrinfo_v4mapped import getaddrinfo
 from ..util import hostportjoin, hostportsplit
 from ..util import socknumbers
 
@@ -330,8 +329,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # without a getaddrinfo (or manual mapping of the name to a number) to
         # bind to a specific link-local interface
         try:
-            bind = await getaddrinfo(
-                loop,
+            bind = await self.loop.getaddrinfo(
                 bind[0],
                 bind[1],
                 family=socket.AF_INET6,
@@ -421,8 +419,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # v6 if there is one, and dress up the v4 if not
 
         try:
-            addrinfo = await getaddrinfo(
-                self.loop,
+            addrinfo = await self.loop.getaddrinfo(
                 host,
                 port,
                 type=socket.SOCK_DGRAM,
