@@ -62,6 +62,7 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         self.contextdir = tempfile.mkdtemp(suffix="-contexts")
 
         self.__task = self.loop.create_task(self.run_server(ready, self.__done))
+        self.__task.add_done_callback(lambda _: None if ready.done() else ready.set_exception(self.__task.exception()))
         self.loop.run_until_complete(ready)
 
     async def run_server(self, readiness, done):
