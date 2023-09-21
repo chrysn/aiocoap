@@ -324,6 +324,13 @@ class Context(interfaces.RequestProvider):
             timeout=SHUTDOWN_TIMEOUT)
         for item in done:
             await item
+        if pending:
+            # Apart from being useful to see, this also ensures that developers
+            # see the error in the logs during test suite runs -- and the error
+            # should be easier to follow than the "we didn't garbage collect
+            # everything" errors we see anyway (or otherwise, if the error is
+            # escalated into a test failure)
+            self.log.error("Shutdown timeout exceeded, returning anyway. Interfaces still busy: %s", pending)
 
     # FIXME: determine how official this should be, or which part of it is
     # public -- now that BlockwiseRequest uses it. (And formalize what can
