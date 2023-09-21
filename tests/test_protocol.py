@@ -2,7 +2,10 @@
 #
 # SPDX-License-Identifier: MIT
 
+import unittest
+
 from .fixtures import asynctest, no_warnings, WithAsyncLoop, WithLogMonitoring
+from . import common
 
 from aiocoap import Context
 
@@ -28,15 +31,17 @@ class TestProtocolSetup(WithLogMonitoring, WithAsyncLoop):
 
     @no_warnings
     @asynctest
+    # Workaround for https://github.com/chrysn/aiocoap/issues/321
+    @unittest.skipIf(hasattr(common, 'gbulb'), reason="uvloop has unresolved issues with unused contexts")
     async def test_multiple_contexts(self):
         # Not that that'd be a regular thing to do, just checking it *can* be
         # done
-        c1 = await Context.create_client_context()
-        c2 = await Context.create_client_context()
+        c1 = await Context.create_client_context(loggername="coap-client1")
+        c2 = await Context.create_client_context(loggername="coap-client2")
         # None is an acceptable site; binding to a concrete port
         # removes the worries of situations where the default
         # transports can't bind to "any".
-        s1 = await Context.create_server_context(None, bind=("::1", None))
+        s1 = await Context.create_server_context(None, bind=("::1", None), loggername="coap-server")
 
         await c1.shutdown()
         await s1.shutdown()
