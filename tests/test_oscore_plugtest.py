@@ -72,28 +72,29 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
                 self.contextdir + "/server",
                 stdin=None
                 )
+        try:
+            while True:
+                if b"Plugtest server ready.\n" in process_outputs.stdout:
+                    break
+                if self.process.get_returncode() is not None:
+                    readiness.set_exception(RuntimeError(
+                        "OSCORE server process terminated during startup:\n%s\n%s" % (
+                            process_outputs.stdout.decode('utf8'),
+                            process_outputs.stderr.decode('utf8'))))
+                    return
+                await process_outputs.read_more
+            readiness.set_result(True)
 
-        while True:
-            if b"Plugtest server ready.\n" in process_outputs.stdout:
-                break
-            if self.process.get_returncode() is not None:
-                readiness.set_exception(RuntimeError(
-                    "OSCORE server process terminated during startup:\n%s\n%s" % (
-                        process_outputs.stdout.decode('utf8'),
-                        process_outputs.stderr.decode('utf8'))))
-                return
-            await process_outputs.read_more
-        readiness.set_result(True)
+            while True:
+                if self.process.get_returncode() is not None:
+                    break
+                await process_outputs.read_more
 
-        while True:
-            if self.process.get_returncode() is not None:
-                break
-            await process_outputs.read_more
+            done.set_result(
+                    (process_outputs.stdout, process_outputs.stderr))
 
-        done.set_result(
-                (process_outputs.stdout, process_outputs.stderr))
-
-        self.process.close()
+        finally:
+            self.process.close()
 
     def tearDown(self):
         # Don't leave this over, even if anything is raised during teardown
