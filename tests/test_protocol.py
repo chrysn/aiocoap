@@ -2,7 +2,10 @@
 #
 # SPDX-License-Identifier: MIT
 
+import unittest
+
 from .fixtures import asynctest, no_warnings, WithAsyncLoop, WithLogMonitoring
+from . import common
 
 from aiocoap import Context
 
@@ -31,12 +34,12 @@ class TestProtocolSetup(WithLogMonitoring, WithAsyncLoop):
     async def test_multiple_contexts(self):
         # Not that that'd be a regular thing to do, just checking it *can* be
         # done
-        c1 = await Context.create_client_context()
-        c2 = await Context.create_client_context()
+        c1 = await Context.create_client_context(loggername="coap-client1")
+        c2 = await Context.create_client_context(loggername="coap-client2")
         # None is an acceptable site; binding to a concrete port
         # removes the worries of situations where the default
         # transports can't bind to "any".
-        s1 = await Context.create_server_context(None, bind=("::1", None))
+        s1 = await Context.create_server_context(None, bind=("::1", None), loggername="coap-server")
 
         await c1.shutdown()
         await s1.shutdown()
@@ -54,3 +57,7 @@ class TestProtocolSetup(WithLogMonitoring, WithAsyncLoop):
 
         await s1.shutdown()
         await s2.shutdown()
+
+if hasattr(common, 'gbulb'):
+    # Workaround for https://github.com/chrysn/aiocoap/issues/321
+    TestProtocolSetup.test_multiple_contexts = unittest.expectedFailure(TestProtocolSetup.test_multiple_contexts)
