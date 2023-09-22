@@ -31,6 +31,8 @@ class TestProtocolSetup(WithLogMonitoring, WithAsyncLoop):
 
     @no_warnings
     @asynctest
+    # Workaround for https://github.com/chrysn/aiocoap/issues/321
+    @unittest.skipIf(hasattr(common, 'gbulb'), reason="uvloop has unresolved issues with unused contexts")
     async def test_multiple_contexts(self):
         # Not that that'd be a regular thing to do, just checking it *can* be
         # done
@@ -57,7 +59,3 @@ class TestProtocolSetup(WithLogMonitoring, WithAsyncLoop):
 
         await s1.shutdown()
         await s2.shutdown()
-
-if hasattr(common, 'gbulb'):
-    # Workaround for https://github.com/chrysn/aiocoap/issues/321
-    TestProtocolSetup.test_multiple_contexts = unittest.expectedFailure(TestProtocolSetup.test_multiple_contexts)
