@@ -212,6 +212,7 @@ class WithClient(WithAsyncLoop, Destructing):
         self.client = self.loop.run_until_complete(aiocoap.Context.create_client_context())
 
     def tearDown(self):
+        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
         self.loop.run_until_complete(self.client.shutdown())
 
         self._del_to_be_sure("client")
