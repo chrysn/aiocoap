@@ -179,6 +179,11 @@ class WithAsyncLoop(unittest.TestCase):
         self.loop = asyncio.get_event_loop()
 
 class Destructing(WithLogMonitoring):
+    # Errors produced by this can be quite large, but the truncated version
+    # that gets printed when they exceed maxDiff is not useful, so removing any
+    # printing limits.
+    maxDiff = None
+
     def _del_to_be_sure(self, attribute):
         if isinstance(attribute, str):
             getter = lambda self, attribute=attribute: getattr(self, attribute)
