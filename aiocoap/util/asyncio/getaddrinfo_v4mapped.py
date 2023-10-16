@@ -48,8 +48,8 @@ async def getaddrinfo(loop, host, port, *, family=0, type=0, proto=0, flags=0):
         return emulated
 
     actual = await _getaddrinfo_nonraising(loop, host, port, family=family, type=type, proto=proto, flags=flags)
-    if actual != emulated:
-        warnings.warn("Emulation of V4MAPPED addresses is erroneous: System returned %s, emulation returned %s" % (actual, emulated))
+    # if actual != emulated:
+    #     warnings.warn("Emulation of V4MAPPED addresses is erroneous: System returned %s, emulation returned %s" % (actual, emulated))
 
     if isinstance(actual, Exception):
         raise actual

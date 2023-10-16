@@ -61,17 +61,17 @@ def build_parser():
     return p
 
 def configure_logging(verbosity):
-    logging.basicConfig()
+    # logging.basicConfig()
 
-    if verbosity <= -2:
-        logging.getLogger('coap').setLevel(logging.CRITICAL + 1)
-    elif verbosity == -1:
-        logging.getLogger('coap').setLevel(logging.ERROR)
-    elif verbosity == 0:
-        logging.getLogger('coap').setLevel(logging.WARNING)
-    elif verbosity == 1:
-        logging.getLogger('coap').setLevel(logging.INFO)
-    elif verbosity >= 2:
+    # if verbosity <= -2:
+    #     logging.getLogger('coap').setLevel(logging.CRITICAL + 1)
+    # elif verbosity == -1:
+    #     logging.getLogger('coap').setLevel(logging.ERROR)
+    # elif verbosity == 0:
+    #     logging.getLogger('coap').setLevel(logging.WARNING)
+    # elif verbosity == 1:
+    #     logging.getLogger('coap').setLevel(logging.INFO)
+    # elif verbosity >= 2:
         logging.getLogger('coap').setLevel(logging.DEBUG)
 
 def colored(text, options, *args, **kwargs):
