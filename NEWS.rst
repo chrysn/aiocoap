@@ -37,7 +37,7 @@ Bug fixes
 Meta
 ~~~~
 
-* Copyright statements updated, now complying with reuse.software specs.
+* Updated copyright statements, now complying with reuse.software specs.
 * LinkHeader dependency moved from unmaintained PyPI package into vendored copy
   to avoid trouble with missing .whl (wheel) files.
 

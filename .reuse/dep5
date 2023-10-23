@@ -19,7 +19,7 @@ Files:
   .gitlab-ci.yml
   .readthedocs.yaml
   MANIFEST.in
-  NEWS
+  NEWS.rst
   README.rst
   aiocoap/credentials.cddl
   contrib/aiocoap.ipynb
@@ -48,6 +48,7 @@ Files:
   doc/logo-square.svg
   doc/logo.svg
   doc/news.rst
+  doc/pyodide.rst
   doc/release-checklist
   doc/stateofoscore.rst
   doc/tools.rst
