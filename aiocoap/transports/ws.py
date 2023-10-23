@@ -289,8 +289,24 @@ class WSPool(interfaces.TokenInterface):
 
             hostinfo_split = util.hostportsplit(key.hostinfo)
 
+            ws_scheme = {'coap+ws': 'ws', 'coaps+ws': 'wss'}[key.scheme]
+
+            if ws_scheme == 'ws' and ssl_context is not None:
+                raise ValueError("An SSL context was provided for a remote accessed via a plaintext websockets.")
+            if ws_scheme == 'wss':
+                if is_pyodide:
+                    if ssl_context is not None:
+                        raise ValueError("The pyodide websocket implementation can't be configured with a non-default context -- connections created in a browser will always use the browser's CA set.")
+                else:
+                    if ssl_context is None:
+                        # Like with TLSClient, we need to pass in a default
+                        # context and can't rely on the websocket library to
+                        # use a default one when wss is requested (it doesn't)
+                        import ssl
+                        ssl_context = ssl.create_default_context()
+
             websocket = await websockets.connect("%s://%s/.well-known/coap" % (
-                {'coap+ws': 'ws', 'coaps+ws': 'wss'}[key.scheme], key.hostinfo),
+                ws_scheme, key.hostinfo),
                 subprotocols=['coap'],
                 ping_interval=None,
                 ssl=ssl_context,
