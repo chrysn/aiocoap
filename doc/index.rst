@@ -12,6 +12,7 @@
 
    examples
    tools
+   pyodide
    faq
    news
    LICENSE

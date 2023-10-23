@@ -10,12 +10,21 @@ If you are already familiar with asynchronous programming and/or some other
 concepts involved, or if you prefer reading code to reading tutorials, you
 might want to go after the :doc:`examples` instead.
 
+.. note:: If you want to give aiocoap a try without any installation,
+   you can also `run it from your web browser` -- albeit with some limitations.
+   :doc:`pyodide` describes how to use it and its differences from regular operation.
+   You can still follow this guided tour; any changes will be noted to *pyodide users*.
+
 First, some tools
 -----------------
 
 Before we get into programming, let's establish tools with which we can probe a
 server, and a server itself. If you have not done it already,
 :ref:`install aiocoap for development<installation-development>`.
+
+*pyodide users* just install aiocoap :ref:`their regular way<installation-pyodide>`.
+You can not run the commands we are using in this section;
+just read through it, expected outputs are displayed anyway.
 
 Start off with the sample server by running the following in a terminal inside
 the aiocoap directory::
@@ -143,6 +152,11 @@ like this::
 
 Users of the highly recommended IPython_ can continue in their existing
 session, as support for the asynchronous shell is always available there.
+
+*pyodide users* should rather use ``"coaps+ws://demo.coap.amsuess.com/other/separate"`` here,
+and change later URIs accordingly.
+That is an online service that runs the same server,
+and can be used without any local installation.
 
 ::
 
