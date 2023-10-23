@@ -321,10 +321,8 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         self.log.debug("Shutting down server %r", self)
         self._tokenmanager = None
         self.server.close()
-        # This should be quick, no need to make a task of it -- and now all
-        # previously accepted connections should be in to receive their proper
-        # release
-        await self.server.wait_closed()
+        # Since server has been closed, we won't be getting any *more*
+        # connections, so we can process them all now:
         shutdowns = [
                 asyncio.create_task(
                     c.release(),
@@ -332,9 +330,10 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
                 for c
                 in self._pool
                 ]
-        if not shutdowns:
-            # wait is documented to require a non-empty set
-            return
+        shutdowns.append(asyncio.create_task(
+                self.server.wait_closed(),
+                **py38args(name="Close server %s" % self)))
+        # There is at least one member, so we can just .wait()
         await asyncio.wait(shutdowns)
 
 class TCPClient(_TCPPooling, interfaces.TokenInterface):

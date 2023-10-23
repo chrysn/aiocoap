@@ -215,6 +215,18 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
 
         self.log.debug("Sending request - Token: %s, Remote: %s", msg.token.hex(), msg.remote)
 
+        # A request sent over the multicast interface will only return a single
+        # response and otherwise behave quite like an anycast request (which is
+        # probably intended).
+        if msg.remote.is_multicast:
+            self.log.warning("Sending request to multicast via unicast request method")
+            key = (msg.token, None)
+        else:
+            key = (msg.token, msg.remote)
+
+        self.outgoing_requests[key] = request
+        request.on_interest_end(functools.partial(self.outgoing_requests.pop, key, None))
+
         try:
             send_canceller = self.token_interface.send_message(msg, lambda: request.add_exception(error.MessageError))
         except Exception as e:
@@ -240,14 +252,3 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # transmission accordingly.
             request.on_event(lambda ev: (send_canceller(), False)[1],
                     is_interest=False)
-
-        # A request sent over the multicast interface will only return a single
-        # response and otherwise behave quite like an anycast request (which is
-        # probably intended).
-        if msg.remote.is_multicast:
-            self.log.warning("Sending request to multicast via unicast request method")
-            key = (msg.token, None)
-        else:
-            key = (msg.token, msg.remote)
-        self.outgoing_requests[key] = request
-        request.on_interest_end(functools.partial(self.outgoing_requests.pop, key, None))

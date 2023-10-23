@@ -35,7 +35,10 @@ class Color(KivyPropertyBacked):
     def __regular_get(self):
         return '#' + "".join("%02x"%int(255 * c) for c in self._get_value()[:3])
 
-    @ContenttypeRendered.put_handler('text/plain;charset=utf-8', default=True)
+    # 65362 is the content format used for SAUL RGB values, also in verdigris (manual clients will just send none)
+    #
+    # See also https://rustdoc.etonomy.org/riot_coap_handler_demos/saul/index.html
+    @ContenttypeRendered.put_handler(65362, default=True)
     def render_put(self, payload):
         if len(payload) == 7 and payload[0:1] == b'#':
             values = tuple(int(payload[i:i+2].decode('ascii'), 16)/255 for i in (1, 3, 5))
@@ -43,6 +46,9 @@ class Color(KivyPropertyBacked):
             return Message(code=BAD_REQUEST)
 
         self._set_value(values + (1,))
+
+    def get_link_description(self):
+        return {'saul': 'ACT_LED_RGB', 'if': 'core.p'}
 
 class Text(StringResource, KivyPropertyBacked):
     """A resource that represents a Kivy widget's text"""

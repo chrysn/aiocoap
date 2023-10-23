@@ -151,7 +151,7 @@ def _call_from_structureddata(constructor, name, init_data):
         # Not using isinstance because I foundno way to extract the type
         # information from an Optional/Union again; this whole thing works
         # only for strings and ints anyway, so why not.
-        if type(v) != annotation and Optional[type(v)] != annotation:
+        if annotation not in (type(v), Optional[type(v)]):
             # explicitly not excluding inspect._empty here: constructors
             # need to be fully annotated
             raise CredentialsLoadError("Type mismatch in attribute %s of %s: expected %s, got %r" % (k, name, annotation, v))

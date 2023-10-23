@@ -8,16 +8,22 @@ the asyncio DatagramProtocol.
 This implementation strives to be correct and complete behavior while still
 only using a single socket; that is, to be usable for all kinds of multicast
 traffic, to support server and client behavior at the same time, and to work
-correctly even when multiple IPv6 and IPv4 (using V4MAPPED addresses)
+correctly even when multiple IPv6 and IPv4 (using V4MAPPED style addresses)
 interfaces are present, and any of the interfaces has multiple addresses.
 
 This requires using some standardized but not necessarily widely ported
-features: ``AI_V4MAPPED`` to support IPv4 without resorting to less
-standardized mechanisms for later options, ``IPV6_RECVPKTINFO`` to determine
+features: ``IPV6_RECVPKTINFO`` to determine
 incoming packages' destination addresses (was it multicast) and to return
 packages from the same address, ``IPV6_JOIN_GROUP`` for multicast
 membership management and ``recvmsg`` to obtain data configured with the above
-options.
+options. The need for ``AI_V4MAPPED`` and ``AI_ADDRCONFIG`` is not manifest
+in the code because the latter on its own is insufficient to enable seamless
+interoperability with IPv4+IPv6 servers on IPv4-only hosts; instead,
+short-lived sockets are crated to assess which addresses are routable. This
+should correctly deal with situations in which a client has an IPv6 ULA
+assigned but no route, no matter whether the server advertises global IPv6
+addresses or addresses inside that ULA. It can not deal with situations in
+which the host has a default IPv6 route, but that route is not actually usable.
 
 To the author's knowledge, there is no standardized mechanism for receiving
 ICMP errors in such a setup. On Linux, ``IPV6_RECVERR`` and ``MSG_ERRQUEUE``
@@ -35,6 +41,7 @@ and the options can not be added easily to your platform, consider using the
 """
 
 import asyncio
+import contextvars
 import socket
 import ipaddress
 import struct
@@ -48,7 +55,7 @@ from .. import error
 from .. import interfaces
 from ..numbers import COAP_PORT
 from ..util.asyncio.recvmsg import RecvmsgDatagramProtocol, create_recvmsg_datagram_endpoint
-from ..util.asyncio.getaddrinfo_v4mapped import getaddrinfo
+from ..util.asyncio.getaddrinfo_addrconfig import getaddrinfo_routechecked as getaddrinfo
 from ..util import hostportjoin, hostportsplit
 from ..util import socknumbers
 
@@ -240,6 +247,16 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
         self.ready = asyncio.get_running_loop().create_future() #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
 
+        # This is set while a send is underway to determine in the
+        # error_received call site whom we were actually sending something to.
+        # This is a workaround for the abysmal error handling unconnected
+        # sockets have :-/
+        #
+        # FIXME: Figure out whether aiocoap can at all support a context being
+        # used with multiple aiocoap contexts, and if not, raise an error early
+        # rather than just-in-case doing extra stuff here.
+        self._remote_being_sent_to = contextvars.ContextVar('_remote_being_sent_to', default=None)
+
     def _local_port(self):
         # FIXME: either raise an error if this is 0, or send a message to self
         # to force the OS to decide on a port. Right now, this reports wrong
@@ -319,20 +336,27 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # without a getaddrinfo (or manual mapping of the name to a number) to
         # bind to a specific link-local interface
         try:
-            bind = await getaddrinfo(
-                loop,
-                bind[0],
-                bind[1],
-                family=socket.AF_INET6,
-                type=socket.SOCK_DGRAM,
-                flags=socket.AI_V4MAPPED,
-                )
+            addriter = getaddrinfo(
+                    loop,
+                    log,
+                    bind[0],
+                    bind[1],
+                    )
+            try:
+                bind = await addriter.__anext__()
+            except StopAsyncIteration:
+                raise RuntimeError("getaddrinfo returned zero-length list rather than erring out")
         except socket.gaierror:
             raise error.ResolutionError("No local bindable address found for %s" % bind[0])
-        assert bind, "getaddrinfo returned zero-length list rather than erring out"
-        (*_, bind), *additional = bind
-        if additional:
-            log.warning("Multiple addresses to bind to, only selecting %r and discarding %r", bind, additional)
+
+        try:
+            additional = await addriter.__anext__()
+        except StopAsyncIteration:
+            pass
+        except Exception as e:
+            log.error("Ignoring exception raised when checking for additional addresses that match the bind address", exc_info=e)
+        else:
+            log.warning("Multiple addresses to bind to, only selecting %r and discarding %r and any later", bind, additional)
 
         sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
         if defaults.has_reuse_port():
@@ -358,7 +382,12 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         if message.remote.pktinfo is not None:
             ancdata.append((socket.IPPROTO_IPV6, socknumbers.IPV6_PKTINFO,
                 message.remote.pktinfo))
-        self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
+        assert self._remote_being_sent_to.get(None) is None, "udp6.MessageInterfaceUDP6.send was reentered in a single task"
+        self._remote_being_sent_to.set(message.remote)
+        try:
+            self.transport.sendmsg(message.encode(), ancdata, 0, message.remote.sockaddr)
+        finally:
+            self._remote_being_sent_to.set(None)
 
     async def recognize_remote(self, remote):
         return isinstance(remote, UDP6EndpointAddress) and \
@@ -394,28 +423,16 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             zone = None
 
         try:
-            own_sock = self.transport.get_extra_info('socket')
-            addrinfo = await getaddrinfo(
-                self.loop,
-                host,
-                port,
-                family=own_sock.family,
-                type=0, # Not setting the sock's proto as that fails up to
-                        # Python 3.6; setting that would make debugging around
-                        # here less confusing but otherwise has no effect
-                        # (unless maybe very exotic protocols show up).
-                proto=own_sock.proto,
-                flags=socket.AI_V4MAPPED,
-                )
+            # Note that this is our special addrinfo that ensures there is a
+            # route.
+            ip, port, flowinfo, scopeid = await getaddrinfo(
+                    self.loop,
+                    self.log,
+                    host,
+                    port,
+                    ).__anext__()
         except socket.gaierror:
             raise error.ResolutionError("No address information found for requests to %r" % host)
-
-        # TODO this is very rudimentary; happy-eyeballs or
-        # similar could be employed.
-
-        sockaddr = addrinfo[0][-1]
-
-        ip, port, flowinfo, scopeid = sockaddr
 
         if zone is not None:
             # Still trying to preserve the information returned (libc can't do
@@ -518,8 +535,22 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
     def error_received(self, exc):
         """Implementation of the DatagramProtocol interface, called by the transport."""
-        # TODO: what can we do about errors we *only* receive here? (eg. sending to 127.0.0.0)
-        self.log.error("Error received and ignored in this codepath: %s", exc)
+
+        remote = self._remote_being_sent_to.get()
+
+        if remote is None:
+            # TODO: Are there any errors left that wind up here? (sending to 127.0.0.0 takes the later half of this function)
+            self.log.error("Error received in situation with no way to to determine which sending caused the error; this should be accompanied by an error in another code path: %s", exc)
+            return
+
+        try:
+            self._ctx.dispatch_error(exc, remote)
+        except BaseException as exc:
+            # Catching here because util.asyncio.recvmsg inherits
+            # _SelectorDatagramTransport's bad handling of callback errors;
+            # this is the last time we have a log at hand.
+            self.log.error("Exception raised through dispatch_error: %s", exc, exc_info=exc)
+            raise
 
     def connection_lost(self, exc):
         # TODO better error handling -- find out what can cause this at all

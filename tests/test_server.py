@@ -212,7 +212,18 @@ class WithClient(WithAsyncLoop, Destructing):
         self.client = self.loop.run_until_complete(aiocoap.Context.create_client_context())
 
     def tearDown(self):
+        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
         self.loop.run_until_complete(self.client.shutdown())
+
+        # Nothing in the context should keep the request interfaces alive;
+        # delete them first to see *which* of them is the one causing the
+        # trouble
+        while self.client.request_interfaces:
+            self._del_to_be_sure({
+                'get': (lambda self: self.client.request_interfaces[0]),
+                'del': (lambda self: self.client.request_interfaces.__delitem__(0)),
+                'label': 'request_interfaces[%s]' % self.client.request_interfaces[0]
+                })
 
         self._del_to_be_sure("client")
 

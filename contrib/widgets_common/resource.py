@@ -57,7 +57,10 @@ class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resou
     @staticmethod
     def put_handler(contentformat, *, default=False):
         def wrapper(func):
-            cf = numbers.media_types_rev[contentformat]
+            if isinstance(contentformat, str):
+                cf = numbers.media_types_rev[contentformat]
+            else:
+                cf = contentformat
             return _ContenttypeRenderedHandler(PUT, (None,), (cf, None) if default else (cf,), func, None)
         return wrapper
 

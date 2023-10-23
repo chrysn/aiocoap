@@ -116,6 +116,15 @@ class TestClientOther(WithTestServer, WithClient):
         self.resp.cancel()
         self.assertEqual(loglength, len(self.handler.list), "Something was logged during request creation and immediate cancellation: %r" % (self.handler.list[loglength:],))
 
+        # FIXME: What is slightly weird here is that on uvloop, something
+        # *does* get sent -- but it appears that that happens even after the
+        # cancellation. That behavior oly gets apparent when test_freeoncancel
+        # and test_freeoncancel_non were run in a single test, because then the
+        # ACK Content from the prior test also got counted.
+
+    @no_warnings
+    @asynctest
+    async def test_freeoncancel_non(self):
         # With a NON, the response should take long. (Not trying to race the
         # "I'm taking too long"-ACK by making the sleep short enough).
         # Note that the resource implementation deliberately sends responses as CON,

@@ -21,6 +21,7 @@ suite to decide which tests to skip.
 import os
 import socket
 import sys
+import warnings
 
 try:
     import pyodide  # noqa: F401
@@ -29,8 +30,6 @@ except ImportError:
     is_pyodide = False
 else:
     is_pyodide = True
-
-is_android = sys.getandroidapilevel() if 'getandroidapilevel' in dir(sys) else None
 
 def get_default_clienttransports(*, loop=None, use_env=True):
     """Return a list of transports that should be connected when a client
@@ -128,12 +127,11 @@ def has_reuse_port(*, use_env=True):
     return hasattr(socket, 'SO_REUSEPORT')
 
 def use_ai_v4mapped_emulation():
-    """Returns True on platforms that do support V6ONLY=0 sockets (ie. that can
-    bind a socket to [::] and accept V4 requests, and that can connect to
-    [::ffff:192.168.0.1] and still use the V6 APIs), but whose libc does not
-    accept the AI_V4MAPPED argument to the getaddrinfo function. On these
-    platforms, V4MAPPED can be emulated."""
-    return is_android is not None
+    """This used to indicate when ai_v4mapped emulation was used. Given it is
+    not used at all any more, the function is deprecated."""
+    warnings.warn("AI_V4MAPPED emulation is not used any more at all",
+            warnings.DeprecationWarning)
+    return False
 
 # FIXME: If there were a way to check for the extras defined in setup.py, or to link these lists to what is descibed there, that'd be great.
 
