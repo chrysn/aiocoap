@@ -4,7 +4,7 @@ build:
   # from the limited choice there is; preferred would be a Python image
   os: ubuntu-22.04
   tools:
-    python: 3.11
+    python: "3.11"
 
 sphinx:
   builder: html
