@@ -139,7 +139,3 @@ pages:
   artifacts:
     paths:
       - public
-
-include:
-  - template: SAST.gitlab-ci.yml
-  - template: License-Scanning.gitlab-ci.yml
