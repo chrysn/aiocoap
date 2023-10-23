@@ -1,5 +1,9 @@
 version: 2
 
+build:
+  # from the limited choice there is; preferred would be a Python image
+  os: ubuntu-22.04
+
 sphinx:
   builder: html
 
