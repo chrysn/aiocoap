@@ -192,7 +192,10 @@ async def single_request(args, context):
     configure_logging((options.verbose or 0) - (options.quiet or 0))
 
     try:
-        code = getattr(aiocoap.numbers.codes.Code, options.method.upper())
+        code = getattr(
+                aiocoap.numbers.codes.Code,
+                options.method.upper().replace('IPATCH', 'iPATCH')
+                )
     except AttributeError:
         try:
             code = aiocoap.numbers.codes.Code(int(options.method))
