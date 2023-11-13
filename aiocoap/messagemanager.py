@@ -413,6 +413,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             message.mid = self._next_message_id()
 
         if message.mtype == CON and message.remote in self._backlogs:
+            assert any(remote == message.remote for (remote, _) in self._active_exchanges)
             self.log.debug("Message to %s put into backlog", message.remote)
             self._backlogs[message.remote].append((message, messageerror_monitor))
         else:
