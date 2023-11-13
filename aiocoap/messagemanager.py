@@ -141,10 +141,15 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         for key, (messageerror_monitor, cancellable_timeout) in self._active_exchanges.items():
             (exchange_remote, message_id) = key
             if remote == exchange_remote:
-                cancellable_timeout.cancel()
                 keys_for_removal.append(key)
         for k in keys_for_removal:
-            self._active_exchanges.pop(k)
+            (messageerror_monitor, cancellable_timeout) = self._active_exchanges.pop(k)
+            cancellable_timeout.cancel()
+            # not triggering the messageerror_monitor: that already got the
+            # clue from the token manager
+        self._backlogs.pop(remote, ())
+        # while that's an iterable over messages and messageerror monitors, not
+        # triggering them either for th esame reason as above
 
     #
     # coap dispatch, message-id sublayer: duplicate handling
