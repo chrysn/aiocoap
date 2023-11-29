@@ -795,6 +795,8 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             return
         except Exception as e:
             weak_observation().error(e)
+        finally:
+            lower_observation.cancel()
 
     @classmethod
     async def _complete_by_requesting_block2(cls, protocol, request_to_repeat, initial_response, log):
