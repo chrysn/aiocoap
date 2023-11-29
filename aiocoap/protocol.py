@@ -448,6 +448,9 @@ class Request(interfaces.Request, BaseUnicastRequest):
         self._runner.send(None)
         def process(event):
             try:
+                # would be great to have self or the runner as weak ref, but
+                # see ClientObservation.register_callback comments -- while
+                # that is around, we can't weakref here.
                 self._runner.send(event)
                 return True
             except StopIteration:
@@ -834,9 +837,9 @@ class ClientObservation:
     """An interface to observe notification updates arriving on a request.
 
     This class does not actually provide any of the observe functionality, it
-    is purely a container for dispatching the messages via callbacks or
-    asynchronous iteration. It gets driven (ie. populated with responses or
-    errors including observation termination) by a Request object.
+    is purely a container for dispatching the messages via asynchronous
+    iteration. It gets driven (ie. populated with responses or errors including
+    observation termination) by a Request object.
     """
     def __init__(self):
         self.callbacks = []
@@ -849,11 +852,9 @@ class ClientObservation:
         # the analogous error is stored in _cancellation_reason when cancelled.
 
     def __aiter__(self):
-        """`async for` interface to observations. Currently, this still loses
-        information to the application (the reason for the termination is
-        unclear).
+        """`async for` interface to observations.
 
-        Experimental Interface."""
+        This is the preferred interface to obtaining observations."""
         it = self._Iterator()
         self.register_callback(it.push)
         self.register_errback(it.push_err)
@@ -904,9 +905,21 @@ class ClientObservation:
                 except (error.LibraryShutdown, asyncio.CancelledError):
                     pass
 
+    # When this function is removed, we can finally do cleanup better. Right
+    # now, someone could register a callback that doesn't hold any references,
+    # so we can't just stop the request when nobody holds a reference to this
+    # any more. Once we're all in pull mode, we can make the `process` function
+    # that sends data in here use a weak reference (because any possible
+    # recipient would need to hold a reference to self or the iterator, and
+    # thus _run).
     def register_callback(self, callback):
         """Call the callback whenever a response to the message comes in, and
-        pass the response to it."""
+        pass the response to it.
+
+        The use of this function is deprecated: Use the asynchronous iteration
+        interface instead."""
+        warnings.warn("register_callback on observe results is deprected: Use `async for notify in request.observation` instead.",
+                      DeprecationWarning)
         if self.cancelled:
             return
 
@@ -917,7 +930,12 @@ class ClientObservation:
     def register_errback(self, callback):
         """Call the callback whenever something goes wrong with the
         observation, and pass an exception to the callback. After such a
-        callback is called, no more callbacks will be issued."""
+        callback is called, no more callbacks will be issued.
+
+        The use of this function is deprecated: Use the asynchronous iteration
+        interface instead."""
+        warnings.warn("register_errback on observe results is deprected: Use `async for notify in request.observation` instead.",
+                      DeprecationWarning)
         if self.cancelled:
             callback(self._cancellation_reason)
             return
@@ -945,7 +963,13 @@ class ClientObservation:
         # FIXME determine whether this is called by anything other than error,
         # and make it private so there is always a _cancellation_reason
         """Cease to generate observation or error events. This will not
-        generate an error by itself."""
+        generate an error by itself.
+
+        This function is only needed while register_callback and
+        register_errback are around; once their deprecations are acted on,
+        dropping the asynchronous iterator will automatically cancel the
+        observation.
+        """
 
         assert not self.cancelled
 
