@@ -78,7 +78,13 @@ class Pipe:
         on_interest_end callbacks have already been called"""
 
     def __repr__(self):
-        return '<%s at %#x around %r with %r callbacks>' % (type(self).__name__, id(self), self.request, len(self._event_callbacks) if self._event_callbacks else self._event_callbacks)
+        return '<%s at %#x around %r with %r callbacks (thereof %r interests)>' % (
+                type(self).__name__,
+                id(self),
+                self.request,
+                len(self._event_callbacks) if self._event_callbacks else self._event_callbacks,
+                sum(1 for (e, is_interest) in self._event_callbacks if is_interest) if self._event_callbacks else self._event_callbacks,
+                )
 
     def _any_interest(self):
         return any(is_interest for (cb, is_interest) in self._event_callbacks)
