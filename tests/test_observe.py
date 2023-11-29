@@ -137,12 +137,17 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         requester = self.client.request(request)
         observation_results = []
-        requester.observation.register_callback(lambda message: observation_results.append(message.payload))
-        requester.observation.register_errback(lambda reason: observation_results.append(reason))
+        async def task():
+            try:
+                async for obs in requester.observation:
+                    observation_results.append(obs.payload)
+                # This is how non-observability is indicated: The loop just terminates
+                observation_results.append("done")
+            except Exception as e:
+                observation_results.append(e)
+        running_task = asyncio.create_task(task())
 
-        notinterested = lambda: requester.observation.cancel()
-
-        return requester, observation_results, notinterested
+        return requester, observation_results, running_task.cancel
 
     @no_warnings
     @asynctest
@@ -154,7 +159,7 @@ class TestObserve(WithObserveTestServer, WithClient):
         self.assertEqual(response.payload, b'', "Unobservable base request gave unexpected result")
 
         await asyncio.sleep(0.1)
-        self.assertEqual(str(observation_results), '[NotObservable()]')
+        self.assertEqual(observation_results, ["done"])
 
     async def _change_counter(self, method, payload, path=['deep', 'count']):
         request = aiocoap.Message(code=method, uri_path=path, payload=payload)
@@ -296,9 +301,12 @@ class TestObserve(WithObserveTestServer, WithClient):
         await self._change_counter(aiocoap.POST, b"")
         await self._change_counter(aiocoap.POST, b"")
 
-        observation_results = []
-        requester.observation.register_callback(lambda message: observation_results.append(message.payload))
-        requester.observation.register_errback(lambda reason: observation_results.append(reason))
+        last_seen = None
+        async def task():
+            nonlocal last_seen
+            async for obs in requester.observation:
+                last_seen = obs.payload
+        pull_task = asyncio.create_task(task())
 
         # this is not required in the current implementation as it calls back
         # right from the registration, but i don't want to prescribe that.
@@ -306,9 +314,11 @@ class TestObserve(WithObserveTestServer, WithClient):
         self.loop.call_soon(lambda: wait_a_moment.set_result(None))
         await wait_a_moment
 
-        self.assertEqual(observation_results[-1:], [b"2"])
-        # only testing the last element because both [b"1", b"2"] and [b"2"]
-        # are correct eventually consistent results.
+        pull_task.cancel()
+
+        self.assertEqual(last_seen, b"2")
+        # only testing what was last seen because both receiving b"1" and b"2"
+        # and only b"2" are correct eventually consistent results.
 
         requester.observation.cancel()
 

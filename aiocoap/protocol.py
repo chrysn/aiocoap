@@ -858,8 +858,8 @@ class ClientObservation:
 
         This is the preferred interface to obtaining observations."""
         it = self._Iterator()
-        self.register_callback(it.push)
-        self.register_errback(it.push_err)
+        self.register_callback(it.push, _suppress_deprecation=True)
+        self.register_errback(it.push_err, _suppress_deprecation=True)
         return it
 
     class _Iterator:
@@ -914,14 +914,15 @@ class ClientObservation:
     # that sends data in here use a weak reference (because any possible
     # recipient would need to hold a reference to self or the iterator, and
     # thus _run).
-    def register_callback(self, callback):
+    def register_callback(self, callback, _suppress_deprecation=False):
         """Call the callback whenever a response to the message comes in, and
         pass the response to it.
 
         The use of this function is deprecated: Use the asynchronous iteration
         interface instead."""
-        warnings.warn("register_callback on observe results is deprected: Use `async for notify in request.observation` instead.",
-                      DeprecationWarning)
+        if not _suppress_deprecation:
+            warnings.warn("register_callback on observe results is deprected: Use `async for notify in request.observation` instead.",
+                      DeprecationWarning, stacklevel=2)
         if self.cancelled:
             return
 
@@ -929,15 +930,16 @@ class ClientObservation:
         if self._latest_response is not None:
             callback(self._latest_response)
 
-    def register_errback(self, callback):
+    def register_errback(self, callback, _suppress_deprecation=False):
         """Call the callback whenever something goes wrong with the
         observation, and pass an exception to the callback. After such a
         callback is called, no more callbacks will be issued.
 
         The use of this function is deprecated: Use the asynchronous iteration
         interface instead."""
-        warnings.warn("register_errback on observe results is deprected: Use `async for notify in request.observation` instead.",
-                      DeprecationWarning)
+        if not _suppress_deprecation:
+            warnings.warn("register_errback on observe results is deprected: Use `async for notify in request.observation` instead.",
+                      DeprecationWarning, stacklevel=2)
         if self.cancelled:
             callback(self._cancellation_reason)
             return
