@@ -468,9 +468,8 @@ class Request(interfaces.Request, BaseUnicastRequest):
             # similar to a cancelled task
             self._runner = None
             self._stop_interest()
-        # But either way we won't be calling _stop_interest any more, so let's
-        # not keep anything referenced
-        self._stop_interest = None
+        # Otherwise, there will be a runner still around, and it's its task to
+        # call _stop_interest.
 
     @staticmethod
     def _add_response_properties(response, request):
@@ -503,7 +502,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
                 self.log.error("Pipe indicated more possible responses"
                                " while the Request handler would not know what to"
                                " do with them, stopping any further request.")
-                self._pipe.stop_interest()
+                self._stop_interest()
             return
 
         if first_event.is_last:
@@ -514,7 +513,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
             self.log.error("Pipe indicated more possible responses"
                            " while the Request handler would not know what to"
                            " do with them, stopping any further request.")
-            self._pipe.stop_interest()
+            self._stop_interest()
             return
 
         # variable names from RFC7641 Section 3.4
@@ -532,13 +531,13 @@ class Request(interfaces.Request, BaseUnicastRequest):
             # then.
             next_event = yield True
             if self.observation.cancelled:
-                self._pipe.stop_interest()
+                self._stop_interest()
                 return
 
             if next_event.exception is not None:
                 self.observation.error(next_event.exception)
                 if not next_event.is_last:
-                    self._pipe.stop_interest()
+                    self._stop_interest()
                 if not isinstance(next_event.exception, error.Error):
                     self.log.warning(
                            "An exception that is not an aiocoap Error was "
@@ -576,7 +575,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
                 self.log.error("Pipe indicated more possible responses"
                                " while the Request handler would not know what to"
                                " do with them, stopping any further request.")
-                self._pipe.stop_interest()
+                self._stop_interest()
                 return
 
 
