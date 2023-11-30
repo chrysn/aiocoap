@@ -975,7 +975,7 @@ class ClientObservation:
         observation.
         """
 
-        assert not self.cancelled
+        assert not self.cancelled, "ClientObservation cancelled twice"
 
         # make sure things go wrong when someone tries to continue this
         self.errbacks = None
