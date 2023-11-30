@@ -796,7 +796,11 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         except Exception as e:
             weak_observation().error(e)
         finally:
-            lower_observation.cancel()
+            # We generally avoid idempotent cancellation, but we may have
+            # reached this point either due to an earlier cancellation or
+            # without one
+            if not lower_observation.cancelled:
+                lower_observation.cancel()
 
     @classmethod
     async def _complete_by_requesting_block2(cls, protocol, request_to_repeat, initial_response, log):
