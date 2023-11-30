@@ -908,8 +908,13 @@ class ClientObservation:
                     # This is the case at the end of an observation cancelled
                     # by the server.
                     pass
+                except error.NetworkError:
+                    # This will already have shown up in the main result too.
+                    pass
                 except (error.LibraryShutdown, asyncio.CancelledError):
                     pass
+                # Anything else flying out of this is unexpected and probably a
+                # library error
 
     # When this function is removed, we can finally do cleanup better. Right
     # now, someone could register a callback that doesn't hold any references,
