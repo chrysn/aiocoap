@@ -957,6 +957,8 @@ class ClientObservation:
         """Notify registered listeners that the observation went wrong. This
         can only be called once."""
 
+        if self.errbacks is None:
+            raise RuntimeError("Error raised in an already cancelled ClientObservation") from exception
         for c in self.errbacks:
             c(exception)
 
