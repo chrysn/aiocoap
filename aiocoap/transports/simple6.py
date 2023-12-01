@@ -38,7 +38,9 @@ transport is unavailable due to platform limitations.
 
 import asyncio
 from collections import OrderedDict
+import socket
 
+from aiocoap import error
 from aiocoap import interfaces
 from aiocoap import COAP_PORT
 from ..util import hostportjoin
@@ -209,9 +211,12 @@ class _DatagramClientSocketpoolSimple6:
         await self._maybe_purge_sockets()
 
         ready = asyncio.get_running_loop().create_future()
-        transport, protocol = await self._loop.create_datagram_endpoint(
-                lambda: _Connection(lambda: ready.set_result(None), self._message_interface, sockaddr),
-                remote_addr=sockaddr)
+        try:
+            transport, protocol = await self._loop.create_datagram_endpoint(
+                    lambda: _Connection(lambda: ready.set_result(None), self._message_interface, sockaddr),
+                    remote_addr=sockaddr)
+        except socket.gaierror as e:
+            raise error.ResolutionError("No address information found for requests to %r" % (sockaddr,)) from e
         await ready
 
 #         # Enable this to easily make every connection to localhost a new one
