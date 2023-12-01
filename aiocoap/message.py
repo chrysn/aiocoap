@@ -395,7 +395,7 @@ class Message(object):
                 next_after_received, False, response.opt.block2.size_exponent)
 
         # has been checked in assembly, just making sure
-        assert blockopt.start == len(response.payload)
+        assert blockopt.start == len(response.payload), "Unexpected state of preassembled message"
 
         blockopt = blockopt.reduced_to(response.remote.maximum_block_size_exp)
 
@@ -514,10 +514,10 @@ class Message(object):
         fragment = None
         params = "" # are they not there at all?
 
-        # Eases debugging, for when thy raise from urunparse you won't know
-        # which it was
-        assert scheme is not None
-        assert netloc is not None
+        # Eases debugging, for when they raise from urunparse you won't know
+        # which of them it was
+        assert scheme is not None, "Remote has no scheme set"
+        assert netloc is not None, "Remote has no netloc set"
         return urllib.parse.urlunparse((scheme, netloc, path, params, query, fragment))
 
     def set_request_uri(self, uri, *, set_uri_host=True):

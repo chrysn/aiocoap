@@ -137,12 +137,17 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         requester = self.client.request(request)
         observation_results = []
-        requester.observation.register_callback(lambda message: observation_results.append(message.payload))
-        requester.observation.register_errback(lambda reason: observation_results.append(reason))
+        async def task():
+            try:
+                async for obs in requester.observation:
+                    observation_results.append(obs.payload)
+                # This is how non-observability is indicated: The loop just terminates
+                observation_results.append("done")
+            except Exception as e:
+                observation_results.append(e)
+        running_task = asyncio.create_task(task())
 
-        notinterested = lambda: requester.observation.cancel()
-
-        return requester, observation_results, notinterested
+        return requester, observation_results, running_task.cancel
 
     @no_warnings
     @asynctest
@@ -154,7 +159,7 @@ class TestObserve(WithObserveTestServer, WithClient):
         self.assertEqual(response.payload, b'', "Unobservable base request gave unexpected result")
 
         await asyncio.sleep(0.1)
-        self.assertEqual(str(observation_results), '[NotObservable()]')
+        self.assertEqual(observation_results, ["done"])
 
     async def _change_counter(self, method, payload, path=['deep', 'count']):
         request = aiocoap.Message(code=method, uri_path=path, payload=payload)
@@ -267,16 +272,20 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         events = []
 
-        def cb(x):
-            events.append("Callback: %s"%x)
-        def eb(x):
-            events.append("Errback")
-        requester.observation.register_callback(cb)
-        requester.observation.register_errback(eb)
+        async def task():
+            try:
+                async for obs in requester.observation:
+                    events.append("Callback: %s" % obs.payload)
+                events.append("Regular empty return")
+            except Exception as e:
+                events.append("Error %s" % type(e).__name__)
+        pull_task = asyncio.create_task(task())
 
         response = await requester.response_nonraising
+        await asyncio.sleep(0.1)
+        pull_task.cancel()
 
-        self.assertEqual(events, ["Errback"])
+        self.assertEqual(events, ["Error ResolutionError"])
 
     @no_warnings
     @asynctest
@@ -296,9 +305,12 @@ class TestObserve(WithObserveTestServer, WithClient):
         await self._change_counter(aiocoap.POST, b"")
         await self._change_counter(aiocoap.POST, b"")
 
-        observation_results = []
-        requester.observation.register_callback(lambda message: observation_results.append(message.payload))
-        requester.observation.register_errback(lambda reason: observation_results.append(reason))
+        last_seen = None
+        async def task():
+            nonlocal last_seen
+            async for obs in requester.observation:
+                last_seen = obs.payload
+        pull_task = asyncio.create_task(task())
 
         # this is not required in the current implementation as it calls back
         # right from the registration, but i don't want to prescribe that.
@@ -306,13 +318,14 @@ class TestObserve(WithObserveTestServer, WithClient):
         self.loop.call_soon(lambda: wait_a_moment.set_result(None))
         await wait_a_moment
 
-        self.assertEqual(observation_results[-1:], [b"2"])
-        # only testing the last element because both [b"1", b"2"] and [b"2"]
-        # are correct eventually consistent results.
+        pull_task.cancel()
+
+        self.assertEqual(last_seen, b"2")
+        # only testing what was last seen because both receiving b"1" and b"2"
+        # and only b"2" are correct eventually consistent results.
 
         requester.observation.cancel()
 
-    @asynctest
     async def _test_no_observe(self, path):
         m = aiocoap.Message(code=aiocoap.GET, observe=0)
         m.unresolved_remote = self.servernetloc
@@ -327,16 +340,27 @@ class TestObserve(WithObserveTestServer, WithClient):
         return request
 
     @no_warnings
-    def test_notreally(self):
-        self._test_no_observe(['deep', 'notreally'])
+    @asynctest
+    async def test_notreally(self):
+        await self._test_no_observe(['deep', 'notreally'])
 
     @no_warnings
-    def test_failure(self):
-        request = self._test_no_observe(['deep', 'failure'])
+    @asynctest
+    async def test_failure(self):
+        request = await self._test_no_observe(['deep', 'failure'])
 
-        errors = []
-        request.observation.register_errback(errors.append)
-        self.assertEqual(len(errors), 1, "Errback was not called on a failed observation")
+        failure = None
+        async def task():
+            nonlocal failure
+            try:
+                async for obs in requester.observation:
+                    pass
+            except Exception as e:
+                failure = e
+        pull_task = asyncio.create_task(task())
+        await asyncio.sleep(0.1)
+
+        self.assertTrue(failure is not None, "Errback was not called on a failed observation")
 
 if __name__ == "__main__":
     # due to the imports, you'll need to run this as `python3 -m tests.test_observe`

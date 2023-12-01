@@ -156,7 +156,7 @@ class RequestIdentifiers:
             return (None, None)
 
 def _xor_bytes(a, b):
-    assert len(a) == len(b)
+    assert len(a) == len(b), "XOR needs consistent lengths"
     # FIXME is this an efficient thing to do, or should we store everything
     # that possibly needs xor'ing as long integers with an associated length?
     return bytes(_a ^ _b for (_a, _b) in zip(a, b))
@@ -173,7 +173,7 @@ class AeadAlgorithm(metaclass=abc.ABCMeta):
 
     @staticmethod
     def _build_encrypt0_structure(protected, external_aad):
-        assert protected == {}
+        assert protected == {}, "Unexpected data in protected bucket"
         protected_serialized = b'' # were it into an empty dict, it'd be the cbor dump
         enc_structure = ['Encrypt0', protected_serialized, external_aad]
 
@@ -583,7 +583,7 @@ class BaseSecurityContext:
             # observation span group rekeyings
             external_aad.append(self.id_context)
 
-            assert message.opt.object_security is not None
+            assert message.opt.object_security is not None, "Double OSCORE"
             external_aad.append(message.opt.object_security)
 
             if local_is_sender:
@@ -672,7 +672,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         kid_context can be passed in as byte string in the same parameter.
         """
 
-        assert (request_id is None) == message.code.is_request()
+        assert (request_id is None) == message.code.is_request(), "Requestishness of code to protect does not match presence of request ID"
 
         outer_message, plaintext = self._split_message(message, request_id)
 
@@ -852,7 +852,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
 class CanUnprotect(BaseSecurityContext):
     def unprotect(self, protected_message, request_id=None):
-        assert (request_id is not None) == protected_message.code.is_response()
+        assert (request_id is not None) == protected_message.code.is_response(), "Requestishness of code to unprotect does not match presence of request ID"
         is_response = protected_message.code.is_response()
 
         # Set to a raisable exception on replay check failures; it will be
@@ -1255,7 +1255,7 @@ class ReplayWindow:
         if overshoot > 0:
             self._index += overshoot
             self._bitfield >>= overshoot
-        assert self.is_valid(number)
+        assert self.is_valid(number), "Sequence number was not valid before strike-out"
         self._bitfield |= 1 << (number - self._index)
 
         self.strike_out_callback()
@@ -1466,7 +1466,7 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
 
             # The = case would only happen if someone deliberately sets all
             # numbers to 1 to force persisting on every step
-            assert self.sender_sequence_number <= self.sequence_number_persisted
+            assert self.sender_sequence_number <= self.sequence_number_persisted, "Using a sequence number that has been persisted already"
 
     def _destroy(self):
         """Release the lock file, and ensure tha he object has become

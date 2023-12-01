@@ -504,11 +504,11 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             raise
 
     def datagram_errqueue_received(self, data, ancdata, flags, address):
-        assert flags == socknumbers.MSG_ERRQUEUE
+        assert flags == socknumbers.MSG_ERRQUEUE, "Received non-error data through the errqueue"
         pktinfo = None
         errno = None
         for cmsg_level, cmsg_type, cmsg_data in ancdata:
-            assert cmsg_level == socket.IPPROTO_IPV6
+            assert cmsg_level == socket.IPPROTO_IPV6, "Received non-IPv6 protocol through the errqueue"
             if cmsg_type == socknumbers.IPV6_RECVERR:
                 extended_err = SockExtendedErr.load(cmsg_data)
                 self.log.debug("Socket error recevied, details: %s", extended_err)
