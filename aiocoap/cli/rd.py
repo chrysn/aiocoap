@@ -132,9 +132,9 @@ class CommonRD:
 
         def update_params(self, network_remote, registration_parameters, is_initial=False):
             """Set the registration_parameters from the parsed query arguments,
-            update any effects of them, and and trigger any observation
-            observation updates if requried (the typical ones don't because
-            their registration_parameters are {} and all it does is restart the
+            update any effects of them, and trigger any observation updates if
+            required (the typical ones don't because their
+            registration_parameters are {} and all it does is restart the
             lifetime counter)"""
 
             if any(k in ('ep', 'd') for k in registration_parameters.keys()):
