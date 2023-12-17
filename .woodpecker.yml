@@ -1,0 +1,33 @@
+when:
+  - event: push
+    branch: [main, woodpecker]
+  - event: pull_request
+
+# We can group commands (with `group: tests`) because woodpecker has good
+# network isolation between the containers, as tested by running `socat -
+# tcp-listen:1234`
+#
+# We don't have any IPv6, but localhost 
+
+steps:
+  test:py310:
+    image: docker.io/ubuntu:jammy
+    group: tests
+    commands:
+      - set -x
+      - apt-get update && apt-get -y install iproute2 socat moreutils
+      - ip -4 a; ip -6 a; ip -6 r
+      - grep "" /etc/hosts
+      - cat /etc/hosts | sed "s/^::1/# &/" | sponge /etc/hosts
+      - grep "" /etc/hosts
+      - 'timeout 2m socat -v -v - tcp6-listen:1234,bind=localhost'
+      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+
+#   test:py311:
+#     image: docker.io/debian:bookworm
+#     group: tests
+#     commands:
+#       - set -x
+#       - apt-get update && apt-get -y install iproute2 socat
+#       - ip -4 a; ip -6 a; ip -6 r
+#       - 'timeout 2m socat -v -v - tcp6-listen:1234,bind=::ffff:127.0.0.1'
