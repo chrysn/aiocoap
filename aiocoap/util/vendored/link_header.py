@@ -31,6 +31,7 @@ For further information see parse(), LinkHeader and Link.
 '''
 
 import re
+from typing import Dict
 from urllib.parse import urljoin
 
 __all__ = ['parse', 'format_links', 'format_link', 'LinkHeader', 'Link', 'ParseException']
@@ -314,4 +315,4 @@ class _Scanner(object):
 
 
 # For doctest
-headers = dict()
+headers: Dict[str, str] = {}
