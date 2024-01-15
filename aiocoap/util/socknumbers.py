@@ -39,7 +39,7 @@ except ImportError:
     # will fail to import where it needs the specifics
 
 try:
-    from IN import IPV6_RECVERR, IP_RECVERR
+    from IN import IPV6_RECVERR, IP_RECVERR  # type: ignore
 except ImportError:
     if sys.platform == 'linux':
         IPV6_RECVERR = 25
