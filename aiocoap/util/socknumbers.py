@@ -50,7 +50,7 @@ try:
     from socket import MSG_ERRQUEUE
 except ImportError:
     if sys.platform == 'linux':
-        MSG_ERRQUEUE = 8192
+        MSG_ERRQUEUE = 8192  # type: ignore
 
 HAS_RECVERR = 'IP_RECVERR' in locals() and 'MSG_ERRQUEUE' in locals()
 """Indicates whether the discovered constants indicate that the Linux
