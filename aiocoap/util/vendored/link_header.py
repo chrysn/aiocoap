@@ -31,10 +31,7 @@ For further information see parse(), LinkHeader and Link.
 '''
 
 import re
-try:
-    from urllib.parse import urljoin
-except ImportError:
-    from urlparse import urljoin
+from urllib.parse import urljoin
 
 __all__ = ['parse', 'format_links', 'format_link', 'LinkHeader', 'Link', 'ParseException']
 
