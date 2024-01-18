@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from typing import Dict, Any
+
 from ..util import ExtensibleIntEnum
 import warnings
 
@@ -156,6 +158,8 @@ class ContentFormat(ExtensibleIntEnum):
     >>> assert used == ContentFormat.TEXT
     """
 
+    _by_mt_encoding: Dict[Any, Any]
+
     @classmethod
     def by_media_type(cls, media_type: str, encoding: str = 'identity') -> ContentFormat:
         """Produce known entry for a known media type (and encoding, though
@@ -164,6 +168,22 @@ class ContentFormat(ExtensibleIntEnum):
 
     def is_known(self):
         return hasattr(self, "media_type")
+
+    @property
+    def media_type(self) -> str:
+        return self._media_type
+
+    @media_type.setter
+    def media_type(self, media_type: str) -> None:
+        self._media_type = media_type
+
+    @property
+    def encoding(self) -> str:
+        return self._encoding
+
+    @encoding.setter
+    def encoding(self, encoding: str) -> None:
+        self._encoding = encoding
 
     @classmethod
     def _rehash(cls):
