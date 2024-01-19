@@ -143,18 +143,22 @@ class EndpointAddress(metaclass=abc.ABCMeta):
         communication. (Should there ever be a scheme that addresses the
         participants differently, a scheme_local will be added.)"""
 
-    maximum_block_size_exp = MAX_REGULAR_BLOCK_SIZE_EXP
-    """The maximum negotiated block size that can be sent to this remote."""
+    @property
+    def maximum_block_size_exp(self) -> int:
+        """The maximum negotiated block size that can be sent to this remote."""
+        return MAX_REGULAR_BLOCK_SIZE_EXP
 
     # Giving some slack so that barely-larger messages (like OSCORE typically
     # are) don't get fragmented -- but still for migration to maximum message
     # size so we don't have to guess any more how much may be option and how
     # much payload
-    maximum_payload_size = 1124
-    """The maximum payload size that can be sent to this remote. Only relevant
-    if maximum_block_size_exp is 7. This will be removed in favor of a maximum
-    message size when the block handlers can get serialization length
-    predictions from the remote."""
+    @property
+    def maximum_payload_size(self) -> int:
+        """The maximum payload size that can be sent to this remote. Only relevant
+            if maximum_block_size_exp is 7. This will be removed in favor of a maximum
+            message size when the block handlers can get serialization length
+            predictions from the remote."""
+        return 1124
 
     def as_response_address(self):
         """Address to be assigned to a response to messages that arrived with
