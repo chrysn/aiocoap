@@ -13,29 +13,30 @@ import logging
 import warnings
 
 from .. import numbers, interfaces, message, error, util, resource
+from ..numbers import codes
 from ..blockwise import Block1Spool, Block2Cache
 
 class CanNotRedirect(error.ConstructionRenderableError):
     message = "Proxy redirection failed"
 
 class NoUriSplitting(CanNotRedirect):
-    code = numbers.codes.NOT_IMPLEMENTED
+    code = codes.NOT_IMPLEMENTED
     message = "URI splitting not implemented, please use Proxy-Scheme."
 
 class IncompleteProxyUri(CanNotRedirect):
-    code = numbers.codes.BAD_REQUEST
+    code = codes.BAD_REQUEST
     message = "Proxying requires Proxy-Scheme and Uri-Host"
 
 class NotAForwardProxy(CanNotRedirect):
-    code = numbers.codes.PROXYING_NOT_SUPPORTED
+    code = codes.PROXYING_NOT_SUPPORTED
     message = "This is a reverse proxy, not a forward one."
 
 class NoSuchHostname(CanNotRedirect):
-    code = numbers.codes.NOT_FOUND
+    code = codes.NOT_FOUND
     message = ""
 
 class CanNotRedirectBecauseOfUnsafeOptions(CanNotRedirect):
-    code = numbers.codes.BAD_OPTION
+    code = codes.BAD_OPTION
 
     def __init__(self, options):
         self.message = "Unsafe options in request: %s" % (", ".join(str(o.number) for o in options))
