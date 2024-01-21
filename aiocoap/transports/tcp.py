@@ -9,7 +9,7 @@ from typing import Optional
 
 from aiocoap.transports import rfc8323common
 from aiocoap import interfaces, error, util
-from aiocoap import COAP_PORT, Message
+from aiocoap import COAP_PORT, Message  # type: ignore
 from aiocoap import defaults
 from ..util.asyncio import py38args
 
@@ -69,10 +69,10 @@ def _encode_length(l: int):
         return (15, (l - 65805).to_bytes(4, 'big'))
 
 def _serialize(msg: Message) -> bytes:
-    data = [msg.opt.encode()]
+    data_list = [msg.opt.encode()]
     if msg.payload:
-        data += [b'\xff', msg.payload]
-    data = b"".join(data)
+        data_list += [b'\xff', msg.payload]
+    data = b"".join(data_list)
     l, extlen = _encode_length(len(data))
 
     tkl = len(msg.token)
