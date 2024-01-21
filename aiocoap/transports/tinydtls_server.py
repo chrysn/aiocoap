@@ -161,7 +161,7 @@ class _AddressDTLS(interfaces.EndpointAddress):
                 )
 
 class _DatagramServerSocketSimpleDTLS(_DatagramServerSocketSimple):
-    _Address = _AddressDTLS
+    _Address = _AddressDTLS  # type: ignore
     max_sockets = 64
 
     def __init__(self, *args, **kwargs):
