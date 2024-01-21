@@ -196,8 +196,8 @@ def link_format_to_message(request, linkformat,
 
 # Convenience attribute to set as ct on resources that use
 # link_format_to_message as their final step in the request handler
-link_format_to_message.supported_ct = " ".join(str(int(x)) for x in (
-        numbers.ContentFormat.LINKFORMAT,
+link_format_to_message.supported_ct = " ".join(str(int(x)) for x in (  # type: ignore
+        numbers.ContentFormat.LINKFORMAT,  # type: ignore
         ))
 
 class WKCResource(Resource):
@@ -216,7 +216,7 @@ class WKCResource(Resource):
 
     .. _`implementation information link`: https://tools.ietf.org/html/draft-bormann-t2trg-rel-impl-00"""
 
-    ct = link_format_to_message.supported_ct
+    ct = link_format_to_message.supported_ct  # type: ignore
 
     def __init__(self, listgenerator, impl_info=meta.library_uri, **kwargs):
         super().__init__(**kwargs)
