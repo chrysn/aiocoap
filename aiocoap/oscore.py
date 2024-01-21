@@ -19,7 +19,7 @@ import os
 import os.path
 import tempfile
 import abc
-from typing import Optional
+from typing import Optional, List
 import secrets
 import warnings
 
@@ -516,7 +516,7 @@ class BaseSecurityContext:
 
     # Authentication information carried with this security context; managed
     # externally by whatever creates the security context.
-    authenticated_claims = []
+    authenticated_claims: List[str] = []
 
     # AEAD algorithm. This may only be None in group contexts that do not use pairwise mode.
     alg_aead: Optional[AeadAlgorithm]
@@ -564,7 +564,7 @@ class BaseSecurityContext:
         if request_id.request_hash is not None:
             class_i_options = Message(request_hash=request_id.request_hash).opt.encode()
 
-        algorithms = [self.alg_aead.value]
+        algorithms = [self.alg_aead.value if self.alg_aead is not None else None]
         if self.external_aad_is_group:
             algorithms.append(self.alg_signature_enc.value)
             algorithms.append(self.alg_signature.value)
