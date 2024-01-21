@@ -43,7 +43,7 @@ from typing import Any
 
 from aiocoap import error
 from aiocoap import interfaces
-from aiocoap import COAP_PORT
+from aiocoap import COAP_PORT  # type: ignore
 from ..util import hostportjoin
 from ..util.asyncio import py38args
 from .generic_udp import GenericMessageInterface

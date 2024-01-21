@@ -70,7 +70,7 @@ import functools
 import http
 import weakref
 
-from aiocoap import Message, interfaces, ABORT, util, error
+from aiocoap import Message, interfaces, ABORT, util, error  # type: ignore
 from aiocoap.transports import rfc8323common
 from ..credentials import CredentialsMap
 from ..util.asyncio import py38args
