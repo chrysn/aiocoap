@@ -24,41 +24,42 @@ class OptionNumber(ExtensibleIntEnum):
     Note that whether an option may be repeated or not does not only depend on
     the option, but also on the context, and is thus handled in the `Options`
     object instead."""
-    IF_MATCH = 1
-    URI_HOST = 3
-    ETAG = 4
-    IF_NONE_MATCH = 5
-    OBSERVE = 6
-    URI_PORT = 7
-    LOCATION_PATH = 8
+    IF_MATCH: "OptionNumber" = 1  # type: ignore
+    URI_HOST: "OptionNumber" = 3  # type: ignore
+    ETAG: "OptionNumber" = 4  # type: ignore
+    IF_NONE_MATCH: "OptionNumber" = 5  # type: ignore
+    OBSERVE: "OptionNumber" = 6  # type: ignore
+    URI_PORT: "OptionNumber" = 7  # type: ignore
+    LOCATION_PATH: "OptionNumber" = 8  # type: ignore
+    OSCORE: "OptionNumber" = 9  # type: ignore
     # The OBJECT_SECURITY name is to be deprecated when Python 3.8 support is
     # dropped, and we can do that easily using a class property.
-    OSCORE = OBJECT_SECURITY = 9
-    URI_PATH = 11
-    CONTENT_FORMAT = 12
-    MAX_AGE = 14
-    URI_QUERY = 15
-    HOP_LIMIT = 16
-    ACCEPT = 17
-    Q_BLOCK1 = 19
-    LOCATION_QUERY = 20
-    EDHOC = 21
-    BLOCK2 = 23
-    BLOCK1 = 27
-    SIZE2 = 28
-    Q_BLOCK2 = 31
-    PROXY_URI = 35
-    PROXY_SCHEME = 39
-    SIZE1 = 60
-    ECHO = 252
-    NO_RESPONSE = 258
-    REQUEST_TAG = 292
+    OBJECT_SECURITY: "OptionNumber" = 9  # type: ignore
+    URI_PATH: "OptionNumber" = 11  # type: ignore
+    CONTENT_FORMAT: "OptionNumber" = 12  # type: ignore
+    MAX_AGE: "OptionNumber" = 14  # type: ignore
+    URI_QUERY: "OptionNumber" = 15  # type: ignore
+    HOP_LIMIT: "OptionNumber" = 16  # type: ignore
+    ACCEPT: "OptionNumber" = 17  # type: ignore
+    Q_BLOCK1: "OptionNumber" = 19  # type: ignore
+    LOCATION_QUERY: "OptionNumber" = 20  # type: ignore
+    EDHOC: "OptionNumber" = 21  # type: ignore
+    BLOCK2: "OptionNumber" = 23  # type: ignore
+    BLOCK1: "OptionNumber" = 27  # type: ignore
+    SIZE2: "OptionNumber" = 28  # type: ignore
+    Q_BLOCK2: "OptionNumber" = 31  # type: ignore
+    PROXY_URI: "OptionNumber" = 35  # type: ignore
+    PROXY_SCHEME: "OptionNumber" = 39  # type: ignore
+    SIZE1: "OptionNumber" = 60  # type: ignore
+    ECHO: "OptionNumber" = 252  # type: ignore
+    NO_RESPONSE: "OptionNumber" = 258  # type: ignore
+    REQUEST_TAG: "OptionNumber" = 292  # type: ignore
 
     # experimental for draft-amsuess-core-cachable-oscore
     #
     # Using the number suggested there (rather than a high one) as this is
     # going to be used in overhead comparisons.
-    REQUEST_HASH = 548
+    REQUEST_HASH: "OptionNumber" = 548  # type: ignore
 
     def __add__(self, delta):
         """Addition makes sense on these due to the delta encoding in CoAP
