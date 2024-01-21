@@ -173,7 +173,7 @@ class MessageInterfaceSimpleServer(GenericMessageInterface):
     _serversocket = _DatagramServerSocketSimple
 
     @classmethod
-    async def create_server(cls, bind, ctx: interfaces.MessageManager, log, loop):
+    async def create_server(cls, bind, ctx: interfaces.MessageManager, log, loop, *args, **kwargs):
         self = cls(ctx, log, loop)
         bind = bind or ('::', None)
         # Interpret None as 'default port', but still allow to bind to 0 for
@@ -183,7 +183,7 @@ class MessageInterfaceSimpleServer(GenericMessageInterface):
         bind = (bind[0], self._default_port if bind[1] is None else bind[1] + (self._default_port - COAP_PORT))
 
         # Cyclic reference broken during shutdown
-        self._pool = await self._serversocket.create(bind, log, self._loop, self)
+        self._pool = await self._serversocket.create(bind, log, self._loop, self)  # type: ignore
 
         return self
 

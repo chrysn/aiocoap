@@ -133,12 +133,12 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
 
         return response
 
-    async def render_to_pipe(self, request: Pipe):
+    async def render_to_pipe(self, pipe: Pipe):
         # Silence the deprecation warning
         if isinstance(self, interfaces.ObservableResource):
             # See interfaces.Resource.render_to_pipe
-            return await interfaces.ObservableResource._render_to_pipe(self, request)
-        return await interfaces.Resource._render_to_pipe(self, request)
+            return await interfaces.ObservableResource._render_to_pipe(self, pipe)
+        return await interfaces.Resource._render_to_pipe(self, pipe)
 
 class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):

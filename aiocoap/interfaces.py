@@ -327,7 +327,7 @@ class Resource(metaclass=abc.ABCMeta):
         requested blocks from a complete-resource answer (True), or whether
         the resource will do that by itself (False)."""
 
-    async def _render_to_pipe(self, request: Pipe):
+    async def _render_to_pipe(self, pipe: Pipe) -> None:
         if not hasattr(self, "_block1"):
             warnings.warn("No attribute _block1 found on instance of "
                     f"{type(self).__name__}, make sure its __init__ code "
@@ -337,7 +337,7 @@ class Resource(metaclass=abc.ABCMeta):
             self._block1 = Block1Spool()
             self._block2 = Block2Cache()
 
-        req = request.request
+        req = pipe.request
 
         if await self.needs_blockwise_assembly(req):
             req = self._block1.feed_and_take(req)
@@ -351,9 +351,9 @@ class Resource(metaclass=abc.ABCMeta):
         else:
             res = await self.render(req)
 
-        request.add_response(res, is_last=True)
+        pipe.add_response(res, is_last=True)
 
-    async def render_to_pipe(self, request: Pipe):
+    async def render_to_pipe(self, pipe: Pipe) -> None:
         """Create any number of responses (as indicated by the request) into
         the request stream.
 
@@ -372,8 +372,8 @@ class Resource(metaclass=abc.ABCMeta):
             # Resource might find itself using this method. When migrating over
             # to inheriting from resource.Resource, this error will become
             # apparent and this can die with the rest of this workaround.
-            return await ObservableResource._render_to_pipe(self, request)
-        return await self._render_to_pipe(request)
+            return await ObservableResource._render_to_pipe(self, pipe)
+        await self._render_to_pipe(pipe)
 
 class ObservableResource(Resource, metaclass=abc.ABCMeta):
     """Interface the :class:`.protocol.ServerObservation` uses to negotiate
@@ -395,7 +395,7 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
         request rendered again."""
 
 
-    async def _render_to_pipe(self, pipe):
+    async def _render_to_pipe(self, pipe: Pipe) -> None:
         from .protocol import ServerObservation
 
         # If block2:>0 comes along, we'd just ignore the observe
@@ -455,9 +455,9 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
         finally:
             servobs._cancellation_callback()
 
-    async def render_to_pipe(self, request: Pipe):
+    async def render_to_pipe(self, request: Pipe) -> None:
         warnings.warn("Request interface is changing: Resources should "
                 "implement render_to_pipe or inherit from "
                 "resource.Resource which implements that based on any "
                 "provided render methods", DeprecationWarning)
-        return await self._render_to_pipe(request)
+        await self._render_to_pipe(request)
