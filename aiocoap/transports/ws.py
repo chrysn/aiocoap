@@ -79,7 +79,7 @@ from ..defaults import is_pyodide
 if is_pyodide:
     import aiocoap.util.pyodide_websockets as websockets
 else:
-    import websockets
+    import websockets  # type: ignore
 
 def _decode_message(data: bytes) -> Message:
     codeoffset = 1
