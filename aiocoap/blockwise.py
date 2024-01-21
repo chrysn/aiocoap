@@ -8,6 +8,7 @@ import types
 
 from . import numbers
 from .numbers.optionnumbers import OptionNumber
+from .numbers import codes
 from .error import ConstructionRenderableError
 from .message import Message
 from .optiontypes import BlockOption
@@ -40,10 +41,10 @@ class ContinueException(ConstructionRenderableError):
         m.opt.block1 = self.block1
         return m
 
-    code = numbers.CONTINUE
+    code = codes.CONTINUE
 
 class IncompleteException(ConstructionRenderableError):
-    code = numbers.REQUEST_ENTITY_INCOMPLETE
+    code = codes.REQUEST_ENTITY_INCOMPLETE
 
 class Block1Spool:
     def __init__(self):
