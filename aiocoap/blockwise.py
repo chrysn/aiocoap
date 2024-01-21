@@ -4,7 +4,7 @@
 
 """Helpers for the implementation of RFC7959 blockwise transfers"""
 
-import types
+from typing import Awaitable, Callable
 
 from . import numbers
 from .numbers.optionnumbers import OptionNumber
@@ -91,7 +91,7 @@ class Block2Cache:
         # FIXME: introduce an actual parameter here
         self._completes = TimeoutDict(numbers.TransportTuning().MAX_TRANSMIT_WAIT)
 
-    async def extract_or_insert(self, req: Message, response_builder: types.CoroutineType):
+    async def extract_or_insert(self, req: Message, response_builder: Callable[[], Awaitable[Message]]):
         """Given a request message,
 
         * if it is querying a particular block, look it up in the cache or
