@@ -4,6 +4,8 @@
 
 import asyncio
 import socket
+from logging import Logger
+from typing import Optional
 
 from aiocoap.transports import rfc8323common
 from aiocoap import interfaces, error, util
@@ -276,6 +278,8 @@ class _TCPPooling:
 class TCPServer(_TCPPooling, interfaces.TokenInterface):
     def __init__(self):
         self._pool = set()
+        self.log: Optional[Logger] = None
+        self.server = None
 
     @classmethod
     async def create_server(cls, bind, tman: interfaces.TokenManager, log, loop, *, _server_context=None):
@@ -342,6 +346,9 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
         # note that connections are filed by host name, so different names for
         # the same address might end up with different connections, which is
         # probably okay for TCP, and crucial for later work with TLS.
+        self.log: Optional[Logger] = None
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
+        self.credentials = None
 
     async def _spawn_protocol(self, message):
         if message.unresolved_remote is None:

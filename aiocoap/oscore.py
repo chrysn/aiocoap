@@ -64,6 +64,10 @@ INFO_TYPE_KEYSTREAM_REQUEST = True
 INFO_TYPE_KEYSTREAM_RESPONSE = False
 
 class CodeStyle(namedtuple("_CodeStyle", ("request", "response"))):
+
+    FETCH_CONTENT: CodeStyle
+    POST_CHANGED: CodeStyle
+
     @classmethod
     def from_request(cls, request) -> CodeStyle:
         if request == FETCH:
@@ -162,6 +166,10 @@ def _xor_bytes(a, b):
     return bytes(_a ^ _b for (_a, _b) in zip(a, b))
 
 class AeadAlgorithm(metaclass=abc.ABCMeta):
+    value: int
+    key_bytes: int
+    tag_bytes: int
+    iv_bytes: int
     @abc.abstractmethod
     def encrypt(cls, plaintext, aad, key, iv):
         """Return ciphertext + tag for given input data"""
