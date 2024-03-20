@@ -74,13 +74,20 @@ def configure_logging(verbosity):
     elif verbosity >= 2:
         logging.getLogger('coap').setLevel(logging.DEBUG)
 
-def colored(text, options, *args, **kwargs):
-    """Apply termcolor.colored with the given args if options.color is set"""
+def colored(text, options, tokenlambda):
+    """Apply pygments based coloring if options.color is set. Tokelambda is a
+    callback to which pygments.token is passed and which returns a token type;
+    this makes it easy to not need to conditionally react to pygments' possible
+    absence in all color locations."""
     if not options.color:
-        return text
+        return str(text)
 
-    import termcolor
-    return termcolor.colored(text, *args, **kwargs)
+    from pygments.formatters import TerminalFormatter
+    from pygments import token, format
+    return format(
+            [(tokenlambda(token), str(text))],
+            TerminalFormatter(),
+            )
 
 def incoming_observation(options, response):
     if options.observe_exec:
@@ -88,12 +95,12 @@ def incoming_observation(options, response):
         # FIXME this blocks
         p.communicate(response.payload)
     else:
-        sys.stdout.write(colored('---', options, 'grey', attrs=['bold']) + '\n')
+        sys.stdout.write(colored('---', options, lambda token: token.Comment.Preproc))
         if response.code.is_successful():
             present(response, options, file=sys.stderr)
         else:
             sys.stdout.flush()
-            print(colored(response.code, options, 'red'), file=sys.stderr)
+            print(colored(response.code, options, lambda token: token.Token.Generic.Error), file=sys.stderr)
             if response.payload:
                 present(response, options, file=sys.stderr)
 
@@ -113,7 +120,7 @@ def present(message, options, file=sys.stdout):
         location_ref = "/" + "/".join(message.opt.location_path)
         if message.opt.location_query:
             location_ref += "?" + "&".join(message.opt.location_query)
-        print(colored(f"Location options indicate new resource: {location_ref}", options, 'green'), file=sys.stderr)
+        print(colored(f"Location options indicate new resource: {location_ref}", options, lambda token: token.Token.Generic.Inserted,), file=sys.stderr)
 
     if not message.payload:
         return
@@ -132,7 +139,7 @@ def present(message, options, file=sys.stdout):
             (infos, mime, payload) = prettyprinted
             if not options.quiet:
                 for i in infos:
-                    print(colored(i, options, 'grey', attrs=['bold']),
+                    print(colored("# " + i, options, lambda token: token.Comment),
                             file=sys.stderr)
 
     color = options.color
@@ -321,12 +328,15 @@ async def single_request(args, context):
 
         response_uri = response_data.get_request_uri()
         if requested_uri != response_uri:
-            print("Response arrived from different address; base URI is",
-                    response_uri, file=sys.stderr)
+            print(colored(
+                f"Response arrived from different address; base URI is {response_uri}",
+                options,
+                lambda token: token.Generic.Inserted,
+                ), file=sys.stderr)
         if response_data.code.is_successful():
             present(response_data, options)
         else:
-            print(colored(response_data.code, options, 'red'), file=sys.stderr)
+            print(colored(response_data.code, options, lambda token: token.Generic.Error), file=sys.stderr)
             present(response_data, options, file=sys.stderr)
             sys.exit(1)
 
