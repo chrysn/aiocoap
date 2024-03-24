@@ -3,6 +3,10 @@
 # SPDX-License-Identifier: MIT
 
 import asyncio
+from typing import Dict, Tuple, Any
+
+from aiocoap import Message
+
 
 class TimeoutDict:
     """A dict-ish type whose entries live on a timeout; adding and accessing an
@@ -21,7 +25,7 @@ class TimeoutDict:
 
         This can be changed at runtime, but changes only take effect """
 
-        self._items = {}
+        self._items: Dict[Tuple[Any, Any, Any], Message] = {}
         """The actual dictionary"""
         self._recently_accessed = None
         """Items accessed since the timeout last fired"""

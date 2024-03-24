@@ -277,13 +277,13 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         else:
             log.warning("Transport udp6 set up on platform without RECVERR capability. ICMP errors will be ignored.")
 
-        for (address, interface) in sum(map(
+        for (address_string, interface_string) in sum(map(
                     # Expand shortcut of "interface name means default CoAP all-nodes addresses"
                     lambda i: [(a, i) for a in constants.MCAST_ALL] if isinstance(i, str) else [i],
                     multicast
                 ), []):
-            address = ipaddress.ip_address(address)
-            interface = socket.if_nametoindex(interface)
+            address = ipaddress.ip_address(address_string)
+            interface = socket.if_nametoindex(interface_string)
 
             if isinstance(address, ipaddress.IPv4Address):
                 s = struct.pack('4s4si',

@@ -143,18 +143,22 @@ class EndpointAddress(metaclass=abc.ABCMeta):
         communication. (Should there ever be a scheme that addresses the
         participants differently, a scheme_local will be added.)"""
 
-    maximum_block_size_exp = MAX_REGULAR_BLOCK_SIZE_EXP
-    """The maximum negotiated block size that can be sent to this remote."""
+    @property
+    def maximum_block_size_exp(self) -> int:
+        """The maximum negotiated block size that can be sent to this remote."""
+        return MAX_REGULAR_BLOCK_SIZE_EXP
 
     # Giving some slack so that barely-larger messages (like OSCORE typically
     # are) don't get fragmented -- but still for migration to maximum message
     # size so we don't have to guess any more how much may be option and how
     # much payload
-    maximum_payload_size = 1124
-    """The maximum payload size that can be sent to this remote. Only relevant
-    if maximum_block_size_exp is 7. This will be removed in favor of a maximum
-    message size when the block handlers can get serialization length
-    predictions from the remote."""
+    @property
+    def maximum_payload_size(self) -> int:
+        """The maximum payload size that can be sent to this remote. Only relevant
+            if maximum_block_size_exp is 7. This will be removed in favor of a maximum
+            message size when the block handlers can get serialization length
+            predictions from the remote."""
+        return 1124
 
     def as_response_address(self):
         """Address to be assigned to a response to messages that arrived with
@@ -323,7 +327,7 @@ class Resource(metaclass=abc.ABCMeta):
         requested blocks from a complete-resource answer (True), or whether
         the resource will do that by itself (False)."""
 
-    async def _render_to_pipe(self, request: Pipe):
+    async def _render_to_pipe(self, pipe: Pipe) -> None:
         if not hasattr(self, "_block1"):
             warnings.warn("No attribute _block1 found on instance of "
                     f"{type(self).__name__}, make sure its __init__ code "
@@ -333,7 +337,7 @@ class Resource(metaclass=abc.ABCMeta):
             self._block1 = Block1Spool()
             self._block2 = Block2Cache()
 
-        req = request.request
+        req = pipe.request
 
         if await self.needs_blockwise_assembly(req):
             req = self._block1.feed_and_take(req)
@@ -347,9 +351,9 @@ class Resource(metaclass=abc.ABCMeta):
         else:
             res = await self.render(req)
 
-        request.add_response(res, is_last=True)
+        pipe.add_response(res, is_last=True)
 
-    async def render_to_pipe(self, request: Pipe):
+    async def render_to_pipe(self, pipe: Pipe) -> None:
         """Create any number of responses (as indicated by the request) into
         the request stream.
 
@@ -368,8 +372,8 @@ class Resource(metaclass=abc.ABCMeta):
             # Resource might find itself using this method. When migrating over
             # to inheriting from resource.Resource, this error will become
             # apparent and this can die with the rest of this workaround.
-            return await ObservableResource._render_to_pipe(self, request)
-        return await self._render_to_pipe(request)
+            return await ObservableResource._render_to_pipe(self, pipe)
+        await self._render_to_pipe(pipe)
 
 class ObservableResource(Resource, metaclass=abc.ABCMeta):
     """Interface the :class:`.protocol.ServerObservation` uses to negotiate
@@ -391,7 +395,7 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
         request rendered again."""
 
 
-    async def _render_to_pipe(self, pipe):
+    async def _render_to_pipe(self, pipe: Pipe) -> None:
         from .protocol import ServerObservation
 
         # If block2:>0 comes along, we'd just ignore the observe
@@ -451,9 +455,9 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
         finally:
             servobs._cancellation_callback()
 
-    async def render_to_pipe(self, request: Pipe):
+    async def render_to_pipe(self, request: Pipe) -> None:
         warnings.warn("Request interface is changing: Resources should "
                 "implement render_to_pipe or inherit from "
                 "resource.Resource which implements that based on any "
                 "provided render methods", DeprecationWarning)
-        return await self._render_to_pipe(request)
+        await self._render_to_pipe(request)

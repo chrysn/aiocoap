@@ -19,7 +19,7 @@ import os
 import os.path
 import tempfile
 import abc
-from typing import Optional
+from typing import Optional, List
 import secrets
 import warnings
 
@@ -64,6 +64,10 @@ INFO_TYPE_KEYSTREAM_REQUEST = True
 INFO_TYPE_KEYSTREAM_RESPONSE = False
 
 class CodeStyle(namedtuple("_CodeStyle", ("request", "response"))):
+
+    FETCH_CONTENT: CodeStyle
+    POST_CHANGED: CodeStyle
+
     @classmethod
     def from_request(cls, request) -> CodeStyle:
         if request == FETCH:
@@ -162,6 +166,10 @@ def _xor_bytes(a, b):
     return bytes(_a ^ _b for (_a, _b) in zip(a, b))
 
 class AeadAlgorithm(metaclass=abc.ABCMeta):
+    value: int
+    key_bytes: int
+    tag_bytes: int
+    iv_bytes: int
     @abc.abstractmethod
     def encrypt(cls, plaintext, aad, key, iv):
         """Return ciphertext + tag for given input data"""
@@ -516,7 +524,7 @@ class BaseSecurityContext:
 
     # Authentication information carried with this security context; managed
     # externally by whatever creates the security context.
-    authenticated_claims = []
+    authenticated_claims: List[str] = []
 
     # AEAD algorithm. This may only be None in group contexts that do not use pairwise mode.
     alg_aead: Optional[AeadAlgorithm]
@@ -564,11 +572,11 @@ class BaseSecurityContext:
         if request_id.request_hash is not None:
             class_i_options = Message(request_hash=request_id.request_hash).opt.encode()
 
-        algorithms = [self.alg_aead.value]
+        algorithms = [self.alg_aead.value if self.alg_aead is not None else None]
         if self.external_aad_is_group:
-            algorithms.append(self.alg_signature_enc.value)
-            algorithms.append(self.alg_signature.value)
-            algorithms.append(self.alg_pairwise_key_agreement.value)
+            algorithms.append(self.alg_signature_enc.value)  # type: ignore
+            algorithms.append(self.alg_signature.value)  # type: ignore
+            algorithms.append(self.alg_pairwise_key_agreement.value)  # type: ignore
 
         external_aad = [
                 oscore_version,
@@ -581,20 +589,18 @@ class BaseSecurityContext:
         if self.external_aad_is_group:
             # FIXME: We may need to carry this over in the request_id when
             # observation span group rekeyings
-            external_aad.append(self.id_context)
+            external_aad.append(self.id_context)  # type: ignore
 
             assert message.opt.object_security is not None, "Double OSCORE"
             external_aad.append(message.opt.object_security)
 
             if local_is_sender:
-                external_aad.append(self.sender_auth_cred)
+                external_aad.append(self.sender_auth_cred)  # type: ignore
             else:
-                external_aad.append(self.recipient_auth_cred)
-            external_aad.append(self.group_manager_cred)
+                external_aad.append(self.recipient_auth_cred)  # type: ignore
+            external_aad.append(self.group_manager_cred)  # type: ignore
 
-        external_aad = cbor.dumps(external_aad)
-
-        return external_aad
+        return cbor.dumps(external_aad)
 
 # FIXME pull interface components from SecurityContext up here
 class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
@@ -848,7 +854,10 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         helps getting a new short-lived context for B.2 mode. The default
         behaivor is returning self.
         """
-        return self # FIXME justify by moving into a mixin for CanProtectAndUnprotect
+
+        # FIXME justify by moving into a mixin for CanProtectAndUnprotect
+        return self  # type: ignore
+
 
 class CanUnprotect(BaseSecurityContext):
     def unprotect(self, protected_message, request_id=None):
@@ -1074,7 +1083,9 @@ class CanUnprotect(BaseSecurityContext):
         # the decision taken here? Or would, then, the handler just call a more
         # elaborate but similar function when setting the response's remote
         # already?
-        return self # FIXME justify by moving into a mixin for CanProtectAndUnprotect
+
+        # FIXME justify by moving into a mixin for CanProtectAndUnprotect
+        return self  # type: ignore
 
 class SecurityContextUtils(BaseSecurityContext):
     def _kdf(self, salt, ikm, role_id, out_type):
@@ -1125,7 +1136,7 @@ class SecurityContextUtils(BaseSecurityContext):
         support that case, or `_kdf_for_keystreams` for a different structure, as
         they are the more high-level tools."""
         hkdf = HKDF(
-                algorithm=self.hashfun,
+                algorithm=self.hashfun,  # type: ignore
                 length=l,
                 salt=salt,
                 info=cbor.dumps(info),
@@ -1717,21 +1728,22 @@ class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
                 self.recipient_id.hex(),
                 )
 
-    id_context = property(lambda self: self.groupcontext.id_context)
-    alg_aead = property(lambda self: self.groupcontext.alg_aead)
-    alg_signature = property(lambda self: self.groupcontext.alg_signature)
-    alg_signature_enc = property(lambda self: self.groupcontext.alg_signature_enc)
-    alg_pairwise_key_agreement = property(lambda self: self.groupcontext.alg_pairwise_key_agreement)
-    group_manager_cred = property(lambda self: self.groupcontext.group_manager_cred)
-    common_iv = property(lambda self: self.groupcontext.common_iv)
+    private_key = None
+    id_context = property(lambda self: self.groupcontext.id_context)  # type: ignore
+    alg_aead: Optional[AeadAlgorithm] = property(lambda self: self.groupcontext.alg_aead)  # type: ignore
+    alg_signature = property(lambda self: self.groupcontext.alg_signature)  # type: ignore
+    alg_signature_enc = property(lambda self: self.groupcontext.alg_signature_enc)  # type: ignore
+    alg_pairwise_key_agreement = property(lambda self: self.groupcontext.alg_pairwise_key_agreement)  # type: ignore
+    group_manager_cred = property(lambda self: self.groupcontext.group_manager_cred)  # type: ignore
+    common_iv = property(lambda self: self.groupcontext.common_iv)  # type: ignore
 
-    hashfun = property(lambda self: self.groupcontext.hashfun)
-    group_encryption_key = property(lambda self: self.groupcontext.group_encryption_key)
+    hashfun = property(lambda self: self.groupcontext.hashfun)  # type: ignore
+    group_encryption_key = property(lambda self: self.groupcontext.group_encryption_key)  # type: ignore
 
-    recipient_key = property(lambda self: self.groupcontext.recipient_keys[self.recipient_id])
-    recipient_public_key = property(lambda self: self.groupcontext.recipient_public_keys[self.recipient_id])
-    recipient_auth_cred = property(lambda self: self.groupcontext.recipient_auth_creds[self.recipient_id])
-    recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])
+    recipient_key = property(lambda self: self.groupcontext.recipient_keys[self.recipient_id])  # type: ignore
+    recipient_public_key = property(lambda self: self.groupcontext.recipient_public_keys[self.recipient_id])  # type: ignore
+    recipient_auth_cred = property(lambda self: self.groupcontext.recipient_auth_creds[self.recipient_id])  # type: ignore
+    recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])  # type: ignore
 
     def context_for_response(self):
         return self.groupcontext.pairwise_for(self.recipient_id)
@@ -1781,20 +1793,20 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
                 )
 
     # FIXME: actually, only to be sent in requests
-    id_context = property(lambda self: self.groupcontext.id_context)
-    alg_aead = property(lambda self: self.groupcontext.alg_aead)
-    hashfun = property(lambda self: self.groupcontext.hashfun)
-    alg_signature = property(lambda self: self.groupcontext.alg_signature)
-    alg_signature_enc = property(lambda self: self.groupcontext.alg_signature_enc)
-    alg_pairwise_key_agreement = property(lambda self: self.groupcontext.alg_pairwise_key_agreement)
-    group_manager_cred = property(lambda self: self.groupcontext.group_manager_cred)
-    common_iv = property(lambda self: self.groupcontext.common_iv)
-    sender_id = property(lambda self: self.groupcontext.sender_id)
+    id_context = property(lambda self: self.groupcontext.id_context)  # type: ignore
+    alg_aead = property(lambda self: self.groupcontext.alg_aead)  # type: ignore
+    hashfun = property(lambda self: self.groupcontext.hashfun)  # type: ignore
+    alg_signature = property(lambda self: self.groupcontext.alg_signature)  # type: ignore
+    alg_signature_enc = property(lambda self: self.groupcontext.alg_signature_enc)  # type: ignore
+    alg_pairwise_key_agreement = property(lambda self: self.groupcontext.alg_pairwise_key_agreement)  # type: ignore
+    group_manager_cred = property(lambda self: self.groupcontext.group_manager_cred)  # type: ignore
+    common_iv = property(lambda self: self.groupcontext.common_iv)  # type: ignore
+    sender_id = property(lambda self: self.groupcontext.sender_id)  # type: ignore
 
-    recipient_auth_cred = property(lambda self: self.groupcontext.recipient_auth_creds[self.recipient_id])
-    sender_auth_cred = property(lambda self: self.groupcontext.sender_auth_cred)
+    recipient_auth_cred = property(lambda self: self.groupcontext.recipient_auth_creds[self.recipient_id])  # type: ignore
+    sender_auth_cred = property(lambda self: self.groupcontext.sender_auth_cred)  # type: ignore
 
-    recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])
+    recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])  # type: ignore
 
     # Set at initialization
     recipient_key = None
@@ -1895,11 +1907,11 @@ class _DeterministicProtectProtoAspect(CanProtect, SecurityContextUtils):
     external_aad_is_group = True
 
     # details needed for various operations, especially eAAD generation
-    alg_aead = property(lambda self: self.groupcontext.alg_aead)
-    hashfun = property(lambda self: self.groupcontext.hashfun)
-    common_iv = property(lambda self: self.groupcontext.common_iv)
-    id_context = property(lambda self: self.groupcontext.id_context)
-    alg_signature = property(lambda self: self.groupcontext.alg_signature)
+    alg_aead = property(lambda self: self.groupcontext.alg_aead)  # type: ignore
+    hashfun = property(lambda self: self.groupcontext.hashfun)  # type: ignore
+    common_iv = property(lambda self: self.groupcontext.common_iv)  # type: ignore
+    id_context = property(lambda self: self.groupcontext.id_context)  # type: ignore
+    alg_signature = property(lambda self: self.groupcontext.alg_signature)  # type: ignore
 
 class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
     """This implements the sending side of Deterministic Requests.
@@ -1980,11 +1992,11 @@ class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
     external_aad_is_group = True
 
     # details needed for various operations, especially eAAD generation
-    alg_aead = property(lambda self: self.groupcontext.alg_aead)
-    hashfun = property(lambda self: self.groupcontext.hashfun)
-    common_iv = property(lambda self: self.groupcontext.common_iv)
-    id_context = property(lambda self: self.groupcontext.id_context)
-    alg_signature = property(lambda self: self.groupcontext.alg_signature)
+    alg_aead = property(lambda self: self.groupcontext.alg_aead)  # type: ignore
+    hashfun = property(lambda self: self.groupcontext.hashfun)  # type: ignore
+    common_iv = property(lambda self: self.groupcontext.common_iv)  # type: ignore
+    id_context = property(lambda self: self.groupcontext.id_context)  # type: ignore
+    alg_signature = property(lambda self: self.groupcontext.alg_signature)  # type: ignore
 
 def verify_start(message):
     """Extract the unprotected COSE options from a

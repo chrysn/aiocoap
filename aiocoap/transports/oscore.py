@@ -39,6 +39,17 @@ from .. import interfaces, credentials, oscore
 from ..numbers import UNAUTHORIZED, MAX_REGULAR_BLOCK_SIZE_EXP
 from ..util.asyncio import py38args
 
+
+def _requires_ua(f):
+    @wraps(f)
+    def wrapper(self):
+        if self.underlying_address is None:
+            raise ValueError("No underlying address populated that could be used to derive a hostinfo")
+        return f(self)
+
+    return wrapper
+
+
 class OSCOREAddress(
         namedtuple("_OSCOREAddress", ["security_context", "underlying_address"]),
         interfaces.EndpointAddress
@@ -47,14 +58,6 @@ class OSCOREAddress(
 
     def __repr__(self):
         return "<%s in context %r to %r>" % (type(self).__name__, self.security_context, self.underlying_address)
-
-    def _requires_ua(f):
-        @wraps(f)
-        def wrapper(self):
-            if self.underlying_address is None:
-                raise ValueError("No underlying address populated that could be used to derive a hostinfo")
-            return f(self)
-        return wrapper
 
     @property
     @_requires_ua
