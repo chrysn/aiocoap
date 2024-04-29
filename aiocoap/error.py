@@ -61,22 +61,21 @@ class ConstructionRenderableError(RenderableError):
     code = codes.INTERNAL_SERVER_ERROR #: Code assigned to messages built from it
     message = "" #: Text sent in the built message's payload
 
-# FIXME: this should be comprehensive, maybe generted from the code list
-
-class NotFound(ConstructionRenderableError):
-    code = codes.NOT_FOUND
-
-class MethodNotAllowed(ConstructionRenderableError):
-    code = codes.METHOD_NOT_ALLOWED
-
-class UnsupportedContentFormat(ConstructionRenderableError):
-    code = codes.UNSUPPORTED_CONTENT_FORMAT
-
-class Unauthorized(ConstructionRenderableError):
-    code = codes.UNAUTHORIZED
-
-class BadRequest(ConstructionRenderableError):
-    code = codes.BAD_REQUEST
+# generate error classes for all known error codes
+for code in codes.Code.__dict__.values():
+    if not isinstance(code, codes.Code):
+        continue
+    if code.is_successful() or not code.is_response():
+        continue
+    name = "".join(w.title() for w in code.name.split("_"))
+    # Just to be safe, in case an attacker is able to insert arbitrary strings into the list of codes
+    assert code.name.isidentifier() and name.isidentifier()
+    src = f"""
+class {name}(ConstructionRenderableError):
+    code = codes.{code.name}
+ """
+    exec(src)
+del code, name, src
 
 # More detailed versions of code based errors
 
