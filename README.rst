@@ -121,7 +121,7 @@ Relevant URLs
 
   Online documentation built from the sources.
 
-* http://coap.technology/
+* https://coap.space/
 
   Further general information on CoAP, the standard documents involved, and
   other implementations and tools available.
