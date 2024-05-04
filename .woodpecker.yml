@@ -14,7 +14,7 @@ steps:
       - pip3 install --upgrade setuptools
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest
-      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox -- --maxfail=5"
 
 #   test:py311:
 #     image: docker.io/debian:bookworm
