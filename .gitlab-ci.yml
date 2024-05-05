@@ -117,7 +117,8 @@ test:3.13:
     TOXENV: "py313-noextras,py313-allextras"
   script:
     - apt-get update
-    - apt-get -y install iproute2
+    # Actually, cargo doesn't suffice b/c the image is built from bookworm which still has Rust 1.63 whereas cbor-diag's half dependency requires 1.70, but let's tackle this once DTLS works as well.
+    - apt-get -y install iproute2 cargo
     - rm -f .coverage* collected-coverage
     - pip install tox
     # Separate run so I don't waste time telling errors in setup apart from errors at runtime
