@@ -88,7 +88,7 @@ test:tox-on-buster:
       - collected-coverage/tox-buster/
 
 test:3.12:
-  image: docker.io/python:3.12-rc
+  image: docker.io/python:3.12
   resource_group: uses-coap-ports
   variables:
     # Necessary because the image uses some Debian as a base that has another Python installed
@@ -105,7 +105,7 @@ test:3.12:
     - mv .coverage* collected-coverage/tox-3.12/
   artifacts:
     paths:
-      - collected-coverage/tox-python312/
+      - collected-coverage/tox-3.12/
 
 test:flake:
   image: python:3
