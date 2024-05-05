@@ -92,7 +92,7 @@ test:3.12:
   resource_group: uses-coap-ports
   variables:
     # Necessary because the image uses some Debian as a base that has another Python installed
-    TOXENV: "py312-noextras,py312-allextras"
+    TOXENV: "py312-noextras,py312-allextras,py312-uvloop,py312-glib,py312-uvloop-simpleudp"
   script:
     - apt-get update
     - apt-get -y install iproute2
