@@ -107,6 +107,28 @@ test:3.12:
     paths:
       - collected-coverage/tox-3.12/
 
+test:3.13:
+  image: docker.io/python:3.13-rc
+  resource_group: uses-coap-ports
+  # DTLSSocket fails to build, pending https://github.com/mclab-hbrs/DTLSSocket/pull/10
+  allow_failure: true
+  variables:
+    # Possibly ecessary because the image uses some Debian as a base might have another Python installed
+    TOXENV: "py313-noextras,py313-allextras"
+  script:
+    - apt-get update
+    - apt-get -y install iproute2
+    - rm -f .coverage* collected-coverage
+    - pip install tox
+    # Separate run so I don't waste time telling errors in setup apart from errors at runtime
+    - tox --notest
+    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+    - mkdir collected-coverage/tox-3.13/ -p
+    - mv .coverage* collected-coverage/tox-3.13/
+  artifacts:
+    paths:
+      - collected-coverage/tox-3.13/
+
 test:flake:
   image: python:3
   script:
@@ -128,6 +150,7 @@ pages:
     - test:tox-on-buster
     - test:tox-bookworm
     - test:3.12
+    - test:3.13
   script:
     - python3 -m pip install coverage
     - rm -f .coverage* public
