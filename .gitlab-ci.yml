@@ -2,6 +2,10 @@
 # missing, it still shows up. (full coverage would mean running each
 # combination, but let's not blow the test matrix out of proportion).
 
+# --skip-env is often used to mask out Python versions that are installed on
+# the system but are not what we want to test here (for example, the Pythoh
+# 3.13-rc image is based on a Debian that ships its own older Python).
+
 test:tox-bookworm:
   image: debian:bookworm
   resource_group: uses-coap-ports
@@ -26,9 +30,8 @@ test:pypy:
     - apt-get update
     - apt-get -y install build-essential libssl-dev autoconf iproute2 libffi-dev
     - pip install tox
-    - tox --notest
-    - tox
-    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+    - tox --notest --skip-env '^py[^p]'
+    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py[^p]'"
     # Not generating any coverage: This would slow things down to the point
     # where slow_callback_duration from -Xdev bites, and is thus not enabled
     # for pypy in tox. It's not like pypy should contribute to coverage anyway.
@@ -36,9 +39,6 @@ test:pypy:
 test:3.12:
   image: docker.io/python:3.12
   resource_group: uses-coap-ports
-  variables:
-    # Necessary because the image uses some Debian as a base that has another Python installed
-    TOXENV: "py312-noextras,py312-allextras,py312-uvloop,py312-glib,py312-uvloop-simpleudp"
   script:
     - apt-get update
     # cmake, libgirepository1.0-dev: required for building pygobject
@@ -46,8 +46,8 @@ test:3.12:
     - rm -f .coverage* collected-coverage
     - pip install tox
     # Separate run so I don't waste time telling errors in setup apart from errors at runtime
-    - tox --notest
-    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+    - tox --notest --skip-env '^py31[^2]'
+    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^2]'"
     - mkdir collected-coverage/tox-3.12/ -p
     - mv .coverage* collected-coverage/tox-3.12/
   artifacts:
@@ -69,8 +69,8 @@ test:3.13:
     - rm -f .coverage* collected-coverage
     - pip install tox
     # Separate run so I don't waste time telling errors in setup apart from errors at runtime
-    - tox --notest
-    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+    - tox --notest --skip-env '^py31[^2]'
+    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^2]'"
     - mkdir collected-coverage/tox-3.13/ -p
     - mv .coverage* collected-coverage/tox-3.13/
   artifacts:
