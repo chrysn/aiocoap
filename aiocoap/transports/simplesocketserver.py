@@ -37,7 +37,7 @@ import asyncio
 from collections import namedtuple
 
 from .. import error
-from ..numbers import COAP_PORT
+from ..numbers import COAP_PORT, constants
 from .. import interfaces
 from .generic_udp import GenericMessageInterface
 from ..util import hostportjoin
@@ -55,6 +55,9 @@ class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.E
 
     is_multicast = False
     is_multicast_locally = False
+
+    # Unlike for other remotes, this is settable per instance.
+    maximum_block_size_exp = constants.MAX_REGULAR_BLOCK_SIZE_EXP
 
     @property
     def hostinfo(self):

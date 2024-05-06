@@ -43,7 +43,7 @@ from typing import Any
 
 from aiocoap import error
 from aiocoap import interfaces
-from aiocoap import COAP_PORT  # type: ignore
+from ..numbers import COAP_PORT, constants
 from ..util import hostportjoin
 from ..util.asyncio import py38args
 from .generic_udp import GenericMessageInterface
@@ -80,6 +80,9 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
     is_multicast_locally = False
 
     scheme = 'coap'
+
+    # Unlike for other remotes, this is settable per instance.
+    maximum_block_size_exp = constants.MAX_REGULAR_BLOCK_SIZE_EXP
 
     # statically initialized in init
     hostinfo = None

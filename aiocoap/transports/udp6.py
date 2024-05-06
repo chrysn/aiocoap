@@ -112,6 +112,9 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
 
     interface = property(lambda self: self._interface())
 
+    # Unlike for other remotes, this is settable per instance.
+    maximum_block_size_exp = constants.MAX_REGULAR_BLOCK_SIZE_EXP
+
     def __hash__(self):
         return hash(self.sockaddr[:-1])
 
