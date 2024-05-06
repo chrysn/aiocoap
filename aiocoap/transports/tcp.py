@@ -9,7 +9,6 @@ from aiocoap.transports import rfc8323common
 from aiocoap import interfaces, error, util
 from aiocoap import COAP_PORT, Message
 from aiocoap import defaults
-from ..util.asyncio import py38args
 
 def _extract_message_size(data: bytes):
     """Read out the full length of a CoAP messsage represented by data.
@@ -326,13 +325,15 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         shutdowns = [
                 asyncio.create_task(
                     c.release(),
-                    **py38args(name="Close client %s" % c))
+                    name="Close client %s" % c,
+                )
                 for c
                 in self._pool
                 ]
         shutdowns.append(asyncio.create_task(
                 self.server.wait_closed(),
-                **py38args(name="Close server %s" % self)))
+                name="Close server %s" % self),
+                )
         # There is at least one member, so we can just .wait()
         await asyncio.wait(shutdowns)
 
@@ -422,8 +423,9 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
         self._tokenmanager = None
 
         shutdowns = [asyncio.create_task(
-            c.release(),
-            **py38args(name="Close client %s" % c))
+                c.release(),
+                name="Close client %s" % c,
+            )
             for c in self._pool.values()]
         if not shutdowns:
             # wait is documented to require a non-empty set

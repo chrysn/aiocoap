@@ -37,7 +37,6 @@ from functools import wraps
 
 from .. import interfaces, credentials, oscore
 from ..numbers import UNAUTHORIZED, MAX_REGULAR_BLOCK_SIZE_EXP
-from ..util.asyncio import py38args
 
 class OSCOREAddress(
         namedtuple("_OSCOREAddress", ["security_context", "underlying_address"]),
@@ -149,7 +148,7 @@ class TransportOSCORE(interfaces.RequestProvider):
     def request(self, request):
         t = self.loop.create_task(
                 self._request(request),
-                **py38args(name="OSCORE request %r" % request)
+                name="OSCORE request %r" % request,
                 )
         self._tasks.add(t)
         t.add_done_callback(lambda _, _tasks=self._tasks, _t=t: _tasks.remove(_t))

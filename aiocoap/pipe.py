@@ -9,7 +9,6 @@ import sys
 
 from . import error
 from .numbers import INTERNAL_SERVER_ERROR
-from .util.asyncio import py38args
 
 class Pipe:
     """Low-level meeting point between a request and a any responses that come
@@ -204,7 +203,7 @@ def run_driving_pipe(pipe, coroutine, name=None):
 
     task = asyncio.create_task(
             wrapped(),
-            **py38args(name=name),
+            name=name,
             )
     if sys.version_info < (3, 8):
         # These Python versions used to complain about cancelled tasks, where

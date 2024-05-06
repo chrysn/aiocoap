@@ -39,7 +39,6 @@ from aiocoap.numbers import codes, ContentFormat
 import aiocoap.proxy.server
 
 from aiocoap.util.linkformat import Link, LinkFormat, parse
-from ..util.asyncio import py38args
 
 from ..util.linkformat import link_header
 
@@ -219,7 +218,7 @@ class CommonRD:
                 callback()
             self.timeout = asyncio.create_task(
                     longwait(delay, self.delete),
-                    **py38args(name="RD Timeout for %r" % self)
+                    name="RD Timeout for %r" % self,
                     )
 
         def refresh_timeout(self):

@@ -54,7 +54,6 @@ from . import interfaces
 from . import error
 from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
         CONTINUE, SHUTDOWN_TIMEOUT)
-from .util.asyncio import py38args
 
 import warnings
 import logging
@@ -317,7 +316,7 @@ class Context(interfaces.RequestProvider):
         done, pending = await asyncio.wait([
                 asyncio.create_task(
                     ri.shutdown(),
-                    **py38args(name="Shutdown of %r" % ri)
+                    name="Shutdown of %r" % ri,
                     )
                 for ri
                 in self.request_interfaces],
@@ -359,7 +358,7 @@ class Context(interfaces.RequestProvider):
                 return
         self.loop.create_task(
                 send(),
-                **py38args(name="Request processing of %r" % result)
+                name="Request processing of %r" % result,
                 )
         return result
 
@@ -595,13 +594,14 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             self.observation = None
 
         self._runner = protocol.loop.create_task(self._run_outer(
-            app_request,
-            self.response,
-            weakref.ref(self.observation) if self.observation is not None else lambda: None,
-            self.protocol,
-            self.log,
+                app_request,
+                self.response,
+                weakref.ref(self.observation) if self.observation is not None else lambda: None,
+                self.protocol,
+                self.log,
             ),
-            **py38args(name="Blockwise runner for %r" % app_request))
+            name="Blockwise runner for %r" % app_request,
+        )
         self.response.add_done_callback(self._response_cancellation_handler)
 
     def _response_cancellation_handler(self, response_future):
@@ -769,7 +769,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                         future_weak_observation,
                         protocol,
                         log),
-                    **py38args(name="Blockwise observation for %r" % app_request)
+                    name="Blockwise observation for %r" % app_request,
                     )
             future_weak_observation.set_result(weakref.ref(obs, lambda obs: subtask.cancel()))
             obs.on_cancel(subtask.cancel)

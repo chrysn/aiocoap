@@ -10,7 +10,6 @@ from .. import interfaces
 from ..protocol import ClientObservation
 
 from ..util import hostportsplit
-from ..util.asyncio import py38args
 
 class ProxyForwarder(interfaces.RequestProvider):
     """Object that behaves like a Context but only provides the request
