@@ -1,54 +1,6 @@
 # running tests twice, so if something breaks when optional dependencies are
 # missing, it still shows up. (full coverage would mean running each
 # combination, but let's not blow the test matrix out of proportion).
-test:3.7:
-  image: "python:3.7"
-  resource_group: uses-coap-ports
-  script:
-    - env
-    - echo Using cache:; ls .eggs/ || echo No cached .eggs found
-    - rm -f .coverage* collected-coverage
-    - pip3 install coverage
-    - python3 -m coverage run --parallel -m unittest -v
-    - pip install --upgrade ".[all]" # really just done for the requirements
-    - python3 -m coverage run --parallel -m unittest -v
-    - pip3 install uvloop
-    - AIOCOAP_TESTS_LOOP=uvloop python3 -m coverage run --parallel -m unittest -v
-    # Could just as well do this on the default main loop, but AFAIR uvloop
-    # required occasional workarounds
-    - AIOCOAP_TESTS_LOOP=uvloop AIOCOAP_CLIENT_TRANSPORT=oscore:simple6 AIOCOAP_SERVER_TRANSPORT=oscore:simplesocketserver python3 -m coverage run --parallel -m unittest -v
-    # Not installing python3-gi directly, as Debian's dist-modules is not in
-    # docker image's Python path
-    - apt-get update
-    - apt-get -y install libgirepository1.0-dev
-    - pip3 install pygobject gbulb
-    - AIOCOAP_TESTS_LOOP=gbulb timeout 10m python3 -m coverage run --parallel -m unittest -v || echo Letting failing gbulb test slide
-    - mkdir collected-coverage/3.7/ -p
-    - mv .coverage* collected-coverage/3.7/
-  artifacts:
-    paths:
-      - collected-coverage/3.7/
-  cache:
-    key: python3.7
-    paths:
-      - .eggs/
-
-test:tox:
-  image: debian:bullseye
-  resource_group: uses-coap-ports
-  script:
-    - rm -f .coverage* collected-coverage
-    - apt-get update
-    - apt-get -y install tox build-essential python3-dev libssl-dev autoconf python3-setuptools python3-pip iproute2
-    - pip3 install --upgrade setuptools
-    # Separate run so I don't waste time telling errors in setup apart from errors at runtime
-    - tox --notest
-    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
-    - mkdir collected-coverage/tox-bullseye/ -p
-    - mv .coverage* collected-coverage/tox-bullseye/
-  artifacts:
-    paths:
-      - collected-coverage/tox-bullseye/
 
 test:tox-bookworm:
   image: debian:bookworm
@@ -69,25 +21,6 @@ test:tox-bookworm:
   artifacts:
     paths:
       - collected-coverage/tox-bookworm/
-
-test:tox-on-buster:
-  image: debian:buster
-  resource_group: uses-coap-ports
-  script:
-    - rm -f .coverage* collected-coverage
-    - apt-get update
-    # cmake, libgirepository1.0-dev: required for building pygobject
-    # git: py312-glib has dependencies from git. It's not like we even have the right interpreter, but apparently tox tries to fetch them before skipping the tests anyway.
-    - apt-get -y install tox build-essential python3-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libgirepository1.0-dev libcairo2-dev cmake libgirepository1.0-dev git
-    - pip3 install --upgrade setuptools
-    # Separate run so I don't waste time telling errors in setup apart from errors at runtime
-    - tox --notest
-    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
-    - mkdir collected-coverage/tox-buster/ -p
-    - mv .coverage* collected-coverage/tox-buster/
-  artifacts:
-    paths:
-      - collected-coverage/tox-buster/
 
 test:3.12:
   image: docker.io/python:3.12
@@ -149,9 +82,6 @@ pages:
   image: docker.io/python:3
   stage: deploy
   dependencies:
-    - test:3.7
-    - test:tox
-    - test:tox-on-buster
     - test:tox-bookworm
     - test:3.12
     - test:3.13
