@@ -20,6 +20,7 @@ API even in the limited fashion stated above.
 """
 
 import urllib.parse
+from warnings import warn
 
 class ExtensibleEnumMeta(type):
     """Metaclass for ExtensibleIntEnum, see there for detailed explanations"""
@@ -45,6 +46,13 @@ class ExtensibleEnumMeta(type):
         if value not in self._value2member_map_:
             self._value2member_map_[value] = super(ExtensibleEnumMeta, self).__call__(value)
         return self._value2member_map_[value]
+
+    def __getattr__(self, name):
+        if name.startswith("_") or name not in self._deprecated_aliases:
+            raise AttributeError
+        new = self._deprecated_aliases[name]
+        warn(f"Attribute {name} was renamed to {new}", DeprecationWarning, stacklevel=2)
+        return getattr(self, new)
 
 class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
     """Similar to Python's enum.IntEnum, this type can be used for named
@@ -152,7 +160,6 @@ def deprecation_getattr(_deprecated_aliases: dict, _globals: dict):
     def __getattr__(name):
         if name in _deprecated_aliases:
             modern = _deprecated_aliases[name]
-            from warnings import warn
             warn(f"{name} is deprecated, use {modern} instead", DeprecationWarning,
                     stacklevel=2)
             return _globals[modern]
