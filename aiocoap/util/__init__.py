@@ -21,8 +21,9 @@ API even in the limited fashion stated above.
 
 import urllib.parse
 from warnings import warn
+import enum
 
-class ExtensibleEnumMeta(type):
+class ExtensibleEnumMeta(enum.EnumMeta):
     """Metaclass for ExtensibleIntEnum, see there for detailed explanations"""
     def __init__(self, name, bases, dict):
         self._value2member_map_ = {}
