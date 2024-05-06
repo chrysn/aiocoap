@@ -8,19 +8,30 @@ test:tox-bookworm:
   script:
     - rm -f .coverage* collected-coverage
     - apt-get update
-    - apt-get -y install tox build-essential python3.11-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev pypy3 pypy3-dev libgirepository1.0-dev libcairo2-dev
+    - apt-get -y install tox build-essential python3.11-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev libgirepository1.0-dev libcairo2-dev
     # Separate run so I don't waste time telling errors in setup apart from errors at runtime
     - tox --notest
     - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
-    # Run pypy3-allextras again without coverage, because only then the -Xdev
-    # warnings about slow_callback_duration can be meaningfully evaluated
-    # (otherwise, they're patched out in tests/fixtures.py)
-    - ./.tox/pypy3-allextras/bin/python -X dev -m pytest
     - mkdir collected-coverage/tox-bookworm/ -p
     - mv .coverage* collected-coverage/tox-bookworm/
   artifacts:
     paths:
       - collected-coverage/tox-bookworm/
+
+test:pypy:
+  image: docker.io/pypy:3
+  resource_group: uses-coap-ports
+  script:
+    - rm -f .coverage* collected-coverage
+    - apt-get update
+    - apt-get -y install build-essential libssl-dev autoconf iproute2 libffi-dev
+    - pip install tox
+    - tox --notest
+    - tox
+    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+    # Not generating any coverage: This would slow things down to the point
+    # where slow_callback_duration from -Xdev bites, and is thus not enabled
+    # for pypy in tox. It's not like pypy should contribute to coverage anyway.
 
 test:3.12:
   image: docker.io/python:3.12
