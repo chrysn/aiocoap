@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Dict, Tuple
 
 from ..util import ExtensibleIntEnum
 import warnings
@@ -158,7 +158,7 @@ class ContentFormat(ExtensibleIntEnum):
     >>> assert used == ContentFormat.TEXT
     """
 
-    _by_mt_encoding: Dict[Any, Any]
+    _by_mt_encoding: Dict[Tuple[str, str], "ContentFormat"]
 
     @classmethod
     def by_media_type(cls, media_type: str, encoding: str = 'identity') -> ContentFormat:

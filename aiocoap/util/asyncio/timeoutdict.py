@@ -3,12 +3,12 @@
 # SPDX-License-Identifier: MIT
 
 import asyncio
-from typing import Dict, Tuple, Any
+from typing import Dict, Generic, TypeVar
 
-from aiocoap import Message
+K = TypeVar('K')
+V = TypeVar('V')
 
-
-class TimeoutDict:
+class TimeoutDict(Generic[K, V]):
     """A dict-ish type whose entries live on a timeout; adding and accessing an
     item each refreshes the timeout.
 
@@ -25,7 +25,7 @@ class TimeoutDict:
 
         This can be changed at runtime, but changes only take effect """
 
-        self._items: Dict[Tuple[Any, Any, Any], Message] = {}
+        self._items: Dict[K, V] = {}
         """The actual dictionary"""
         self._recently_accessed = None
         """Items accessed since the timeout last fired"""

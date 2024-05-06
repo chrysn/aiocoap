@@ -39,7 +39,7 @@ transport is unavailable due to platform limitations.
 import asyncio
 from collections import OrderedDict
 import socket
-from typing import Any
+from typing import Tuple
 
 from aiocoap import error
 from aiocoap import interfaces
@@ -184,7 +184,7 @@ class _DatagramClientSocketpoolSimple6:
     # and the Protocol can even send new packages via the address
     def __init__(self, loop, mi: "GenericMessageInterface"):
         # using an OrderedDict to implement an LRU cache as it's suitable for that purpose according to its documentation
-        self._sockets: OrderedDict[Any, Any] = OrderedDict()
+        self._sockets: OrderedDict[Tuple[str, int], _Connection] = OrderedDict()
 
         self._loop = loop
         self._message_interface = mi
