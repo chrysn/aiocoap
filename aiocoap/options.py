@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 from itertools import chain
+from warnings import warn
 
 from .numbers.optionnumbers import OptionNumber
 from .error import UnparsableMessage
@@ -39,7 +40,7 @@ def _write_extended_field_value(value):
         raise ValueError("Value out of range.")
 
 
-def _single_value_view(option_number, doc=None):
+def _single_value_view(option_number, doc=None, deprecated=None):
     """Generate a property for a given option number, where the option is not
     repeatable. For getting, it will return the value of the first option
     object with matching number. For setting, it will remove all options with
@@ -51,6 +52,8 @@ def _single_value_view(option_number, doc=None):
     for any of them)."""
 
     def _getter(self, option_number=option_number):
+        if deprecated is not None:
+            warn(deprecated, stacklevel=2)
         options = self.get_option(option_number)
         if not options:
             return None
@@ -58,11 +61,17 @@ def _single_value_view(option_number, doc=None):
             return options[0].value
 
     def _setter(self, value, option_number=option_number):
+        if deprecated is not None:
+            # Stack level 3 is what it takes to get out of the typical
+            # `Message(opt=val)` construction, and probably most useful.
+            warn(deprecated, stacklevel=3)
         self.delete_option(option_number)
         if value is not None:
             self.add_option(option_number.create_option(value=value))
 
     def _deleter(self, option_number=option_number):
+        if deprecated is not None:
+            warn(deprecated, stacklevel=2)
         self.delete_option(option_number)
 
     return property(_getter, _setter, _deleter, doc or "Single-value view on the %s option." % option_number)
@@ -206,7 +215,8 @@ class Options(object):
     proxy_uri = _single_value_view(OptionNumber.PROXY_URI)
     proxy_scheme = _single_value_view(OptionNumber.PROXY_SCHEME)
     size1 = _single_value_view(OptionNumber.SIZE1)
-    object_security = _single_value_view(OptionNumber.OBJECT_SECURITY)
+    oscore = _single_value_view(OptionNumber.OSCORE)
+    object_security = _single_value_view(OptionNumber.OSCORE, deprecated="Use `oscore` instead of `object_security`")
     max_age = _single_value_view(OptionNumber.MAX_AGE)
     if_match = _items_view(OptionNumber.IF_MATCH)
     no_response = _single_value_view(OptionNumber.NO_RESPONSE)

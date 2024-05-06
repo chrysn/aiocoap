@@ -13,8 +13,6 @@ import logging
 import asyncio
 import signal
 
-from ..util.asyncio import py38args
-
 class ActionNoYes(argparse.Action):
     """Simple action that automatically manages --{,no-}something style options"""
     # adapted from Omnifarious's code on
@@ -69,7 +67,7 @@ class AsyncCLIDaemon:
         self.__exitcode = loop.create_future()
         self.initializing = loop.create_task(
                 self.start(*args, **kwargs),
-                **py38args(name="Initialization of %r" % (self,))
+                name="Initialization of %r" % (self,)
                 )
 
     def stop(self, exitcode):

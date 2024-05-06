@@ -26,7 +26,6 @@ import aiocoap.proxy.client
 from aiocoap.util import contenttype
 from aiocoap.util.cli import ActionNoYes
 from aiocoap.numbers import ContentFormat
-from ..util.asyncio import py38args
 
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
@@ -382,7 +381,7 @@ async def interactive():
 
         current_task = asyncio.create_task(
                 single_request(line, context=context),
-                **py38args(name="Interactive prompt command %r" % line)
+                name="Interactive prompt command %r" % line,
                 )
         interactive_expecting_keyboard_interrupt = asyncio.get_event_loop().create_future()
 
@@ -420,7 +419,7 @@ def sync_main(args=None):
         loop = asyncio.get_event_loop()
         task = loop.create_task(
                 interactive(),
-                **py38args(name="Interactive prompt")
+                name="Interactive prompt",
                 )
 
         while not task.done():
