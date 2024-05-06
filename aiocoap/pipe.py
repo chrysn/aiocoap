@@ -201,11 +201,6 @@ def run_driving_pipe(pipe, coroutine, name=None):
         # Not doing anything special about cancellation: it indicates the
         # peer's loss of interest, so there's no use in sending anythign out to
         # someone not listening any more
-        #
-        # (We'd *like* to do something on the Python 3.7 versions whose
-        # cancelled threads show errors, but there we can't stop it in here
-        # because catching the CancelledError doesn't remove the taint from the
-        # task).
 
     task = asyncio.create_task(
             wrapped(),
