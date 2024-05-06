@@ -34,7 +34,7 @@ from plugtest_common import *
 
 class PleaseUseOscore(error.ConstructionRenderableError):
     code = aiocoap.UNAUTHORIZED
-    message = "This is an OSCORE plugtest, please use option %d"%aiocoap.numbers.optionnumbers.OptionNumber.OBJECT_SECURITY
+    message = "This is an OSCORE plugtest, please use option %d"%aiocoap.numbers.optionnumbers.OptionNumber.OSCORE
 
 def additional_verify_request_options(reference, request):
     if request.opt.echo is not None:

@@ -345,7 +345,7 @@ class TestOSCOAAsymmetric(unittest.TestCase):
 @_skip_unless_oscore
 class TestOSCORECompression(unittest.TestCase):
     def compare_uncompress(self, ref_option, ref_payload, ref_protected, ref_unprotected, ref_ciphertext):
-        message = aiocoap.Message(payload=ref_payload, object_security=ref_option)
+        message = aiocoap.Message(payload=ref_payload, oscore=ref_option)
         protected_serialized, protected, unprotected, ciphertext = aiocoap.oscore.CanUnprotect._extract_encrypted0(message)
 
         self.assertEqual(protected, ref_protected, "Protected dictionary mismatch")

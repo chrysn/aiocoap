@@ -128,7 +128,7 @@ class TransportOSCORE(interfaces.RequestProvider):
     async def fill_or_recognize_remote(self, message):
         if isinstance(message.remote, OSCOREAddress):
             return True
-        if message.opt.object_security is not None:
+        if message.opt.oscore is not None:
             # double oscore is not specified; using this fact to make `._wire
             # is ._context` an option
             return False
