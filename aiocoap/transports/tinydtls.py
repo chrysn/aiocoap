@@ -213,10 +213,6 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
             return
 
-        except asyncio.CancelledError:
-            # Can be removed starting with Python 3.8 as it's a workaround for
-            # https://bugs.python.org/issue32528
-            raise
         except Exception as e:
             self.coaptransport.ctx.dispatch_error(e, self)
         finally:
