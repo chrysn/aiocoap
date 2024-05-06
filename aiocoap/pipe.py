@@ -9,7 +9,6 @@ import sys
 
 from . import error
 from .numbers import INTERNAL_SERVER_ERROR
-from .util.asyncio import py38args
 
 class Pipe:
     """Low-level meeting point between a request and a any responses that come
@@ -201,15 +200,10 @@ def run_driving_pipe(pipe, coroutine, name=None):
         # Not doing anything special about cancellation: it indicates the
         # peer's loss of interest, so there's no use in sending anythign out to
         # someone not listening any more
-        #
-        # (We'd *like* to do something on the Python 3.7 versions whose
-        # cancelled threads show errors, but there we can't stop it in here
-        # because catching the CancelledError doesn't remove the taint from the
-        # task).
 
     task = asyncio.create_task(
             wrapped(),
-            **py38args(name=name),
+            name=name,
             )
     if sys.version_info < (3, 8):
         # These Python versions used to complain about cancelled tasks, where

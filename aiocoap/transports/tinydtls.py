@@ -49,7 +49,6 @@ import time
 import warnings
 
 from ..util import hostportjoin, hostportsplit
-from ..util.asyncio import py38args
 from ..message import Message
 from .. import interfaces, error
 from ..numbers import COAPS_PORT
@@ -150,7 +149,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
             self._retransmission_task = asyncio.create_task(
                     self._run_retransmissions(),
-                    **py38args(name="DTLS handshake retransmissions")
+                    name="DTLS handshake retransmissions",
                     )
 
     log = property(lambda self: self.coaptransport.log)
@@ -195,7 +194,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
             self._retransmission_task = asyncio.create_task(
                     self._run_retransmissions(),
-                    **py38args(name="DTLS handshake retransmissions")
+                    name="DTLS handshake retransmissions",
                     )
 
             self._connecting = asyncio.get_running_loop().create_future()
@@ -213,10 +212,6 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
             return
 
-        except asyncio.CancelledError:
-            # Can be removed starting with Python 3.8 as it's a workaround for
-            # https://bugs.python.org/issue32528
-            raise
         except Exception as e:
             self.coaptransport.ctx.dispatch_error(e, self)
         finally:
