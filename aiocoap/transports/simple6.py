@@ -45,7 +45,6 @@ from aiocoap import error
 from aiocoap import interfaces
 from ..numbers import COAP_PORT, constants
 from ..util import hostportjoin
-from ..util.asyncio import py38args
 from .generic_udp import GenericMessageInterface
 
 class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
@@ -243,7 +242,7 @@ class _DatagramClientSocketpoolSimple6:
             done, pending = await asyncio.wait([
                 asyncio.create_task(
                     s.shutdown(),
-                    **py38args(name="Socket shutdown of %r" % s)
+                    name="Socket shutdown of %r" % s,
                     )
                 for s
                 in self._sockets.values()])

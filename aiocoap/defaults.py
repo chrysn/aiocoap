@@ -211,10 +211,6 @@ def prettyprint_missing_modules():
     except ImportError:
         missing.append('cbor2')
     try:
-        import termcolor # noqa: F401
-    except ImportError:
-        missing.append('termcolor')
-    try:
         import pygments # noqa: F401
     except ImportError:
         missing.append('pygments')

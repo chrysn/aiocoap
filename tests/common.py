@@ -17,6 +17,10 @@ if os.environ.get('AIOCOAP_TESTS_LOOP', None) == 'uvloop':
 elif os.environ.get('AIOCOAP_TESTS_LOOP', None) == 'gbulb':
     import gbulb
     gbulb.install()
+elif os.environ.get('AIOCOAP_TESTS_LOOP', None) == 'glib':
+    from gi.events import GLibEventLoopPolicy
+    policy = GLibEventLoopPolicy()
+    asyncio.set_event_loop_policy(policy)
 
 # All test servers are bound to loopback; if for any reason one'd want to run
 # with particular transports, just set them explicitly.

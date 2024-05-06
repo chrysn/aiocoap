@@ -28,7 +28,6 @@ def sk_to_curve25519(ed: ed25519.Ed25519PrivateKey) -> x25519.X25519PrivateKey:
     # as proposed in https://github.com/pyca/cryptography/issues/5557#issuecomment-739339132
 
     from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.backends.openssl.backend import backend
 
     hasher = hashes.Hash(hashes.SHA512())
     hasher.update(raw)
@@ -38,7 +37,7 @@ def sk_to_curve25519(ed: ed25519.Ed25519PrivateKey) -> x25519.X25519PrivateKey:
     h[31] &= 127
     h[31] |= 64
 
-    return backend.x25519_load_private_bytes(h[0:32])
+    return x25519.X25519PrivateKey.from_private_bytes(h[0:32])
 
 def pk_to_curve25519(ed: ed25519.Ed25519PublicKey) -> x25519.X25519PublicKey:
     raw = ed.public_bytes(

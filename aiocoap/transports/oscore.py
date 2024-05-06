@@ -37,7 +37,6 @@ from functools import wraps
 
 from .. import interfaces, credentials, oscore
 from ..numbers import UNAUTHORIZED, MAX_REGULAR_BLOCK_SIZE_EXP
-from ..util.asyncio import py38args
 
 
 def _requires_ua(f):
@@ -131,7 +130,7 @@ class TransportOSCORE(interfaces.RequestProvider):
     async def fill_or_recognize_remote(self, message):
         if isinstance(message.remote, OSCOREAddress):
             return True
-        if message.opt.object_security is not None:
+        if message.opt.oscore is not None:
             # double oscore is not specified; using this fact to make `._wire
             # is ._context` an option
             return False
@@ -152,7 +151,7 @@ class TransportOSCORE(interfaces.RequestProvider):
     def request(self, request):
         t = self.loop.create_task(
                 self._request(request),
-                **py38args(name="OSCORE request %r" % request)
+                name="OSCORE request %r" % request,
                 )
         self._tasks.add(t)
         t.add_done_callback(lambda _, _tasks=self._tasks, _t=t: _tasks.remove(_t))

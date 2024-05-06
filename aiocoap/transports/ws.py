@@ -73,7 +73,6 @@ import weakref
 from aiocoap import Message, interfaces, ABORT, util, error  # type: ignore
 from aiocoap.transports import rfc8323common
 from ..credentials import CredentialsMap
-from ..util.asyncio import py38args
 from ..defaults import is_pyodide
 
 if is_pyodide:
@@ -154,7 +153,7 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
         # there's no need to regulate back-pressure
         self.loop.create_task(
                 self._abort_with_waiting(msg, close_code=close_code),
-                **py38args(name="Abortion WebSocket sonnection with %r" % msg)
+                name="Abortion WebSocket sonnection with %r" % msg,
                 )
 
     # Unlike _send_message, this is pulled out of the the _abort_with function
@@ -177,7 +176,7 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
                 self.log.error("Sending to a WebSocket should not raise errors", exc_info=e)
         self.loop.create_task(
                 send(),
-                **py38args(name="WebSocket sending of %r" % msg)
+                name="WebSocket sending of %r" % msg,
                 )
 
     async def release(self):
@@ -283,7 +282,7 @@ class WSPool(interfaces.TokenInterface):
     def _connect(self, key: PoolKey):
         self._outgoing_starting[key] = self.loop.create_task(
                 self._connect_task(key),
-                **py38args(name="WebSocket connection opening to %r" % (key,))
+                name="WebSocket connection opening to %r" % (key,),
                 )
 
     async def _connect_task(self, key: PoolKey):
@@ -321,7 +320,7 @@ class WSPool(interfaces.TokenInterface):
 
             self.loop.create_task(
                     self._run_recv_loop(remote),
-                    **py38args(name="WebSocket receive loop for %r" % (key,))
+                    name="WebSocket receive loop for %r" % (key,),
                     )
 
             return remote
@@ -376,7 +375,7 @@ class WSPool(interfaces.TokenInterface):
         client_shutdowns = [
             asyncio.create_task(
                 c.release(),
-                **py38args(name="Close connection %s" % c)
+                name="Close connection %s" % c,
             )
             for c in self._pool.values()]
 
@@ -393,7 +392,8 @@ class WSPool(interfaces.TokenInterface):
             s.close()
             server_shutdowns.append(asyncio.create_task(
                 s.wait_closed(),
-                **py38args(name="Close server %s" % s)))
+                name="Close server %s" % s),
+                )
 
         # Placing client shutdowns before server shutdowns to give them a
         # chance to send out Abort messages; the .close() method could be more

@@ -38,7 +38,6 @@ from .generic_udp import GenericMessageInterface
 from .. import error, interfaces
 from . import simplesocketserver
 from .simplesocketserver import _DatagramServerSocketSimple
-from ..util.asyncio import py38args
 
 from .tinydtls import LEVEL_NOALERT, LEVEL_FATAL, DTLS_EVENT_CONNECT, DTLS_EVENT_CONNECTED, CODE_CLOSE_NOTIFY, CloseNotifyReceived, DTLS_TICKS_PER_SECOND, DTLS_CLOCK_OFFSET, FatalDTLSError
 
@@ -77,7 +76,7 @@ class _AddressDTLS(interfaces.EndpointAddress):
 
         self._retransmission_task = asyncio.create_task(
                 self._run_retransmissions(),
-                **py38args(name="DTLS server handshake retransmissions")
+                name="DTLS server handshake retransmissions",
                 )
 
         self.log = protocol.log
@@ -160,7 +159,7 @@ class _AddressDTLS(interfaces.EndpointAddress):
         await asyncio.sleep(when - now)
         self._retransmission_task = asyncio.create_task(
                 self._run_retransmissions(),
-                **py38args(name="DTLS server handshake retransmissions")
+                name="DTLS server handshake retransmissions",
                 )
 
 class _DatagramServerSocketSimpleDTLS(_DatagramServerSocketSimple):
@@ -213,7 +212,7 @@ class GoingThroughMessageDecryption:
         address._dtls_socket.handleMessage(address._dtls_session, data)
         address._retransmission_task = asyncio.create_task(
                 address._run_retransmissions(),
-                **py38args(name="DTLS server handshake retransmissions")
+                name="DTLS server handshake retransmissions",
                 )
 
     def _received_exception(self, address, exception):

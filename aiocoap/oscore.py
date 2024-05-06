@@ -591,8 +591,8 @@ class BaseSecurityContext:
             # observation span group rekeyings
             external_aad.append(self.id_context)  # type: ignore
 
-            assert message.opt.object_security is not None, "Double OSCORE"
-            external_aad.append(message.opt.object_security)
+            assert message.opt.oscore is not None, "Double OSCORE"
+            external_aad.append(message.opt.oscore)
 
             if local_is_sender:
                 external_aad.append(self.sender_auth_cred)  # type: ignore
@@ -713,10 +713,10 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         # Putting in a dummy value as the signature calculation will already need some of the compression result
         if self.is_signing:
             unprotected[COSE_COUNTERSIGNATURE0] = b""
-        # FIXME: Running this twice quite needlessly (just to get the object_security option for sending)
+        # FIXME: Running this twice quite needlessly (just to get the oscore option for sending)
         option_data, _ = self._compress(protected, unprotected, b"")
 
-        outer_message.opt.object_security = option_data
+        outer_message.opt.oscore = option_data
 
         external_aad = self._extract_external_aad(outer_message, request_id, local_is_sender=True)
 
@@ -1067,10 +1067,10 @@ class CanUnprotect(BaseSecurityContext):
 
     @classmethod
     def _extract_encrypted0(cls, message):
-        if message.opt.object_security is None:
+        if message.opt.oscore is None:
             raise NotAProtectedMessage("No Object-Security option present", message)
 
-        protected_serialized, protected, unprotected, ciphertext = cls._uncompress(message.opt.object_security, message.payload)
+        protected_serialized, protected, unprotected, ciphertext = cls._uncompress(message.opt.oscore, message.payload)
         return protected_serialized, protected, unprotected, ciphertext
 
     # implementation defined

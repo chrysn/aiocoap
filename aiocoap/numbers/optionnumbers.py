@@ -32,9 +32,7 @@ class OptionNumber(ExtensibleIntEnum):
     URI_PORT: "OptionNumber" = 7  # type: ignore
     LOCATION_PATH: "OptionNumber" = 8  # type: ignore
     OSCORE: "OptionNumber" = 9  # type: ignore
-    # The OBJECT_SECURITY name is to be deprecated when Python 3.8 support is
-    # dropped, and we can do that easily using a class property.
-    OBJECT_SECURITY: "OptionNumber" = 9  # type: ignore
+    OSCORE: "OptionNumber" = 9  # type: ignore
     URI_PATH: "OptionNumber" = 11  # type: ignore
     CONTENT_FORMAT: "OptionNumber" = 12  # type: ignore
     MAX_AGE: "OptionNumber" = 14  # type: ignore
@@ -60,6 +58,10 @@ class OptionNumber(ExtensibleIntEnum):
     # Using the number suggested there (rather than a high one) as this is
     # going to be used in overhead comparisons.
     REQUEST_HASH: "OptionNumber" = 548  # type: ignore
+
+    _deprecated_aliases = {
+            "OBJECT_SECURITY": "OSCORE",
+            }
 
     def __add__(self, delta):
         """Addition makes sense on these due to the delta encoding in CoAP
