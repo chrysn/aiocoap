@@ -237,10 +237,9 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         self._retransmission_task.cancel()
 
         if self._connection is not None:
-            try:
-                self._dtls_socket.close(self._connection)
-            except Exception:
-                pass # _dtls_socket actually does raise an empty Exception() here
+            # This also does what `.close()` does -- that would happen at
+            # __del__, but let's wait for that.
+            self._dtls_socket.resetPeer(self._connection)
         # doing this here allows the dtls socket to send a final word, but
         # by closing this, we protect the nascent next connection from any
         # delayed ICMP errors that might still wind up in the old socket
