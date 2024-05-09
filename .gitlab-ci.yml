@@ -64,8 +64,11 @@ test:3.13:
     TOXENV: "py313-noextras,py313-allextras"
   script:
     - apt-get update
-    # Actually, cargo doesn't suffice b/c the image is built from bookworm which still has Rust 1.63 whereas cbor-diag's half dependency requires 1.70, but let's tackle this once DTLS works as well.
-    - apt-get -y install iproute2 cargo
+    - apt-get -y install iproute2
+    # The image's Debian has Rust 1.63, which is too old for the `half` module
+    # required by cbor-diag (and maturin does not build wheels for 3.13 yet)
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y
+    - source ~/.cargo/env
     - rm -f .coverage* collected-coverage
     - pip install tox
     # Separate run so I don't waste time telling errors in setup apart from errors at runtime
