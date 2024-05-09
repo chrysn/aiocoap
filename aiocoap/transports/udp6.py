@@ -544,8 +544,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         remote = self._remote_being_sent_to.get()
 
         if remote is None:
-            # TODO: Are there any errors left that wind up here? (sending to 127.0.0.0 takes the later half of this function)
-            self.log.error("Error received in situation with no way to to determine which sending caused the error; this should be accompanied by an error in another code path: %s", exc)
+            self.log.info("Error received in situation with no way to to determine which sending caused the error; this should be accompanied by an error in another code path: %s", exc)
             return
 
         try:
