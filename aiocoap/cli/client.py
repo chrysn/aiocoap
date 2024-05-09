@@ -313,6 +313,9 @@ async def single_request(args, context):
             sys.exit(1)
         except aiocoap.error.NetworkError as e:
             print("Network error:", e, file=sys.stderr)
+            extra_help = e.extra_help()
+            if extra_help:
+                print("Debugging hint:", extra_help, file=sys.stderr)
             sys.exit(1)
         # Fallback while not all backends raise NetworkErrors
         except OSError as e:
