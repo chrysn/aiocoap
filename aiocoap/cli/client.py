@@ -325,6 +325,11 @@ async def single_request(args, context):
             if not text:
                 # eg ConnectionResetError flying out of a misconfigured SSL server
                 text = type(e)
+            print("Warning: OS errors should not be raised this way any more.", file=sys.stderr)
+            # not telling what to do precisely: the form already tells users to
+            # include `aiocoap.cli.defaults` output, which is exactly what we
+            # need.
+            print(f"Even if the cause of the error itself is clear, please file an issue at {aiocoap.meta.bugreport_uri}.", file=sys.stderr)
             print("Error:", text, file=sys.stderr)
             sys.exit(1)
 

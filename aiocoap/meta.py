@@ -14,3 +14,6 @@ version = "0.4.7.post0"
 #: This is used the same way as `version` but when a URI is required, for
 #: example as a default value for .well-known/core's rel=impl-info link.
 library_uri = "https://christian.amsuess.com/tools/aiocoap/#version-" + version
+
+#: URI used in error messages that ask the user to file a bug report
+bugreport_uri = "https://github.com/chrysn/aiocoap/issues"
