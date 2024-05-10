@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Dict, Tuple
 
-from ..util import ExtensibleIntEnum
+from ..util import ExtensibleIntEnum, ExtensibleEnumMeta
 import warnings
 
 # _raw can be updated from: `curl https://www.iana.org/assignments/core-parameters/content-formats.csv | python3 -c 'import csv, sys; print(list(csv.reader(sys.stdin))[1:])'`
@@ -115,7 +115,16 @@ def _normalize_media_type(s):
     eventually be compared to them and fail)"""
     return s.replace('; ', ';')
 
-class ContentFormat(ExtensibleIntEnum):
+class ContentFormatMeta(ExtensibleEnumMeta):
+    def __init__(self, name, bases, dict):
+        super().__init__(name, bases, dict)
+
+        # If this were part of the class definition, it would be taken up as an
+        # enum instance; hoisting it to the metaclass avoids that special
+        # treatment.
+        self._by_mt_encoding: Dict[Tuple[str, str], "ContentFormat"] = {}
+
+class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
     """Entry in the `CoAP Content-Formats registry`__ of the IANA Constrained
     RESTful Environments (Core) Parameters group
 
@@ -157,8 +166,6 @@ class ContentFormat(ExtensibleIntEnum):
     >>> used = requested_by_client or ContentFormat.LINKFORMAT
     >>> assert used == ContentFormat.TEXT
     """
-
-    _by_mt_encoding: Dict[Tuple[str, str], "ContentFormat"]
 
     @classmethod
     def by_media_type(cls, media_type: str, encoding: str = 'identity') -> ContentFormat:
