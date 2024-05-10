@@ -152,14 +152,18 @@ class Code(ExtensibleIntEnum):
         """
         return '<%sCode %d "%s">' % (self._classification(), self, self)
 
-    name = property(lambda self: self._name_ if hasattr(self, "_name_") else "(unknown)", lambda self, value: setattr(self, "_name_", value), doc="The constant name of the code (equals name_printable readable in all-caps and with underscores)")
-
     def _repr_html_(self):
         import html
-        if hasattr(self, "_name_"):
-            return f'<abbr title="{self._classification()}Code {self.dotted}">{html.escape(self.name)}</abbr>'
-        else:
+        if self.name == "(unknown)":
             return f'<abbr title="Unknown {self._classification()}Code">{self.dotted}</abbr>'
+        else:
+            return f'<abbr title="{self._classification()}Code {self.dotted}">{html.escape(self.name)}</abbr>'
+
+    @classmethod
+    def _missing_(cls, value):
+        constructed = super()._missing_(value)
+        constructed._name_ = "(unknown)"
+        return constructed
 
 EMPTY = Code.EMPTY
 GET = Code.GET
