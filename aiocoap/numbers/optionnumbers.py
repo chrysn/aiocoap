@@ -11,6 +11,8 @@ The option numbers come with methods that can be used to evaluate their
 properties, see the `OptionNumber` class for details.
 """
 
+import warnings
+
 from ..util import ExtensibleIntEnum
 from .. import optiontypes
 
@@ -58,9 +60,10 @@ class OptionNumber(ExtensibleIntEnum):
     # going to be used in overhead comparisons.
     REQUEST_HASH = 548
 
-    _deprecated_aliases = {
-            "OBJECT_SECURITY": "OSCORE",
-            }
+    @property
+    def OBJECT_SECURITY(self):
+        warnings.warn("OBJECT_SECURITY is a deprecated alias for OSCORE")
+        return self.OSCORE
 
     def __add__(self, delta):
         """Addition makes sense on these due to the delta encoding in CoAP
