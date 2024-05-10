@@ -8,6 +8,7 @@ Common errors for the aiocoap library
 
 import warnings
 import abc
+import errno
 
 from .numbers import codes
 from . import util
@@ -111,6 +112,24 @@ class NetworkError(Error):
     socket.gaierror or similar classes, but these are wrapped in order to make
     catching them possible independently of the underlying transport."""
 
+    def extra_help(self):
+        """Information printed at aiocoap-client or similar occasions when the
+        error message itself may be insufficient to point the user in the right
+        direction"""
+        if isinstance(self.__cause__, OSError):
+            if self.__cause__.errno == errno.ECONNREFUSED:
+                # seen trying to reach any used address with the port closed
+                return "The remote host could be reached, but reported that the requested port is not open. Check whether a CoAP server is running at the address, or whether it is running on a different port."
+            if self.__cause__.errno == errno.EHOSTUNREACH:
+                # seen trying to reach any unused local address
+                return "No way of contacting the remote host could be found. This could be because a host on the local network is offline or firewalled. Tools for debugging in the next step could be ping or traceroute."
+            if self.__cause__.errno == errno.ENETUNREACH:
+                # seen trying to reach an IPv6 host through an IP literal from a v4-only system, or trying to reach 2001:db8::1
+                return "No way of contacting the remote network could be found. This may be due to lack of IPv6 connectivity, lack of a concrete route (eg. trying to reach a private use network which there is no route to). Tools for debugging in the next step could be ping or traceroute."
+            if self.__cause__.errno == errno.EACCES:
+                # seen trying to reach the broadcast address of a local network
+                return "The operating system refused to send the request. For example, this can occur when attempting to send broadcast requests instead of multicast requests."
+
 class ResolutionError(NetworkError):
     """Resolving the host component of a URI to a usable transport address was
     not possible"""
@@ -136,6 +155,9 @@ class TimeoutError(NetworkError):
     Like NetworkError, receiving this alone does not indicate whether the
     request may have reached the server or not.
     """
+
+    def extra_help(self):
+        return "Neither a response nor an error was received. This can have a wide range of causes, from the address being wrong to the server being stuck."
 
 class ConRetransmitsExceeded(TimeoutError):
     """A transport that retransmits CON messages has failed to obtain a response
