@@ -153,6 +153,12 @@ class Code(ExtensibleIntEnum):
         return '<%sCode %d "%s">' % (self._classification(), self, self)
 
     def _repr_html_(self):
+        """
+        >>> Code.GET._repr_html_()
+        '<abbr title="Request Code 0.01">GET</abbr>'
+        >>> Code(31)._repr_html_()
+        '<abbr title="Unknown Request Code">0.31</abbr>'
+        """
         import html
         if self.name == "(unknown)":
             return f'<abbr title="Unknown {self._classification()}Code">{self.dotted}</abbr>'
