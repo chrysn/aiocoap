@@ -22,40 +22,28 @@ API even in the limited fashion stated above.
 import urllib.parse
 from warnings import warn
 import enum
+import sys
 
 class ExtensibleEnumMeta(enum.EnumMeta):
-    """Metaclass for ExtensibleIntEnum, see there for detailed explanations"""
-    def __init__(self, name, bases, dict):
-        self._value2member_map_ = {}
-        for k, v in dict.items():
-            if k.startswith('_'):
-                continue
-            if callable(v):
-                continue
-            if isinstance(v, property):
-                continue
-            if isinstance(v, classmethod):
-                continue
-            instance = self(v)
-            instance.name = k
-            setattr(self, k, instance)
-        type.__init__(self, name, bases, dict)
+    """Metaclass that provides a workaround for
+    https://github.com/python/cpython/issues/118650 (_repr_html_ is not
+    allowed on enum) for versions before that is fixed"""
+    if sys.version_info < (3, 13, 0, 'beta', 1):
+        @classmethod
+        def __prepare__(metacls, cls, bases, **kwd):
+            enum_dict = super().__prepare__(cls, bases, **kwd)
+            class PermissiveEnumDict(type(enum_dict)):
+                def __setitem__(self, key, value):
+                    if key == "_repr_html_":
+                        self._repr_html_ = value
+                    else:
+                        super().__setitem__(key, value)
+            permissive_dict = PermissiveEnumDict()
+            dict.update(permissive_dict, enum_dict.items())
+            vars(permissive_dict).update(vars(enum_dict).items())
+            return permissive_dict
 
-    def __call__(self, value):
-        if isinstance(value, self):
-            return value
-        if value not in self._value2member_map_:
-            self._value2member_map_[value] = super(ExtensibleEnumMeta, self).__call__(value)
-        return self._value2member_map_[value]
-
-    def __getattr__(self, name):
-        if name.startswith("_") or name not in self._deprecated_aliases:
-            raise AttributeError
-        new = self._deprecated_aliases[name]
-        warn(f"Attribute {name} was renamed to {new}", DeprecationWarning, stacklevel=2)
-        return getattr(self, new)
-
-class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
+class ExtensibleIntEnum(enum.IntEnum, metaclass=ExtensibleEnumMeta):
     """Similar to Python's enum.IntEnum, this type can be used for named
     numbers which are not comprehensively known, like CoAP option numbers."""
 
@@ -71,6 +59,15 @@ class ExtensibleIntEnum(int, metaclass=ExtensibleEnumMeta):
             return f'<abbr title="{html.escape(type(self).__name__)} {int(self)}">{html.escape(self.name)}</abbr>'
         else:
             return f'<abbr title="Unknown {html.escape(type(self).__name__)}">{int(self)}</abbr>'
+
+    @classmethod
+    def _missing_(cls, value):
+        """Construct a member, sidestepping the lookup (because we know the
+        lookup already failed, and there is no singleton instance to return)"""
+        new_member = int.__new__(cls, value)
+        new_member._value_ = value
+        cls._value2member_map_[value] = new_member
+        return new_member
 
 def hostportjoin(host, port=None):
     """Join a host and optionally port into a hostinfo-style host:port

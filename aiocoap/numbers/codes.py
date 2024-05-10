@@ -152,11 +152,11 @@ class Code(ExtensibleIntEnum):
         """
         return '<%sCode %d "%s">' % (self._classification(), self, self)
 
-    name = property(lambda self: self._name if hasattr(self, "_name") else "(unknown)", lambda self, value: setattr(self, "_name", value), doc="The constant name of the code (equals name_printable readable in all-caps and with underscores)")
+    name = property(lambda self: self._name_ if hasattr(self, "_name_") else "(unknown)", lambda self, value: setattr(self, "_name_", value), doc="The constant name of the code (equals name_printable readable in all-caps and with underscores)")
 
     def _repr_html_(self):
         import html
-        if hasattr(self, "_name"):
+        if hasattr(self, "_name_"):
             return f'<abbr title="{self._classification()}Code {self.dotted}">{html.escape(self.name)}</abbr>'
         else:
             return f'<abbr title="Unknown {self._classification()}Code">{self.dotted}</abbr>'
