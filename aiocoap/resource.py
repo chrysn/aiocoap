@@ -31,7 +31,11 @@ from . import meta
 from . import error
 from . import interfaces
 from . import numbers
+from .numbers.contentformat import ContentFormat
+from .numbers.codes import Code
 from .pipe import Pipe
+from .util.linkformat import Link, LinkFormat
+
 
 def hashing_etag(request, response):
     """Helper function for render_get handlers that allows them to use ETags based
@@ -173,8 +177,8 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         # Silence the deprecation warning
         return await interfaces.ObservableResource._render_to_pipe(self, request)
 
-def link_format_to_message(request, linkformat,
-        default_ct=numbers.ContentFormat.LINKFORMAT):
+def link_format_to_message(request: message.Message, linkformat: LinkFormat,
+        default_ct=ContentFormat.LINKFORMAT) -> message.Message:
     """Given a LinkFormat object, render it to a response message, picking a
     suitable conent format from a given request.
 
@@ -187,17 +191,20 @@ def link_format_to_message(request, linkformat,
     if ct is None:
         ct = default_ct
 
-    if ct == numbers.ContentFormat.LINKFORMAT:
+    if ct == ContentFormat.LINKFORMAT:
         payload = str(linkformat).encode('utf8')
     else:
-        return message.Message(code=numbers.NOT_ACCEPTABLE)
+        return message.Message(code=Code.NOT_ACCEPTABLE)
 
     return message.Message(payload=payload, content_format=ct)
 
 # Convenience attribute to set as ct on resources that use
 # link_format_to_message as their final step in the request handler
+#
+# mypy doesn't like attributes on functions, requiring some `type: ignore` for
+# this, but the alternatives (a __call__able class) have worse docs.
 link_format_to_message.supported_ct = " ".join(str(int(x)) for x in (  # type: ignore
-        numbers.ContentFormat.LINKFORMAT,  # type: ignore
+        ContentFormat.LINKFORMAT,
         ))
 
 class WKCResource(Resource):
@@ -227,7 +234,6 @@ class WKCResource(Resource):
         links = self.listgenerator()
 
         if self.impl_info is not None:
-            from .util.linkformat import Link
             links.links = links.links + [Link(href=self.impl_info, rel="impl-info")]
 
         filters = []
@@ -399,8 +405,6 @@ class Site(interfaces.ObservableResource, PathCapable):
             del self._resources[tuple(path)]
 
     def get_resources_as_linkheader(self):
-        from .util.linkformat import Link, LinkFormat
-
         links = []
 
         for path, resource in self._resources.items():
