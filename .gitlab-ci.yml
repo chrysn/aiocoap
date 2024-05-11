@@ -57,20 +57,23 @@ test:3.12:
 test:3.13:
   image: docker.io/python:3.13-rc
   resource_group: uses-coap-ports
-  # DTLSSocket fails to build, pending https://github.com/mclab-hbrs/DTLSSocket/pull/10
-  allow_failure: true
   variables:
-    # Possibly ecessary because the image uses some Debian as a base might have another Python installed
+    # Possibly necessary because the image uses some Debian as a base might have another Python installed
     TOXENV: "py313-noextras,py313-allextras"
   script:
     - apt-get update
-    # Actually, cargo doesn't suffice b/c the image is built from bookworm which still has Rust 1.63 whereas cbor-diag's half dependency requires 1.70, but let's tackle this once DTLS works as well.
-    - apt-get -y install iproute2 cargo
+    - apt-get -y install iproute2
+    # The image's Debian has Rust 1.63, which is too old for the `half` module
+    # required by cbor-diag (and maturin does not build wheels for 3.13 yet)
+    - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y
+    - source ~/.cargo/env
     - rm -f .coverage* collected-coverage
     - pip install tox
+    # Workaround for https://github.com/python-cffi/cffi/issues/71
+    - tox -e py313-allextras exec --skip-pkg-install -- pip install git+https://github.com/python-cffi/cffi/
     # Separate run so I don't waste time telling errors in setup apart from errors at runtime
-    - tox --notest --skip-env '^py31[^2]'
-    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^2]'"
+    - tox --notest --skip-env '^py31[^3]'
+    - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^3]'"
     - mkdir collected-coverage/tox-3.13/ -p
     - mv .coverage* collected-coverage/tox-3.13/
   artifacts:

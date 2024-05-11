@@ -42,6 +42,8 @@ and the options can not be added easily to your platform, consider using the
 
 import asyncio
 import contextvars
+import errno
+import os
 import socket
 import ipaddress
 import struct
@@ -509,13 +511,13 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
     def datagram_errqueue_received(self, data, ancdata, flags, address):
         assert flags == socknumbers.MSG_ERRQUEUE, "Received non-error data through the errqueue"
         pktinfo = None
-        errno = None
+        errno_value = None
         for cmsg_level, cmsg_type, cmsg_data in ancdata:
             assert cmsg_level == socket.IPPROTO_IPV6, "Received non-IPv6 protocol through the errqueue"
             if cmsg_type == socknumbers.IPV6_RECVERR:
                 extended_err = SockExtendedErr.load(cmsg_data)
                 self.log.debug("Socket error recevied, details: %s", extended_err)
-                errno = extended_err.ee_errno
+                errno_value = extended_err.ee_errno
             elif cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == socknumbers.IPV6_PKTINFO:
                 pktinfo = cmsg_data
             else:
@@ -528,7 +530,10 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # port should err out.
 
         try:
-            self._ctx.dispatch_error(OSError(errno, "received through errqueue"), remote)
+            text = os.strerror(errno_value)
+            symbol = errno.errorcode.get(errno_value, None)
+            symbol = "" if symbol is None else f"{symbol}, "
+            self._ctx.dispatch_error(OSError(errno_value, f"{text} ({symbol}received through errqueue)"), remote)
         except BaseException as exc:
             # Catching here because util.asyncio.recvmsg inherits
             # _SelectorDatagramTransport's bad handling of callback errors;
@@ -542,8 +547,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         remote = self._remote_being_sent_to.get()
 
         if remote is None:
-            # TODO: Are there any errors left that wind up here? (sending to 127.0.0.0 takes the later half of this function)
-            self.log.error("Error received in situation with no way to to determine which sending caused the error; this should be accompanied by an error in another code path: %s", exc)
+            self.log.info("Error received in situation with no way to to determine which sending caused the error; this should be accompanied by an error in another code path: %s", exc)
             return
 
         try:
