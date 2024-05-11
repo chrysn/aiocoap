@@ -36,7 +36,7 @@ from .pipe import Pipe
 from .util.linkformat import Link, LinkFormat
 
 
-def hashing_etag(request, response):
+def hashing_etag(request: message.Message, response: message.Message):
     """Helper function for render_get handlers that allows them to use ETags based
     on the payload's hash value
 
