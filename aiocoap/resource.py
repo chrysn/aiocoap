@@ -30,7 +30,6 @@ from . import message
 from . import meta
 from . import error
 from . import interfaces
-from . import numbers
 from .numbers.contentformat import ContentFormat
 from .numbers.codes import Code
 from .pipe import Pipe
@@ -63,12 +62,12 @@ def hashing_etag(request, response):
     <aiocoap.Message at ... 2.03 Valid ... 1 option(s)>
     """
 
-    if response.code != numbers.codes.CONTENT and response.code is not None:
+    if response.code != Code.CONTENT and response.code is not None:
         return
 
     response.opt.etag = hashlib.sha1(response.payload).digest()[:8]
     if request.opt.etags is not None and response.opt.etag in request.opt.etags:
-        response.code = numbers.codes.VALID
+        response.code = Code.VALID
         response.payload = b''
 
 class _ExposesWellknownAttributes:
@@ -124,12 +123,12 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
             response = message.Message(no_response=26)
 
         if response.code is None:
-            if request.code in (numbers.codes.GET, numbers.codes.FETCH):
-                response_default = numbers.codes.CONTENT
-            elif request.code == numbers.codes.DELETE:
-                response_default = numbers.codes.DELETED
+            if request.code in (Code.GET, Code.FETCH):
+                response_default = Code.CONTENT
+            elif request.code == Code.DELETE:
+                response_default = Code.DELETED
             else:
-                response_default = numbers.codes.CHANGED
+                response_default = Code.CHANGED
             response.code = response_default
 
         if response.opt.no_response is None:
