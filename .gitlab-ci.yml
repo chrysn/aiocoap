@@ -80,6 +80,13 @@ test:3.13:
     paths:
       - collected-coverage/tox-3.13/
 
+test:mypy:
+  image: docker.io/python:3.12
+  script:
+    - pip install mypy
+    - pip install '.[all]'
+    - mypy --install-types --non-interactive aiocoap
+
 test:flake:
   image: python:3
   script:
