@@ -77,11 +77,6 @@ where = [ "." ]
 # its submodules, in others it didn't. Listing both is safe for both.
 include = [ "aiocoap", "aiocoap.*" ]
 
-[tool.mypy]
-disable_error_code = [
-    "annotation-unchecked"
-]
-
 [[tool.mypy.overrides]]
 module = [
     "cbor_diag", "ge25519", "fe25519", "js", "pyodide.*", "DTLSSocket"

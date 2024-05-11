@@ -116,7 +116,7 @@ def _normalize_media_type(s):
     return s.replace('; ', ';')
 
 class ContentFormatMeta(ExtensibleEnumMeta):
-    def __init__(self, name, bases, dict):
+    def __init__(self, name, bases, dict) -> None:
         super().__init__(name, bases, dict)
 
         # If this were part of the class definition, it would be taken up as an

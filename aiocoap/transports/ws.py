@@ -195,7 +195,7 @@ class WSPool(interfaces.TokenInterface):
 
     _servers: List[websockets.WebSocketServer]
 
-    def __init__(self, tman, log, loop):
+    def __init__(self, tman, log, loop) -> None:
         self.loop = loop
 
         self._pool = {}
