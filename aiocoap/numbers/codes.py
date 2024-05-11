@@ -171,6 +171,8 @@ class Code(ExtensibleIntEnum):
         constructed._name_ = "(unknown)"
         return constructed
 
+# List is copied down to help mypy and other typing dependent tools to
+# understand the types.
 EMPTY = Code.EMPTY
 GET = Code.GET
 POST = Code.POST
@@ -211,6 +213,10 @@ PING = Code.PING
 PONG = Code.PONG
 RELEASE = Code.RELEASE
 ABORT = Code.ABORT
+if __debug__:
+    for _code in Code:
+        if locals().get(_code.name) is not _code:
+            warnings.warn(f"Locals list is out of sync; entry `{_code.name} = Code.{_code.name}` is missing")
 
 
 __all__ = ['Code'] + [k for (k, v) in locals().items() if isinstance(v, Code)]
