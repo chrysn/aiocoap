@@ -69,6 +69,18 @@ class ExtensibleIntEnum(enum.IntEnum, metaclass=ExtensibleEnumMeta):
         cls._value2member_map_[value] = new_member
         return new_member
 
+    if sys.version_info < (3, 11, 5):
+        # backport of https://github.com/python/cpython/pull/106666
+        #
+        # Without this, Python versions up to 3.11.4 (eg. 3.11.2 in Debian
+        # Bookworm) fail the copy used to modify messages without mutating them
+        # when attempting to access the _name_ of an unknown option.
+        def __copy__(self):
+            return self
+
+        def __deepcopy__(self, memo):
+            return self
+
 def hostportjoin(host, port=None):
     """Join a host and optionally port into a hostinfo-style host:port
     string
