@@ -156,7 +156,7 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
     >>> ContentFormat.TEXT
     <ContentFormat 0, media_type='text/plain; charset=utf-8', encoding='identity'>
 
-    A convenient property of ContentFormat is that any known content format is
+    A convenient property of ContentFormat is that any content format is
     true in a boolean context, and thus when used in alternation with None, can
     be assigned defaults easily:
 
