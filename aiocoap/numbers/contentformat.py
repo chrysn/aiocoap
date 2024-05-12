@@ -168,6 +168,18 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
     """
 
     @classmethod
+    def define(cls, number, media_type: str, encoding: str = 'identity'):
+        s = cls(number)
+
+        if hasattr(s, "media_type"):
+            warnings.warn("Redefining media type is a compatibility hazard, but allowed for experimental purposes")
+
+        s._media_type = media_type
+        s._encoding = encoding
+
+        cls._by_mt_encoding[(_normalize_media_type(media_type), encoding)] = s
+
+    @classmethod
     def by_media_type(cls, media_type: str, encoding: str = 'identity') -> ContentFormat:
         """Produce known entry for a known media type (and encoding, though
         'identity' is default due to its prevalence), or raise KeyError."""
@@ -182,6 +194,7 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
 
     @media_type.setter
     def media_type(self, media_type: str) -> None:
+        warnings.warn("Setting media_type or encoding is deprecated, use ContentFormat.define(media_type, encoding) instead.", DeprecationWarning, stacklevel=1)
         self._media_type = media_type
 
     @property
@@ -190,6 +203,7 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
 
     @encoding.setter
     def encoding(self, encoding: str) -> None:
+        warnings.warn("Setting media_type or encoding is deprecated, use ContentFormat(number, media_type, encoding) instead.", DeprecationWarning, stacklevel=1)
         self._encoding = encoding
 
     @classmethod
@@ -198,6 +212,9 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
 
         Run this after having created entries with media type and encoding that
         should be found later on."""
+        # showing as a deprecation even though it is a private function because
+        # altering media_type/encoding required users to call this.
+        warnings.warn("This function is not needed when defining a content type through `.define()` rather than by setting media_type and encoding.", DeprecationWarning, stacklevel=1)
         cls._by_mt_encoding = {(_normalize_media_type(c.media_type), c.encoding): c for c in cls._value2member_map_.values()}
 
     def __repr__(self):
@@ -225,10 +242,7 @@ for (_mt, _enc, _i, _source) in _raw:
     if _mt in ["Reserved for Experimental Use", "Reserved, do not use", "Unassigned"]:
         continue
     _mt, _, _ = _mt.partition(' (TEMPORARY')
-    _cf = ContentFormat(int(_i))
-    _cf.media_type = _mt
-    _cf.encoding = _enc or "identity"
-ContentFormat._rehash()
+    ContentFormat.define(int(_i), _mt, _enc or 'identity')
 
 
 class _MediaTypes:
