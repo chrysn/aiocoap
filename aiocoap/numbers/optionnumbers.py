@@ -107,6 +107,9 @@ class OptionNumber(ExtensibleIntEnum):
         through the `format` property to satisfy requirements imposed by mypy's
         special handling of enums.
         """
+        if hasattr(self, "_format"):
+            if self._format != value:
+                warnings.warn("Altering the serialization format of {self}. This is a severe interoperability hazard with other modules, and should only be used during experimentation. This warning may be converted into an error at any time.")
         self._format = value
 
     format = property(_get_format, set_format,
