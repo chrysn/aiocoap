@@ -317,6 +317,9 @@ class AlgorithmCountersign(metaclass=abc.ABCMeta):
     par_countersign_key parameters taht go into the Group OSCORE algorithms
     field.
     """
+
+    value: int | str
+
     @abc.abstractmethod
     def sign(self, body, external_aad, private_key):
         """Return the signature produced by the key when using
@@ -511,22 +514,15 @@ DEFAULT_HASHFUNCTION = 'sha256'
 DEFAULT_WINDOWSIZE = 32
 
 class BaseSecurityContext:
-    # The protection and unprotection functions will use the Group OSCORE AADs
-    # rather than the regular OSCORE AADs. (Ie. alg_signature_enc etc are added to
-    # the algorithms, and request_kid_context, OSCORE_option, sender_auth_cred and
-    # gm_cred are added).
-    #
-    # This is not necessarily identical to is_signing (as pairwise contexts use
-    # this but don't sign), and is distinct from the added OSCORE option in the
-    # AAD (as that's only applicable for the external AAD as extracted for
-    # signing and signature verification purposes).
+    # Deprecated marker for whether the class uses the
+    # ContextWhereExternalAadIsGroup mixin; see documentation there.
     external_aad_is_group = False
 
     # Authentication information carried with this security context; managed
     # externally by whatever creates the security context.
     authenticated_claims: List[str] = []
 
-    # AEAD algorithm. This may only be None in group contexts that do not use pairwise mode.
+    #: AEAD algorithm. This may only be None in group contexts that do not use pairwise mode.
     alg_aead: Optional[AeadAlgorithm]
 
     @property
@@ -537,6 +533,8 @@ class BaseSecurityContext:
     def algorithm(self, value):
         warnings.warn("Property was renamed to 'alg_aead'", DeprecationWarning, stacklevel=2)
         self.alg_aead = value
+
+    hashfun: hashes.HashAlgorithm
 
     def _construct_nonce(self, partial_iv_short, piv_generator_id):
         pad_piv = b"\0" * (5 - len(partial_iv_short))
@@ -572,11 +570,11 @@ class BaseSecurityContext:
         if request_id.request_hash is not None:
             class_i_options = Message(request_hash=request_id.request_hash).opt.encode()
 
-        algorithms = [self.alg_aead.value if self.alg_aead is not None else None]
-        if self.external_aad_is_group:
-            algorithms.append(self.alg_signature_enc.value)  # type: ignore
-            algorithms.append(self.alg_signature.value)  # type: ignore
-            algorithms.append(self.alg_pairwise_key_agreement.value)  # type: ignore
+        algorithms: List[int | str | None] = [self.alg_aead.value if self.alg_aead is not None else None]
+        if isinstance(self, ContextWhereExternalAadIsGroup):
+            algorithms.append(None if self.alg_signature_enc is None else self.alg_signature_enc.value)
+            algorithms.append(None if self.alg_signature is None else self.alg_signature.value)
+            algorithms.append(None if self.alg_pairwise_key_agreement is None else self.alg_pairwise_key_agreement.value)
 
         external_aad = [
                 oscore_version,
@@ -586,21 +584,52 @@ class BaseSecurityContext:
                 class_i_options,
                 ]
 
-        if self.external_aad_is_group:
+        if isinstance(self, ContextWhereExternalAadIsGroup):
             # FIXME: We may need to carry this over in the request_id when
             # observation span group rekeyings
-            external_aad.append(self.id_context)  # type: ignore
+            external_aad.append(self.id_context)
 
             assert message.opt.oscore is not None, "Double OSCORE"
             external_aad.append(message.opt.oscore)
 
             if local_is_sender:
-                external_aad.append(self.sender_auth_cred)  # type: ignore
+                external_aad.append(self.sender_auth_cred)
             else:
-                external_aad.append(self.recipient_auth_cred)  # type: ignore
-            external_aad.append(self.group_manager_cred)  # type: ignore
+                external_aad.append(self.recipient_auth_cred)
+            external_aad.append(self.group_manager_cred)
 
         return cbor.dumps(external_aad)
+
+class ContextWhereExternalAadIsGroup(BaseSecurityContext):
+    """The protection and unprotection functions will use the Group OSCORE AADs
+    rather than the regular OSCORE AADs iff a context uses this mixin. (Ie.
+    alg_signature_enc etc are added to the algorithms, and request_kid_context,
+    OSCORE_option, sender_auth_cred and gm_cred are added).
+
+    This does not necessarily match the is_signing property (as pairwise
+    contexts use this but don't sign), and is distinct from the added OSCORE
+    option in the AAD (as that's only applicable for the external AAD as
+    extracted for signing and signature verification purposes)."""
+
+    id_context: bytes
+
+    external_aad_is_group = True
+
+    # This is None iff the group does not support group mode
+    alg_signature_enc: Optional[AeadAlgorithm]
+    # This is None iff the group does not support group mode
+    alg_signature: Optional[AlgorithmCountersign]
+    # This is None iff the group does not support pairwise
+    #
+    # This is also of type AlgorithmCountersign because the staticstatic
+    # function is sitting on the same type.
+    alg_pairwise_key_agreement: Optional[AlgorithmCountersign]
+
+    # FIXME: These probably should be `bytes` only; the condition for them
+    # being None needs to be refined.
+    sender_auth_cred: Optional[bytes]
+    recipient_auth_cred: Optional[bytes]
+    group_manager_cred: Optional[bytes]
 
 # FIXME pull interface components from SecurityContext up here
 class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
@@ -1136,7 +1165,7 @@ class SecurityContextUtils(BaseSecurityContext):
         support that case, or `_kdf_for_keystreams` for a different structure, as
         they are the more high-level tools."""
         hkdf = HKDF(
-                algorithm=self.hashfun,  # type: ignore
+                algorithm=self.hashfun,
                 length=l,
                 salt=salt,
                 info=cbor.dumps(info),
@@ -1318,6 +1347,9 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
     case of an abnormal shutdown, the server uses the mechanism described in
     Appendix B.1.2 to recover.
     """
+
+    # possibly overridden in constructor
+    alg_aead = algorithms[DEFAULT_ALGORITHM]
 
     class LoadError(ValueError):
         """Exception raised with a descriptive message when trying to load a
@@ -1505,20 +1537,9 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
         if self.lockfile is not None:
             self._destroy()
 
-class GroupContext(BaseSecurityContext):
+class GroupContext(ContextWhereExternalAadIsGroup, BaseSecurityContext):
     is_signing = True
-    external_aad_is_group = True
     responses_send_kid = True
-
-    # This is None iff the group does not support group mode
-    alg_signature_enc: Optional[AeadAlgorithm]
-    # This is None iff the group does not support group mode
-    alg_signature: Optional[AlgorithmCountersign]
-    # This is None iff the group does not support pairwise
-    #
-    # This is also of type AlgorithmCountersign because the staticstatic
-    # function is sitting on the same type.
-    alg_pairwise_key_agreement: Optional[AlgorithmCountersign]
 
     @abc.abstractproperty
     def private_key(self):
@@ -1546,9 +1567,19 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     to be usable securely.
     """
 
-    # set during initialization
+    # set during initialization (making all those attributes rather than
+    # possibly properties as they might be in super)
+    sender_id = None
+    id_context = None # type: ignore
     private_key = None
+    alg_aead = None
+    hashfun = None # type: ignore
+    alg_signature = None
+    alg_signature_enc = None
+    alg_pairwise_key_agreement = None
     sender_auth_cred = None
+    group_manager_cred = None
+    cred_fmt = None
 
     def __init__(self, alg_aead, hashfun, alg_signature, alg_signature_enc, alg_pairwise_key_agreement, group_id, master_secret, master_salt, sender_id, private_key, sender_auth_cred, peers, group_manager_cred=None, cred_fmt=COSE_KCCS):
         self.sender_id = sender_id
@@ -1717,7 +1748,7 @@ class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
     context_for_response before it comes to that).
     """
 
-    def __init__(self, groupcontext, recipient_id):
+    def __init__(self, groupcontext: GroupContext, recipient_id: bytes) -> None:
         self.groupcontext = groupcontext
         self.recipient_id = recipient_id
 
@@ -1729,21 +1760,49 @@ class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
                 )
 
     private_key = None
-    id_context = property(lambda self: self.groupcontext.id_context)  # type: ignore
-    alg_aead: Optional[AeadAlgorithm] = property(lambda self: self.groupcontext.alg_aead)  # type: ignore
-    alg_signature = property(lambda self: self.groupcontext.alg_signature)  # type: ignore
-    alg_signature_enc = property(lambda self: self.groupcontext.alg_signature_enc)  # type: ignore
-    alg_pairwise_key_agreement = property(lambda self: self.groupcontext.alg_pairwise_key_agreement)  # type: ignore
-    group_manager_cred = property(lambda self: self.groupcontext.group_manager_cred)  # type: ignore
-    common_iv = property(lambda self: self.groupcontext.common_iv)  # type: ignore
+    # not inline because the equivalent lambda would not be recognized by mypy
+    # (workaround for <https://github.com/python/mypy/issues/8083>)
+    @property
+    def id_context(self):
+        return self.groupcontext.id_context
+    @property
+    def alg_aead(self):
+        return self.groupcontext.alg_aead
+    @property
+    def alg_signature(self):
+        return self.groupcontext.alg_signature
+    @property
+    def alg_signature_enc(self):
+        return self.groupcontext.alg_signature_enc
+    @property
+    def alg_pairwise_key_agreement(self):
+        return self.groupcontext.alg_pairwise_key_agreement
+    @property
+    def group_manager_cred(self):
+        return self.groupcontext.group_manager_cred
+    @property
+    def common_iv(self):
+        return self.groupcontext.common_iv
 
-    hashfun = property(lambda self: self.groupcontext.hashfun)  # type: ignore
-    group_encryption_key = property(lambda self: self.groupcontext.group_encryption_key)  # type: ignore
+    @property
+    def hashfun(self):
+        return self.groupcontext.hashfun
+    @property
+    def group_encryption_key(self):
+        return self.groupcontext.group_encryption_key
 
-    recipient_key = property(lambda self: self.groupcontext.recipient_keys[self.recipient_id])  # type: ignore
-    recipient_public_key = property(lambda self: self.groupcontext.recipient_public_keys[self.recipient_id])  # type: ignore
-    recipient_auth_cred = property(lambda self: self.groupcontext.recipient_auth_creds[self.recipient_id])  # type: ignore
-    recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])  # type: ignore
+    @property
+    def recipient_key(self):
+        return self.groupcontext.recipient_keys[self.recipient_id]
+    @property
+    def recipient_public_key(self):
+        return self.groupcontext.recipient_public_keys[self.recipient_id]
+    @property
+    def recipient_auth_cred(self):
+        return self.groupcontext.recipient_auth_creds[self.recipient_id]
+    @property
+    def recipient_replay_window(self):
+        return self.groupcontext.recipient_replay_windows[self.recipient_id]
 
     def context_for_response(self):
         return self.groupcontext.pairwise_for(self.recipient_id)
@@ -1793,20 +1852,47 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
                 )
 
     # FIXME: actually, only to be sent in requests
-    id_context = property(lambda self: self.groupcontext.id_context)  # type: ignore
-    alg_aead = property(lambda self: self.groupcontext.alg_aead)  # type: ignore
-    hashfun = property(lambda self: self.groupcontext.hashfun)  # type: ignore
-    alg_signature = property(lambda self: self.groupcontext.alg_signature)  # type: ignore
-    alg_signature_enc = property(lambda self: self.groupcontext.alg_signature_enc)  # type: ignore
-    alg_pairwise_key_agreement = property(lambda self: self.groupcontext.alg_pairwise_key_agreement)  # type: ignore
-    group_manager_cred = property(lambda self: self.groupcontext.group_manager_cred)  # type: ignore
-    common_iv = property(lambda self: self.groupcontext.common_iv)  # type: ignore
-    sender_id = property(lambda self: self.groupcontext.sender_id)  # type: ignore
 
-    recipient_auth_cred = property(lambda self: self.groupcontext.recipient_auth_creds[self.recipient_id])  # type: ignore
-    sender_auth_cred = property(lambda self: self.groupcontext.sender_auth_cred)  # type: ignore
+    # not inline because the equivalent lambda would not be recognized by mypy
+    # (workaround for <https://github.com/python/mypy/issues/8083>)
+    @property
+    def id_context(self):
+        return self.groupcontext.id_context
+    @property
+    def alg_aead(self):
+        return self.groupcontext.alg_aead
+    @property
+    def hashfun(self):
+        return self.groupcontext.hashfun
+    @property
+    def alg_signature(self):
+        return self.groupcontext.alg_signature
+    @property
+    def alg_signature_enc(self):
+        return self.groupcontext.alg_signature_enc
+    @property
+    def alg_pairwise_key_agreement(self):
+        return self.groupcontext.alg_pairwise_key_agreement
+    @property
+    def group_manager_cred(self):
+        return self.groupcontext.group_manager_cred
+    @property
+    def common_iv(self):
+        return self.groupcontext.common_iv
+    @property
+    def sender_id(self):
+        return self.groupcontext.sender_id
 
-    recipient_replay_window = property(lambda self: self.groupcontext.recipient_replay_windows[self.recipient_id])  # type: ignore
+    @property
+    def recipient_auth_cred(self):
+        return self.groupcontext.recipient_auth_creds[self.recipient_id]
+    @property
+    def sender_auth_cred(self):
+        return self.groupcontext.sender_auth_cred
+
+    @property
+    def recipient_replay_window(self):
+        return self.groupcontext.recipient_replay_windows[self.recipient_id]
 
     # Set at initialization
     recipient_key = None
@@ -1838,7 +1924,7 @@ class _PairwiseContextAspect(GroupContext, CanProtect, CanUnprotect, SecurityCon
         else:
             return self
 
-class _DeterministicProtectProtoAspect(CanProtect, SecurityContextUtils):
+class _DeterministicProtectProtoAspect(ContextWhereExternalAadIsGroup, CanProtect, SecurityContextUtils):
     """This implements the sending side of Deterministic Requests.
 
     While simialr to a _PairwiseContextAspect, it only derives the key at
@@ -1904,16 +1990,27 @@ class _DeterministicProtectProtoAspect(CanProtect, SecurityContextUtils):
 
         return self._kdf(basekey, request_hash, self.sender_id, 'Key')
 
-    external_aad_is_group = True
-
     # details needed for various operations, especially eAAD generation
-    alg_aead = property(lambda self: self.groupcontext.alg_aead)  # type: ignore
-    hashfun = property(lambda self: self.groupcontext.hashfun)  # type: ignore
-    common_iv = property(lambda self: self.groupcontext.common_iv)  # type: ignore
-    id_context = property(lambda self: self.groupcontext.id_context)  # type: ignore
-    alg_signature = property(lambda self: self.groupcontext.alg_signature)  # type: ignore
 
-class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
+    # not inline because the equivalent lambda would not be recognized by mypy
+    # (workaround for <https://github.com/python/mypy/issues/8083>)
+    @property
+    def alg_aead(self):
+        return self.groupcontext.alg_aead
+    @property
+    def hashfun(self):
+        return self.groupcontext.hashfun
+    @property
+    def common_iv(self):
+        return self.groupcontext.common_iv
+    @property
+    def id_context(self):
+        return self.groupcontext.id_context
+    @property
+    def alg_signature(self):
+        return self.groupcontext.alg_signature
+
+class _DeterministicUnprotectProtoAspect(ContextWhereExternalAadIsGroup, CanUnprotect, SecurityContextUtils):
     """This implements the sending side of Deterministic Requests.
 
     While simialr to a _PairwiseContextAspect, it only derives the key at
@@ -1989,14 +2086,25 @@ class _DeterministicUnprotectProtoAspect(CanUnprotect, SecurityContextUtils):
         request_id.request_hash = request_hash
         request_id.can_reuse_nonce = False
 
-    external_aad_is_group = True
-
     # details needed for various operations, especially eAAD generation
-    alg_aead = property(lambda self: self.groupcontext.alg_aead)  # type: ignore
-    hashfun = property(lambda self: self.groupcontext.hashfun)  # type: ignore
-    common_iv = property(lambda self: self.groupcontext.common_iv)  # type: ignore
-    id_context = property(lambda self: self.groupcontext.id_context)  # type: ignore
-    alg_signature = property(lambda self: self.groupcontext.alg_signature)  # type: ignore
+
+    # not inline because the equivalent lambda would not be recognized by mypy
+    # (workaround for <https://github.com/python/mypy/issues/8083>)
+    @property
+    def alg_aead(self):
+        return self.groupcontext.alg_aead
+    @property
+    def hashfun(self):
+        return self.groupcontext.hashfun
+    @property
+    def common_iv(self):
+        return self.groupcontext.common_iv
+    @property
+    def id_context(self):
+        return self.groupcontext.id_context
+    @property
+    def alg_signature(self):
+        return self.groupcontext.alg_signature
 
 def verify_start(message):
     """Extract the unprotected COSE options from a
