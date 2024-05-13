@@ -1,3 +1,65 @@
+Version 0.4.8
+-------------
+
+Compatibility
+~~~~~~~~~~~~~
+
+* Block-wise requests now send Size1
+
+Error handling
+~~~~~~~~~~~~~~
+
+* Errors raised through the udp6 interface now report name and description in
+  addition to their error number.
+* Many errors now have an ``.extra_help()`` method, which is shown in
+  aiocoap-client to guide the user's debugging.
+* Some non-aiocoap errors being raised as a result of network errors were
+  turned into error.NetworkError.
+* All CoAP error response codes now have a corresponding
+  ``ConstructionRenderableError`` and can thus be raised easily from handers.
+
+Platform support
+~~~~~~~~~~~~~~~~
+
+* Support for Python versions below 3.10 was dropped.
+* Inconsistent platform implementations of AI_V4MAPPED and AI_ADDRCONFIG are
+  now worked around by custom implementations of the lookup process.
+* Android is now supported.
+* Python 3.13 is now supported.
+* Kivy examples were updated to current mainline Kivy.
+* gbulb support is being phased out in favor of pygobject's upcoming native async support.
+
+Infrastructure
+~~~~~~~~~~~~~~
+
+* Build system was modernized and migrated to pyproject.toml.
+  Tests are now run using tox or ``python3 -m unittest``
+* Type annotations are now tested using mypy.
+* The ``ExtensibleIntEnum`` type underlying ``ContentFormat`` and
+  ``OptionNumber`` was altered to now use ``enum.IntEnum`` as its base.
+
+Deprecations
+~~~~~~~~~~~~
+
+* The request.observation.register_callback / register_errback interface is
+  deprecated in favor of the asynchronous iteration interface (aiter).
+* Setting media type and encoding on a ContentFormat is deprecated, use
+  ``.define(...)`` instead.
+* ``OptionNumber.OBJECT_SECURITY`` is deprecated; it is an alias for ``.OSCORE``.
+  (Same goes for the ``message.opt.object_security`` attribute).
+
+Minor fixes
+~~~~~~~~~~~
+
+* aiocoap-client can now use the iPATCH method.
+* aiocoap-client output colors were improved.
+* cbor-diag is recognized as a prerequisite for pretty printing.
+* Corner cases for SSL configuration for WebSockets were fixed.
+* Documentation updates, including references to pyodide.
+* Corner cases of implicit observation cancellation were fixed.
+* Access to cryptography internals now uses the proper public interfaces.
+
+
 Version 0.4.7
 -------------
 
