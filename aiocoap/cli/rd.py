@@ -373,7 +373,7 @@ class ThingWithCommonRD:
             self.common_rd.register_change_callback(self.updated_state)
 
 class DirectoryResource(ThingWithCommonRD, Resource):
-    ct = link_format_to_message.supported_ct
+    ct = link_format_to_message.supported_ct  # type: ignore
     rt = "core.rd"
 
     #: Issue a custom warning when registrations come in via this interface
@@ -464,7 +464,7 @@ def _link_matches(link, key, condition):
     return any(k == key and condition(v) for (k, v) in link.attr_pairs)
 
 class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
-    ct = link_format_to_message.supported_ct
+    ct = link_format_to_message.supported_ct  # type: ignore
     rt = "core.rd-lookup-ep"
 
     async def render_get(self, request):
@@ -507,7 +507,7 @@ class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
         return link_format_to_message(request, LinkFormat(result))
 
 class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
-    ct = link_format_to_message.supported_ct
+    ct = link_format_to_message.supported_ct  # type: ignore
     rt = "core.rd-lookup-res"
 
     async def render_get(self, request):

@@ -12,7 +12,7 @@ be split into dedicated classes.
 import asyncio
 import functools
 import random
-from typing import Dict, Tuple, Optional
+from typing import Callable, Dict, List, Tuple, Optional
 
 from . import error
 from . import interfaces
@@ -35,19 +35,23 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     tokens *only* where required by its sub-layer).
     """
 
-    def __init__(self, token_manager):
+    def __init__(self, token_manager) -> None:
         self.token_manager = token_manager
 
         self.message_id = random.randint(0, 65535)
         #: Tracker of recently received messages (by remote and message ID).
         #: Maps them to a response message when one is already known.
         self._recent_messages: Dict[Tuple[EndpointAddress, int], Optional[Message]] = {}
-        self._active_exchanges = {}  #: active exchanges i.e. sent CON messages (remote, message-id): (messageerror_monitor monitor, cancellable timeout)
-        self._backlogs = {} #: per-remote list of (backlogged package, messageerror_monitor) tupless (keys exist iff there is an active_exchange with that node)
+        #: Active exchanges i.e. sent CON messages (remote, message-id):
+        #: (messageerror_monitor monitor, cancellable timeout)
+        self._active_exchanges: Dict[Tuple[EndpointAddress, int], Tuple[Callable[[], None], asyncio.Handle]] = {}
+        #: Per-remote list of (backlogged package, messageerror_monitor)
+        #: tuples (keys exist iff there is an active_exchange with that node)
+        self._backlogs: Dict[EndpointAddress, List[Tuple[Message, Callable[[], None]]]] = {}
 
         #: Maps pending remote/token combinations to the MID a response can be
         #: piggybacked on, and the timeout that should be cancelled if it is.
-        self._piggyback_opportunities: Dict[Tuple[EndpointAddress, bytes], (int, asyncio.TimerHandle)] = {}
+        self._piggyback_opportunities: Dict[Tuple[EndpointAddress, bytes], Tuple[int, asyncio.TimerHandle]] = {}
 
         self.log = token_manager.log
         self.loop = token_manager.loop

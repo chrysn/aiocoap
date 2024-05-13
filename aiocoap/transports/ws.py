@@ -72,12 +72,13 @@ import weakref
 
 from aiocoap import Message, interfaces, ABORT, util, error
 from aiocoap.transports import rfc8323common
+from ..credentials import CredentialsMap
 from ..defaults import is_pyodide
 
 if is_pyodide:
     import aiocoap.util.pyodide_websockets as websockets
 else:
-    import websockets
+    import websockets  # type: ignore
 
 def _decode_message(data: bytes) -> Message:
     codeoffset = 1
@@ -194,7 +195,7 @@ class WSPool(interfaces.TokenInterface):
 
     _servers: List[websockets.WebSocketServer]
 
-    def __init__(self, tman, log, loop):
+    def __init__(self, tman, log, loop) -> None:
         self.loop = loop
 
         self._pool = {}
@@ -207,6 +208,8 @@ class WSPool(interfaces.TokenInterface):
 
         self._tokenmanager = tman
         self.log = log
+
+        self._client_credentials: CredentialsMap
 
     @classmethod
     async def create_transport(cls, tman: interfaces.TokenManager, log, loop, *, client_credentials, server_bind=None, server_context=None):

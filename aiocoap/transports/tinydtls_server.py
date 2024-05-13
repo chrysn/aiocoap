@@ -33,7 +33,7 @@ from collections import OrderedDict
 
 import time
 
-from ..numbers.constants import COAPS_PORT
+from ..numbers import COAPS_PORT, constants
 from .generic_udp import GenericMessageInterface
 from .. import error, interfaces
 from . import simplesocketserver
@@ -91,6 +91,9 @@ class _AddressDTLS(interfaces.EndpointAddress):
     scheme = 'coaps'
 
     authenticated_claims = property(lambda self: [self._psk_store._claims])
+
+    # Unlike for other remotes, this is settable per instance.
+    maximum_block_size_exp = constants.MAX_REGULAR_BLOCK_SIZE_EXP
 
     @property
     def blockwise_key(self):
@@ -160,7 +163,7 @@ class _AddressDTLS(interfaces.EndpointAddress):
                 )
 
 class _DatagramServerSocketSimpleDTLS(_DatagramServerSocketSimple):
-    _Address = _AddressDTLS
+    _Address = _AddressDTLS  # type: ignore
     max_sockets = 64
 
     def __init__(self, *args, **kwargs):

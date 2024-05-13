@@ -13,29 +13,32 @@ import logging
 import warnings
 
 from .. import numbers, interfaces, message, error, util, resource
+from ..numbers import codes
 from ..blockwise import Block1Spool, Block2Cache
+from ..pipe import Pipe
+
 
 class CanNotRedirect(error.ConstructionRenderableError):
     message = "Proxy redirection failed"
 
 class NoUriSplitting(CanNotRedirect):
-    code = numbers.codes.NOT_IMPLEMENTED
+    code = codes.NOT_IMPLEMENTED
     message = "URI splitting not implemented, please use Proxy-Scheme."
 
 class IncompleteProxyUri(CanNotRedirect):
-    code = numbers.codes.BAD_REQUEST
+    code = codes.BAD_REQUEST
     message = "Proxying requires Proxy-Scheme and Uri-Host"
 
 class NotAForwardProxy(CanNotRedirect):
-    code = numbers.codes.PROXYING_NOT_SUPPORTED
+    code = codes.PROXYING_NOT_SUPPORTED
     message = "This is a reverse proxy, not a forward one."
 
 class NoSuchHostname(CanNotRedirect):
-    code = numbers.codes.NOT_FOUND
+    code = codes.NOT_FOUND
     message = ""
 
 class CanNotRedirectBecauseOfUnsafeOptions(CanNotRedirect):
-    code = numbers.codes.BAD_OPTION
+    code = codes.BAD_OPTION
 
     def __init__(self, options):
         self.message = "Unsafe options in request: %s" % (", ".join(str(o.number) for o in options))
@@ -127,7 +130,8 @@ class Proxy(interfaces.Resource):
     # Not inheriting from them because we do *not* want the .render() in the
     # resolution tree (it can't deal with None requests, which are used among
     # proxy implementations)
-    render_to_pipe = resource.Resource.render_to_pipe
+    async def render_to_pipe(self, pipe: Pipe) -> None:
+        await resource.Resource.render_to_pipe(self, pipe) # type: ignore
 
 class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
     def __init__(self, outgoing_context, logger=None):

@@ -4,10 +4,11 @@
 
 """Helpers for the implementation of RFC7959 blockwise transfers"""
 
-import types
+from typing import Awaitable, Callable
 
 from . import numbers
 from .numbers.optionnumbers import OptionNumber
+from .numbers import codes
 from .error import ConstructionRenderableError
 from .message import Message
 from .optiontypes import BlockOption
@@ -40,10 +41,10 @@ class ContinueException(ConstructionRenderableError):
         m.opt.block1 = self.block1
         return m
 
-    code = numbers.CONTINUE
+    code = codes.CONTINUE
 
 class IncompleteException(ConstructionRenderableError):
-    code = numbers.REQUEST_ENTITY_INCOMPLETE
+    code = codes.REQUEST_ENTITY_INCOMPLETE
 
 class Block1Spool:
     def __init__(self):
@@ -90,7 +91,7 @@ class Block2Cache:
         # FIXME: introduce an actual parameter here
         self._completes = TimeoutDict(numbers.TransportTuning().MAX_TRANSMIT_WAIT)
 
-    async def extract_or_insert(self, req: Message, response_builder: types.CoroutineType):
+    async def extract_or_insert(self, req: Message, response_builder: Callable[[], Awaitable[Message]]):
         """Given a request message,
 
         * if it is querying a particular block, look it up in the cache or

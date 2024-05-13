@@ -39,10 +39,11 @@ transport is unavailable due to platform limitations.
 import asyncio
 from collections import OrderedDict
 import socket
+from typing import Tuple
 
 from aiocoap import error
 from aiocoap import interfaces
-from aiocoap import COAP_PORT
+from ..numbers import COAP_PORT, constants
 from ..util import hostportjoin
 from .generic_udp import GenericMessageInterface
 
@@ -78,6 +79,9 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
     is_multicast_locally = False
 
     scheme = 'coap'
+
+    # Unlike for other remotes, this is settable per instance.
+    maximum_block_size_exp = constants.MAX_REGULAR_BLOCK_SIZE_EXP
 
     # statically initialized in init
     hostinfo = None
@@ -179,7 +183,7 @@ class _DatagramClientSocketpoolSimple6:
     # and the Protocol can even send new packages via the address
     def __init__(self, loop, mi: "GenericMessageInterface"):
         # using an OrderedDict to implement an LRU cache as it's suitable for that purpose according to its documentation
-        self._sockets = OrderedDict()
+        self._sockets: OrderedDict[Tuple[str, int], _Connection] = OrderedDict()
 
         self._loop = loop
         self._message_interface = mi

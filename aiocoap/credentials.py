@@ -36,7 +36,9 @@ ease porting to platforms that don't support inspect like micropython does.
 import re
 import inspect
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+if TYPE_CHECKING:
+    from .oscore import FilesystemSecurityContext
 
 
 '''
@@ -191,12 +193,12 @@ class TLSCert(_Objectish):
         ssl.create_default_context when purpose is alreay set"""
         return {"cafile": self.certfile}
 
-def construct_oscore(contextfile: str):
+def construct_oscore(contextfile: str) -> "FilesystemSecurityContext":
     from .oscore import FilesystemSecurityContext
 
     return FilesystemSecurityContext(contextfile)
 
-construct_oscore.from_item = lambda value: _call_from_structureddata(construct_oscore, 'OSCORE', value)
+construct_oscore.from_item = lambda value: _call_from_structureddata(construct_oscore, 'OSCORE', value)  # type: ignore
 
 _re_cache = {}
 

@@ -4,6 +4,8 @@
 
 import asyncio
 import socket
+from logging import Logger
+from typing import Dict, Optional, Set, Tuple
 
 from aiocoap.transports import rfc8323common
 from aiocoap import interfaces, error, util
@@ -66,10 +68,10 @@ def _encode_length(l: int):
         return (15, (l - 65805).to_bytes(4, 'big'))
 
 def _serialize(msg: Message) -> bytes:
-    data = [msg.opt.encode()]
+    data_list = [msg.opt.encode()]
     if msg.payload:
-        data += [b'\xff', msg.payload]
-    data = b"".join(data)
+        data_list += [b'\xff', msg.payload]
+    data = b"".join(data_list)
     l, extlen = _encode_length(len(data))
 
     tkl = len(msg.token)
@@ -90,7 +92,7 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
     # depend on whether the library user still keeps a usable address around,
     # those functions could be split.
 
-    def __init__(self, ctx, log, loop, *, is_server):
+    def __init__(self, ctx, log, loop, *, is_server) -> None:
         super().__init__()
         self._ctx = ctx
         self.log = log
@@ -100,7 +102,7 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
 
         self._remote_settings = None
 
-        self._transport = None
+        self._transport: Optional[asyncio.Transport] = None
         self._local_is_server = is_server
 
     @property
@@ -109,6 +111,7 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
 
     def _send_message(self, msg: Message):
         self.log.debug("Sending message: %r", msg)
+        assert self._transport is not None, "Attempted to send message before connection"
         self._transport.write(_serialize(msg))
 
     def _abort_with(self, abort_msg):
@@ -273,8 +276,10 @@ class _TCPPooling:
     _default_port = COAP_PORT
 
 class TCPServer(_TCPPooling, interfaces.TokenInterface):
-    def __init__(self):
-        self._pool = set()
+    def __init__(self) -> None:
+        self._pool: Set[TcpConnection] = set()
+        self.log: Optional[Logger] = None
+        self.server = None
 
     @classmethod
     async def create_server(cls, bind, tman: interfaces.TokenManager, log, loop, *, _server_context=None):
@@ -338,11 +343,14 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         await asyncio.wait(shutdowns)
 
 class TCPClient(_TCPPooling, interfaces.TokenInterface):
-    def __init__(self):
-        self._pool = {} # (host, port) -> connection
+    def __init__(self) -> None:
+        self._pool: Dict[Tuple[str, int], TcpConnection] = {} #: (host, port) -> connection
         # note that connections are filed by host name, so different names for
         # the same address might end up with different connections, which is
         # probably okay for TCP, and crucial for later work with TLS.
+        self.log: Optional[Logger] = None
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
+        self.credentials = None
 
     async def _spawn_protocol(self, message):
         if message.unresolved_remote is None:

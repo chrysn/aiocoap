@@ -334,7 +334,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
 class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
     def __init__(self, ctx: interfaces.MessageManager, log, loop):
-        self._pool = weakref.WeakValueDictionary({}) # see _connection_for_address
+        self._pool: weakref.WeakValueDictionary = weakref.WeakValueDictionary({}) # see _connection_for_address
 
         self.ctx = ctx
 

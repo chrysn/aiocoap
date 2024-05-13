@@ -6,7 +6,9 @@
 
 from __future__ import annotations
 
-from ..util import ExtensibleIntEnum
+from typing import Dict, Tuple
+
+from ..util import ExtensibleIntEnum, ExtensibleEnumMeta
 import warnings
 
 # _raw can be updated from: `curl https://www.iana.org/assignments/core-parameters/content-formats.csv | python3 -c 'import csv, sys; print(list(csv.reader(sys.stdin))[1:])'`
@@ -113,7 +115,16 @@ def _normalize_media_type(s):
     eventually be compared to them and fail)"""
     return s.replace('; ', ';')
 
-class ContentFormat(ExtensibleIntEnum):
+class ContentFormatMeta(ExtensibleEnumMeta):
+    def __init__(self, name, bases, dict) -> None:
+        super().__init__(name, bases, dict)
+
+        # If this were part of the class definition, it would be taken up as an
+        # enum instance; hoisting it to the metaclass avoids that special
+        # treatment.
+        self._by_mt_encoding: Dict[Tuple[str, str], "ContentFormat"] = {}
+
+class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
     """Entry in the `CoAP Content-Formats registry`__ of the IANA Constrained
     RESTful Environments (Core) Parameters group
 
@@ -145,7 +156,7 @@ class ContentFormat(ExtensibleIntEnum):
     >>> ContentFormat.TEXT
     <ContentFormat 0, media_type='text/plain; charset=utf-8', encoding='identity'>
 
-    A convenient property of ContentFormat is that any known content format is
+    A convenient property of ContentFormat is that any content format is
     true in a boolean context, and thus when used in alternation with None, can
     be assigned defaults easily:
 
@@ -157,6 +168,18 @@ class ContentFormat(ExtensibleIntEnum):
     """
 
     @classmethod
+    def define(cls, number, media_type: str, encoding: str = 'identity'):
+        s = cls(number)
+
+        if hasattr(s, "media_type"):
+            warnings.warn("Redefining media type is a compatibility hazard, but allowed for experimental purposes")
+
+        s._media_type = media_type
+        s._encoding = encoding
+
+        cls._by_mt_encoding[(_normalize_media_type(media_type), encoding)] = s
+
+    @classmethod
     def by_media_type(cls, media_type: str, encoding: str = 'identity') -> ContentFormat:
         """Produce known entry for a known media type (and encoding, though
         'identity' is default due to its prevalence), or raise KeyError."""
@@ -165,12 +188,33 @@ class ContentFormat(ExtensibleIntEnum):
     def is_known(self):
         return hasattr(self, "media_type")
 
+    @property
+    def media_type(self) -> str:
+        return self._media_type
+
+    @media_type.setter
+    def media_type(self, media_type: str) -> None:
+        warnings.warn("Setting media_type or encoding is deprecated, use ContentFormat.define(media_type, encoding) instead.", DeprecationWarning, stacklevel=1)
+        self._media_type = media_type
+
+    @property
+    def encoding(self) -> str:
+        return self._encoding
+
+    @encoding.setter
+    def encoding(self, encoding: str) -> None:
+        warnings.warn("Setting media_type or encoding is deprecated, use ContentFormat(number, media_type, encoding) instead.", DeprecationWarning, stacklevel=1)
+        self._encoding = encoding
+
     @classmethod
     def _rehash(cls):
         """Update the class's cache of known media types
 
         Run this after having created entries with media type and encoding that
         should be found later on."""
+        # showing as a deprecation even though it is a private function because
+        # altering media_type/encoding required users to call this.
+        warnings.warn("This function is not needed when defining a content type through `.define()` rather than by setting media_type and encoding.", DeprecationWarning, stacklevel=1)
         cls._by_mt_encoding = {(_normalize_media_type(c.media_type), c.encoding): c for c in cls._value2member_map_.values()}
 
     def __repr__(self):
@@ -198,10 +242,7 @@ for (_mt, _enc, _i, _source) in _raw:
     if _mt in ["Reserved for Experimental Use", "Reserved, do not use", "Unassigned"]:
         continue
     _mt, _, _ = _mt.partition(' (TEMPORARY')
-    _cf = ContentFormat(int(_i))
-    _cf.media_type = _mt
-    _cf.encoding = _enc or "identity"
-ContentFormat._rehash()
+    ContentFormat.define(int(_i), _mt, _enc or 'identity')
 
 
 class _MediaTypes:

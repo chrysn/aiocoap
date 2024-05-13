@@ -30,10 +30,13 @@ from . import message
 from . import meta
 from . import error
 from . import interfaces
-from . import numbers
+from .numbers.contentformat import ContentFormat
+from .numbers.codes import Code
 from .pipe import Pipe
+from .util.linkformat import Link, LinkFormat
 
-def hashing_etag(request, response):
+
+def hashing_etag(request: message.Message, response: message.Message):
     """Helper function for render_get handlers that allows them to use ETags based
     on the payload's hash value
 
@@ -59,12 +62,12 @@ def hashing_etag(request, response):
     <aiocoap.Message at ... 2.03 Valid ... 1 option(s)>
     """
 
-    if response.code != numbers.codes.CONTENT and response.code is not None:
+    if response.code != Code.CONTENT and response.code is not None:
         return
 
     response.opt.etag = hashlib.sha1(response.payload).digest()[:8]
     if request.opt.etags is not None and response.opt.etag in request.opt.etags:
-        response.code = numbers.codes.VALID
+        response.code = Code.VALID
         response.payload = b''
 
 class _ExposesWellknownAttributes:
@@ -120,12 +123,12 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
             response = message.Message(no_response=26)
 
         if response.code is None:
-            if request.code in (numbers.codes.GET, numbers.codes.FETCH):
-                response_default = numbers.codes.CONTENT
-            elif request.code == numbers.codes.DELETE:
-                response_default = numbers.codes.DELETED
+            if request.code in (Code.GET, Code.FETCH):
+                response_default = Code.CONTENT
+            elif request.code == Code.DELETE:
+                response_default = Code.DELETED
             else:
-                response_default = numbers.codes.CHANGED
+                response_default = Code.CHANGED
             response.code = response_default
 
         if response.opt.no_response is None:
@@ -133,12 +136,12 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
 
         return response
 
-    async def render_to_pipe(self, request: Pipe):
+    async def render_to_pipe(self, pipe: Pipe):
         # Silence the deprecation warning
         if isinstance(self, interfaces.ObservableResource):
             # See interfaces.Resource.render_to_pipe
-            return await interfaces.ObservableResource._render_to_pipe(self, request)
-        return await interfaces.Resource._render_to_pipe(self, request)
+            return await interfaces.ObservableResource._render_to_pipe(self, pipe)
+        return await interfaces.Resource._render_to_pipe(self, pipe)
 
 class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):
@@ -173,8 +176,8 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         # Silence the deprecation warning
         return await interfaces.ObservableResource._render_to_pipe(self, request)
 
-def link_format_to_message(request, linkformat,
-        default_ct=numbers.ContentFormat.LINKFORMAT):
+def link_format_to_message(request: message.Message, linkformat: LinkFormat,
+        default_ct=ContentFormat.LINKFORMAT) -> message.Message:
     """Given a LinkFormat object, render it to a response message, picking a
     suitable conent format from a given request.
 
@@ -187,17 +190,20 @@ def link_format_to_message(request, linkformat,
     if ct is None:
         ct = default_ct
 
-    if ct == numbers.ContentFormat.LINKFORMAT:
+    if ct == ContentFormat.LINKFORMAT:
         payload = str(linkformat).encode('utf8')
     else:
-        return message.Message(code=numbers.NOT_ACCEPTABLE)
+        return message.Message(code=Code.NOT_ACCEPTABLE)
 
     return message.Message(payload=payload, content_format=ct)
 
 # Convenience attribute to set as ct on resources that use
 # link_format_to_message as their final step in the request handler
-link_format_to_message.supported_ct = " ".join(str(int(x)) for x in (
-        numbers.ContentFormat.LINKFORMAT,
+#
+# mypy doesn't like attributes on functions, requiring some `type: ignore` for
+# this, but the alternatives (a __call__able class) have worse docs.
+link_format_to_message.supported_ct = " ".join(str(int(x)) for x in (  # type: ignore
+        ContentFormat.LINKFORMAT,
         ))
 
 class WKCResource(Resource):
@@ -216,7 +222,7 @@ class WKCResource(Resource):
 
     .. _`implementation information link`: https://tools.ietf.org/html/draft-bormann-t2trg-rel-impl-00"""
 
-    ct = link_format_to_message.supported_ct
+    ct = link_format_to_message.supported_ct  # type: ignore
 
     def __init__(self, listgenerator, impl_info=meta.library_uri, **kwargs):
         super().__init__(**kwargs)
@@ -227,7 +233,6 @@ class WKCResource(Resource):
         links = self.listgenerator()
 
         if self.impl_info is not None:
-            from .util.linkformat import Link
             links.links = links.links + [Link(href=self.impl_info, rel="impl-info")]
 
         filters = []
@@ -399,8 +404,6 @@ class Site(interfaces.ObservableResource, PathCapable):
             del self._resources[tuple(path)]
 
     def get_resources_as_linkheader(self):
-        from .util.linkformat import Link, LinkFormat
-
         links = []
 
         for path, resource in self._resources.items():
