@@ -219,4 +219,4 @@ if __debug__:
             warnings.warn(f"Locals list is out of sync; entry `{_code.name} = Code.{_code.name}` is missing")
 
 
-__all__ = ['Code'] + [k for (k, v) in locals().items() if isinstance(v, Code)]
+__all__ = ['Code'] + [k for (k, v) in locals().items() if isinstance(v, Code) and not k.startswith("_")]
