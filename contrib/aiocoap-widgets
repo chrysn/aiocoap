@@ -1,13 +1,21 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S pipx run
 # SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
 #
 # SPDX-License-Identifier: MIT
+
+# /// script
+# requires-python = ">= 3.10"
+# dependencies = [
+#   "aiocoap == 0.4.8",
+#   "cbor2",
+#   "pygobject @ git+https://gitlab.gnome.org/GNOME/pygobject.git@benzea/gio-asyncio",
+# ]
+# ///
 
 """Graphical utility to represent typical CoAP interfaces"""
 
 import argparse
 
-from aiocoap.util.cli import AsyncCLIDaemon
 from aiocoap import resource
 from aiocoap import Context
 from aiocoap.resourcedirectory.client.register import Registerer
@@ -15,7 +23,8 @@ from aiocoap.resourcedirectory.client.register import Registerer
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
-import gbulb
+import asyncio
+from gi.events import GLibEventLoopPolicy
 
 from widgets_common.gobject_resource import *
 
@@ -75,13 +84,18 @@ async def start_context(site, args):
     else:
         return ctx.shutdown
 
-class WidgetApplication(AsyncCLIDaemon):
+class WidgetApplication(Gtk.Application):
+    def __init__(self):
+        super().__init__()
+        self.hold()
+        self.connect("activate", lambda s: asyncio.create_task(self.start()))
+
     async def start(self):
         p = ArgumentParser()
         args = p.parse_args()
 
         win = Gtk.Window()
-        win.connect("delete-event", lambda *args: self.stop(0))
+        win.connect("delete-event", lambda *args: self.release())
 
         site = resource.Site()
         site.add_resource(['.well-known', 'core'], resource.WKCResource(site.get_resources_as_linkheader))
@@ -115,8 +129,10 @@ class WidgetApplication(AsyncCLIDaemon):
         self.shutdown = await start_context(site, args)
 
 def sync_main():
-    gbulb.install(gtk=True)
-    WidgetApplication.sync_main()
+    asyncio.set_event_loop_policy(GLibEventLoopPolicy())
+
+    app = WidgetApplication()
+    app.run()
 
 if __name__ == "__main__":
     sync_main()
