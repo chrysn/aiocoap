@@ -18,6 +18,10 @@ possible options are parsing C header files (at build time?) or interacting
 with shared libraries for obtaining the symbols. The right way would probably
 be including them in Python in a "other constants defined on this platform for
 sockets" module or dictionary.
+
+As of 2024, most of these are not needed any more; this module will be removed
+in favor of directly accessing `socket` constants once Python 3.13 support is
+dropped (see [issue 352](https://github.com/chrysn/aiocoap/issues/352)).
 """
 
 import sys
