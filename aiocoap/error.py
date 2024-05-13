@@ -62,22 +62,70 @@ class ConstructionRenderableError(RenderableError):
     code = codes.INTERNAL_SERVER_ERROR #: Code assigned to messages built from it
     message = "" #: Text sent in the built message's payload
 
-# FIXME: this should be comprehensive, maybe generted from the code list
-
-class NotFound(ConstructionRenderableError):
-    code = codes.NOT_FOUND
-
-class MethodNotAllowed(ConstructionRenderableError):
-    code = codes.METHOD_NOT_ALLOWED
-
-class UnsupportedContentFormat(ConstructionRenderableError):
-    code = codes.UNSUPPORTED_CONTENT_FORMAT
-
-class Unauthorized(ConstructionRenderableError):
-    code = codes.UNAUTHORIZED
-
+# This block is code-generated to make the types available to static checkers.
+# The __debug__ check below ensures that it stays up to date.
 class BadRequest(ConstructionRenderableError):
     code = codes.BAD_REQUEST
+class Unauthorized(ConstructionRenderableError):
+    code = codes.UNAUTHORIZED
+class BadOption(ConstructionRenderableError):
+    code = codes.BAD_OPTION
+class Forbidden(ConstructionRenderableError):
+    code = codes.FORBIDDEN
+class NotFound(ConstructionRenderableError):
+    code = codes.NOT_FOUND
+class MethodNotAllowed(ConstructionRenderableError):
+    code = codes.METHOD_NOT_ALLOWED
+class NotAcceptable(ConstructionRenderableError):
+    code = codes.NOT_ACCEPTABLE
+class RequestEntityIncomplete(ConstructionRenderableError):
+    code = codes.REQUEST_ENTITY_INCOMPLETE
+class Conflict(ConstructionRenderableError):
+    code = codes.CONFLICT
+class PreconditionFailed(ConstructionRenderableError):
+    code = codes.PRECONDITION_FAILED
+class RequestEntityTooLarge(ConstructionRenderableError):
+    code = codes.REQUEST_ENTITY_TOO_LARGE
+class UnsupportedContentFormat(ConstructionRenderableError):
+    code = codes.UNSUPPORTED_CONTENT_FORMAT
+class UnprocessableEntity(ConstructionRenderableError):
+    code = codes.UNPROCESSABLE_ENTITY
+class TooManyRequests(ConstructionRenderableError):
+    code = codes.TOO_MANY_REQUESTS
+class InternalServerError(ConstructionRenderableError):
+    code = codes.INTERNAL_SERVER_ERROR
+class NotImplemented(ConstructionRenderableError):
+    code = codes.NOT_IMPLEMENTED
+class BadGateway(ConstructionRenderableError):
+    code = codes.BAD_GATEWAY
+class ServiceUnavailable(ConstructionRenderableError):
+    code = codes.SERVICE_UNAVAILABLE
+class GatewayTimeout(ConstructionRenderableError):
+    code = codes.GATEWAY_TIMEOUT
+class ProxyingNotSupported(ConstructionRenderableError):
+    code = codes.PROXYING_NOT_SUPPORTED
+class HopLimitReached(ConstructionRenderableError):
+    code = codes.HOP_LIMIT_REACHED
+if __debug__:
+    _missing_codes = False
+    _full_code = ""
+    for code in codes.Code:
+        if code.is_successful() or not code.is_response():
+            continue
+        classname = "".join(w.title() for w in code.name.split("_"))
+        _full_code += f"""
+class {classname}(ConstructionRenderableError):
+    code = codes.{code.name}"""
+        if classname not in locals():
+            warnings.warn(f"Missing exception type: f{classname}")
+            _missing_codes = True
+            continue
+        if locals()[classname].code != code:
+            warnings.warn(f"Mismatched code for {classname}: Should be {code}, is {locals()[classname].code}")
+            _missing_codes = True
+            continue
+    if _missing_codes:
+        warnings.warn("Generated exception list is out of sync, should be:\n" + _full_code)
 
 # More detailed versions of code based errors
 
@@ -137,13 +185,6 @@ class ResolutionError(NetworkError):
 class MessageError(NetworkError):
     """Received an error from the remote on the CoAP message level (typically a
     RST)"""
-
-class NotImplemented(Error):
-    """
-    Raised when request is correct, but feature is not implemented
-    by library.
-    For example non-sequential blockwise transfers
-    """
 
 class RemoteServerShutdown(NetworkError):
     """The peer a request was sent to in a stateful connection closed the
