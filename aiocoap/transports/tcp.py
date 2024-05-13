@@ -9,7 +9,7 @@ from typing import Dict, Optional, Set, Tuple
 
 from aiocoap.transports import rfc8323common
 from aiocoap import interfaces, error, util
-from aiocoap import COAP_PORT, Message  # type: ignore
+from aiocoap import COAP_PORT, Message
 from aiocoap import defaults
 
 def _extract_message_size(data: bytes):

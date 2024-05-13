@@ -17,7 +17,7 @@ and state your hostname (eg. localhost) when asked for the Common Name.
 
 from .tcp import TCPClient, TCPServer
 
-from aiocoap import COAPS_PORT  # type: ignore
+from aiocoap import COAPS_PORT
 
 class _TLSMixIn:
     _scheme = 'coaps+tcp'

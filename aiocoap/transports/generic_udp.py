@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 from aiocoap import interfaces, error, util
-from aiocoap import COAP_PORT, Message  # type: ignore
+from aiocoap import COAP_PORT, Message
 
 class GenericMessageInterface(interfaces.MessageInterface):
     """GenericMessageInterface is not a standalone implementation of a
