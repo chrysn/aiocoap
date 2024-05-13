@@ -150,4 +150,4 @@ def __getattr__(name):
 SHUTDOWN_TIMEOUT = 3
 """Maximum time, in seconds, for which the process is kept around during shutdown"""
 
-__all__ = [k for k in dir() if not k.startswith('_') and k not in ('warnings', 'strings')]
+__all__ = [k for k in dir() if not k.startswith('_') and k not in ('warnings', 'string')]
