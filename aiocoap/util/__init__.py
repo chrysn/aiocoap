@@ -35,7 +35,9 @@ class ExtensibleEnumMeta(enum.EnumMeta):
             class PermissiveEnumDict(type(enum_dict)):
                 def __setitem__(self, key, value):
                     if key == "_repr_html_":
-                        self._repr_html_ = value
+                        # Bypass _EnumDict, go directly for the regular dict
+                        # behavior it falls back to for regular items
+                        dict.__setitem__(self, key, value)
                     else:
                         super().__setitem__(key, value)
             permissive_dict = PermissiveEnumDict()

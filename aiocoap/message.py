@@ -177,6 +177,17 @@ class Message(object):
                 )
 
     def _repr_html_(self):
+        """An HTML representation for Jupyter and similar environments
+
+        While the precise format is not guaranteed, it will be usable through
+        tooltips and possibly fold-outs:
+
+        >>> from aiocoap import *
+        >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
+        >>> html = msg._repr_html_()
+        >>> html.contains('Message with code <abbr title="Request Code 0.01">GET</abbr>')
+        >>> html.contains('3 options</summary>')
+        """
         import html
         if not self.payload:
             payload_rendered = '<p>No payload</p>'
