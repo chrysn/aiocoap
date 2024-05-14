@@ -1,3 +1,15 @@
+Version 0.4.9
+-------------
+
+This is a bugfix release to restore functionality when used through Jupyter and in Python's optimized mode.
+
+Bug fixes
+~~~~~~~~~
+
+* enum: Fix visibility of _repr_html_ on Python versions < 3.13.
+* numbers: Don't export _code, which is only present with __debug__.
+
+
 Version 0.4.8
 -------------
 
