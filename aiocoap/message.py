@@ -185,8 +185,10 @@ class Message(object):
         >>> from aiocoap import *
         >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
         >>> html = msg._repr_html_()
-        >>> html.contains('Message with code <abbr title="Request Code 0.01">GET</abbr>')
-        >>> html.contains('3 options</summary>')
+        >>> 'Message with code <abbr title="Request Code 0.01">GET</abbr>' in html
+        True
+        >>> '3 options</summary>' in html
+        True
         """
         import html
         if not self.payload:
