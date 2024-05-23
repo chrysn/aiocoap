@@ -36,9 +36,7 @@ ease porting to platforms that don't support inspect like micropython does.
 import re
 import inspect
 
-from typing import Optional, TYPE_CHECKING
-if TYPE_CHECKING:
-    from .oscore import FilesystemSecurityContext
+from typing import Optional
 
 
 '''
@@ -153,7 +151,9 @@ def _call_from_structureddata(constructor, name, init_data):
         # Not using isinstance because I foundno way to extract the type
         # information from an Optional/Union again; this whole thing works
         # only for strings and ints anyway, so why not.
-        if annotation not in (type(v), Optional[type(v)]):
+        #
+        # The second or-branch is for functions from modules with __future__.annotations
+        if annotation not in (type(v), Optional[type(v)]) and annotation not in (type(v).__name__, "Optional[%s]" % type(v).__name__):
             # explicitly not excluding inspect._empty here: constructors
             # need to be fully annotated
             raise CredentialsLoadError("Type mismatch in attribute %s of %s: expected %s, got %r" % (k, name, annotation, v))
@@ -193,12 +193,9 @@ class TLSCert(_Objectish):
         ssl.create_default_context when purpose is alreay set"""
         return {"cafile": self.certfile}
 
-def construct_oscore(contextfile: str) -> "FilesystemSecurityContext":
+def import_filesystem_security_context():
     from .oscore import FilesystemSecurityContext
-
-    return FilesystemSecurityContext(contextfile)
-
-construct_oscore.from_item = lambda value: _call_from_structureddata(construct_oscore, 'OSCORE', value)  # type: ignore
+    return FilesystemSecurityContext
 
 def import_edhoc_credential_pair():
     from . import edhoc
@@ -264,7 +261,7 @@ class CredentialsMap(dict):
     # rather than possibly being ignored.
     _class_map = {
             'dtls': lambda: DTLS,
-            'oscore': lambda: construct_oscore,
+            'oscore': import_filesystem_security_context,
             'tlscert': lambda: TLSCert,
             'any-of': lambda: AnyOf,
             'all-of': lambda: AllOf,
