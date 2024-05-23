@@ -35,7 +35,7 @@ property alone.
 from collections import namedtuple
 from functools import wraps
 
-from .. import interfaces, credentials, oscore
+from .. import interfaces, credentials, edhoc, oscore
 from ..numbers import UNAUTHORIZED, MAX_REGULAR_BLOCK_SIZE_EXP
 
 
@@ -134,6 +134,9 @@ class TransportOSCORE(interfaces.RequestProvider):
             # double oscore is not specified; using this fact to make `._wire
             # is ._context` an option
             return False
+        if message.opt.uri_path == ('.well-known', 'edhoc'):
+            # FIXME better criteria based on next-hop?
+            return False
 
         try:
             secctx = self._context.client_credentials.credentials_from_request(message)
@@ -141,7 +144,7 @@ class TransportOSCORE(interfaces.RequestProvider):
             return False
 
         # FIXME: it'd be better to have a "get me credentials *of this type* if they exist"
-        if isinstance(secctx, oscore.CanProtect):
+        if isinstance(secctx, oscore.CanProtect) or isinstance(secctx, edhoc.EdhocCredentialPair):
             message.remote = OSCOREAddress(secctx, message.remote)
             self.log.debug("Selecting OSCORE transport based on context %r for new request %r", secctx, message)
             return True
@@ -160,6 +163,18 @@ class TransportOSCORE(interfaces.RequestProvider):
         msg = request.request
 
         secctx = msg.remote.security_context
+
+        if isinstance(secctx, edhoc.EdhocCredentialPair):
+            if secctx._established_context is None:
+                self._established_context = msg.remote.security_context.establish_context(
+                        wire=self._wire,
+                        underlying_address=msg.remote.underlying_address,
+                        logger=self.log.getChild("edhoc")
+                        )
+            # FIXME: Who should drive retries here? We probably don't retry if
+            # it fails immediately, but what happens with the request that
+            # finds this broken, will it recurse?
+            secctx = await self._established_context
 
         def protect(echo):
             if echo is None:

@@ -200,6 +200,10 @@ def construct_oscore(contextfile: str) -> "FilesystemSecurityContext":
 
 construct_oscore.from_item = lambda value: _call_from_structureddata(construct_oscore, 'OSCORE', value)  # type: ignore
 
+def import_edhoc_credential_pair():
+    from . import edhoc
+    return edhoc.EdhocCredentialPair
+
 _re_cache = {}
 
 class CredentialsMap(dict):
@@ -249,18 +253,22 @@ class CredentialsMap(dict):
                     )
 
             try:
-                constructor = self._class_map[key].from_item
+                type_ = self._class_map[key]
             except KeyError:
                 raise CredentialsLoadError("Unknown credential type: %s" % key)
 
-            return constructor(value)
+            return type_().from_item(value)
 
+    # Phrased as callbacks so they can import lazily. We make sure that all are
+    # still present so that an entry that is not loadable raises an error
+    # rather than possibly being ignored.
     _class_map = {
-            'dtls': DTLS,
-            'oscore': construct_oscore,
-            'tlscert': TLSCert,
-            'any-of': AnyOf,
-            'all-of': AllOf,
+            'dtls': lambda: DTLS,
+            'oscore': lambda: construct_oscore,
+            'tlscert': lambda: TLSCert,
+            'any-of': lambda: AnyOf,
+            'all-of': lambda: AllOf,
+            'edhoc-oscore': import_edhoc_credential_pair,
             }
 
     @staticmethod
