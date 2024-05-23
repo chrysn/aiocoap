@@ -107,8 +107,16 @@ def apply_credentials(context, credentials, errfn):
     if credentials.suffix == '.json':
         import json
         context.client_credentials.load_from_dict(json.load(credentials.open('rb')))
+    elif credentials.suffix == '.diag':
+        try:
+            import cbor_diag
+            import cbor2
+        except ImportError:
+            raise errfn("Loading credentials in CBOR diagnostic format requires cbor2 and cbor_diag package")
+        context.client_credentials.load_from_dict(cbor2.loads(cbor_diag.diag2cbor(
+            credentials.open().read())))
     else:
-        raise errfn("Unknown suffix: %s (expected: .json)" % (credentials.suffix))
+        raise errfn("Unknown suffix: %s (expected: .json or .diag)" % (credentials.suffix))
 
 def present(message, options, file=sys.stdout):
     """Write a message payload to the output, pretty printing and/or coloring
