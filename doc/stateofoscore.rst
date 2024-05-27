@@ -110,13 +110,13 @@ With each of those goes a credentials map:
 ``client1.json``::
 
   {
-    "coap://localhost/*": { "oscore": { "contextfile": "client1/for-fileserver/" } }
+    "coap://localhost/*": { "oscore": { "basedir": "client1/for-fileserver/" } }
   }
 
 ``server.json``::
 
   {
-    ":client1": { "oscore": { "contextfile": "server/from-client1/" } }
+    ":client1": { "oscore": { "basedir": "server/from-client1/" } }
   }
 
 Then, the server can be started::

@@ -42,11 +42,11 @@ from typing import Optional
 '''
 server: {
             'coaps://mysite/*': { 'dtls-psk' (or other granularity): { 'psk': 'abcd' }},
-            'coap://mysite/*': { 'oscore': { 'contextfile': 'my-contextfile/' } },
+            'coap://mysite/*': { 'oscore': { 'basedir': 'my-basedir/' } },
             'coap://myothersite/firmware': ':myotherkey',
             'coap://myothersite/reset': ':myotherkey',
             'coap://othersite*': { 'unprotected': true },
-            ':myotherkey': { 'oscore': { 'contextfile': 'my-contextfile/' } }
+            ':myotherkey': { 'oscore': { 'basedir': 'my-basedir/' } }
         }
 
 server can of course just say it doesn't want to have the Site handle it and

@@ -39,7 +39,7 @@ class TestCredentialsLoad(unittest.TestCase):
         from aiocoap.oscore import FilesystemSecurityContext
 
         raw = {
-            'coap://some-oscore-host/*': {'oscore': {'contextfile': __file__.replace('test_credentials.py', 'test_credentials_oscore_context/')}},
+            'coap://some-oscore-host/*': {'oscore': {'basedir': __file__.replace('test_credentials.py', 'test_credentials_oscore_context/')}},
             'coaps://some-dtls-host/*': {'dtls': {'psk': {'hex': '73-65-63-72-65-74-50-53-4b'}, 'client-identity': b'Client_identity'}}
             }
 
