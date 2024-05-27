@@ -15,6 +15,55 @@ from . import oscore, credentials
 from . import Message
 from .numbers import POST
 
+def load_cbor_or_edn(filename: Path):
+    """Common heuristic for whether something is CBOR or EDN"""
+    import cbor_diag
+    import cbor2
+    with filename.open('rb') as binary:
+        try:
+            result = cbor2.load(binary)
+        except cbor2.CBORDecodeError:
+            pass
+        else:
+            if binary.read(1) == b"":
+                return result
+            # else it apparently hasn't been CBOR all through...
+    with filename.open() as textual:
+        try:
+            converted = cbor_diag.diag2cbor(textual.read())
+        except ValueError:
+            raise credentials.CredentialsLoadError("Data loaded from %s was recognized neither as CBOR nor CBOR Diagnostic Notation (EDN)" % filename)
+        # no need to check for completeness: diag2cbor doesn't do diagnostic
+        # sequences, AIU that's not even a thing
+        return cbor2.loads(converted)
+
+class CoseKeyForEdhoc:
+    @classmethod
+    def from_file(cls, filename: Path) -> "CoseKeyForEdhoc":
+        if filename.stat().st_mode & 0o077 != 0:
+            raise credentials.CredentialsLoadError("Refusing to load private key that is group or world accessible")
+
+        loaded = load_cbor_or_edn(filename)
+        if not isinstance(loaded, dict):
+            raise credentials.CredentialsLoadError("Data in %s is not shaped like COSE_KEY (expected top-level dictionary)" % filename)
+        if 1 not in loaded:
+            raise credentials.CredentialsLoadError("Data in %s is not shaped like COSE_KEY (expected key 1 (kty) in top-level dictionary)" % filename)
+        if loaded[1] != 2:
+            raise credentials.CredentialsLoadError("Private key type %s is not supported (currently only 2 (EC) is supported)" % (loaded[1],))
+
+        if loaded.get(-1) != 1:
+            raise credentials.CredentialsLoadError("Private key of type EC requires key -1 (crv), currently supported values: 1 (P-256)")
+
+        if not isinstance(loaded.get(-4), bytes) or len(loaded[-4]) != 32:
+            raise credentials.CredentialsLoadError("Private key of type EC P-256 requires key -4 (d) to be a 32-byte long byte string")
+
+        key = cls()
+        key.kty = 1
+        key.crv = 1
+        key.d = loaded[-4]
+
+        return key
+
 class EdhocCredentialPair(credentials._Objectish):
     def __init__(self, suite: int, method: int, own_cred_style: str, peer_cred: dict, own_cred: dict, private_key_file: str):
         from . import edhoc
@@ -28,13 +77,9 @@ class EdhocCredentialPair(credentials._Objectish):
 
         # FIXME: We should carry around a base
         private_key_path = Path(private_key_file)
-        if private_key_path.stat().st_mode & 0o077 != 0:
-            raise credentials.CredentialsLoadError("Refusing to load private key that is group or world accessible")
         # FIXME: We left loading the file to the user, and now we're once more
         # in a position where we guess the file type
-        import cbor_diag
-        import cbor2
-        self.own_key = cbor2.loads(cbor_diag.diag2cbor(private_key_path.open().read()))
+        self.own_key = CoseKeyForEdhoc.from_file(private_key_path)
 
         self._established_context = None
 
@@ -67,7 +112,7 @@ class EdhocCredentialPair(credentials._Objectish):
         cred_i = cbor2.dumps(self.own_cred[14])
         # FIXME more asserts or just do it right
         cred_r = cbor2.dumps(self.peer_cred[14])
-        key_i = self.own_key[-4]
+        key_i = self.own_key.d
         initiator.verify_message_2(
             key_i, cred_i, cred_r,
         )  # odd that we provide that here rather than in the next function
