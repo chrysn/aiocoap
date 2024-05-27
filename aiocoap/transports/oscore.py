@@ -157,9 +157,25 @@ class TransportOSCORE(interfaces.RequestProvider):
                 name="OSCORE request %r" % request,
                 )
         self._tasks.add(t)
-        t.add_done_callback(lambda _, _tasks=self._tasks, _t=t: _tasks.remove(_t))
+        def done(t, _tasks=self._tasks, _request=request):
+            _tasks.remove(t)
+            try:
+                t.result()
+            except Exception as e:
+                _request.add_exception(e)
+        t.add_done_callback(done)
 
-    async def _request(self, request):
+    async def _request(self, request) -> None:
+        """Process a request including any pre-flights or retries
+
+        Retries by this coroutine are limited to actionable authenticated
+        errors, i.e. those where it is ensured that even though the request is
+        encrypted twice, it is still only processed once.
+
+        This coroutine sets the result of request.request on completion;
+        otherwise it raises and relies on its done callback to propagate the
+        error.
+        """
         msg = request.request
 
         secctx = msg.remote.security_context
@@ -251,8 +267,6 @@ class TransportOSCORE(interfaces.RequestProvider):
                     return
             request.add_exception(NotImplementedError("End of observation"
                 " should have been indicated in is_last, see above lines"))
-        except Exception as e:
-            request.add_exception(e)
         finally:
             # FIXME: no way yet to cancel observations exists yet, let alone
             # one that can be used in a finally clause (ie. won't raise
