@@ -20,7 +20,7 @@ from aiocoap.transports.oscore import OSCOREAddress
 
 class OscoreSiteWrapper(interfaces.Resource):
     def __init__(self, inner_site, server_credentials):
-        self.log = logging.getLogger('oscore-site')
+        self.log = logging.getLogger('coap-server.oscore-site')
 
         self._inner_site = inner_site
         self.server_credentials = server_credentials
