@@ -1200,6 +1200,9 @@ class SecurityContextUtils(BaseSecurityContext):
         if unprotected.get(COSE_KID, None) == self.recipient_id and unprotected.get(COSE_KID_CONTEXT, None) == self.id_context:
             return self
 
+    def find_all_used_contextless_oscore_kid(self) -> set[bytes]:
+        return set((self.recipient_id,))
+
 class ReplayWindow:
     """A regular replay window of a fixed size.
 
@@ -1745,6 +1748,10 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
                 return _DeterministicUnprotectProtoAspect(self, kid)
             else:
                 return _PairwiseContextAspect(self, kid)
+
+    def find_all_used_contextless_oscore_kid(self) -> set[bytes]:
+        # not conflicting: groups always send KID Context
+        return set()
 
     # yet to stabilize...
 

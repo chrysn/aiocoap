@@ -36,7 +36,7 @@ ease porting to platforms that don't support inspect like micropython does.
 import re
 import inspect
 
-from typing import Optional
+from typing import Optional, List
 
 
 '''
@@ -330,6 +330,29 @@ class CredentialsMap(dict):
                 return ctx
 
         raise KeyError()
+
+    def find_all_used_contextless_oscore_kid(self) -> set[bytes]:
+        all_kid = set()
+
+        for item in self.values():
+            if not hasattr(item, "find_all_used_contextless_oscore_kid"):
+                continue
+
+            all_kid |= item.find_all_used_contextless_oscore_kid()
+
+        return all_kid
+
+    def find_edhoc_by_id_cred_peer(self, id_cred_peer) -> (bytes, List[str]):
+        for (label, item) in self.items():
+            if not hasattr(item, "find_edhoc_by_id_cred_peer"):
+                continue
+
+            # typically returning self
+            credential = item.find_edhoc_by_id_cred_peer(id_cred_peer)
+            if credential is not None:
+                return (credential, [label])
+
+        raise KeyError
 
     def find_dtls_psk(self, identity):
         # FIXME similar to find_oscore
