@@ -119,9 +119,9 @@ class EdhocCredentialPair(credentials._Objectish):
 
         logger.debug("Message 2 was verified")
 
-        return EdhocSecurityContext(initiator, c_i, c_r, self.own_cred_style)
+        return EdhocInitiatorContext(initiator, c_i, c_r, self.own_cred_style)
 
-class EdhocSecurityContext(
+class EdhocInitiatorContext(
     oscore.CanProtect, oscore.CanUnprotect, oscore.SecurityContextUtils
 ):
     """An OSCORE context that is derived from an EDHOC exchange.
