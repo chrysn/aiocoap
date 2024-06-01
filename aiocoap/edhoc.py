@@ -41,6 +41,10 @@ def load_cbor_or_edn(filename: Path):
         return cbor2.loads(converted)
 
 class CoseKeyForEdhoc:
+    kty: int
+    crv: int
+    d: bytes
+
     @classmethod
     def from_file(cls, filename: Path) -> "CoseKeyForEdhoc":
         if filename.stat().st_mode & 0o077 != 0:

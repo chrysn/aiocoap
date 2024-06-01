@@ -36,7 +36,7 @@ ease porting to platforms that don't support inspect like micropython does.
 import re
 import inspect
 
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 
 '''
@@ -342,7 +342,7 @@ class CredentialsMap(dict):
 
         return all_kid
 
-    def find_edhoc_by_id_cred_peer(self, id_cred_peer) -> (bytes, List[str]):
+    def find_edhoc_by_id_cred_peer(self, id_cred_peer) -> Tuple[bytes, List[str]]:
         for (label, item) in self.items():
             if not hasattr(item, "find_edhoc_by_id_cred_peer"):
                 continue

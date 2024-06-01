@@ -88,6 +88,7 @@ class OSCOREAddress(
         return self.security_context.authenticated_claims
 
     is_multicast = False
+    is_multicast_locally = False
 
     maximum_payload_size = 1024
     maximum_block_size_exp = MAX_REGULAR_BLOCK_SIZE_EXP

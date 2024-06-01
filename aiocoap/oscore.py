@@ -1200,9 +1200,6 @@ class SecurityContextUtils(BaseSecurityContext):
         if unprotected.get(COSE_KID, None) == self.recipient_id and unprotected.get(COSE_KID_CONTEXT, None) == self.id_context:
             return self
 
-    def find_all_used_contextless_oscore_kid(self) -> set[bytes]:
-        return set((self.recipient_id,))
-
 class ReplayWindow:
     """A regular replay window of a fixed size.
 
@@ -1556,6 +1553,9 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils, 
             assert basedir is not None # This helps mypy which would otherwise not see that the above ensures this already
             return cls(basedir)
         return credentials._call_from_structureddata(constructor, cls.__name__, init_data)
+
+    def find_all_used_contextless_oscore_kid(self) -> set[bytes]:
+        return set((self.recipient_id,))
 
 class GroupContext(ContextWhereExternalAadIsGroup, BaseSecurityContext):
     is_signing = True
