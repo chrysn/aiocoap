@@ -199,7 +199,7 @@ def import_filesystem_security_context():
 
 def import_edhoc_credential_pair():
     from . import edhoc
-    return edhoc.EdhocCredentialPair
+    return edhoc.EdhocCredentials
 
 _re_cache = {}
 

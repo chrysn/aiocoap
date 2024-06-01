@@ -219,7 +219,7 @@ class OscoreSiteWrapper(interfaces.Resource):
                 is_last=True
                 )
 
-    def _get_edhoc_identity(self, origin: str) -> Optional[edhoc.EdhocCredentialPair]:
+    def _get_edhoc_identity(self, origin: str) -> Optional[edhoc.EdhocCredentials]:
         """With lakers-python 0.3.1, we can effectively only have one identity
         per host; expect this to change once we gain access to EAD1 (plus more
         when there are more methods or cipher suites)
@@ -227,7 +227,7 @@ class OscoreSiteWrapper(interfaces.Resource):
 
         # That this works is a flaw of the credentials format by itself
         candidate = self.server_credentials.get(origin + "/*")
-        if not isinstance(candidate, edhoc.EdhocCredentialPair):
+        if not isinstance(candidate, edhoc.EdhocCredentials):
             # FIXME not really a pair needed is it?
             return None
         return candidate

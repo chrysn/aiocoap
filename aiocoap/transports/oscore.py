@@ -145,7 +145,7 @@ class TransportOSCORE(interfaces.RequestProvider):
             return False
 
         # FIXME: it'd be better to have a "get me credentials *of this type* if they exist"
-        if isinstance(secctx, oscore.CanProtect) or isinstance(secctx, edhoc.EdhocCredentialPair):
+        if isinstance(secctx, oscore.CanProtect) or isinstance(secctx, edhoc.EdhocCredentials):
             message.remote = OSCOREAddress(secctx, message.remote)
             self.log.debug("Selecting OSCORE transport based on context %r for new request %r", secctx, message)
             return True
@@ -181,7 +181,7 @@ class TransportOSCORE(interfaces.RequestProvider):
 
         secctx = msg.remote.security_context
 
-        if isinstance(secctx, edhoc.EdhocCredentialPair):
+        if isinstance(secctx, edhoc.EdhocCredentials):
             if secctx._established_context is None:
                 self._established_context = msg.remote.security_context.establish_context(
                         wire=self._wire,
