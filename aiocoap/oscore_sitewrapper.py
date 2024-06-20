@@ -210,6 +210,7 @@ class OscoreSiteWrapper(interfaces.Resource):
                 c_i,
                 c_r,
                 self.server_credentials,
+                self.log,
                 )
         # FIXME we shouldn't need arbitrary keys
         self.server_credentials[":" + uuid.uuid4().hex] = credentials_entry

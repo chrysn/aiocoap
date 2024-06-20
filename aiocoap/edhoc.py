@@ -165,11 +165,14 @@ class EdhocCredentials(credentials._Objectish):
 
         logger.debug("Message 2 was verified")
 
-        return EdhocInitiatorContext(initiator, c_i, c_r, self.own_cred_style)
+        return EdhocInitiatorContext(initiator, c_i, c_r, self.own_cred_style, logger)
 
 class _EdhocContextBase(
     oscore.CanProtect, oscore.CanUnprotect, oscore.SecurityContextUtils
 ):
+    def __init__(self, logger):
+        self.log = logger
+
     def post_seqnoincrease(self):
         # The context is not persisted
         pass
@@ -212,6 +215,8 @@ class _EdhocContextBase(
         self.sender_sequence_number = 0
         self.recipient_replay_window.initialize_empty()
 
+        self.log.debug("EDHOC context %r ready for OSCORE operation", self)
+
     @abc.abstractmethod
     def message_3_to_include(self) -> Optional[bytes]:
         """An encoded message_3 to include in outgoing messages
@@ -226,7 +231,9 @@ class EdhocInitiatorContext(_EdhocContextBase):
     message 3 at setup time, and sends it with the first request that is sent
     through it."""
     # FIXME: Should we rather send it with *every* request that is sent before a message 4 is received implicitly?
-    def __init__(self, initiator, c_ours, c_theirs, cred_i_mode):
+    def __init__(self, initiator, c_ours, c_theirs, cred_i_mode, logger):
+        super().__init__(logger)
+
         # Only this line is role specific
         self._message_3, _i_prk_out = initiator.prepare_message_3(cred_i_mode.as_lakers(), None)
 
@@ -240,7 +247,9 @@ class EdhocInitiatorContext(_EdhocContextBase):
         return None
 
 class EdhocResponderContext(_EdhocContextBase):
-    def __init__(self, responder, c_i, c_r, server_credentials):
+    def __init__(self, responder, c_i, c_r, server_credentials, logger):
+        super().__init__(logger)
+
         # storing them where they will later be overwritten with themselves
         self.recipient_id = c_r
         self.sender_id = c_i
@@ -286,6 +295,7 @@ class EdhocResponderContext(_EdhocContextBase):
             message_3 = protected_message.payload[:m3len]
 
             id_cred_i, ead_3 = self._responder.parse_message_3(message_3)
+            self.log.debug("Received message 3 with id_cred_i=%r", id_cred_i)
             if ead_3 is not None:
                 raise error.BadRequest
 
