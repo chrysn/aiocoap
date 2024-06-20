@@ -308,6 +308,7 @@ class OwnCredStyle(enum.Enum):
     """Guidance for how the own credential should be sent in an EDHOC
     exchange"""
     ByKeyId = "by-key-id"
+    ByValue = "by-value"
 
     def as_lakers(self):
         """Convert the enum into Lakers' reepresentation of the same concept.
@@ -318,5 +319,7 @@ class OwnCredStyle(enum.Enum):
             # FIXME: Mismatch to be fixed in lakers -- currently the only way
             # it allows sending by reference is by Key ID
             return lakers.CredentialTransfer.ByReference
+        if self == self.ByValue:
+            return lakers.CredentialTransfer.ByValue
         else:
             raise RuntimeError("enum variant not covered")
