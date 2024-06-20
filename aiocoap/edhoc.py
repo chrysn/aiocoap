@@ -64,6 +64,9 @@ class CoseKeyForEdhoc:
         if not isinstance(loaded.get(-4), bytes) or len(loaded[-4]) != 32:
             raise credentials.CredentialsLoadError("Private key of type EC P-256 requires key -4 (d) to be a 32-byte long byte string")
 
+        if any(k not in (1, -1, -4) for k in loaded):
+            raise credentials.CredentialsLoadError("Extraneous data in key, consider allow-listing the item if acceptable")
+
         key = cls()
         key.kty = 1
         key.crv = 1
