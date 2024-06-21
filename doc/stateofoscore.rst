@@ -18,6 +18,9 @@ establidsh keys (there is ongoing work on a lightweight key exchange named
 EDHOC, and the ACE-OSCORE_ profile goes some way). Until those are implemented
 and wide-spread, OSCORE contexts can be provisioned manually to devices.
 
+An implementation of EDHOC is :doc:`available in aiocoap <stateofedhoc>`, but
+is still rather experimental.
+
 OSCORE state
 ------------
 
