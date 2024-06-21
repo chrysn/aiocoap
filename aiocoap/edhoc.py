@@ -9,7 +9,8 @@ import enum
 import io
 from pathlib import Path
 import random
-from typing import Optional
+from typing import Optional, Dict, Literal
+import os
 
 import cbor2
 import lakers
@@ -47,32 +48,87 @@ class CoseKeyForEdhoc:
 
     @classmethod
     def from_file(cls, filename: Path) -> "CoseKeyForEdhoc":
+        """Load a key from a file (in CBOR or EDN), asserting that the file is not group/world readable"""
         if filename.stat().st_mode & 0o077 != 0:
             raise credentials.CredentialsLoadError("Refusing to load private key that is group or world accessible")
 
         loaded = load_cbor_or_edn(filename)
-        if not isinstance(loaded, dict):
-            raise credentials.CredentialsLoadError("Data in %s is not shaped like COSE_KEY (expected top-level dictionary)" % filename)
-        if 1 not in loaded:
-            raise credentials.CredentialsLoadError("Data in %s is not shaped like COSE_KEY (expected key 1 (kty) in top-level dictionary)" % filename)
-        if loaded[1] != 2:
-            raise credentials.CredentialsLoadError("Private key type %s is not supported (currently only 2 (EC) is supported)" % (loaded[1],))
+        return cls.from_map(loaded)
 
-        if loaded.get(-1) != 1:
+    @classmethod
+    def from_map(cls, key: dict) -> "CoseKeyForEdhoc":
+        if not isinstance(key, dict):
+            raise credentials.CredentialsLoadError("Data is not shaped like COSE_KEY (expected top-level dictionary)")
+        if 1 not in key:
+            raise credentials.CredentialsLoadError("Data is not shaped like COSE_KEY (expected key 1 (kty) in top-level dictionary)")
+        if key[1] != 2:
+            raise credentials.CredentialsLoadError("Private key type %s is not supported (currently only 2 (EC) is supported)" % (key[1],))
+
+        if key.get(-1) != 1:
             raise credentials.CredentialsLoadError("Private key of type EC requires key -1 (crv), currently supported values: 1 (P-256)")
 
-        if not isinstance(loaded.get(-4), bytes) or len(loaded[-4]) != 32:
+        if not isinstance(key.get(-4), bytes) or len(key[-4]) != 32:
             raise credentials.CredentialsLoadError("Private key of type EC P-256 requires key -4 (d) to be a 32-byte long byte string")
 
-        if any(k not in (1, -1, -4) for k in loaded):
+        if any(k not in (1, -1, -4) for k in key):
             raise credentials.CredentialsLoadError("Extraneous data in key, consider allow-listing the item if acceptable")
 
-        key = cls()
-        key.kty = 1
-        key.crv = 1
-        key.d = loaded[-4]
+        s = cls()
+        s.kty = 1
+        s.crv = 1
+        s.d = key[-4]
 
-        return key
+        return s
+
+    @classmethod
+    def generate(cls, filename: Path) -> "CoseKeyForEdhoc":
+        """Generate a key inside a file
+
+        This returns the generated private key.
+        """
+
+        from cryptography.hazmat.primitives.asymmetric import ec
+
+        key = ec.generate_private_key(curve=ec.SECP256R1())
+
+        d = key.private_numbers().private_value.to_bytes(32, "big")
+        # kty: EC, crv: P-256, d: ...
+        key_cose = {1: 2, -1: 1, -4: d}
+
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        if hasattr(os, "O_BINARY"):
+            flags |= os.O_BINARY
+        descriptor = os.open(filename, flags, mode=0o600)
+        try:
+            with open(descriptor, "wb") as keyfile:
+                cbor2.dump(key_cose, keyfile)
+        except Exception:
+            filename.unlink()
+            raise
+
+        return cls.from_map(key_cose)
+
+    def as_ccs(self, kid: Optional[bytes], subject: Optional[str]) -> Dict[Literal[14], dict]:
+        """Given a key, generate a corresponding KCCS """
+
+        from cryptography.hazmat.primitives.asymmetric import ec
+
+        private = ec.derive_private_key(int.from_bytes(self.d, 'big'), ec.SECP256R1())
+        public = private.public_key()
+
+        x = public.public_numbers().x.to_bytes(32, "big")
+        y = public.public_numbers().y.to_bytes(32, "big")
+        # kty: EC2, crv: P-256, x, y
+        cosekey = {1: 2, -1: 1, -2: x, -3: y}
+        if kid is not None:
+            cosekey[2] = kid
+        # cnf: COSE_Key
+        credential_kccs: dict = {8: {1: cosekey}}
+        if subject is not None:
+            credential_kccs[2] = subject
+
+        # kccs: cnf
+        return {14: credential_kccs}
 
 class EdhocCredentials(credentials._Objectish):
     def __init__(
