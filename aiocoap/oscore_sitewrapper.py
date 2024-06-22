@@ -188,7 +188,7 @@ class OscoreSiteWrapper(interfaces.Resource):
 
         # FIXME lakers: Shouldn't have to commit this early, might still look at EAD1
         assert isinstance(own_credential_object.own_cred, dict) and list(own_credential_object.own_cred.keys()) == [14], "So far can only process CCS style own credentials a la {14: ...}, own_cred = %r" % own_credential_object.own_cred
-        responder = lakers.EdhocResponder(r=own_credential_object.own_key.d, cred_r=cbor2.dumps(own_credential_object.own_cred[14]))
+        responder = lakers.EdhocResponder(r=own_credential_object.own_key.d, cred_r=cbor2.dumps(own_credential_object.own_cred[14], canonical=True))
         c_i, ead_1 = responder.process_message_1(request.payload[1:])
         if ead_1 is not None:
             raise error.BadRequest

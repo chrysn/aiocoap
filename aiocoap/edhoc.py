@@ -177,13 +177,13 @@ class EdhocCredentials(credentials._Objectish):
 
         if id_cred_peer == self.peer_cred[14]:
             # credential by value
-            return cbor2.dumps(self.peer_cred[14])
+            return cbor2.dumps(self.peer_cred[14], canonical=True)
 
         # cnf / COS_Key / kid, should be present in all CCS
         kid = self.peer_cred[14][8][1].get(2)
         if kid is not None and id_cred_peer == kid:
             # credential by kid
-            return cbor2.dumps(self.peer_cred[14])
+            return cbor2.dumps(self.peer_cred[14], canonical=True)
 
     async def establish_context(self, wire, underlying_address, logger):
         logger.info("No OSCORE context found for EDHOC context %r, initiating one.", self)
@@ -211,9 +211,9 @@ class EdhocCredentials(credentials._Objectish):
         # expected credential here
         logger.debug("EDHOC responder sent message_2 with ID_CRED_R = %r", id_cred_r)
         assert isinstance(self.own_cred, dict) and list(self.own_cred.keys()) == [14], "So far can only process CCS style own credentials a la {14: ...}, own_cred = %r" % self.own_cred
-        cred_i = cbor2.dumps(self.own_cred[14])
+        cred_i = cbor2.dumps(self.own_cred[14], canonical=True)
         # FIXME more asserts or just do it right
-        cred_r = cbor2.dumps(self.peer_cred[14])
+        cred_r = cbor2.dumps(self.peer_cred[14], canonical=True)
         key_i = self.own_key.d
         initiator.verify_message_2(
             key_i, cred_i, cred_r,
