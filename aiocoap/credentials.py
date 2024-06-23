@@ -353,6 +353,17 @@ class CredentialsMap(dict):
             if credential is not None:
                 return (credential, [label])
 
+        from . import edhoc
+        for (label, item) in self.items():
+            if isinstance(item, edhoc.EdhocCredentials) and item.peer_cred_is_unauthenticated():
+                # FIXME: While we don't get details back from Lakers on whether
+                # the data sent as id_cred_i was by-reference or by-value (it
+                # is unambiguious in the message), let's not try to guess
+                # whether it can be a key. If a client requests by value, there
+                # will be a credential parsing error at processing time -- not
+                # pretty, but safe, and enhanced credential handling will fix things.
+                return (id_cred_peer, [label])
+
         raise KeyError
 
     def find_dtls_psk(self, identity):

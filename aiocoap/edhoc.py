@@ -185,6 +185,11 @@ class EdhocCredentials(credentials._Objectish):
             # credential by kid
             return cbor2.dumps(self.peer_cred[14], canonical=True)
 
+    def peer_cred_is_unauthenticated(self):
+        # FIXME: This is rather weird internal API, and rather weird
+        # format-wise -- but it will suffice until credentials are rewritten.
+        return self.peer_cred is not None and self.peer_cred == {"unauthenticated": True}
+
     async def establish_context(self, wire, underlying_address, logger):
         logger.info("No OSCORE context found for EDHOC context %r, initiating one.", self)
         # FIXME: We don't support role reversal yet, but once we
