@@ -130,6 +130,7 @@ def _call_from_structureddata(constructor, name, init_data):
         except KeyError:
             # let this raise later in binding
             checked_items[k] = object()
+            annotation = "attribute does not exist"
 
         if isinstance(v, dict) and 'ascii' in v:
             if len(v) != 1:
