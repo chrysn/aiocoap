@@ -342,6 +342,7 @@ class EdhocResponderContext(_EdhocContextBase):
     def unprotect(self, protected_message, request_id=None):
         if self._incomplete:
             if not protected_message.opt.edhoc:
+                self.log.error("OSCORE failed: No EDHOC message 3 received and none present")
                 raise error.BadRequest("EDHOC incomplete")
 
             payload_stream = io.BytesIO(protected_message.payload)
@@ -351,13 +352,14 @@ class EdhocResponderContext(_EdhocContextBase):
             message_3 = protected_message.payload[:m3len]
 
             id_cred_i, ead_3 = self._responder.parse_message_3(message_3)
-            self.log.debug("Received message 3 with id_cred_i=%r", id_cred_i)
             if ead_3 is not None:
+                self.log.error("Aborting EDHOC: EAD3 present")
                 raise error.BadRequest
 
             try:
                 (cred_i, claims) = self._server_credentials.find_edhoc_by_id_cred_peer(id_cred_i)
             except KeyError:
+                self.log.error("Aborting EDHOC: No credentials found for client with id_cred_i=h'%s'", id_cred_i.hex())
                 raise error.BadRequest
 
             self.authenticated_claims.extend(claims)

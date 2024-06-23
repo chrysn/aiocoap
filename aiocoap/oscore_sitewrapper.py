@@ -177,13 +177,14 @@ class OscoreSiteWrapper(interfaces.Resource):
         if len(request.payload) == 0:
             raise error.BadRequest
         if request.payload[0:1] != cbor2.dumps(True):
-            # FIXME: Handle message 3
+            self.log.error("Receivign message 3 as a standalone message is not supported yet")
+            # FIXME: Add support for it
             raise error.BadRequest
 
         origin = request.get_request_uri(local_is_server=True).removesuffix("/.well-known/edhoc")
         own_credential_object = self._get_edhoc_identity(origin)
         if own_credential_object is None:
-            self.log.info("Peer attempted EDHOC even though no EDHOC credentials are configured for %s", origin)
+            self.log.error("Peer attempted EDHOC even though no EDHOC credentials are configured for %s", origin)
             raise error.NotFound
 
         # FIXME lakers: Shouldn't have to commit this early, might still look at EAD1
@@ -191,6 +192,7 @@ class OscoreSiteWrapper(interfaces.Resource):
         responder = lakers.EdhocResponder(r=own_credential_object.own_key.d, cred_r=cbor2.dumps(own_credential_object.own_cred[14], canonical=True))
         c_i, ead_1 = responder.process_message_1(request.payload[1:])
         if ead_1 is not None:
+            self.log.error("Aborting EDHOC: EAD1 present")
             raise error.BadRequest
 
         used_own_identifiers = self.server_credentials.find_all_used_contextless_oscore_kid()
