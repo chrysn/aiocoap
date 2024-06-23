@@ -11,7 +11,8 @@ from pathlib import Path
 import aiocoap
 
 from . import common
-from .test_server import TestServer, WithClient, WithTestServer
+from .test_server import TestServerBase, WithClient, WithTestServer
+from .fixtures import no_warnings
 
 class WithEdhocPair(WithTestServer, WithClient):
     def setUp(self):
@@ -54,7 +55,7 @@ class WithEdhocPair(WithTestServer, WithClient):
                 "own_cred": serverccs,
                 "private_key_file": str(serverkey_file),
                 }},
-            ':client': {"edhoc-oscore": {
+            ':edhocclient': {"edhoc-oscore": {
                 "suite": 2,
                 "method": 3,
                 "peer_cred": clientccs,
@@ -70,9 +71,10 @@ class WithEdhocPair(WithTestServer, WithClient):
 
 edhoc_modules = aiocoap.defaults.oscore_missing_modules()
 @unittest.skipIf(edhoc_modules, "EDHOC/OSCORE missing modules (%s)" % (edhoc_modules,))
-class TestServerEdhoc(TestServer, WithEdhocPair):
-    # FIXME: There is really no point in running all tests
-    # FIXME: Verify we are actually running EDHOC
-    pass
-
-del TestServer
+class TestServerEdhoc(TestServerBase, WithEdhocPair):
+    @no_warnings
+    def test_whoami_is_client(self):
+        request = self.build_request()
+        request.opt.uri_path = ['whoami']
+        response = self.fetch_response(request)
+        self.assertTrue(b":edhocclient" in response.payload, f"Expected to see own role in response, got {response.payload=}")
