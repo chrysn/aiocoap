@@ -52,10 +52,6 @@ The output of this is a public key, which goes into the credential file you crea
       },
     }
 
-With this, we can already start the fileserver::
-
-    $ ./aiocoap-fileserver --credentials fileserver.cred.diag
-
 Now over to the client::
 
     $ aiocoap-keygen generate client.cosekey --kid 01 --subject "c"
@@ -88,7 +84,11 @@ we extend the last two lines to::
       }}
     }
 
-Now we are ready to exchange data with EDHOC and OSCORE::
+Finally we can start the fileserver::
+
+    $ ./aiocoap-fileserver --credentials fileserver.cred.diag
+
+… and exchange data with EDHOC and OSCORE initiated by the client::
 
     $ aiocoap-client "coap://[::1]/" --credentials client.cred.diag
     # application/link-format content was re-formatted
@@ -113,6 +113,6 @@ Now we are ready to exchange data with EDHOC and OSCORE::
    * The necessity of having a kid and a subject in keys for everything to work
      in the first place is subject to ongoing discussion.
 
-   * unilateral authentication should be supported: If the server does not know
-     a client, it may still allow EDHOC for the benefit of the client that then
-     needs to send its own cred by-value.
+   * unilateral authentication is supported by setting the peer's credentials
+     to `{"unauthenticated": true}` -- but that needs some more explaining as
+     to the security consequences.
