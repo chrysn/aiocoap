@@ -209,17 +209,34 @@ class EdhocCredentials(credentials._Objectish):
 
         (c_r, id_cred_r, ead_2) = initiator.parse_message_2(msg2.payload)
 
-        # We could look into id_cred_r, which is a CBOR encoded
-        # byte string, and could start comparing ... but actually
-        # EDHOC and Lakers protect us from misbinding attacks (is
-        # that what they are called?), so we can just put in our
-        # expected credential here
-        logger.debug("EDHOC responder sent message_2 with ID_CRED_R = %r", id_cred_r)
         assert isinstance(self.own_cred, dict) and list(self.own_cred.keys()) == [14], "So far can only process CCS style own credentials a la {14: ...}, own_cred = %r" % self.own_cred
         cred_i = cbor2.dumps(self.own_cred[14], canonical=True)
-        # FIXME more asserts or just do it right
-        cred_r = cbor2.dumps(self.peer_cred[14], canonical=True)
         key_i = self.own_key.d
+
+        logger.debug("EDHOC responder sent message_2 with ID_CRED_R = %r", id_cred_r)
+        if self.peer_cred == {"unauthenticated": True}:
+            # Not doing further checks (eg. for trailing bytes) or re-raising: This
+            # was already checked by lakers
+            parsed = cbor2.loads(id_cred_r)
+
+            if not isinstance(parsed, dict):
+                raise credentials.CredentialsMissingError("Peer presented credential-by-reference when no credential was pre-agreed")
+
+            cred_r = id_cred_r
+        else:
+            # We could look into id_cred_r, which is a CBOR encoded
+            # byte string, and could start comparing ... but actually
+            # EDHOC and Lakers protect us from misbinding attacks (is
+            # that what they are called?), so we can just put in our
+            # expected credential here
+            #
+            # FIXME: But looking into it might give us a better error than just
+            # "Mac2 verification failed"
+
+            # FIXME add assert on the structure or start doing the
+            # generalization that'll fail at startup
+            cred_r = cbor2.dumps(self.peer_cred[14], canonical=True)
+
         initiator.verify_message_2(
             key_i, cred_i, cred_r,
         )  # odd that we provide that here rather than in the next function
