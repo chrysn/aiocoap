@@ -175,7 +175,7 @@ class EdhocCredentials(credentials._Objectish):
             # Only recognizing CCS so far
             return None
 
-        if id_cred_peer == self.peer_cred[14]:
+        if id_cred_peer == cbor2.dumps(self.peer_cred[14], canonical=True):
             # credential by value
             return cbor2.dumps(self.peer_cred[14], canonical=True)
 
