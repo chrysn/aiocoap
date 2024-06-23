@@ -82,6 +82,9 @@ test:3.13:
   artifacts:
     paths:
       - collected-coverage/tox-3.13/
+  allow_failure:
+    # workaround for https://github.com/openwsn-berkeley/lakers/pull/291
+    true
 
 test:mypy:
   image: docker.io/python:3.12
