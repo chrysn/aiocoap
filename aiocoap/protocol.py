@@ -108,10 +108,6 @@ class Context(interfaces.RequestProvider):
     The remaining methods and properties are to be considered unstable even
     when the project reaches a stable version number; please file a feature
     request for stabilization if you want to reliably access any of them.
-
-    (Sorry for the duplicates, still looking for a way to make autodoc list
-    everything not already mentioned).
-
     """
     def __init__(self, loop=None, serversite=None, loggername="coap", client_credentials=None, server_credentials=None):
         self.log = logging.getLogger(loggername)
@@ -153,6 +149,10 @@ class Context(interfaces.RequestProvider):
 
         This is the easiest way to get a context suitable for sending client
         requests.
+
+        :meta private:
+            (not actually private, just hiding from automodule due to being
+            grouped with the important functions)
         """
 
         if loop is None:
@@ -224,6 +224,10 @@ class Context(interfaces.RequestProvider):
         trigger requests on their own. For those cases, it is usually easiest
         to pass None in as a site, and set the fully constructed site later by
         assigning to the ``serversite`` attribute.
+
+        :meta private:
+            (not actually private, just hiding from automodule due to being
+            grouped with the important functions)
         """
 
         if loop is None:
@@ -309,7 +313,12 @@ class Context(interfaces.RequestProvider):
         :const:`aiocoap.numbers.constants.SHUTDOWN_TIMEOUT` seconds, allowing
         transports to perform any cleanup implemented in them (such as orderly
         connection shutdown and cancelling observations, where the latter is
-        currently not implemented)."""
+        currently not implemented).
+
+        :meta private:
+            (not actually private, just hiding from automodule due to being
+            grouped with the important functions)
+        """
 
         self.log.debug("Shutting down context")
 

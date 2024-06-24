@@ -268,6 +268,11 @@ class RequestInterface(metaclass=abc.ABCMeta):
         pass
 
 class RequestProvider(metaclass=abc.ABCMeta):
+    """
+    .. automethod:: request
+    .. (which we have to list here manually because the private override in the
+       method is needed for the repeated signature in Context)
+    """
     @abc.abstractmethod
     def request(self, request_message):
         """Create and act on a a :class:`Request` object that will be handled
@@ -275,7 +280,12 @@ class RequestProvider(metaclass=abc.ABCMeta):
 
         Note that the request is not necessarily sent on the wire immediately;
         it may (but, depend on the transport does not necessarily) rely on the
-        response to be waited for."""
+        response to be waited for.
+
+        :meta private:
+            (not actually private, just hiding from automodule due to being
+            grouped with the important functions)
+        """
 
 class Request(metaclass=abc.ABCMeta):
     """A CoAP request, initiated by sending a message. Typically, this is not
