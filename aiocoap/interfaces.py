@@ -322,10 +322,10 @@ class Resource(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     async def needs_blockwise_assembly(self, request):
-        """Indicator to the :class:`.protocol.Responder` about whether it
-        should assemble request blocks to a single request and extract the
-        requested blocks from a complete-resource answer (True), or whether
-        the resource will do that by itself (False)."""
+        """Indicator whether aiocoap should assemble request blocks to a single
+        request and extract the requested blocks from a complete-resource
+        answer (True), or whether the resource will do that by itself
+        (False)."""
 
     async def _render_to_pipe(self, pipe: Pipe) -> None:
         if not hasattr(self, "_block1"):

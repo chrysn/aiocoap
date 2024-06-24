@@ -56,7 +56,7 @@ class Message(object):
     * :attr:`token`: The message's token as bytes. Managed by the :class:`.Context`.
     * :attr:`remote`: The socket address of the other side, managed by the
       :class:`.protocol.Request` by resolving the ``.opt.uri_host`` or
-      ``unresolved_remote``, or the :class:`.Responder` by echoing the incoming
+      ``unresolved_remote``, or by the stack by echoing the incoming
       request's. Follows the :class:`.interfaces.EndpointAddress` interface.
       Non-roundtrippable.
 

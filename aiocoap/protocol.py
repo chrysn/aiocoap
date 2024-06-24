@@ -9,10 +9,10 @@ messages:
     socket) -- something that can send requests and possibly can answer
     incoming requests.
 
+    Incoming requests are processed in tasks created by the context.
+
 *   a :class:`Request` gets generated whenever a request gets sent to keep
     track of the response
-
-*   a :class:`Responder` keeps track of a single incoming request
 
 Logging
 ~~~~~~~
