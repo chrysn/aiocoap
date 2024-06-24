@@ -95,8 +95,8 @@ Bugs (ranging from "design goal" and "wishlist" to typos) are currently tracked
 in the `github issue tracker`_. Pull requests are welcome there; if you start
 working on larger changes, please coordinate on the issue tracker.
 
-Documentation is built using sphinx_ with ``./setup.py build_sphinx``; hacks
-used there are described in ``./doc/README.doc``.
+Documentation is built using sphinx_ with ``python3 -m sphinx doc/ ${TARGET}``;
+hacks used there are described in ``./doc/README.doc``.
 
 Unit tests are implemented in the ``./tests/`` directory and easiest run using
 tox_ (but also available through ``python3 -m unittest`` to test the local environment);
