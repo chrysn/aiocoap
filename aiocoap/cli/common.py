@@ -29,7 +29,6 @@ Then, server_opts can be passed to `server_context_from_arguments`.
 
 import sys
 import argparse
-import json
 from pathlib import Path
 
 from ..util import hostportsplit
@@ -118,7 +117,13 @@ async def server_context_from_arguments(site, namespace, **kwargs):
 
     if namespace.credentials:
         server_credentials = CredentialsMap()
-        server_credentials.load_from_dict(json.load(namespace.credentials.open('rb')))
+        try:
+            import cbor2
+            import cbor_diag
+            server_credentials.load_from_dict(cbor2.loads(cbor_diag.diag2cbor(namespace.credentials.open().read())))
+        except ImportError:
+            import json
+            server_credentials.load_from_dict(json.load(namespace.credentials.open('rb')))
 
         # FIXME: could be non-OSCORE as well -- can we build oscore_sitewrapper
         # in such a way it only depends on the OSCORE dependencies if there are

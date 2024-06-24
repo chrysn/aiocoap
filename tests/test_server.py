@@ -124,6 +124,7 @@ class WhoAmI(aiocoap.resource.Resource):
                 urihost_option=request.opt.uri_host,
                 # FIXME: The whole get_request_uri is a mess
                 requested_uri=request._original_request_uri,
+                claims=request.remote.authenticated_claims,
                 )
         return aiocoap.Message(
                 code=aiocoap.CONTENT,
@@ -231,7 +232,10 @@ class WithClient(WithAsyncLoop, Destructing):
 
 # test cases
 
-class TestServer(WithTestServer, WithClient):
+class TestServerBase(WithTestServer, WithClient):
+    """All the tools for building requests, but no actual tests; use this when
+    working off the test server with no intention to to the full set of
+    tests."""
     @no_warnings
     def build_request(self):
         request = aiocoap.Message(code=aiocoap.GET)
@@ -242,6 +246,7 @@ class TestServer(WithTestServer, WithClient):
     async def fetch_response(self, request):
         return await self.client.request(request).response
 
+class TestServer(TestServerBase):
     @no_warnings
     def test_empty_accept(self):
         request = self.build_request()

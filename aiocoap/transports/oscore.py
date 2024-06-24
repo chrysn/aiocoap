@@ -35,7 +35,7 @@ property alone.
 from collections import namedtuple
 from functools import wraps
 
-from .. import interfaces, credentials, oscore
+from .. import interfaces, credentials, edhoc, oscore
 from ..numbers import UNAUTHORIZED, MAX_REGULAR_BLOCK_SIZE_EXP
 
 
@@ -88,6 +88,7 @@ class OSCOREAddress(
         return self.security_context.authenticated_claims
 
     is_multicast = False
+    is_multicast_locally = False
 
     maximum_payload_size = 1024
     maximum_block_size_exp = MAX_REGULAR_BLOCK_SIZE_EXP
@@ -134,6 +135,9 @@ class TransportOSCORE(interfaces.RequestProvider):
             # double oscore is not specified; using this fact to make `._wire
             # is ._context` an option
             return False
+        if message.opt.uri_path == ('.well-known', 'edhoc'):
+            # FIXME better criteria based on next-hop?
+            return False
 
         try:
             secctx = self._context.client_credentials.credentials_from_request(message)
@@ -141,7 +145,7 @@ class TransportOSCORE(interfaces.RequestProvider):
             return False
 
         # FIXME: it'd be better to have a "get me credentials *of this type* if they exist"
-        if isinstance(secctx, oscore.CanProtect):
+        if isinstance(secctx, oscore.CanProtect) or isinstance(secctx, edhoc.EdhocCredentials):
             message.remote = OSCOREAddress(secctx, message.remote)
             self.log.debug("Selecting OSCORE transport based on context %r for new request %r", secctx, message)
             return True
@@ -154,12 +158,40 @@ class TransportOSCORE(interfaces.RequestProvider):
                 name="OSCORE request %r" % request,
                 )
         self._tasks.add(t)
-        t.add_done_callback(lambda _, _tasks=self._tasks, _t=t: _tasks.remove(_t))
+        def done(t, _tasks=self._tasks, _request=request):
+            _tasks.remove(t)
+            try:
+                t.result()
+            except Exception as e:
+                _request.add_exception(e)
+        t.add_done_callback(done)
 
-    async def _request(self, request):
+    async def _request(self, request) -> None:
+        """Process a request including any pre-flights or retries
+
+        Retries by this coroutine are limited to actionable authenticated
+        errors, i.e. those where it is ensured that even though the request is
+        encrypted twice, it is still only processed once.
+
+        This coroutine sets the result of request.request on completion;
+        otherwise it raises and relies on its done callback to propagate the
+        error.
+        """
         msg = request.request
 
         secctx = msg.remote.security_context
+
+        if isinstance(secctx, edhoc.EdhocCredentials):
+            if secctx._established_context is None:
+                self._established_context = msg.remote.security_context.establish_context(
+                        wire=self._wire,
+                        underlying_address=msg.remote.underlying_address,
+                        logger=self.log.getChild("edhoc")
+                        )
+            # FIXME: Who should drive retries here? We probably don't retry if
+            # it fails immediately, but what happens with the request that
+            # finds this broken, will it recurse?
+            secctx = await self._established_context
 
         def protect(echo):
             if echo is None:
@@ -236,8 +268,6 @@ class TransportOSCORE(interfaces.RequestProvider):
                     return
             request.add_exception(NotImplementedError("End of observation"
                 " should have been indicated in is_last, see above lines"))
-        except Exception as e:
-            request.add_exception(e)
         finally:
             # FIXME: no way yet to cancel observations exists yet, let alone
             # one that can be used in a finally clause (ie. won't raise

@@ -27,6 +27,7 @@ from aiocoap.message import Message
 from aiocoap.util import cryptography_additions, deprecation_getattr
 from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED, CONTENT
 from aiocoap import error
+from . import credentials
 
 from cryptography.hazmat.primitives.ciphers import aead
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -1306,7 +1307,7 @@ class ReplayWindow:
 
         return {'index': self._index, 'bitfield': self._bitfield}
 
-class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
+class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils, credentials._Objectish):
     """Security context stored in a directory as distinct files containing
     containing
 
@@ -1357,13 +1358,13 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
 
     def __init__(
             self,
-            basedir,
+            basedir: str,
             sequence_number_chunksize_start=10,
             sequence_number_chunksize_limit=10000,
             ):
         self.basedir = basedir
 
-        self.lockfile = filelock.FileLock(os.path.join(basedir, 'lock'))
+        self.lockfile: Optional[filelock.FileLock] = filelock.FileLock(os.path.join(basedir, 'lock'))
         # 0.001: Just fail if it can't be acquired
         # See https://github.com/benediktschmitt/py-filelock/issues/57
         try:
@@ -1536,6 +1537,25 @@ class FilesystemSecurityContext(CanProtect, CanUnprotect, SecurityContextUtils):
     def __del__(self):
         if self.lockfile is not None:
             self._destroy()
+
+    @classmethod
+    def from_item(cls, init_data):
+        """Overriding _Objectish's from_item because the parameter name for
+        basedir is contextfile for historical reasons"""
+        def constructor(basedir: Optional[str] = None, contextfile: Optional[str] = None):
+            if basedir is not None and contextfile is not None:
+                raise credentials.CredentialsLoadError("Conflicting arguments basedir and contextfile; just contextfile instead")
+            if basedir is None and contextfile is None:
+                raise credentials.CredentialsLoadError("Missing item 'basedir'")
+            if contextfile is not None:
+                warnings.warn("Property contextfile was renamed to basedir in OSCORE credentials entries", DeprecationWarning, stacklevel=2)
+                basedir = contextfile
+            assert basedir is not None # This helps mypy which would otherwise not see that the above ensures this already
+            return cls(basedir)
+        return credentials._call_from_structureddata(constructor, cls.__name__, init_data)
+
+    def find_all_used_contextless_oscore_kid(self) -> set[bytes]:
+        return set((self.recipient_id,))
 
 class GroupContext(ContextWhereExternalAadIsGroup, BaseSecurityContext):
     is_signing = True
@@ -1728,6 +1748,10 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
                 return _DeterministicUnprotectProtoAspect(self, kid)
             else:
                 return _PairwiseContextAspect(self, kid)
+
+    def find_all_used_contextless_oscore_kid(self) -> set[bytes]:
+        # not conflicting: groups always send KID Context
+        return set()
 
     # yet to stabilize...
 

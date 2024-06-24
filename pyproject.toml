@@ -42,6 +42,7 @@ aiocoap-client = "aiocoap.cli.client:sync_main"
 aiocoap-proxy = "aiocoap.cli.proxy:sync_main"
 aiocoap-rd = "aiocoap.cli.rd:sync_main"
 aiocoap-fileserver = "aiocoap.cli.fileserver:FileServerProgram.sync_main"
+aiocoap-keygen = "aiocoap.cli.keygen:main"
 
 [project.optional-dependencies]
 # Extra is still present for compatibility, but its dependency has been
@@ -50,7 +51,7 @@ linkheader = []
 # ge25519 is a workaround for
 # <https://github.com/pyca/cryptography/issues/5557>; being pure python it's
 # light enough to not warrant a dedicated group-oscore extra.
-oscore = [ "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519" ]
+oscore = [ "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-python == 0.3.3" ]
 tinydtls = [ "DTLSSocket >= 0.1.18" ]
 # technically websockets is not needed when running on pyodide, but that's hard
 # to express here
@@ -62,7 +63,7 @@ docs = [ "sphinx >= 5", "sphinx-argparse" ]
 #
 # when updating this, also check what is needed to build in .readthedocs.yaml
 all = [
-    "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519",
+    "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-python == 0.3.3",
     "DTLSSocket >= 0.1.18",
     "websockets",
     "cbor2", "pygments", "cbor-diag",
@@ -81,6 +82,8 @@ include = [ "aiocoap", "aiocoap.*" ]
 module = [
     # Tracked in https://github.com/chrysn/cbor-diag-py/issues/2
     "cbor_diag",
+    # Tracked in https://github.com/openwsn-berkeley/lakers/issues/282
+    "lakers",
     # Typing checks currently not tracked upstream
     "ge25519",
     "fe25519",

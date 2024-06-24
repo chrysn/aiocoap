@@ -49,6 +49,8 @@ This library supports the following standards in full or partially:
   and pairwise mode in groups that are fully known. (The lack of an implemented
   joining or persistence mechanism makes this impractical for anything but
   experimentation.)
+* RFC9528_ (EDHOC): Experimental and rudimentary support for configured peers
+  using the lakers_ implementation.
 
 If something described by one of the standards but not implemented, it is
 considered a bug; please file at the `github issue tracker`_. (If it's not on
@@ -63,6 +65,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC8613: https://tools.ietf.org/html/rfc8613
 .. _RFC9176: https://tools.ietf.org/html/rfc9176
 .. _draft-ietf-core-oscore-groupcomm-17: https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-17
+.. _lakers: https://pypi.org/project/lakers-python/
 
 Dependencies
 ------------

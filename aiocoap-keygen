@@ -1,0 +1,12 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
+#
+# SPDX-License-Identifier: MIT
+
+"""This script can be used to access the aiocoap key generator when setup.py is
+not used to create an entry point for it (eg. when running from the source
+directory)."""
+
+import aiocoap.cli.keygen
+
+aiocoap.cli.keygen.main()

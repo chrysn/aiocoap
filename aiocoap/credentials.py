@@ -36,19 +36,17 @@ ease porting to platforms that don't support inspect like micropython does.
 import re
 import inspect
 
-from typing import Optional, TYPE_CHECKING
-if TYPE_CHECKING:
-    from .oscore import FilesystemSecurityContext
+from typing import Optional, List, Tuple
 
 
 '''
 server: {
             'coaps://mysite/*': { 'dtls-psk' (or other granularity): { 'psk': 'abcd' }},
-            'coap://mysite/*': { 'oscore': { 'contextfile': 'my-contextfile/' } },
+            'coap://mysite/*': { 'oscore': { 'basedir': 'my-basedir/' } },
             'coap://myothersite/firmware': ':myotherkey',
             'coap://myothersite/reset': ':myotherkey',
             'coap://othersite*': { 'unprotected': true },
-            ':myotherkey': { 'oscore': { 'contextfile': 'my-contextfile/' } }
+            ':myotherkey': { 'oscore': { 'basedir': 'my-basedir/' } }
         }
 
 server can of course just say it doesn't want to have the Site handle it and
@@ -132,6 +130,7 @@ def _call_from_structureddata(constructor, name, init_data):
         except KeyError:
             # let this raise later in binding
             checked_items[k] = object()
+            annotation = "attribute does not exist"
 
         if isinstance(v, dict) and 'ascii' in v:
             if len(v) != 1:
@@ -153,7 +152,9 @@ def _call_from_structureddata(constructor, name, init_data):
         # Not using isinstance because I foundno way to extract the type
         # information from an Optional/Union again; this whole thing works
         # only for strings and ints anyway, so why not.
-        if annotation not in (type(v), Optional[type(v)]):
+        #
+        # The second or-branch is for functions from modules with __future__.annotations
+        if annotation not in (type(v), Optional[type(v)]) and annotation not in (type(v).__name__, "Optional[%s]" % type(v).__name__):
             # explicitly not excluding inspect._empty here: constructors
             # need to be fully annotated
             raise CredentialsLoadError("Type mismatch in attribute %s of %s: expected %s, got %r" % (k, name, annotation, v))
@@ -193,12 +194,13 @@ class TLSCert(_Objectish):
         ssl.create_default_context when purpose is alreay set"""
         return {"cafile": self.certfile}
 
-def construct_oscore(contextfile: str) -> "FilesystemSecurityContext":
+def import_filesystem_security_context():
     from .oscore import FilesystemSecurityContext
+    return FilesystemSecurityContext
 
-    return FilesystemSecurityContext(contextfile)
-
-construct_oscore.from_item = lambda value: _call_from_structureddata(construct_oscore, 'OSCORE', value)  # type: ignore
+def import_edhoc_credential_pair():
+    from . import edhoc
+    return edhoc.EdhocCredentials
 
 _re_cache = {}
 
@@ -249,18 +251,22 @@ class CredentialsMap(dict):
                     )
 
             try:
-                constructor = self._class_map[key].from_item
+                type_ = self._class_map[key]
             except KeyError:
                 raise CredentialsLoadError("Unknown credential type: %s" % key)
 
-            return constructor(value)
+            return type_().from_item(value)
 
+    # Phrased as callbacks so they can import lazily. We make sure that all are
+    # still present so that an entry that is not loadable raises an error
+    # rather than possibly being ignored.
     _class_map = {
-            'dtls': DTLS,
-            'oscore': construct_oscore,
-            'tlscert': TLSCert,
-            'any-of': AnyOf,
-            'all-of': AllOf,
+            'dtls': lambda: DTLS,
+            'oscore': import_filesystem_security_context,
+            'tlscert': lambda: TLSCert,
+            'any-of': lambda: AnyOf,
+            'all-of': lambda: AllOf,
+            'edhoc-oscore': import_edhoc_credential_pair,
             }
 
     @staticmethod
@@ -325,6 +331,40 @@ class CredentialsMap(dict):
                 return ctx
 
         raise KeyError()
+
+    def find_all_used_contextless_oscore_kid(self) -> set[bytes]:
+        all_kid = set()
+
+        for item in self.values():
+            if not hasattr(item, "find_all_used_contextless_oscore_kid"):
+                continue
+
+            all_kid |= item.find_all_used_contextless_oscore_kid()
+
+        return all_kid
+
+    def find_edhoc_by_id_cred_peer(self, id_cred_peer) -> Tuple[bytes, List[str]]:
+        for (label, item) in self.items():
+            if not hasattr(item, "find_edhoc_by_id_cred_peer"):
+                continue
+
+            # typically returning self
+            credential = item.find_edhoc_by_id_cred_peer(id_cred_peer)
+            if credential is not None:
+                return (credential, [label])
+
+        from . import edhoc
+        for (label, item) in self.items():
+            if isinstance(item, edhoc.EdhocCredentials) and item.peer_cred_is_unauthenticated():
+                # FIXME: While we don't get details back from Lakers on whether
+                # the data sent as id_cred_i was by-reference or by-value (it
+                # is unambiguious in the message), let's not try to guess
+                # whether it can be a key. If a client requests by value, there
+                # will be a credential parsing error at processing time -- not
+                # pretty, but safe, and enhanced credential handling will fix things.
+                return (id_cred_peer, [label])
+
+        raise KeyError
 
     def find_dtls_psk(self, identity):
         # FIXME similar to find_oscore

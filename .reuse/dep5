@@ -50,6 +50,7 @@ Files:
   doc/news.rst
   doc/pyodide.rst
   doc/release-checklist
+  doc/stateofedhoc.rst
   doc/stateofoscore.rst
   doc/tools.rst
   pyproject.toml

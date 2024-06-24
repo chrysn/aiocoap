@@ -9,18 +9,25 @@ remote property adaequately.
 """
 
 import logging
+from typing import Optional
+import uuid
+
+import cbor2
+import lakers
 
 import aiocoap
 from aiocoap import interfaces
 from aiocoap import oscore, error
 import aiocoap.pipe
 from .numbers.codes import FETCH, POST
+from .numbers.optionnumbers import OptionNumber
+from . import edhoc
 
 from aiocoap.transports.oscore import OSCOREAddress
 
 class OscoreSiteWrapper(interfaces.Resource):
     def __init__(self, inner_site, server_credentials):
-        self.log = logging.getLogger('oscore-site')
+        self.log = logging.getLogger('coap-server.oscore-site')
 
         self._inner_site = inner_site
         self.server_credentials = server_credentials
@@ -36,6 +43,13 @@ class OscoreSiteWrapper(interfaces.Resource):
 
     async def render_to_pipe(self, pipe):
         request = pipe.request
+
+        if request.opt.uri_path == ('.well-known', 'edhoc'):
+            # We'll have to take that explicitly, otherwise we'd need to rely
+            # on a resource to be prepared by the user in the site with a
+            # cyclical reference closed after site construction
+            await self._render_edhoc_to_pipe(pipe)
+            return
 
         try:
             unprotected = oscore.verify_start(request)
@@ -143,3 +157,80 @@ class OscoreSiteWrapper(interfaces.Resource):
                 break
         # The created task gets cancelled here because the __aiter__ result is
         # dropped and thus all interest in the inner_pipe goes away
+
+    async def _render_edhoc_to_pipe(self, pipe):
+        self.log.debug("Processing request as EDHOC message 1")
+        # Conveniently we don't have to care for observation, and thus can treat the rendering to a pipeline as just a rendering
+
+        request = pipe.request
+
+        if request.code is not POST:
+            raise error.MethodNotAllowed
+
+        if any(o.number.is_critical() for o in request.opt.option_list() if o.number not in (OptionNumber.URI_PATH, OptionNumber.URI_HOST)):
+            # FIXME: This should be done by every resource handler (see
+            # https://github.com/chrysn/aiocoap/issues/268) -- this is crude
+            # but better than doing nothing (and because we're rendering to a
+            # pipe, chances are upcoming mitigation might not catch this)
+            raise error.BadOption
+
+        if len(request.payload) == 0:
+            raise error.BadRequest
+        if request.payload[0:1] != cbor2.dumps(True):
+            self.log.error("Receivign message 3 as a standalone message is not supported yet")
+            # FIXME: Add support for it
+            raise error.BadRequest
+
+        origin = request.get_request_uri(local_is_server=True).removesuffix("/.well-known/edhoc")
+        own_credential_object = self._get_edhoc_identity(origin)
+        if own_credential_object is None:
+            self.log.error("Peer attempted EDHOC even though no EDHOC credentials are configured for %s", origin)
+            raise error.NotFound
+
+        # FIXME lakers: Shouldn't have to commit this early, might still look at EAD1
+        assert isinstance(own_credential_object.own_cred, dict) and list(own_credential_object.own_cred.keys()) == [14], "So far can only process CCS style own credentials a la {14: ...}, own_cred = %r" % own_credential_object.own_cred
+        responder = lakers.EdhocResponder(r=own_credential_object.own_key.d, cred_r=cbor2.dumps(own_credential_object.own_cred[14], canonical=True))
+        c_i, ead_1 = responder.process_message_1(request.payload[1:])
+        if ead_1 is not None:
+            self.log.error("Aborting EDHOC: EAD1 present")
+            raise error.BadRequest
+
+        used_own_identifiers = self.server_credentials.find_all_used_contextless_oscore_kid()
+        # can't have c_r==c_i
+        used_own_identifiers.add(c_i)
+        # FIXME try larger ones too, but currently they wouldn't work in Lakers
+        candidates = [cbor2.dumps(i) for i in range(-24, 24)]
+        candidates = [c for c in candidates if c not in used_own_identifiers]
+        if not candidates:
+            # FIXME: LRU or timeout the contexts
+            raise error.InternalServerError("Too many contexts")
+        c_r = candidates[0]
+        message_2 = responder.prepare_message_2(own_credential_object.own_cred_style.as_lakers(), c_r, None)
+
+        credentials_entry = edhoc.EdhocResponderContext(
+                responder,
+                c_i,
+                c_r,
+                self.server_credentials,
+                self.log,
+                )
+        # FIXME we shouldn't need arbitrary keys
+        self.server_credentials[":" + uuid.uuid4().hex] = credentials_entry
+
+        pipe.add_response(
+                aiocoap.Message(code=aiocoap.CHANGED, payload=message_2),
+                is_last=True
+                )
+
+    def _get_edhoc_identity(self, origin: str) -> Optional[edhoc.EdhocCredentials]:
+        """With lakers-python 0.3.1, we can effectively only have one identity
+        per host; expect this to change once we gain access to EAD1 (plus more
+        when there are more methods or cipher suites)
+        """
+
+        # That this works is a flaw of the credentials format by itself
+        candidate = self.server_credentials.get(origin + "/*")
+        if not isinstance(candidate, edhoc.EdhocCredentials):
+            # FIXME not really a pair needed is it?
+            return None
+        return candidate

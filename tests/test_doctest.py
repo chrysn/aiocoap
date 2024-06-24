@@ -20,7 +20,7 @@ def _load_tests():
                 continue
             p = os.path.join(root, f)
             p = p[:-3].replace(os.sep, '.')
-            if 'oscore' in p and aiocoap.defaults.oscore_missing_modules():
+            if ('oscore' in p or 'edhoc' in p) and aiocoap.defaults.oscore_missing_modules():
                 continue
             if 'cryptography_additions' in p and aiocoap.defaults.oscore_missing_modules():
                 continue

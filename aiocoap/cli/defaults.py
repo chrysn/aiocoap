@@ -14,14 +14,14 @@ from aiocoap.defaults import has_reuse_port, get_default_clienttransports, \
 import argparse
 import os
 
-if __name__ == "__main__":
+def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     # Allow passing this in as AIOCOAP_DEFAULTS_EXPECT_ALL=1 via the
     # environment, as that's easier to set in tox
     p.add_argument("--expect-all", help="Exit with an error unless all subsystems are available",
             action='store_true', default=os.environ.get('AIOCOAP_DEFAULTS_EXPECT_ALL') == '1')
     p.add_argument('--version', action='version', version=version)
-    args = p.parse_args()
+    args = p.parse_args(sys.argv[1:] if argv is None else argv)
 
     error = 0
 
@@ -42,4 +42,7 @@ if __name__ == "__main__":
 
     if error:
         print("Exiting unsuccessfully because --expect-all was set and not all extras are available.")
-    sys.exit(error)
+    return error
+
+if __name__ == "__main__":
+    sys.exit(main())
