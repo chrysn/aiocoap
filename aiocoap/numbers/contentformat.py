@@ -13,6 +13,7 @@ import warnings
 
 # _raw can be updated from: `curl https://www.iana.org/assignments/core-parameters/content-formats.csv | python3 -c 'import csv, sys; print(list(csv.reader(sys.stdin))[1:])'`
 
+# fmt: off
 _raw = [
         ['text/plain; charset=utf-8', '', '0', '[RFC2046][RFC3676][RFC5147]'],
         ['Unassigned', '', '1-15', ''],
@@ -108,6 +109,7 @@ _raw = [
         ['Unassigned', '', '30001-64999', ''],
         ['Reserved for Experimental Use', '', '65000-65535', '[RFC7252]'],
         ]
+# fmt: on
 
 
 def _normalize_media_type(s):
