@@ -13,6 +13,7 @@ semantically accessible objects to encapsulate them.
 
 .. _1: https://tools.ietf.org/html/draft-bormann-core-media-content-type-format-01"""
 
+
 def categorize(contenttype: str):
     """Return 'cbor', 'json' or 'link-format' if the content type indicates it
     is that format itself or derived from it."""

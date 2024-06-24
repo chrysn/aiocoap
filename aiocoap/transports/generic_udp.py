@@ -5,6 +5,7 @@
 from aiocoap import interfaces, error, util
 from aiocoap import COAP_PORT, Message
 
+
 class GenericMessageInterface(interfaces.MessageInterface):
     """GenericMessageInterface is not a standalone implementation of a
     message inteface. It does implement everything between the MessageInterface
@@ -43,7 +44,9 @@ class GenericMessageInterface(interfaces.MessageInterface):
 
     def send(self, message):
         if self._mman is None:
-            self._log.info("Not sending message %r: transport is already shutting down.", message)
+            self._log.info(
+                "Not sending message %r: transport is already shutting down.", message
+            )
         else:
             message.remote.send(message.encode())
 
@@ -62,6 +65,8 @@ class GenericMessageInterface(interfaces.MessageInterface):
             host = request.opt.uri_host
             port = request.opt.uri_port or COAP_PORT
         else:
-            raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
+            raise ValueError(
+                "No location found to send message to (neither in .opt.uri_host nor in .remote)"
+            )
 
         return await self._pool.connect((host, port))

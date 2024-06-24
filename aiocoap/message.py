@@ -31,6 +31,7 @@ coap_schemes = ['coap', 'coaps', 'coap+tcp', 'coaps+tcp', 'coap+ws', 'coaps+ws']
 urllib.parse.uses_relative.extend(coap_schemes)
 urllib.parse.uses_netloc.extend(coap_schemes)
 
+
 class Message(object):
     """CoAP Message with some handling metadata
 
@@ -133,7 +134,18 @@ class Message(object):
         * Some options or even the payload may differ if a proxy was involved.
     """
 
-    def __init__(self, *, mtype=None, mid=None, code=None, payload=b'', token=b'', uri=None, transport_tuning=None, **kwargs):
+    def __init__(
+        self,
+        *,
+        mtype=None,
+        mid=None,
+        code=None,
+        payload=b'',
+        token=b'',
+        uri=None,
+        transport_tuning=None,
+        **kwargs,
+    ):
         self.version = 1
         if mtype is None:
             # leave it unspecified for convenience, sending functions will know what to do
@@ -166,15 +178,15 @@ class Message(object):
 
     def __repr__(self):
         return "<aiocoap.Message at %#x: %s %s (%s, %s) remote %s%s%s>" % (
-                id(self),
-                self.mtype if self.mtype is not None else "no mtype,",
-                self.code,
-                "MID %s" % self.mid if self.mid is not None else "no MID",
-                "token %s" % self.token.hex() if self.token else "empty token",
-                self.remote,
-                ", %s option(s)" % len(self.opt._options) if self.opt._options else "",
-                ", %s byte(s) payload" % len(self.payload) if self.payload else ""
-                )
+            id(self),
+            self.mtype if self.mtype is not None else "no mtype,",
+            self.code,
+            "MID %s" % self.mid if self.mid is not None else "no MID",
+            "token %s" % self.token.hex() if self.token else "empty token",
+            self.remote,
+            ", %s option(s)" % len(self.opt._options) if self.opt._options else "",
+            ", %s byte(s) payload" % len(self.payload) if self.payload else "",
+        )
 
     def _repr_html_(self):
         """An HTML representation for Jupyter and similar environments
@@ -191,28 +203,35 @@ class Message(object):
         True
         """
         import html
+
         if not self.payload:
             payload_rendered = '<p>No payload</p>'
         else:
             from . import defaults
+
             if defaults.prettyprint_missing_modules():
                 payload_rendered = f"<code>{html.escape(repr(self.payload))}</code>"
             else:
                 from .util.prettyprint import pretty_print, lexer_for_mime
+
                 (notes, mediatype, text) = pretty_print(self)
                 import pygments
                 from pygments.formatters import HtmlFormatter
+
                 try:
                     lexer = lexer_for_mime(mediatype)
                     text = pygments.highlight(text, lexer, HtmlFormatter())
                 except pygments.util.ClassNotFound:
                     text = html.escape(text)
                 payload_rendered = (
-                        "<div>"
-                        + "".join(f'<p style="color:gray;font-size:small;">{html.escape(n)}</p>' for n in notes)
-                        + f"<pre>{text}</pre>"
-                        + "</div>"
-                        )
+                    "<div>"
+                    + "".join(
+                        f'<p style="color:gray;font-size:small;">{html.escape(n)}</p>'
+                        for n in notes
+                    )
+                    + f"<pre>{text}</pre>"
+                    + "</div>"
+                )
         return f"""<details style="padding-left:1em"><summary style="margin-left:-1em;display:list-item;">Message with code {self.code._repr_html_() if self.code is not None else 'None'}, remote {html.escape(str(self.remote))}</summary>
                 {self.opt._repr_html_()}{payload_rendered}"""
 
@@ -223,15 +242,15 @@ class Message(object):
         # necessarily hard immutable. Let's see where this goes.
 
         new = type(self)(
-                mtype=kwargs.pop('mtype', self.mtype),
-                mid=kwargs.pop('mid', self.mid),
-                code=kwargs.pop('code', self.code),
-                payload=kwargs.pop('payload', self.payload),
-                token=kwargs.pop('token', self.token),
-                # Assuming these are not readily mutated, but rather passed
-                # around in a class-like fashion
-                transport_tuning=kwargs.pop('transport_tuning', self.transport_tuning),
-                )
+            mtype=kwargs.pop('mtype', self.mtype),
+            mid=kwargs.pop('mid', self.mid),
+            code=kwargs.pop('code', self.code),
+            payload=kwargs.pop('payload', self.payload),
+            token=kwargs.pop('token', self.token),
+            # Assuming these are not readily mutated, but rather passed
+            # around in a class-like fashion
+            transport_tuning=kwargs.pop('transport_tuning', self.transport_tuning),
+        )
         new.remote = kwargs.pop('remote', self.remote)
         new.opt = copy.deepcopy(self.opt)
 
@@ -254,18 +273,26 @@ class Message(object):
         if version != 1:
             raise error.UnparsableMessage("Fatal Error: Protocol Version must be 1")
         mtype = (vttkl & 0x30) >> 4
-        token_length = (vttkl & 0x0F)
+        token_length = vttkl & 0x0F
         msg = Message(mtype=mtype, mid=mid, code=code)
-        msg.token = rawdata[4:4 + token_length]
-        msg.payload = msg.opt.decode(rawdata[4 + token_length:])
+        msg.token = rawdata[4 : 4 + token_length]
+        msg.payload = msg.opt.decode(rawdata[4 + token_length :])
         msg.remote = remote
         return msg
 
     def encode(self):
         """Create binary representation of message from Message object."""
         if self.code is None or self.mtype is None or self.mid is None:
-            raise TypeError("Fatal Error: Code, Message Type and Message ID must not be None.")
-        rawdata = bytes([(self.version << 6) + ((self.mtype & 0x03) << 4) + (len(self.token) & 0x0F)])
+            raise TypeError(
+                "Fatal Error: Code, Message Type and Message ID must not be None."
+            )
+        rawdata = bytes(
+            [
+                (self.version << 6)
+                + ((self.mtype & 0x03) << 4)
+                + (len(self.token) & 0x0F)
+            ]
+        )
         rawdata += struct.pack('!BH', self.code, self.mid)
         rawdata += self.token
         rawdata += self.opt.encode()
@@ -302,7 +329,9 @@ class Message(object):
         options = []
 
         for option in self.opt.option_list():
-            if option.number in ignore_options or (option.number.is_safetoforward() and option.number.is_nocachekey()):
+            if option.number in ignore_options or (
+                option.number.is_safetoforward() and option.number.is_nocachekey()
+            ):
                 continue
             options.append((option.number, option.value))
 
@@ -331,17 +360,9 @@ class Message(object):
         blockopt = (number, more, size_exp)
 
         if self.code.is_request():
-            return self.copy(
-                    payload=payload,
-                    mid=None,
-                    block1=blockopt
-                    )
+            return self.copy(payload=payload, mid=None, block1=blockopt)
         else:
-            return self.copy(
-                    payload=payload,
-                    mid=None,
-                    block2=blockopt
-                    )
+            return self.copy(payload=payload, mid=None, block2=blockopt)
 
     def _append_request_block(self, next_block):
         """Modify message by appending another block"""
@@ -352,8 +373,9 @@ class Message(object):
         if block1.more:
             if len(next_block.payload) == block1.size:
                 pass
-            elif block1.size_exponent == 7 and \
-                    len(next_block.payload) % block1.size == 0:
+            elif (
+                block1.size_exponent == 7 and len(next_block.payload) % block1.size == 0
+            ):
                 pass
             else:
                 raise error.BadRequest("Payload size does not match Block1")
@@ -373,7 +395,7 @@ class Message(object):
 
     def _append_response_block(self, next_block):
         """Append next block to current response message.
-           Used when assembling incoming blockwise responses."""
+        Used when assembling incoming blockwise responses."""
         if not self.code.is_response():
             raise ValueError("_append_response_block only works on responses.")
 
@@ -405,21 +427,24 @@ class Message(object):
 
         next_after_received = len(response.payload) // response.opt.block2.size
         blockopt = optiontypes.BlockOption.BlockwiseTuple(
-                next_after_received, False, response.opt.block2.size_exponent)
+            next_after_received, False, response.opt.block2.size_exponent
+        )
 
         # has been checked in assembly, just making sure
-        assert blockopt.start == len(response.payload), "Unexpected state of preassembled message"
+        assert blockopt.start == len(
+            response.payload
+        ), "Unexpected state of preassembled message"
 
         blockopt = blockopt.reduced_to(response.remote.maximum_block_size_exp)
 
         return self.copy(
-                payload=b"",
-                mid=None,
-                token=None,
-                block2=blockopt,
-                block1=None,
-                observe=None
-                )
+            payload=b"",
+            mid=None,
+            token=None,
+            block2=blockopt,
+            block1=None,
+            observe=None,
+        )
 
     def _generate_next_block1_response(self):
         """Generate a response to acknowledge incoming request block.
@@ -428,17 +453,24 @@ class Message(object):
         client with "more" flag set."""
         response = Message(code=CHANGED, token=self.token)
         response.remote = self.remote
-        if self.opt.block1.block_number == 0 and self.opt.block1.size_exponent > self.transport_tuning.DEFAULT_BLOCK_SIZE_EXP:
+        if (
+            self.opt.block1.block_number == 0
+            and self.opt.block1.size_exponent
+            > self.transport_tuning.DEFAULT_BLOCK_SIZE_EXP
+        ):
             new_size_exponent = self.transport_tuning.DEFAULT_BLOCK_SIZE_EXP
             response.opt.block1 = (0, True, new_size_exponent)
         else:
-            response.opt.block1 = (self.opt.block1.block_number, True, self.opt.block1.size_exponent)
+            response.opt.block1 = (
+                self.opt.block1.block_number,
+                True,
+                self.opt.block1.size_exponent,
+            )
         return response
 
     #
     # the message in the context of network and addresses
     #
-
 
     def get_request_uri(self, *, local_is_server=False):
         """The absolute URI this message belongs to.
@@ -503,9 +535,7 @@ class Message(object):
             else:
                 netloc = refmsg.remote.hostinfo
 
-            if refmsg.opt.uri_host is not None or \
-                    refmsg.opt.uri_port is not None:
-
+            if refmsg.opt.uri_host is not None or refmsg.opt.uri_port is not None:
                 host, port = hostportsplit(netloc)
 
                 host = refmsg.opt.uri_host or host
@@ -525,7 +555,7 @@ class Message(object):
         path = ''.join("/" + _quote_for_path(p) for p in path) or '/'
 
         fragment = None
-        params = "" # are they not there at all?
+        params = ""  # are they not there at all?
 
         # Eases debugging, for when they raise from urunparse you won't know
         # which of them it was
@@ -564,23 +594,30 @@ class Message(object):
             raise ValueError("User name and password not supported.")
 
         if parsed.path not in ('', '/'):
-            self.opt.uri_path = [urllib.parse.unquote(x) for x in parsed.path.split('/')[1:]]
+            self.opt.uri_path = [
+                urllib.parse.unquote(x) for x in parsed.path.split('/')[1:]
+            ]
         else:
             self.opt.uri_path = []
         if parsed.query:
-            self.opt.uri_query = [urllib.parse.unquote(x) for x in parsed.query.split('&')]
+            self.opt.uri_query = [
+                urllib.parse.unquote(x) for x in parsed.query.split('&')
+            ]
         else:
             self.opt.uri_query = []
 
         self.remote = UndecidedRemote(parsed.scheme, parsed.netloc)
 
         is_ip_literal = parsed.netloc.startswith('[') or (
-                parsed.hostname.count('.') == 3 and
-                all(c in '0123456789.' for c in parsed.hostname) and
-                all(int(x) <= 255 for x in parsed.hostname.split('.')))
+            parsed.hostname.count('.') == 3
+            and all(c in '0123456789.' for c in parsed.hostname)
+            and all(int(x) <= 255 for x in parsed.hostname.split('.'))
+        )
 
         if set_uri_host and not is_ip_literal:
-            self.opt.uri_host = urllib.parse.unquote(parsed.hostname).translate(_ascii_lowercase)
+            self.opt.uri_host = urllib.parse.unquote(parsed.hostname).translate(
+                _ascii_lowercase
+            )
 
     # Deprecated accessors to moved functionality
 
@@ -623,10 +660,10 @@ class Message(object):
     def requested_query(self):
         return self.request.opt.uri_query
 
+
 class UndecidedRemote(
-        namedtuple("_UndecidedRemote", ("scheme", "hostinfo")),
-        interfaces.EndpointAddress
-        ):
+    namedtuple("_UndecidedRemote", ("scheme", "hostinfo")), interfaces.EndpointAddress
+):
     """Remote that is set on messages that have not been sent through any any
     transport.
 
@@ -656,14 +693,19 @@ class UndecidedRemote(
             raise ValueError("User name and password not supported.")
 
         if parsed.path not in ('', '/') or parsed.query or parsed.fragment:
-            raise ValueError("Paths and query and fragment can not be set on an UndecidedRemote")
+            raise ValueError(
+                "Paths and query and fragment can not be set on an UndecidedRemote"
+            )
 
         return cls(parsed.scheme, parsed.netloc)
+
 
 _ascii_lowercase = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 
 _quote_for_path = quote_factory(unreserved + sub_delims + ':@')
-_quote_for_query = quote_factory(unreserved + "".join(c for c in sub_delims if c != '&') + ':@/?')
+_quote_for_query = quote_factory(
+    unreserved + "".join(c for c in sub_delims if c != '&') + ':@/?'
+)
 
 #: Result that can be returned from a render method instead of a Message when
 #: due to defaults (eg. multicast link-format queries) or explicit

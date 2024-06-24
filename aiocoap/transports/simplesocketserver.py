@@ -43,10 +43,18 @@ from .generic_udp import GenericMessageInterface
 from ..util import hostportjoin
 from .. import defaults
 
-class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.EndpointAddress):
+
+class _Address(
+    namedtuple('_Address', ['serversocket', 'address']), interfaces.EndpointAddress
+):
     # hashability and equality follow from being a namedtuple
     def __repr__(self):
-        return '<%s.%s via %s to %s>' % (__name__, type(self).__name__, self.serversocket, self.address)
+        return '<%s.%s via %s to %s>' % (
+            __name__,
+            type(self).__name__,
+            self.serversocket,
+            self.address,
+        )
 
     def send(self, data):
         self.serversocket._transport.sendto(data, self.address)
@@ -86,12 +94,15 @@ class _Address(namedtuple('_Address', ['serversocket', 'address']), interfaces.E
     def blockwise_key(self):
         return self.address
 
+
 class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     # To be overridden by tinydtls_server
     _Address = _Address
 
     @classmethod
-    async def create(cls, bind, log, loop, message_interface: "GenericMessageInterface"):
+    async def create(
+        cls, bind, log, loop, message_interface: "GenericMessageInterface"
+    ):
         if bind is None or bind[0] in ('::', '0.0.0.0', '', None):
             # If you feel tempted to remove this check, think about what
             # happens if two configured addresses can both route to a
@@ -104,21 +115,25 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         ready = asyncio.get_running_loop().create_future()
 
         transport, protocol = await loop.create_datagram_endpoint(
-                lambda: cls(ready.set_result, message_interface, log),
-                local_addr=bind,
-                reuse_port=defaults.has_reuse_port(),
-                )
+            lambda: cls(ready.set_result, message_interface, log),
+            local_addr=bind,
+            reuse_port=defaults.has_reuse_port(),
+        )
 
         # Conveniently, we only bind to a single port (because we need to know
         # the return address, not because we insist we know the local
         # hostinfo), and can thus store the local hostinfo without distinction
-        protocol.hostinfo_local = hostportjoin(bind[0], bind[1] if bind[1] != COAP_PORT else None)
+        protocol.hostinfo_local = hostportjoin(
+            bind[0], bind[1] if bind[1] != COAP_PORT else None
+        )
 
         self = await ready
         self._loop = loop
         return self
 
-    def __init__(self, ready_callback, message_interface: "GenericMessageInterface", log):
+    def __init__(
+        self, ready_callback, message_interface: "GenericMessageInterface", log
+    ):
         self._ready_callback = ready_callback
         self._message_interface = message_interface
         self.log = log
@@ -131,7 +146,9 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     async def connect(self, sockaddr):
         # FIXME this is not regularly tested either
 
-        self.log.warning("Sending initial messages via a server socket is not recommended")
+        self.log.warning(
+            "Sending initial messages via a server socket is not recommended"
+        )
         # A legitimate case is when something stores return addresses as
         # URI(part)s and not as remotes. (In similar transports this'd also be
         # the case if the address's connection is dropped from the pool, but
@@ -142,7 +159,9 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         # would not be recognized otherwise), but also to get a complete (host,
         # port, zoneinfo, whatwasthefourth) tuple from what is passed in as a
         # (host, port) tuple.
-        addresses = await self._loop.getaddrinfo(*sockaddr, family=self._transport.get_extra_info('socket').family)
+        addresses = await self._loop.getaddrinfo(
+            *sockaddr, family=self._transport.get_extra_info('socket').family
+        )
         if not addresses:
             raise error.NetworkError("No addresses found for %s" % sockaddr[0])
         # FIXME could do happy eyebals
@@ -162,13 +181,17 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
 
     def error_received(self, exception):
         # This is why this whole implementation is a bad idea (but still the best we got on some platforms)
-        self.log.warning("Ignoring error because it can not be mapped to any connection: %s", exception)
+        self.log.warning(
+            "Ignoring error because it can not be mapped to any connection: %s",
+            exception,
+        )
 
     def connection_lost(self, exception):
         if exception is None:
-            pass # regular shutdown
+            pass  # regular shutdown
         else:
             self.log.error("Received unexpected connection loss: %s", exception)
+
 
 class MessageInterfaceSimpleServer(GenericMessageInterface):
     # for alteration by tinydtls_server
@@ -176,14 +199,21 @@ class MessageInterfaceSimpleServer(GenericMessageInterface):
     _serversocket = _DatagramServerSocketSimple
 
     @classmethod
-    async def create_server(cls, bind, ctx: interfaces.MessageManager, log, loop, *args, **kwargs):
+    async def create_server(
+        cls, bind, ctx: interfaces.MessageManager, log, loop, *args, **kwargs
+    ):
         self = cls(ctx, log, loop)
         bind = bind or ('::', None)
         # Interpret None as 'default port', but still allow to bind to 0 for
         # servers that want a random port (eg. when the service URLs are
         # advertised out-of-band anyway). LwM2M clients should use simple6
         # instead as outlined there.
-        bind = (bind[0], self._default_port if bind[1] is None else bind[1] + (self._default_port - COAP_PORT))
+        bind = (
+            bind[0],
+            self._default_port
+            if bind[1] is None
+            else bind[1] + (self._default_port - COAP_PORT),
+        )
 
         # Cyclic reference broken during shutdown
         self._pool = await self._serversocket.create(bind, log, self._loop, self)  # type: ignore

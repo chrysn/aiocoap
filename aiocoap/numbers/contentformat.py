@@ -109,11 +109,13 @@ _raw = [
         ['Reserved for Experimental Use', '', '65000-65535', '[RFC7252]'],
         ]
 
+
 def _normalize_media_type(s):
     """Strip out the white space between parameters; doesn't need to fully
     parse the types because it's applied to values of _raw (or to input that'll
     eventually be compared to them and fail)"""
     return s.replace('; ', ';')
+
 
 class ContentFormatMeta(ExtensibleEnumMeta):
     def __init__(self, name, bases, dict) -> None:
@@ -123,6 +125,7 @@ class ContentFormatMeta(ExtensibleEnumMeta):
         # enum instance; hoisting it to the metaclass avoids that special
         # treatment.
         self._by_mt_encoding: Dict[Tuple[str, str], "ContentFormat"] = {}
+
 
 class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
     """Entry in the `CoAP Content-Formats registry`__ of the IANA Constrained
@@ -172,7 +175,9 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
         s = cls(number)
 
         if hasattr(s, "media_type"):
-            warnings.warn("Redefining media type is a compatibility hazard, but allowed for experimental purposes")
+            warnings.warn(
+                "Redefining media type is a compatibility hazard, but allowed for experimental purposes"
+            )
 
         s._media_type = media_type
         s._encoding = encoding
@@ -180,7 +185,9 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
         cls._by_mt_encoding[(_normalize_media_type(media_type), encoding)] = s
 
     @classmethod
-    def by_media_type(cls, media_type: str, encoding: str = 'identity') -> ContentFormat:
+    def by_media_type(
+        cls, media_type: str, encoding: str = 'identity'
+    ) -> ContentFormat:
         """Produce known entry for a known media type (and encoding, though
         'identity' is default due to its prevalence), or raise KeyError."""
         return cls._by_mt_encoding[(_normalize_media_type(media_type), encoding)]
@@ -194,7 +201,11 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
 
     @media_type.setter
     def media_type(self, media_type: str) -> None:
-        warnings.warn("Setting media_type or encoding is deprecated, use ContentFormat.define(media_type, encoding) instead.", DeprecationWarning, stacklevel=1)
+        warnings.warn(
+            "Setting media_type or encoding is deprecated, use ContentFormat.define(media_type, encoding) instead.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
         self._media_type = media_type
 
     @property
@@ -203,7 +214,11 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
 
     @encoding.setter
     def encoding(self, encoding: str) -> None:
-        warnings.warn("Setting media_type or encoding is deprecated, use ContentFormat(number, media_type, encoding) instead.", DeprecationWarning, stacklevel=1)
+        warnings.warn(
+            "Setting media_type or encoding is deprecated, use ContentFormat(number, media_type, encoding) instead.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
         self._encoding = encoding
 
     @classmethod
@@ -214,11 +229,24 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
         should be found later on."""
         # showing as a deprecation even though it is a private function because
         # altering media_type/encoding required users to call this.
-        warnings.warn("This function is not needed when defining a content type through `.define()` rather than by setting media_type and encoding.", DeprecationWarning, stacklevel=1)
-        cls._by_mt_encoding = {(_normalize_media_type(c.media_type), c.encoding): c for c in cls._value2member_map_.values()}
+        warnings.warn(
+            "This function is not needed when defining a content type through `.define()` rather than by setting media_type and encoding.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        cls._by_mt_encoding = {
+            (_normalize_media_type(c.media_type), c.encoding): c
+            for c in cls._value2member_map_.values()
+        }
 
     def __repr__(self):
-        return "<%s %d%s>" % (type(self).__name__, self, ', media_type=%r, encoding=%r' % (self.media_type, self.encoding) if self.is_known() else "")
+        return "<%s %d%s>" % (
+            type(self).__name__,
+            self,
+            ', media_type=%r, encoding=%r' % (self.media_type, self.encoding)
+            if self.is_known()
+            else "",
+        )
 
     def __bool__(self):
         return True
@@ -227,6 +255,7 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
         # The name with title thing isn't too pretty for these ones
         if self.is_known():
             import html
+
             return f"""<abbr title="Content format {int(self)}{', named ContentFormat.' + html.escape(self.name) if hasattr(self, 'name') else ''}">{html.escape(self.media_type)}{'@' + self.encoding if self.encoding != 'identity' else ''}</abbr>"""
         else:
             return f"""<abbr title="Unknown content format">{int(self)}</abbr>"""
@@ -238,7 +267,8 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
     CBOR = 60
     SENML = 112
 
-for (_mt, _enc, _i, _source) in _raw:
+
+for _mt, _enc, _i, _source in _raw:
     if _mt in ["Reserved for Experimental Use", "Reserved, do not use", "Unassigned"]:
         continue
     _mt, _, _ = _mt.partition(' (TEMPORARY')
@@ -248,8 +278,13 @@ for (_mt, _enc, _i, _source) in _raw:
 class _MediaTypes:
     """Wrapper to provide a media_types indexable object as was present up to
     0.4.2"""
+
     def __getitem__(self, content_format):
-        warnings.warn("media_types is deprecated, please use aiocoap.numbers.ContentFormat", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "media_types is deprecated, please use aiocoap.numbers.ContentFormat",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if content_format is None:
             # That was a convenient idiom to short-circuit through, but would
             # fail through the constructor
@@ -262,17 +297,27 @@ class _MediaTypes:
             raise KeyError(content_format)
 
     def get(self, content_format, default=None):
-        warnings.warn("media_types is deprecated, please use aiocoap.numbers.ContentFormat", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "media_types is deprecated, please use aiocoap.numbers.ContentFormat",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         try:
             return self[content_format]
         except KeyError:
             return default
 
+
 class _MediaTypesRev:
     """Wrapper to provide a media_types_rev indexable object as was present up
     to 0.4.2"""
+
     def __getitem__(self, name):
-        warnings.warn("media_types_rev is deprecated, please use aiocoap.numbers.ContentFormat", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "media_types_rev is deprecated, please use aiocoap.numbers.ContentFormat",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if name == 'text/plain':
             # deprecated alias. Kept alive for scripts like
             # https://gitlab.f-interop.eu/f-interop-contributors/ioppytest/blob/develop/automation/coap_client_aiocoap/automated_iut.py
@@ -281,7 +326,11 @@ class _MediaTypesRev:
         return int(ContentFormat.by_media_type(name))
 
     def get(self, name, default=None):
-        warnings.warn("media_types_rev is deprecated, please use aiocoap.numbers.ContentFormat", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "media_types_rev is deprecated, please use aiocoap.numbers.ContentFormat",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         try:
             return self[name]
         except KeyError:

@@ -70,6 +70,7 @@ def hashing_etag(request: message.Message, response: message.Message):
         response.code = Code.VALID
         response.payload = b''
 
+
 class _ExposesWellknownAttributes:
     def get_link_description(self):
         # FIXME which formats are acceptable, and how much escaping and
@@ -82,6 +83,7 @@ class _ExposesWellknownAttributes:
         if hasattr(self, 'if_'):
             ret['if'] = self.if_
         return ret
+
 
 class Resource(_ExposesWellknownAttributes, interfaces.Resource):
     """Simple base implementation of the :class:`interfaces.Resource`
@@ -117,9 +119,11 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
         response = await m(request)
 
         if response is message.NoResponse:
-            warnings.warn("Returning NoResponse is deprecated, please return a"
-                          " regular response with a no_response option set.",
-                          DeprecationWarning)
+            warnings.warn(
+                "Returning NoResponse is deprecated, please return a"
+                " regular response with a no_response option set.",
+                DeprecationWarning,
+            )
             response = message.Message(no_response=26)
 
         if response.code is None:
@@ -143,6 +147,7 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
             return await interfaces.ObservableResource._render_to_pipe(self, pipe)
         return await interfaces.Resource._render_to_pipe(self, pipe)
 
+
 class ObservableResource(Resource, interfaces.ObservableResource):
     def __init__(self):
         super(ObservableResource, self).__init__()
@@ -150,9 +155,11 @@ class ObservableResource(Resource, interfaces.ObservableResource):
 
     async def add_observation(self, request, serverobservation):
         self._observations.add(serverobservation)
+
         def _cancel(self=self, obs=serverobservation):
             self._observations.remove(serverobservation)
             self.update_observation_count(len(self._observations))
+
         serverobservation.accept(_cancel)
         self.update_observation_count(len(self._observations))
 
@@ -176,8 +183,12 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         # Silence the deprecation warning
         return await interfaces.ObservableResource._render_to_pipe(self, request)
 
-def link_format_to_message(request: message.Message, linkformat: LinkFormat,
-        default_ct=ContentFormat.LINKFORMAT) -> message.Message:
+
+def link_format_to_message(
+    request: message.Message,
+    linkformat: LinkFormat,
+    default_ct=ContentFormat.LINKFORMAT,
+) -> message.Message:
     """Given a LinkFormat object, render it to a response message, picking a
     suitable conent format from a given request.
 
@@ -197,14 +208,19 @@ def link_format_to_message(request: message.Message, linkformat: LinkFormat,
 
     return message.Message(payload=payload, content_format=ct)
 
+
 # Convenience attribute to set as ct on resources that use
 # link_format_to_message as their final step in the request handler
 #
 # mypy doesn't like attributes on functions, requiring some `type: ignore` for
 # this, but the alternatives (a __call__able class) have worse docs.
-link_format_to_message.supported_ct = " ".join(str(int(x)) for x in (  # type: ignore
+link_format_to_message.supported_ct = " ".join(
+    str(int(x))
+    for x in (  # type: ignore
         ContentFormat.LINKFORMAT,
-        ))
+    )
+)
+
 
 class WKCResource(Resource):
     """Read-only dynamic resource list, suitable as .well-known/core.
@@ -240,21 +256,30 @@ class WKCResource(Resource):
             try:
                 k, v = q.split('=', 1)
             except ValueError:
-                continue # no =, not a relevant filter
+                continue  # no =, not a relevant filter
 
             if v.endswith('*'):
+
                 def matchexp(x, v=v):
                     return x.startswith(v[:-1])
             else:
+
                 def matchexp(x, v=v):
                     return x == v
 
             if k in ('rt', 'if', 'ct'):
-                filters.append(lambda link: any(matchexp(part) for part in (" ".join(getattr(link, k, ()))).split(" ")))
-            elif k in ('href',): # x.href is single valued
+                filters.append(
+                    lambda link: any(
+                        matchexp(part)
+                        for part in (" ".join(getattr(link, k, ()))).split(" ")
+                    )
+                )
+            elif k in ('href',):  # x.href is single valued
                 filters.append(lambda link: matchexp(getattr(link, k)))
             else:
-                filters.append(lambda link: any(matchexp(part) for part in getattr(link, k, ())))
+                filters.append(
+                    lambda link: any(matchexp(part) for part in getattr(link, k, ()))
+                )
 
         while filters:
             links.links = filter(filters.pop(), links.links)
@@ -262,8 +287,11 @@ class WKCResource(Resource):
 
         response = link_format_to_message(request, links)
 
-        if request.opt.uri_query and not links.links and \
-                request.remote.is_multicast_locally:
+        if (
+            request.opt.uri_query
+            and not links.links
+            and request.remote.is_multicast_locally
+        ):
             if request.opt.no_response is None:
                 # If the filter does not match, multicast requests should not
                 # be responded to -- that's equivalent to a "no_response on
@@ -272,10 +300,12 @@ class WKCResource(Resource):
 
         return response
 
+
 class PathCapable:
     """Class that indicates that a resource promises to parse the uri_path
     option, and can thus be given requests for
     :meth:`~.interfaces.Resource.render`-ing that contain a uri_path"""
+
 
 class Site(interfaces.ObservableResource, PathCapable):
     """Typical root element that gets passed to a :class:`Context` and contains
@@ -344,8 +374,11 @@ class Site(interfaces.ObservableResource, PathCapable):
         original URI until there is a variation of the request API that allows
         accessing this in a better usable way."""
 
-        original_request_uri = getattr(request, '_original_request_uri',
-                request.get_request_uri(local_is_server=True))
+        original_request_uri = getattr(
+            request,
+            '_original_request_uri',
+            request.get_request_uri(local_is_server=True),
+        )
 
         if request.opt.uri_path in self._resources:
             stripped = request.copy(uri_path=())
@@ -420,12 +453,16 @@ class Site(interfaces.ObservableResource, PathCapable):
         for path, resource in self._subsites.items():
             if hasattr(resource, "get_resources_as_linkheader"):
                 for link in resource.get_resources_as_linkheader().links:
-                    links.append(Link('/' + '/'.join(path) + link.href, link.attr_pairs))
+                    links.append(
+                        Link('/' + '/'.join(path) + link.href, link.attr_pairs)
+                    )
         return LinkFormat(links)
 
     async def render_to_pipe(self, request: Pipe):
         try:
-            child, subrequest = self._find_child_and_pathstripped_message(request.request)
+            child, subrequest = self._find_child_and_pathstripped_message(
+                request.request
+            )
         except KeyError:
             raise error.NotFound()
         else:

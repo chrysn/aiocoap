@@ -10,14 +10,16 @@ in the `Type` object.
 
 from enum import IntEnum
 
+
 class Type(IntEnum):
-    CON = 0 # Confirmable
-    NON = 1 # Non-confirmable
-    ACK = 2 # Acknowledgement
-    RST = 3 # Reset
+    CON = 0  # Confirmable
+    NON = 1  # Non-confirmable
+    ACK = 2  # Acknowledgement
+    RST = 3  # Reset
 
     def __str__(self):
         return self.name
+
 
 CON, NON, ACK, RST = Type.CON, Type.NON, Type.ACK, Type.RST
 

@@ -79,19 +79,24 @@ server: {
 }
 '''
 
+
 class CredentialsLoadError(ValueError):
     """Raised by functions that create a CredentialsMap or its parts from
     simple data structures"""
+
 
 class CredentialsMissingError(RuntimeError):
     """Raised when no suiting credentials can be found for a message, or
     credentials are found but inapplicable to a transport's security
     mechanisms."""
 
+
 class CredentialReference:
     def __init__(self, target, map):
         if not target.startswith(':'):
-            raise CredentialsLoadError("Credential references must start with a colon (':')")
+            raise CredentialsLoadError(
+                "Credential references must start with a colon (':')"
+            )
         self.target = target
         self.map = map
 
@@ -101,6 +106,7 @@ class CredentialReference:
     def as_dtls_psk(self):
         return self.map[self.target].as_dtls_psk()
 
+
 class _Listish(list):
     @classmethod
     def from_item(cls, v):
@@ -108,11 +114,14 @@ class _Listish(list):
             raise CredentialsLoadError("%s goes with a list" % cls.__name__)
         return cls(v)
 
+
 class AnyOf(_Listish):
     pass
 
+
 class AllOf(_Listish):
     pass
+
 
 def _call_from_structureddata(constructor, name, init_data):
     if not isinstance(init_data, dict):
@@ -138,26 +147,37 @@ def _call_from_structureddata(constructor, name, init_data):
             try:
                 v = v['ascii'].encode('ascii')
             except UnicodeEncodeError:
-                raise CredentialsLoadError("Elements of the ASCII object can not be represented in ASCII, please use binary or hex representation.")
-
+                raise CredentialsLoadError(
+                    "Elements of the ASCII object can not be represented in ASCII, please use binary or hex representation."
+                )
 
         if isinstance(v, dict) and 'hex' in v:
             if len(v) != 1:
                 raise CredentialsLoadError("Hex objects can only have one elemnt.")
             try:
-                v = bytes.fromhex(v['hex'].replace('-', '').replace(' ', '').replace(':', ''))
+                v = bytes.fromhex(
+                    v['hex'].replace('-', '').replace(' ', '').replace(':', '')
+                )
             except ValueError as e:
-                raise CredentialsLoadError("Hex object can not be read: %s" % (e.args[0]))
+                raise CredentialsLoadError(
+                    "Hex object can not be read: %s" % (e.args[0])
+                )
 
         # Not using isinstance because I foundno way to extract the type
         # information from an Optional/Union again; this whole thing works
         # only for strings and ints anyway, so why not.
         #
         # The second or-branch is for functions from modules with __future__.annotations
-        if annotation not in (type(v), Optional[type(v)]) and annotation not in (type(v).__name__, "Optional[%s]" % type(v).__name__):
+        if annotation not in (type(v), Optional[type(v)]) and annotation not in (
+            type(v).__name__,
+            "Optional[%s]" % type(v).__name__,
+        ):
             # explicitly not excluding inspect._empty here: constructors
             # need to be fully annotated
-            raise CredentialsLoadError("Type mismatch in attribute %s of %s: expected %s, got %r" % (k, name, annotation, v))
+            raise CredentialsLoadError(
+                "Type mismatch in attribute %s of %s: expected %s, got %r"
+                % (k, name, annotation, v)
+            )
 
         checked_items[k] = v
 
@@ -168,10 +188,12 @@ def _call_from_structureddata(constructor, name, init_data):
 
     return constructor(*bound.args, **bound.kwargs)
 
+
 class _Objectish:
     @classmethod
     def from_item(cls, init_data):
         return _call_from_structureddata(cls, cls.__name__, init_data)
+
 
 class DTLS(_Objectish):
     def __init__(self, psk: bytes, client_identity: bytes):
@@ -181,11 +203,13 @@ class DTLS(_Objectish):
     def as_dtls_psk(self):
         return (self.client_identity, self.psk)
 
+
 class TLSCert(_Objectish):
     """Indicates that a client can use the given certificate file to authenticate the server.
 
     Can only be used with 'coaps+tcp://HOSTINFO/*' and 'coaps+tcp://*' forms.
     """
+
     def __init__(self, certfile: str):
         self.certfile = certfile
 
@@ -194,15 +218,21 @@ class TLSCert(_Objectish):
         ssl.create_default_context when purpose is alreay set"""
         return {"cafile": self.certfile}
 
+
 def import_filesystem_security_context():
     from .oscore import FilesystemSecurityContext
+
     return FilesystemSecurityContext
+
 
 def import_edhoc_credential_pair():
     from . import edhoc
+
     return edhoc.EdhocCredentials
 
+
 _re_cache = {}
+
 
 class CredentialsMap(dict):
     """
@@ -242,13 +272,13 @@ class CredentialsMap(dict):
             return CredentialReference(v, self)
         elif isinstance(v, dict):
             try:
-                (key, value), = v.items()
+                ((key, value),) = v.items()
             except ValueError:
                 # this follows how Rust Enums are encoded in serde JSON
                 raise CredentialsLoadError(
-                        "Items in a credentials map must have exactly one key"
-                        " (found %s)" % ("," .join(v.keys()) or "empty")
-                    )
+                    "Items in a credentials map must have exactly one key"
+                    " (found %s)" % (",".join(v.keys()) or "empty")
+                )
 
             try:
                 type_ = self._class_map[key]
@@ -261,13 +291,13 @@ class CredentialsMap(dict):
     # still present so that an entry that is not loadable raises an error
     # rather than possibly being ignored.
     _class_map = {
-            'dtls': lambda: DTLS,
-            'oscore': import_filesystem_security_context,
-            'tlscert': lambda: TLSCert,
-            'any-of': lambda: AnyOf,
-            'all-of': lambda: AllOf,
-            'edhoc-oscore': import_edhoc_credential_pair,
-            }
+        'dtls': lambda: DTLS,
+        'oscore': import_filesystem_security_context,
+        'tlscert': lambda: TLSCert,
+        'any-of': lambda: AnyOf,
+        'all-of': lambda: AllOf,
+        'edhoc-oscore': import_edhoc_credential_pair,
+    }
 
     @staticmethod
     def _wildcard_match(searchterm, pattern):
@@ -284,7 +314,7 @@ class CredentialsMap(dict):
         uri = msg.get_request_uri()
 
         for i in range(1000):
-            for (k, v) in sorted(self.items(), key=lambda x: len(x[0]), reverse=True):
+            for k, v in sorted(self.items(), key=lambda x: len(x[0]), reverse=True):
                 if self._wildcard_match(uri, k):
                     if isinstance(v, str):
                         uri = v
@@ -293,7 +323,9 @@ class CredentialsMap(dict):
             else:
                 raise CredentialsMissingError("No suitable credentials for %s" % uri)
         else:
-            raise CredentialsLoadError("Search for suitable credentials for %s exceeds recursion limit")
+            raise CredentialsLoadError(
+                "Search for suitable credentials for %s exceeds recursion limit"
+            )
 
     def ssl_client_context(self, scheme, hostinfo):
         """Return an SSL client context as configured for the given request
@@ -312,6 +344,7 @@ class CredentialsMap(dict):
             ssl_params = tlscert.as_ssl_params()
         if ssl_params:
             import ssl
+
             return ssl.create_default_context(**ssl_params)
 
     # used by a server
@@ -344,7 +377,7 @@ class CredentialsMap(dict):
         return all_kid
 
     def find_edhoc_by_id_cred_peer(self, id_cred_peer) -> Tuple[bytes, List[str]]:
-        for (label, item) in self.items():
+        for label, item in self.items():
             if not hasattr(item, "find_edhoc_by_id_cred_peer"):
                 continue
 
@@ -354,8 +387,12 @@ class CredentialsMap(dict):
                 return (credential, [label])
 
         from . import edhoc
-        for (label, item) in self.items():
-            if isinstance(item, edhoc.EdhocCredentials) and item.peer_cred_is_unauthenticated():
+
+        for label, item in self.items():
+            if (
+                isinstance(item, edhoc.EdhocCredentials)
+                and item.peer_cred_is_unauthenticated()
+            ):
                 # FIXME: While we don't get details back from Lakers on whether
                 # the data sent as id_cred_i was by-reference or by-value (it
                 # is unambiguious in the message), let's not try to guess
@@ -368,7 +405,7 @@ class CredentialsMap(dict):
 
     def find_dtls_psk(self, identity):
         # FIXME similar to find_oscore
-        for (entry, item) in self.items():
+        for entry, item in self.items():
             if not hasattr(item, "as_dtls_psk"):
                 continue
 

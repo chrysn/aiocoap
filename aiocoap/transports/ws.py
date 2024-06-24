@@ -80,6 +80,7 @@ if is_pyodide:
 else:
     import websockets  # type: ignore
 
+
 def _decode_message(data: bytes) -> Message:
     codeoffset = 1
     tokenoffset = 2
@@ -88,13 +89,14 @@ def _decode_message(data: bytes) -> Message:
     if tkl > 8:
         raise error.UnparsableMessage("Overly long token")
     code = data[codeoffset]
-    token = data[tokenoffset:tokenoffset + tkl]
+    token = data[tokenoffset : tokenoffset + tkl]
 
     msg = Message(code=code, token=token)
 
-    msg.payload = msg.opt.decode(data[tokenoffset + tkl:])
+    msg.payload = msg.opt.decode(data[tokenoffset + tkl :])
 
     return msg
+
 
 def _serialize(msg: Message) -> bytes:
     tkl = len(msg.token)
@@ -102,16 +104,23 @@ def _serialize(msg: Message) -> bytes:
         raise ValueError("Overly long token")
 
     data = [
-            bytes((tkl, msg.code,)),
-            msg.token,
-            msg.opt.encode(),
-            ]
+        bytes(
+            (
+                tkl,
+                msg.code,
+            )
+        ),
+        msg.token,
+        msg.opt.encode(),
+    ]
     if msg.payload:
         data += [b'\xff', msg.payload]
 
     return b"".join(data)
 
+
 PoolKey = namedtuple("PoolKey", ("scheme", "hostinfo"))
+
 
 class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
     _connection: websockets.WebSocketCommonProtocol
@@ -119,16 +128,28 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
     # that there'd be any good reason to have multiple of those.
     _pool: weakref.ReferenceType[WSPool]
 
-    scheme = None # Override property -- it's per instance here
+    scheme = None  # Override property -- it's per instance here
 
-    def __init__(self, pool, connection, loop, log, *, scheme, local_hostinfo=None, remote_hostinfo=None):
+    def __init__(
+        self,
+        pool,
+        connection,
+        loop,
+        log,
+        *,
+        scheme,
+        local_hostinfo=None,
+        remote_hostinfo=None,
+    ):
         super().__init__()
         self._pool = weakref.ref(pool)
         self._connection = connection
         self.loop = loop
         self.log = log
 
-        self._local_is_server = isinstance(connection, websockets.WebSocketServerProtocol)
+        self._local_is_server = isinstance(
+            connection, websockets.WebSocketServerProtocol
+        )
 
         if local_hostinfo is None:
             self._local_hostinfo = self._connection.local_address[:2]
@@ -152,9 +173,9 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
         # Like _send_message, this may take actual time -- but unlike there,
         # there's no need to regulate back-pressure
         self.loop.create_task(
-                self._abort_with_waiting(msg, close_code=close_code),
-                name="Abortion WebSocket sonnection with %r" % msg,
-                )
+            self._abort_with_waiting(msg, close_code=close_code),
+            name="Abortion WebSocket sonnection with %r" % msg,
+        )
 
     # Unlike _send_message, this is pulled out of the the _abort_with function
     # as it's also used in _run_recv_loop
@@ -173,11 +194,14 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
             try:
                 await self._connection.send(_serialize(msg))
             except Exception as e:
-                self.log.error("Sending to a WebSocket should not raise errors", exc_info=e)
-        self.loop.create_task(
-                send(),
-                name="WebSocket sending of %r" % msg,
+                self.log.error(
+                    "Sending to a WebSocket should not raise errors", exc_info=e
                 )
+
+        self.loop.create_task(
+            send(),
+            name="WebSocket sending of %r" % msg,
+        )
 
     async def release(self):
         await super().release()
@@ -185,9 +209,9 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
             await self._connection.wait_closed()
         except asyncio.CancelledError:
             self.log.warning(
-                    "Connection %s was not closed by peer in time after release",
-                    self
-                    )
+                "Connection %s was not closed by peer in time after release", self
+            )
+
 
 class WSPool(interfaces.TokenInterface):
     _outgoing_starting: Dict[PoolKey, asyncio.Task]
@@ -212,7 +236,16 @@ class WSPool(interfaces.TokenInterface):
         self._client_credentials: CredentialsMap
 
     @classmethod
-    async def create_transport(cls, tman: interfaces.TokenManager, log, loop, *, client_credentials, server_bind=None, server_context=None):
+    async def create_transport(
+        cls,
+        tman: interfaces.TokenManager,
+        log,
+        loop,
+        *,
+        client_credentials,
+        server_bind=None,
+        server_context=None,
+    ):
         self = cls(tman, log, loop)
 
         self._client_credentials = client_credentials
@@ -226,23 +259,25 @@ class WSPool(interfaces.TokenInterface):
                 port = port + 3000
 
             server = await websockets.serve(
-                    functools.partial(self._new_connection, scheme='coap+ws'),
-                    host, port,
-                    subprotocols=['coap'],
-                    process_request=self._process_request,
-                    ping_interval=None, # "SHOULD NOT be used"
-                    )
+                functools.partial(self._new_connection, scheme='coap+ws'),
+                host,
+                port,
+                subprotocols=['coap'],
+                process_request=self._process_request,
+                ping_interval=None,  # "SHOULD NOT be used"
+            )
             self._servers.append(server)
 
             if server_context is not None:
                 server = await websockets.serve(
-                        functools.partial(self._new_connection, scheme='coaps+ws'),
-                        host, port + 1,
-                        subprotocols=['coap'],
-                        process_request=self._process_request,
-                        ping_interval=None, # "SHOULD NOT be used"
-                        ssl=server_context,
-                        )
+                    functools.partial(self._new_connection, scheme='coaps+ws'),
+                    host,
+                    port + 1,
+                    subprotocols=['coap'],
+                    process_request=self._process_request,
+                    ping_interval=None,  # "SHOULD NOT be used"
+                    ssl=server_context,
+                )
                 self._servers.append(server)
 
         return self
@@ -262,10 +297,22 @@ class WSPool(interfaces.TokenInterface):
             #
             # To be removed once a websockets version with this fix can be
             # depended on
-            hostheader = '[' + hostheader[:hostheader.rfind(':')] + ']' + hostheader[hostheader.rfind(':'):]
+            hostheader = (
+                '['
+                + hostheader[: hostheader.rfind(':')]
+                + ']'
+                + hostheader[hostheader.rfind(':') :]
+            )
         local_hostinfo = util.hostportsplit(hostheader)
 
-        remote = WSRemote(self, websocket, self.loop, self.log, scheme=scheme, local_hostinfo=local_hostinfo)
+        remote = WSRemote(
+            self,
+            websocket,
+            self.loop,
+            self.log,
+            scheme=scheme,
+            local_hostinfo=local_hostinfo,
+        )
         self._pool[remote._poolkey] = remote
 
         await self._run_recv_loop(remote)
@@ -281,47 +328,61 @@ class WSPool(interfaces.TokenInterface):
 
     def _connect(self, key: PoolKey):
         self._outgoing_starting[key] = self.loop.create_task(
-                self._connect_task(key),
-                name="WebSocket connection opening to %r" % (key,),
-                )
+            self._connect_task(key),
+            name="WebSocket connection opening to %r" % (key,),
+        )
 
     async def _connect_task(self, key: PoolKey):
         try:
-            ssl_context = self._client_credentials.ssl_client_context(key.scheme, key.hostinfo)
+            ssl_context = self._client_credentials.ssl_client_context(
+                key.scheme, key.hostinfo
+            )
 
             hostinfo_split = util.hostportsplit(key.hostinfo)
 
             ws_scheme = {'coap+ws': 'ws', 'coaps+ws': 'wss'}[key.scheme]
 
             if ws_scheme == 'ws' and ssl_context is not None:
-                raise ValueError("An SSL context was provided for a remote accessed via a plaintext websockets.")
+                raise ValueError(
+                    "An SSL context was provided for a remote accessed via a plaintext websockets."
+                )
             if ws_scheme == 'wss':
                 if is_pyodide:
                     if ssl_context is not None:
-                        raise ValueError("The pyodide websocket implementation can't be configured with a non-default context -- connections created in a browser will always use the browser's CA set.")
+                        raise ValueError(
+                            "The pyodide websocket implementation can't be configured with a non-default context -- connections created in a browser will always use the browser's CA set."
+                        )
                 else:
                     if ssl_context is None:
                         # Like with TLSClient, we need to pass in a default
                         # context and can't rely on the websocket library to
                         # use a default one when wss is requested (it doesn't)
                         import ssl
+
                         ssl_context = ssl.create_default_context()
 
-            websocket = await websockets.connect("%s://%s/.well-known/coap" % (
-                ws_scheme, key.hostinfo),
+            websocket = await websockets.connect(
+                "%s://%s/.well-known/coap" % (ws_scheme, key.hostinfo),
                 subprotocols=['coap'],
                 ping_interval=None,
                 ssl=ssl_context,
-                )
+            )
 
-            remote = WSRemote(self, websocket, self.loop, self.log, scheme=key.scheme, remote_hostinfo=hostinfo_split)
+            remote = WSRemote(
+                self,
+                websocket,
+                self.loop,
+                self.log,
+                scheme=key.scheme,
+                remote_hostinfo=hostinfo_split,
+            )
             assert remote._poolkey == key, "Pool key construction is inconsistent"
             self._pool[key] = remote
 
             self.loop.create_task(
-                    self._run_recv_loop(remote),
-                    name="WebSocket receive loop for %r" % (key,),
-                    )
+                self._run_recv_loop(remote),
+                name="WebSocket receive loop for %r" % (key,),
+            )
 
             return remote
         finally:
@@ -330,8 +391,7 @@ class WSPool(interfaces.TokenInterface):
     # Implementation of TokenInterface
 
     async def fill_or_recognize_remote(self, message):
-        if isinstance(message.remote, WSRemote) and \
-                message.remote._pool() is self:
+        if isinstance(message.remote, WSRemote) and message.remote._pool() is self:
             return True
 
         if message.requested_scheme in ('coap+ws', 'coaps+ws'):
@@ -360,7 +420,9 @@ class WSPool(interfaces.TokenInterface):
         # down the complete connection
 
         if message.code.is_response():
-            no_response = (message.opt.no_response or 0) & (1 << message.code.class_ - 1) != 0
+            no_response = (message.opt.no_response or 0) & (
+                1 << message.code.class_ - 1
+            ) != 0
             if no_response:
                 return
 
@@ -377,7 +439,8 @@ class WSPool(interfaces.TokenInterface):
                 c.release(),
                 name="Close connection %s" % c,
             )
-            for c in self._pool.values()]
+            for c in self._pool.values()
+        ]
 
         server_shutdowns = []
         while self._servers:
@@ -390,10 +453,9 @@ class WSPool(interfaces.TokenInterface):
             # tests actually do run a GC collection once and that gets broken
             # up, it's not worth adding fragilty here
             s.close()
-            server_shutdowns.append(asyncio.create_task(
-                s.wait_closed(),
-                name="Close server %s" % s),
-                )
+            server_shutdowns.append(
+                asyncio.create_task(s.wait_closed(), name="Close server %s" % s),
+            )
 
         # Placing client shutdowns before server shutdowns to give them a
         # chance to send out Abort messages; the .close() method could be more
@@ -422,17 +484,24 @@ class WSPool(interfaces.TokenInterface):
                 # unresolved) in the shutdown handler.
                 if not self._in_shutdown:
                     # FIXME if deposited somewhere, mark that as stale?
-                    self._tokenmanager.dispatch_error(error.RemoteServerShutdown("Peer closed connection"), remote)
+                    self._tokenmanager.dispatch_error(
+                        error.RemoteServerShutdown("Peer closed connection"), remote
+                    )
                 return
 
             if not isinstance(received, bytes):
-                await remote._abort_with_waiting(Message(code=ABORT, payload=b"Text frame received"), close_code=1003)
+                await remote._abort_with_waiting(
+                    Message(code=ABORT, payload=b"Text frame received"), close_code=1003
+                )
                 return
 
             try:
                 msg = _decode_message(received)
             except error.UnparsableMessage:
-                await remote._abort_with_waiting(Message(code=ABORT, payload=b"Message parsing error"), close_code=1007)
+                await remote._abort_with_waiting(
+                    Message(code=ABORT, payload=b"Message parsing error"),
+                    close_code=1007,
+                )
                 return
 
             msg.remote = remote

@@ -14,6 +14,7 @@ from aiocoap import optiontypes, util
 from aiocoap.numbers.codes import CSM, PING, PONG, RELEASE, ABORT
 from aiocoap import error
 
+
 class CloseConnection(Exception):
     """Raised in RFC8323 common processing to trigger a connection shutdown on
     the TCP / WebSocket side.
@@ -21,6 +22,7 @@ class CloseConnection(Exception):
     The TCP / WebSocket side should send the exception's argument on to the
     token manager, close the connection, and does not need to perform further
     logging."""
+
 
 class RFC8323Remote:
     """Mixin for Remotes for all the common RFC8323 processing
@@ -45,7 +47,12 @@ class RFC8323Remote:
     # implementing interfaces.EndpointAddress
 
     def __repr__(self):
-        return "<%s at %#x, hostinfo %s, local %s>" % (type(self).__name__, id(self), self.hostinfo, self.hostinfo_local)
+        return "<%s at %#x, hostinfo %s, local %s>" % (
+            type(self).__name__,
+            id(self),
+            self.hostinfo,
+            self.hostinfo_local,
+        )
 
     @property
     def hostinfo(self):
@@ -62,7 +69,9 @@ class RFC8323Remote:
     @property
     def uri_base(self):
         if self._local_is_server:
-            raise error.AnonymousHost("Client side of %s can not be expressed as a URI" % self._ctx._scheme)
+            raise error.AnonymousHost(
+                "Client side of %s can not be expressed as a URI" % self._ctx._scheme
+            )
         else:
             return self._ctx._scheme + '://' + self.hostinfo
 
@@ -71,7 +80,9 @@ class RFC8323Remote:
         if self._local_is_server:
             return self._ctx._scheme + '://' + self.hostinfo_local
         else:
-            raise error.AnonymousHost("Client side of %s can not be expressed as a URI" % self._ctx._scheme)
+            raise error.AnonymousHost(
+                "Client side of %s can not be expressed as a URI" % self._ctx._scheme
+            )
 
     @property
     def maximum_block_size_exp(self):
@@ -89,7 +100,7 @@ class RFC8323Remote:
         has_blockwise = (self._remote_settings or {}).get('block-wise-transfer', False)
         if max_message_size > 1152 and has_blockwise:
             return 7
-        return 6 # FIXME: deal with smaller max-message-size
+        return 6  # FIXME: deal with smaller max-message-size
 
     @property
     def maximum_payload_size(self):
@@ -100,7 +111,7 @@ class RFC8323Remote:
         has_blockwise = (self._remote_settings or {}).get('block-wise-transfer', False)
         if max_message_size > 1152 and has_blockwise:
             return ((max_message_size - 128) // 1024) * 1024 + slack
-        return 1024 + slack # FIXME: deal with smaller max-message-size
+        return 1024 + slack  # FIXME: deal with smaller max-message-size
 
     @property
     def blockwise_key(self):
@@ -128,13 +139,15 @@ class RFC8323Remote:
                 # opaque; message parsing should already use the appropriate
                 # option types, or re-think the way options are parsed
                 if opt.number == 2:
-                    self._remote_settings['max-message-size'] = int.from_bytes(opt.value, 'big')
+                    self._remote_settings['max-message-size'] = int.from_bytes(
+                        opt.value, 'big'
+                    )
                 elif opt.number == 4:
                     self._remote_settings['block-wise-transfer'] = True
                 elif opt.number.is_critical():
                     self.abort("Option not supported", bad_csm_option=opt.number)
                 else:
-                    pass # ignoring elective CSM options
+                    pass  # ignoring elective CSM options
         elif msg.code in (PING, PONG, RELEASE, ABORT):
             # not expecting data in any of them as long as Custody is not implemented
             for opt in msg.opt.option_list():
@@ -152,11 +165,17 @@ class RFC8323Remote:
                 # The behavior SHOULD be enhanced to answer outstanding
                 # requests, but it is unclear to which extent this side may
                 # still use the connection.
-                self.log.info("Received Release, closing on this end (options: %s)", msg.opt)
-                raise CloseConnection(error.RemoteServerShutdown("Peer released connection"))
+                self.log.info(
+                    "Received Release, closing on this end (options: %s)", msg.opt
+                )
+                raise CloseConnection(
+                    error.RemoteServerShutdown("Peer released connection")
+                )
             elif msg.code == ABORT:
                 self.log.warning("Received Abort (options: %s)", msg.opt)
-                raise CloseConnection(error.RemoteServerShutdown("Peer aborted connection"))
+                raise CloseConnection(
+                    error.RemoteServerShutdown("Peer aborted connection")
+                )
         else:
             self.abort("Unknown signalling code")
 
@@ -190,6 +209,5 @@ class RFC8323Remote:
             pass
         except asyncio.CancelledError:
             self.log.warning(
-                    "Connection %s was not closed by peer in time after release",
-                    self
-                    )
+                "Connection %s was not closed by peer in time after release", self
+            )

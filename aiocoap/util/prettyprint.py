@@ -19,6 +19,7 @@ _register()
 
 MEDIATYPE_HEXDUMP = 'text/vnd.aiocoap.hexdump'
 
+
 def lexer_for_mime(mime):
     """A wrapper around pygments.lexers.get_lexer_for_mimetype that takes
     subtypes into consideration and catches the custom hexdump mime type."""
@@ -34,9 +35,11 @@ def lexer_for_mime(mime):
     try:
         return pygments.lexers.get_lexer_for_mimetype(mime)
     except pygments.util.ClassNotFound:
-        mime = re.sub('^([^/]+)/.*\\+([^;]+)(;.*)?$',
-                lambda args: args[1] + '/' + args[2], mime)
+        mime = re.sub(
+            '^([^/]+)/.*\\+([^;]+)(;.*)?$', lambda args: args[1] + '/' + args[2], mime
+        )
         return pygments.lexers.get_lexer_for_mimetype(mime)
+
 
 def pretty_print(message):
     """Given a CoAP message, reshape its payload into something human-readable.
@@ -77,9 +80,11 @@ def pretty_print(message):
     elif cf.is_known():
         content_type = cf.media_type
         if cf.encoding != 'identity':
-            info("Content format is %s in %s encoding; treating as "
-                 "application/octet-stream because decompression is not "
-                 "supported yet" % (cf.media_type, cf.encoding))
+            info(
+                "Content format is %s in %s encoding; treating as "
+                "application/octet-stream because decompression is not "
+                "supported yet" % (cf.media_type, cf.encoding)
+            )
     else:
         content_type = "type %d" % cf
     category = contenttype.categorize(content_type)
@@ -157,9 +162,13 @@ def pretty_print(message):
         else:
             return (infos, 'text/plain;charset=utf8', text)
 
-    info("Showing hex dump of %s payload%s" % (
-        content_type if cf is not None else "untyped",
-        ": " + show_hex if show_hex is not None else ""))
+    info(
+        "Showing hex dump of %s payload%s"
+        % (
+            content_type if cf is not None else "untyped",
+            ": " + show_hex if show_hex is not None else "",
+        )
+    )
     data = message.payload
     # Not the most efficient hex dumper, but we won't stream video over
     # this anyway
@@ -168,11 +177,17 @@ def pretty_print(message):
     while data:
         line, data = data[:16], data[16:]
 
-        formatted.append("%08x  " % offset +
-                " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8)) + "  " +
-                " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8, 16)) + "  |" +
-                "".join(chr(x) if 32 <= x < 127 else '.' for x in line) +
-                "|\n")
+        formatted.append(
+            "%08x  " % offset
+            + " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8))
+            + "  "
+            + " ".join(
+                "%02x" % line[i] if i < len(line) else "  " for i in range(8, 16)
+            )
+            + "  |"
+            + "".join(chr(x) if 32 <= x < 127 else '.' for x in line)
+            + "|\n"
+        )
 
         offset += len(line)
     if offset % 16 != 0:

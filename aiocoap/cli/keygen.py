@@ -15,20 +15,29 @@ import aiocoap.defaults
 import argparse
 from pathlib import Path
 
+
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--version', action="version", version='%(prog)s ' + aiocoap.meta.version)
+    p.add_argument(
+        '--version', action="version", version='%(prog)s ' + aiocoap.meta.version
+    )
 
     subparsers = p.add_subparsers(required=True, dest="subcommand")
-    generate = subparsers.add_parser("generate", help="This generates an"
+    generate = subparsers.add_parser(
+        "generate",
+        help="This generates an"
         " EDHOC key, stores it in a key file that is only readable by the"
         " user, and prints the corresponding public key information in a way"
-        " suitable for inclusion in credentials maps.")
+        " suitable for inclusion in credentials maps.",
+    )
     generate.add_argument('keyfile', help="File to store the secret key in", type=Path)
-    generate.add_argument('--kid', help="Hexadecimal key identifier", type=bytes.fromhex)
+    generate.add_argument(
+        '--kid', help="Hexadecimal key identifier", type=bytes.fromhex
+    )
     generate.add_argument('--subject', help="Text placed in the CCS", type=str)
 
     return p
+
 
 def main():
     p = build_parser()
@@ -37,7 +46,9 @@ def main():
 
     missmods = aiocoap.defaults.oscore_missing_modules()
     if missmods:
-        p.error(f"Dependencies missing, consider installing aiocoap as \"aiocoap[oscore]\" or \"aiocoap[all]\". Missing modules: {', '.join(missmods)}")
+        p.error(
+            f"Dependencies missing, consider installing aiocoap as \"aiocoap[oscore]\" or \"aiocoap[all]\". Missing modules: {', '.join(missmods)}"
+        )
 
     from aiocoap import edhoc
     import cbor2
@@ -53,6 +64,7 @@ def main():
         print(cbor_diag.cbor2diag(cbor2.dumps(public, canonical=True), pretty=False))
     else:
         raise RuntimeError(f"Unimplemented subcommand {args.subcommand=}")
+
 
 if __name__ == "__main__":
     main()

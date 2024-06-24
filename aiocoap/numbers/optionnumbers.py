@@ -16,6 +16,7 @@ import warnings
 from ..util import ExtensibleIntEnum
 from .. import optiontypes
 
+
 class OptionNumber(ExtensibleIntEnum):
     """A CoAP option number.
 
@@ -26,6 +27,7 @@ class OptionNumber(ExtensibleIntEnum):
     Note that whether an option may be repeated or not does not only depend on
     the option, but also on the context, and is thus handled in the `Options`
     object instead."""
+
     IF_MATCH = 1
     URI_HOST = 3
     ETAG = 4
@@ -85,7 +87,7 @@ class OptionNumber(ExtensibleIntEnum):
     def is_nocachekey(self):
         if self.is_unsafe():
             raise ValueError("NoCacheKey is only meaningful for safe options")
-        return self & 0x1e == 0x1c
+        return self & 0x1E == 0x1C
 
     def is_cachekey(self):
         return not self.is_nocachekey()
@@ -109,11 +111,16 @@ class OptionNumber(ExtensibleIntEnum):
         """
         if hasattr(self, "_format"):
             if self._format != value:
-                warnings.warn("Altering the serialization format of {self}. This is a severe interoperability hazard with other modules, and should only be used during experimentation. This warning may be converted into an error at any time.")
+                warnings.warn(
+                    "Altering the serialization format of {self}. This is a severe interoperability hazard with other modules, and should only be used during experimentation. This warning may be converted into an error at any time."
+                )
         self._format = value
 
-    format = property(_get_format, set_format,
-            doc="Serialization format; see :func:`~aiocoap.numbers.optionnumbers.OptionNumber.set_format`")
+    format = property(
+        _get_format,
+        set_format,
+        doc="Serialization format; see :func:`~aiocoap.numbers.optionnumbers.OptionNumber.set_format`",
+    )
 
     def create_option(self, decode=None, value=None):
         """Return an Option element of the appropriate class from this option
@@ -131,13 +138,19 @@ class OptionNumber(ExtensibleIntEnum):
 
     def _repr_html_(self):
         import html
+
         properties = f"{'critical' if self.is_critical() else 'elective'}, {'safe-to-forward' if self.is_safetoforward() else 'proxy unsafe'}"
         if self.is_safetoforward():
-            properties += ", part of the cache key" if self.is_cachekey() else ", not part of the cache key"
+            properties += (
+                ", part of the cache key"
+                if self.is_cachekey()
+                else ", not part of the cache key"
+            )
         if hasattr(self, "name"):
             return f'<abbr title="option {int(self)}: {properties}">{html.escape(self.name)}</abbr>'
         else:
             return f'<abbr title="{properties}">Option {int(self)}</abbr>'
+
 
 # OpaqueOption is set on formats where it is known to be used even though it is
 # the default. This allows developers to rely on those interfaces to be stable

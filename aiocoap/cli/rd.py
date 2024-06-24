@@ -30,7 +30,14 @@ from urllib.parse import urljoin
 import itertools
 
 import aiocoap
-from aiocoap.resource import Site, Resource, ObservableResource, PathCapable, WKCResource, link_format_to_message
+from aiocoap.resource import (
+    Site,
+    Resource,
+    ObservableResource,
+    PathCapable,
+    WKCResource,
+    link_format_to_message,
+)
 from aiocoap.proxy.server import Proxy
 from aiocoap.util.cli import AsyncCLIDaemon
 import aiocoap.util.uri
@@ -45,9 +52,11 @@ from ..util.linkformat import link_header
 
 IMMUTABLE_PARAMETERS = ('ep', 'd', 'proxy')
 
+
 class NoActiveRegistration(error.ConstructionRenderableError):
     code = codes.PROXYING_NOT_SUPPORTED
     message = "no registration with that name"
+
 
 def query_split(msg):
     """Split a message's query up into (key, [*value]) pairs from a
@@ -71,6 +80,7 @@ def query_split(msg):
         result.setdefault(k, []).append(v)
     return result
 
+
 def pop_single_arg(query, name):
     """Out of query which is the output of query_split, pick the single value
     at the key name, raise a suitable BadRequest on error, or return None if
@@ -82,6 +92,7 @@ def pop_single_arg(query, name):
         raise error.BadRequest("Multiple values for %r" % name)
     return query.pop(name)[0]
 
+
 class CommonRD:
     # "Key" here always means an (ep, d) tuple.
 
@@ -92,13 +103,13 @@ class CommonRD:
 
         self.log = log or logging.getLogger('resource-directory')
 
-        self._by_key = {} # key -> Registration
-        self._by_path = {} # path -> Registration
+        self._by_key = {}  # key -> Registration
+        self._by_path = {}  # path -> Registration
 
         self._updated_state_cb = []
 
         self.proxy_domain = proxy_domain
-        self.proxy_active = {} # uri_host -> Remote
+        self.proxy_active = {}  # uri_host -> Remote
 
     class Registration:
         # FIXME: split this into soft and hard grace period (where the former
@@ -112,7 +123,17 @@ class CommonRD:
         def href(self):
             return '/' + '/'.join(self.path)
 
-        def __init__(self, static_registration_parameters, path, network_remote, delete_cb, update_cb, registration_parameters, proxy_host, setproxyremote_cb):
+        def __init__(
+            self,
+            static_registration_parameters,
+            path,
+            network_remote,
+            delete_cb,
+            update_cb,
+            registration_parameters,
+            proxy_host,
+            setproxyremote_cb,
+        ):
             # note that this can not modify d and ep any more, since they are
             # already part of the key and possibly the path
             self.path = path
@@ -130,7 +151,9 @@ class CommonRD:
 
             self.update_params(network_remote, registration_parameters, is_initial=True)
 
-        def update_params(self, network_remote, registration_parameters, is_initial=False):
+        def update_params(
+            self, network_remote, registration_parameters, is_initial=False
+        ):
             """Set the registration_parameters from the parsed query arguments,
             update any effects of them, and trigger any observation updates if
             required (the typical ones don't because their
@@ -142,12 +165,15 @@ class CommonRD:
                 raise error.BadRequest("Parameters 'd' and 'ep' can not be updated")
 
             # Not in use class "R" or otherwise conflict with common parameters
-            if any(k in ('page', 'count', 'rt', 'href', 'anchor') for k in
-                    registration_parameters.keys()):
+            if any(
+                k in ('page', 'count', 'rt', 'href', 'anchor')
+                for k in registration_parameters.keys()
+            ):
                 raise error.BadRequest("Unsuitable parameter for registration")
 
-            if (is_initial or not self.base_is_explicit) and 'base' not in \
-                    registration_parameters:
+            if (
+                is_initial or not self.base_is_explicit
+            ) and 'base' not in registration_parameters:
                 # check early for validity to avoid side effects of requests
                 # answered with 4.xx
                 if self.proxy_host is None:
@@ -190,7 +216,10 @@ class CommonRD:
                 self.base = network_base
                 actual_change = True
 
-            if any(v != self.registration_parameters.get(k) for (k, v) in registration_parameters.items()):
+            if any(
+                v != self.registration_parameters.get(k)
+                for (k, v) in registration_parameters.items()
+            ):
                 self.registration_parameters.update(registration_parameters)
                 actual_change = True
 
@@ -217,10 +246,11 @@ class CommonRD:
             async def longwait(delay, callback):
                 await asyncio.sleep(delay)
                 callback()
+
             self.timeout = asyncio.create_task(
-                    longwait(delay, self.delete),
-                    name="RD Timeout for %r" % self,
-                    )
+                longwait(delay, self.delete),
+                name="RD Timeout for %r" % self,
+            )
 
         def refresh_timeout(self):
             self.timeout.cancel()
@@ -228,10 +258,12 @@ class CommonRD:
 
         def get_host_link(self):
             attr_pairs = []
-            for (k, values) in self.registration_parameters.items():
+            for k, values in self.registration_parameters.items():
                 for v in values:
                     attr_pairs.append([k, v])
-            return Link(href=self.href, attr_pairs=attr_pairs, base=self.base, rt="core.rd-ep")
+            return Link(
+                href=self.href, attr_pairs=attr_pairs, base=self.base, rt="core.rd-ep"
+            )
 
         def get_based_links(self):
             """Produce a LinkFormat object that represents all statements in
@@ -242,7 +274,9 @@ class CommonRD:
                 href = urljoin(self.base, link.href)
                 if 'anchor' in link:
                     absanchor = urljoin(self.base, link.anchor)
-                    data = [(k, v) for (k, v) in link.attr_pairs if k != 'anchor'] + [['anchor', absanchor]]
+                    data = [(k, v) for (k, v) in link.attr_pairs if k != 'anchor'] + [
+                        ['anchor', absanchor]
+                    ]
                 else:
                     data = link.attr_pairs + [['anchor', urljoin(href, '/')]]
                 result.append(Link(href, data))
@@ -277,7 +311,11 @@ class CommonRD:
         # copying around for later use in static, but not checking again
         # because reading them from the original will already have screamed by
         # the time this is used
-        static_registration_parameters = {k: v for (k, v) in registration_parameters.items() if k in IMMUTABLE_PARAMETERS}
+        static_registration_parameters = {
+            k: v
+            for (k, v) in registration_parameters.items()
+            if k in IMMUTABLE_PARAMETERS
+        }
 
         ep = pop_single_arg(registration_parameters, 'ep')
         if ep is None:
@@ -303,9 +341,14 @@ class CommonRD:
                 # Only supporting lowercase names as to avoid ambiguities due
                 # to hostname capitalizatio normalization (otherwise it'd need
                 # to be first-registered-first-served)
-                return s and all(x in string.ascii_lowercase + string.digits + '-' for x in s)
+                return s and all(
+                    x in string.ascii_lowercase + string.digits + '-' for x in s
+                )
+
             if not is_usable(ep) or (d is not None and not is_usable(d)):
-                raise error.BadRequest("Proxying only supported for limited ep and d set (lowercase, digits, dash)")
+                raise error.BadRequest(
+                    "Proxying only supported for limited ep and d set (lowercase, digits, dash)"
+                )
 
             proxy_host = ep
             if d is not None:
@@ -321,7 +364,7 @@ class CommonRD:
         except KeyError:
             path = self._new_pathtail()
         else:
-            path = oldreg.path[len(self.entity_prefix):]
+            path = oldreg.path[len(self.entity_prefix) :]
             oldreg.delete()
 
         # this was the brutal way towards idempotency (delete and re-create).
@@ -338,8 +381,16 @@ class CommonRD:
         def setproxyremote(remote):
             self.proxy_active[proxy_host] = remote
 
-        reg = self.Registration(static_registration_parameters, self.entity_prefix + path, network_remote, delete,
-                self._updated_state, registration_parameters, proxy_host, setproxyremote)
+        reg = self.Registration(
+            static_registration_parameters,
+            self.entity_prefix + path,
+            network_remote,
+            delete,
+            self._updated_state,
+            registration_parameters,
+            proxy_host,
+            setproxyremote,
+        )
 
         self._by_key[key] = reg
         self._by_path[path] = reg
@@ -348,6 +399,7 @@ class CommonRD:
 
     def get_endpoints(self):
         return self._by_key.values()
+
 
 def link_format_from_message(message):
     """Convert a response message into a LinkFormat object
@@ -365,6 +417,7 @@ def link_format_from_message(message):
     except (UnicodeDecodeError, link_header.ParseException):
         raise error.BadRequest()
 
+
 class ThingWithCommonRD:
     def __init__(self, common_rd):
         super().__init__()
@@ -372,6 +425,7 @@ class ThingWithCommonRD:
 
         if isinstance(self, ObservableResource):
             self.common_rd.register_change_callback(self.updated_state)
+
 
 class DirectoryResource(ThingWithCommonRD, Resource):
     ct = link_format_to_message.supported_ct  # type: ignore
@@ -388,12 +442,17 @@ class DirectoryResource(ThingWithCommonRD, Resource):
         if self.registration_warning:
             # Conveniently placed so it could be changed to something setting
             # additional registration_parameters instead
-            self.common_rd.log.warning("Warning from registration: %s", self.registration_warning)
+            self.common_rd.log.warning(
+                "Warning from registration: %s", self.registration_warning
+            )
 
-        regresource = self.common_rd.initialize_endpoint(request.remote, registration_parameters)
+        regresource = self.common_rd.initialize_endpoint(
+            request.remote, registration_parameters
+        )
         regresource.links = links
 
         return aiocoap.Message(code=aiocoap.CREATED, location_path=regresource.path)
+
 
 class RegistrationResource(Resource):
     """The resource object wrapping a registration is just a very thin and
@@ -435,6 +494,7 @@ class RegistrationResource(Resource):
 
         return aiocoap.Message(code=aiocoap.DELETED)
 
+
 class RegistrationDispatchSite(ThingWithCommonRD, Resource, PathCapable):
     async def render(self, request):
         try:
@@ -446,6 +506,7 @@ class RegistrationDispatchSite(ThingWithCommonRD, Resource, PathCapable):
 
         return await entity.render(request.copy(uri_path=()))
 
+
 def _paginate(candidates, query):
     page = pop_single_arg(query, 'page')
     count = pop_single_arg(query, 'count')
@@ -453,16 +514,18 @@ def _paginate(candidates, query):
     try:
         candidates = list(candidates)
         if page is not None:
-            candidates = candidates[int(page) * int(count):]
+            candidates = candidates[int(page) * int(count) :]
         if count is not None:
-            candidates = candidates[:int(count)]
+            candidates = candidates[: int(count)]
     except (KeyError, ValueError):
         raise error.BadRequest("page requires count, and both must be ints")
 
     return candidates
 
+
 def _link_matches(link, key, condition):
     return any(k == key and condition(v) for (k, v) in link.attr_pairs)
+
 
 class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
     ct = link_format_to_message.supported_ct  # type: ignore
@@ -475,37 +538,53 @@ class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
 
         for search_key, search_values in query.items():
             if search_key in ('page', 'count'):
-                continue # filtered last
+                continue  # filtered last
 
             for search_value in search_values:
                 if search_value is not None and search_value.endswith('*'):
+
                     def matches(x, start=search_value[:-1]):
                         return x.startswith(start)
                 else:
+
                     def matches(x, search_value=search_value):
                         return x == search_value
 
                 if search_key in ('if', 'rt'):
+
                     def matches(x, original_matches=matches):
                         return any(original_matches(v) for v in x.split())
 
                 if search_key == 'href':
-                    candidates = (c for c in candidates if
-                            matches(c.href) or
-                            any(matches(r.href) for r in c.get_based_links().links)
-                            )
+                    candidates = (
+                        c
+                        for c in candidates
+                        if matches(c.href)
+                        or any(matches(r.href) for r in c.get_based_links().links)
+                    )
                     continue
 
-                candidates = (c for c in candidates if
-                        (search_key in c.registration_parameters and any(matches(x) for x in c.registration_parameters[search_key])) or
-                        any(_link_matches(r, search_key, matches) for r in c.get_based_links().links)
+                candidates = (
+                    c
+                    for c in candidates
+                    if (
+                        search_key in c.registration_parameters
+                        and any(
+                            matches(x) for x in c.registration_parameters[search_key]
                         )
+                    )
+                    or any(
+                        _link_matches(r, search_key, matches)
+                        for r in c.get_based_links().links
+                    )
+                )
 
         candidates = _paginate(candidates, query)
 
         result = [c.get_host_link() for c in candidates]
 
         return link_format_to_message(request, LinkFormat(result))
+
 
 class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
     ct = link_format_to_message.supported_ct  # type: ignore
@@ -519,31 +598,45 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
 
         for search_key, search_values in query.items():
             if search_key in ('page', 'count'):
-                continue # filtered last
+                continue  # filtered last
 
             for search_value in search_values:
                 if search_value is not None and search_value.endswith('*'):
+
                     def matches(x, start=search_value[:-1]):
                         return x.startswith(start)
                 else:
+
                     def matches(x, search_value=search_value):
                         return x == search_value
 
                 if search_key in ('if', 'rt'):
+
                     def matches(x, original_matches=matches):
                         return any(original_matches(v) for v in x.split())
 
                 if search_key == 'href':
-                    candidates = ((e, c) for (e, c) in candidates if
-                            matches(c.href) or
-                            matches(e.href) # FIXME: They SHOULD give this as relative as we do, but don't have to
-                            )
+                    candidates = (
+                        (e, c)
+                        for (e, c) in candidates
+                        if matches(c.href)
+                        or matches(
+                            e.href
+                        )  # FIXME: They SHOULD give this as relative as we do, but don't have to
+                    )
                     continue
 
-                candidates = ((e, c) for (e, c) in candidates if
-                        _link_matches(c, search_key, matches) or
-                        (search_key in e.registration_parameters and any(matches(x) for x in e.registration_parameters[search_key]))
+                candidates = (
+                    (e, c)
+                    for (e, c) in candidates
+                    if _link_matches(c, search_key, matches)
+                    or (
+                        search_key in e.registration_parameters
+                        and any(
+                            matches(x) for x in e.registration_parameters[search_key]
                         )
+                    )
+                )
 
         # strip endpoint
         candidates = (c for (e, c) in candidates)
@@ -552,12 +645,14 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
 
         # strip needless anchors
         candidates = [
-                Link(link.href, [(k, v) for (k, v) in link.attr_pairs if k != 'anchor'])
-                if dict(link.attr_pairs)['anchor'] == urljoin(link.href, '/')
-                else link
-                for link in candidates]
+            Link(link.href, [(k, v) for (k, v) in link.attr_pairs if k != 'anchor'])
+            if dict(link.attr_pairs)['anchor'] == urljoin(link.href, '/')
+            else link
+            for link in candidates
+        ]
 
         return link_format_to_message(request, LinkFormat(candidates))
+
 
 class SimpleRegistration(ThingWithCommonRD, Resource):
     #: Issue a custom warning when registrations come in via this interface
@@ -574,9 +669,9 @@ class SimpleRegistration(ThingWithCommonRD, Resource):
             raise error.BadRequest("base is not allowed in simple registrations")
 
         await self.process_request(
-                network_remote=request.remote,
-                registration_parameters=query,
-            )
+            network_remote=request.remote,
+            registration_parameters=query,
+        )
 
         return aiocoap.Message(code=aiocoap.CHANGED)
 
@@ -587,7 +682,7 @@ class SimpleRegistration(ThingWithCommonRD, Resource):
             except error.AnonymousHost:
                 raise error.BadRequest("explicit base required")
 
-            fetch_address = (network_base + '/.well-known/core')
+            fetch_address = network_base + '/.well-known/core'
             get = aiocoap.Message(uri=fetch_address)
         else:
             # ignoring that there might be a based present, that will err later
@@ -604,14 +699,22 @@ class SimpleRegistration(ThingWithCommonRD, Resource):
         if self.registration_warning:
             # Conveniently placed so it could be changed to something setting
             # additional registration_parameters instead
-            self.common_rd.log.warning("Warning from registration: %s", self.registration_warning)
-        registration = self.common_rd.initialize_endpoint(network_remote, registration_parameters)
+            self.common_rd.log.warning(
+                "Warning from registration: %s", self.registration_warning
+            )
+        registration = self.common_rd.initialize_endpoint(
+            network_remote, registration_parameters
+        )
         registration.links = links
+
 
 class SimpleRegistrationWKC(WKCResource, SimpleRegistration):
     def __init__(self, listgenerator, common_rd, context):
-        super().__init__(listgenerator=listgenerator, common_rd=common_rd, context=context)
+        super().__init__(
+            listgenerator=listgenerator, common_rd=common_rd, context=context
+        )
         self.registration_warning = "via .well-known/core"
+
 
 class StandaloneResourceDirectory(Proxy, Site):
     """A site that contains all function sets of the CoAP Resource Directoru
@@ -633,8 +736,16 @@ class StandaloneResourceDirectory(Proxy, Site):
 
         common_rd = CommonRD(**kwargs)
 
-        self.add_resource([".well-known", "core"], SimpleRegistrationWKC(self.get_resources_as_linkheader, common_rd=common_rd, context=context))
-        self.add_resource([".well-known", "rd"], SimpleRegistration(common_rd=common_rd, context=context))
+        self.add_resource(
+            [".well-known", "core"],
+            SimpleRegistrationWKC(
+                self.get_resources_as_linkheader, common_rd=common_rd, context=context
+            ),
+        )
+        self.add_resource(
+            [".well-known", "rd"],
+            SimpleRegistration(common_rd=common_rd, context=context),
+        )
 
         self.add_resource(self.rd_path, DirectoryResource(common_rd=common_rd))
         if list(self.rd_path) != ["rd"] and lwm2m_compat is None:
@@ -643,10 +754,16 @@ class StandaloneResourceDirectory(Proxy, Site):
             # Hide from listing
             second_dir_resource.get_link_description = lambda *args: None
             self.add_resource(["rd"], second_dir_resource)
-        self.add_resource(self.ep_lookup_path, EndpointLookupInterface(common_rd=common_rd))
-        self.add_resource(self.res_lookup_path, ResourceLookupInterface(common_rd=common_rd))
+        self.add_resource(
+            self.ep_lookup_path, EndpointLookupInterface(common_rd=common_rd)
+        )
+        self.add_resource(
+            self.res_lookup_path, ResourceLookupInterface(common_rd=common_rd)
+        )
 
-        self.add_resource(common_rd.entity_prefix, RegistrationDispatchSite(common_rd=common_rd))
+        self.add_resource(
+            common_rd.entity_prefix, RegistrationDispatchSite(common_rd=common_rd)
+        )
 
         self.common_rd = common_rd
 
@@ -656,9 +773,14 @@ class StandaloneResourceDirectory(Proxy, Site):
         try:
             actual_remote = self.common_rd.proxy_active[request.opt.uri_host]
         except KeyError:
-            self.common_rd.log.info("Request to proxied host %r rejected: No such registration", request.opt.uri_host)
+            self.common_rd.log.info(
+                "Request to proxied host %r rejected: No such registration",
+                request.opt.uri_host,
+            )
             raise NoActiveRegistration
-        self.common_rd.log.debug("Forwarding request to %r to remote %s", request.opt.uri_host, actual_remote)
+        self.common_rd.log.debug(
+            "Forwarding request to %r to remote %s", request.opt.uri_host, actual_remote
+        )
         request.remote = actual_remote
         request.opt.uri_host = None
         return request
@@ -669,9 +791,11 @@ class StandaloneResourceDirectory(Proxy, Site):
     async def render(self, request):
         # Full override switching which of the parents' behavior to choose
 
-        if self.common_rd.proxy_domain is not None and \
-                request.opt.uri_host is not None and \
-                request.opt.uri_host.endswith("." + self.common_rd.proxy_domain): # in self.common_rd.proxy_active:
+        if (
+            self.common_rd.proxy_domain is not None
+            and request.opt.uri_host is not None
+            and request.opt.uri_host.endswith("." + self.common_rd.proxy_domain)
+        ):  # in self.common_rd.proxy_active:
             return await Proxy.render(self, request)
         else:
             return await Site.render(self, request)
@@ -690,6 +814,7 @@ class StandaloneResourceDirectory(Proxy, Site):
         else:
             return await Site.add_observation(self, request, serverobservation)
 
+
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
 
@@ -697,13 +822,33 @@ def build_parser():
 
     return p
 
+
 class Main(AsyncCLIDaemon):
     async def start(self, args=None):
         parser = build_parser()
-        parser.add_argument("--proxy-domain", help="Enable the RD proxy extension. Example: `proxy.example.net` will produce base URIs like `coap://node1.proxy.example.net/`. The names must all resolve to an address the RD is bound to.", type=str)
-        parser.add_argument("--lwm2m-compat", help="Compatibility mode for LwM2M clients that can not perform some discovery steps (moving the registration resource to `/rd`)", action='store_true', default=None)
-        parser.add_argument("--no-lwm2m-compat", help="Disable all compativility with LwM2M clients that can not perform some discovery steps (not even accepting registrations at `/rd` with warnings)", action='store_false', dest='lwm2m_compat')
-        parser.add_argument("--verbose", help="Increase debug log output (repeat for increased verbosity)", action='count', default=0)
+        parser.add_argument(
+            "--proxy-domain",
+            help="Enable the RD proxy extension. Example: `proxy.example.net` will produce base URIs like `coap://node1.proxy.example.net/`. The names must all resolve to an address the RD is bound to.",
+            type=str,
+        )
+        parser.add_argument(
+            "--lwm2m-compat",
+            help="Compatibility mode for LwM2M clients that can not perform some discovery steps (moving the registration resource to `/rd`)",
+            action='store_true',
+            default=None,
+        )
+        parser.add_argument(
+            "--no-lwm2m-compat",
+            help="Disable all compativility with LwM2M clients that can not perform some discovery steps (not even accepting registrations at `/rd` with warnings)",
+            action='store_false',
+            dest='lwm2m_compat',
+        )
+        parser.add_argument(
+            "--verbose",
+            help="Increase debug log output (repeat for increased verbosity)",
+            action='count',
+            default=0,
+        )
         options = parser.parse_args(args if args is not None else sys.argv[1:])
 
         # Putting in an empty site to construct the site with a context
@@ -716,16 +861,17 @@ class Main(AsyncCLIDaemon):
             self.log.setLevel(logging.INFO)
 
         self.site = StandaloneResourceDirectory(
-                context=self.context,
-                proxy_domain=options.proxy_domain,
-                lwm2m_compat=options.lwm2m_compat,
-                log=self.log,
-                )
+            context=self.context,
+            proxy_domain=options.proxy_domain,
+            lwm2m_compat=options.lwm2m_compat,
+            log=self.log,
+        )
         self.context.serversite = self.site
 
     async def shutdown(self):
         await self.site.shutdown()
         await self.context.shutdown()
+
 
 sync_main = Main.sync_main
 

@@ -13,10 +13,12 @@ import errno
 from .numbers import codes
 from . import util
 
+
 class Error(Exception):
     """
     Base exception for all exceptions that indicate a failed request
     """
+
 
 class RenderableError(Error, metaclass=abc.ABCMeta):
     """
@@ -28,6 +30,7 @@ class RenderableError(Error, metaclass=abc.ABCMeta):
         """Create a CoAP message that should be sent when this exception is
         rendered"""
 
+
 class ResponseWrappingError(Error):
     """
     An exception that is raised due to an unsuccessful but received response.
@@ -36,6 +39,7 @@ class ResponseWrappingError(Error):
     ``except UnsupportedMediaType`` (similar to the various ``OSError``
     subclasses).
     """
+
     def __init__(self, coapmessage):
         self.coapmessage = coapmessage
 
@@ -43,7 +47,12 @@ class ResponseWrappingError(Error):
         return self.coapmessage
 
     def __repr__(self):
-        return "<%s: %s %r>" % (type(self).__name__, self.coapmessage.code, self.coapmessage.payload)
+        return "<%s: %s %r>" % (
+            type(self).__name__,
+            self.coapmessage.code,
+            self.coapmessage.payload,
+        )
+
 
 class ConstructionRenderableError(RenderableError):
     """
@@ -57,55 +66,99 @@ class ConstructionRenderableError(RenderableError):
 
     def to_message(self):
         from .message import Message
+
         return Message(code=self.code, payload=self.message.encode('utf8'))
 
-    code = codes.INTERNAL_SERVER_ERROR #: Code assigned to messages built from it
-    message = "" #: Text sent in the built message's payload
+    code = codes.INTERNAL_SERVER_ERROR  #: Code assigned to messages built from it
+    message = ""  #: Text sent in the built message's payload
+
 
 # This block is code-generated to make the types available to static checkers.
 # The __debug__ check below ensures that it stays up to date.
 class BadRequest(ConstructionRenderableError):
     code = codes.BAD_REQUEST
+
+
 class Unauthorized(ConstructionRenderableError):
     code = codes.UNAUTHORIZED
+
+
 class BadOption(ConstructionRenderableError):
     code = codes.BAD_OPTION
+
+
 class Forbidden(ConstructionRenderableError):
     code = codes.FORBIDDEN
+
+
 class NotFound(ConstructionRenderableError):
     code = codes.NOT_FOUND
+
+
 class MethodNotAllowed(ConstructionRenderableError):
     code = codes.METHOD_NOT_ALLOWED
+
+
 class NotAcceptable(ConstructionRenderableError):
     code = codes.NOT_ACCEPTABLE
+
+
 class RequestEntityIncomplete(ConstructionRenderableError):
     code = codes.REQUEST_ENTITY_INCOMPLETE
+
+
 class Conflict(ConstructionRenderableError):
     code = codes.CONFLICT
+
+
 class PreconditionFailed(ConstructionRenderableError):
     code = codes.PRECONDITION_FAILED
+
+
 class RequestEntityTooLarge(ConstructionRenderableError):
     code = codes.REQUEST_ENTITY_TOO_LARGE
+
+
 class UnsupportedContentFormat(ConstructionRenderableError):
     code = codes.UNSUPPORTED_CONTENT_FORMAT
+
+
 class UnprocessableEntity(ConstructionRenderableError):
     code = codes.UNPROCESSABLE_ENTITY
+
+
 class TooManyRequests(ConstructionRenderableError):
     code = codes.TOO_MANY_REQUESTS
+
+
 class InternalServerError(ConstructionRenderableError):
     code = codes.INTERNAL_SERVER_ERROR
+
+
 class NotImplemented(ConstructionRenderableError):
     code = codes.NOT_IMPLEMENTED
+
+
 class BadGateway(ConstructionRenderableError):
     code = codes.BAD_GATEWAY
+
+
 class ServiceUnavailable(ConstructionRenderableError):
     code = codes.SERVICE_UNAVAILABLE
+
+
 class GatewayTimeout(ConstructionRenderableError):
     code = codes.GATEWAY_TIMEOUT
+
+
 class ProxyingNotSupported(ConstructionRenderableError):
     code = codes.PROXYING_NOT_SUPPORTED
+
+
 class HopLimitReached(ConstructionRenderableError):
     code = codes.HOP_LIMIT_REACHED
+
+
 if __debug__:
     _missing_codes = False
     _full_code = ""
@@ -121,33 +174,48 @@ class {classname}(ConstructionRenderableError):
             _missing_codes = True
             continue
         if locals()[classname].code != code:
-            warnings.warn(f"Mismatched code for {classname}: Should be {code}, is {locals()[classname].code}")
+            warnings.warn(
+                f"Mismatched code for {classname}: Should be {code}, is {locals()[classname].code}"
+            )
             _missing_codes = True
             continue
     if _missing_codes:
-        warnings.warn("Generated exception list is out of sync, should be:\n" + _full_code)
+        warnings.warn(
+            "Generated exception list is out of sync, should be:\n" + _full_code
+        )
 
 # More detailed versions of code based errors
+
 
 class NoResource(NotFound):
     """
     Raised when resource is not found.
     """
+
     message = "Error: Resource not found!"
+
     def __init__(self):
-        warnings.warn("NoResource is deprecated in favor of NotFound", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "NoResource is deprecated in favor of NotFound",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
 
 class UnallowedMethod(MethodNotAllowed):
     """
     Raised by a resource when request method is understood by the server
     but not allowed for that particular resource.
     """
+
     message = "Error: Method not allowed!"
+
 
 class UnsupportedMethod(MethodNotAllowed):
     """
     Raised when request method is not understood by the server at all.
     """
+
     message = "Error: Method not recognized!"
 
 
@@ -178,17 +246,21 @@ class NetworkError(Error):
                 # seen trying to reach the broadcast address of a local network
                 return "The operating system refused to send the request. For example, this can occur when attempting to send broadcast requests instead of multicast requests."
 
+
 class ResolutionError(NetworkError):
     """Resolving the host component of a URI to a usable transport address was
     not possible"""
+
 
 class MessageError(NetworkError):
     """Received an error from the remote on the CoAP message level (typically a
     RST)"""
 
+
 class RemoteServerShutdown(NetworkError):
     """The peer a request was sent to in a stateful connection closed the
     connection around the time the request was sent"""
+
 
 class TimeoutError(NetworkError):
     """Base for all timeout-ish errors.
@@ -200,6 +272,7 @@ class TimeoutError(NetworkError):
     def extra_help(self):
         return "Neither a response nor an error was received. This can have a wide range of causes, from the address being wrong to the server being stuck."
 
+
 class ConRetransmitsExceeded(TimeoutError):
     """A transport that retransmits CON messages has failed to obtain a response
     within its retransmission timeout.
@@ -207,6 +280,7 @@ class ConRetransmitsExceeded(TimeoutError):
     When this is raised in a transport, requests failing with it may or may
     have been received by the server.
     """
+
 
 class RequestTimedOut(TimeoutError):
     """
@@ -232,21 +306,25 @@ class WaitingForClientTimedOut(TimeoutError):
     introduced later.
     """
 
+
 class ResourceChanged(Error):
     """
     The requested resource was modified during the request and could therefore
     not be received in a consistent state.
     """
 
+
 class UnexpectedBlock1Option(Error):
     """
     Raised when a server responds with block1 options that just don't match.
     """
 
+
 class UnexpectedBlock2(Error):
     """
     Raised when a server responds with another block2 than expected.
     """
+
 
 class MissingBlock2Option(Error):
     """
@@ -255,15 +333,18 @@ class MissingBlock2Option(Error):
     but response without Block2 option is received.
     """
 
+
 class NotObservable(Error):
     """
     The server did not accept the request to observe the resource.
     """
 
+
 class ObservationCancelled(Error):
     """
     The server claimed that it will no longer sustain the observation.
     """
+
 
 class UnparsableMessage(Error):
     """
@@ -273,9 +354,11 @@ class UnparsableMessage(Error):
     beginning of the message, and a minimum length.
     """
 
+
 class LibraryShutdown(Error):
     """The library or a transport registered with it was requested to shut
     down; this error is raised in all outstanding requests."""
+
 
 class AnonymousHost(Error):
     """This is raised when it is attempted to express as a reference a (base)
@@ -287,8 +370,12 @@ class AnonymousHost(Error):
     accessed for as long as the connection is active, but can not be used any
     more once it is closed or even by another system."""
 
-__getattr__ = util.deprecation_getattr({
+
+__getattr__ = util.deprecation_getattr(
+    {
         "UnsupportedMediaType": "UnsupportedContentFormat",
         "RequestTimedOut": "TimeoutError",
         "WaitingForClientTimedOut": "TimeoutError",
-        }, globals())
+    },
+    globals(),
+)

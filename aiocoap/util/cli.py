@@ -13,19 +13,33 @@ import logging
 import asyncio
 import signal
 
+
 class ActionNoYes(argparse.Action):
     """Simple action that automatically manages --{,no-}something style options"""
+
     # adapted from Omnifarious's code on
     # https://stackoverflow.com/questions/9234258/in-python-argparse-is-it-possible-to-have-paired-no-something-something-arg#9236426
     def __init__(self, option_strings, dest, default=True, required=False, help=None):
         assert len(option_strings) == 1, "ActionNoYes takes only one option name"
-        assert option_strings[0].startswith('--'), "ActionNoYes options must start with --"
-        super().__init__(['--' + option_strings[0][2:], '--no-' + option_strings[0][2:]], dest, nargs=0, const=None, default=default, required=required, help=help)
+        assert option_strings[0].startswith(
+            '--'
+        ), "ActionNoYes options must start with --"
+        super().__init__(
+            ['--' + option_strings[0][2:], '--no-' + option_strings[0][2:]],
+            dest,
+            nargs=0,
+            const=None,
+            default=default,
+            required=required,
+            help=help,
+        )
+
     def __call__(self, parser, namespace, values, option_string=None):
         if option_string.startswith('--no-'):
             setattr(namespace, self.dest, False)
         else:
             setattr(namespace, self.dest, True)
+
 
 class AsyncCLIDaemon:
     """Helper for creating daemon-style CLI prorgrams.
@@ -66,9 +80,8 @@ class AsyncCLIDaemon:
             loop = asyncio.get_running_loop()
         self.__exitcode = loop.create_future()
         self.initializing = loop.create_task(
-                self.start(*args, **kwargs),
-                name="Initialization of %r" % (self,)
-                )
+            self.start(*args, **kwargs), name="Initialization of %r" % (self,)
+        )
 
     def stop(self, exitcode):
         """Stop the operation (and exit sync_main) at the next convenience."""
@@ -86,9 +99,9 @@ class AsyncCLIDaemon:
 
         try:
             asyncio.get_running_loop().add_signal_handler(
-                    signal.SIGTERM,
-                    lambda: main.__exitcode.set_result(143),
-                    )
+                signal.SIGTERM,
+                lambda: main.__exitcode.set_result(143),
+            )
         except NotImplementedError:
             # Impossible on win32 -- just won't make that clean of a shutdown.
             pass

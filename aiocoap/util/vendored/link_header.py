@@ -34,7 +34,14 @@ import re
 from typing import Dict
 from urllib.parse import urljoin
 
-__all__ = ['parse', 'format_links', 'format_link', 'LinkHeader', 'Link', 'ParseException']
+__all__ = [
+    'parse',
+    'format_links',
+    'format_link',
+    'LinkHeader',
+    'Link',
+    'ParseException',
+]
 
 SINGLE_VALUED_ATTRS = ['rel', 'anchor', 'rev', 'media', 'title', 'title*', 'type']
 
@@ -47,13 +54,17 @@ SINGLE_VALUED_ATTRS = ['rel', 'anchor', 'rev', 'media', 'title', 'title*', 'type
 # Trailing spaces are consumed by each pattern.  The RE_HREF pattern also allows for any leading spaces.
 #
 
-QUOTED        = r'"((?:[^"\\]|\\.)*)"'                  # double-quoted strings with backslash-escaped double quotes
-TOKEN         = r'([^()<>@,;:\"\[\]?={}\s]+)'           # non-empty sequence of non-separator characters
-RE_COMMA_HREF = re.compile(r' *,? *< *([^>]*) *> *')    # includes ',' separator; no attempt to check URI validity
+QUOTED = (
+    r'"((?:[^"\\]|\\.)*)"'  # double-quoted strings with backslash-escaped double quotes
+)
+TOKEN = r'([^()<>@,;:\"\[\]?={}\s]+)'  # non-empty sequence of non-separator characters
+RE_COMMA_HREF = re.compile(
+    r' *,? *< *([^>]*) *> *'
+)  # includes ',' separator; no attempt to check URI validity
 RE_ONLY_TOKEN = re.compile(r'^%(TOKEN)s$' % locals())
-RE_ATTR       = re.compile(r'%(TOKEN)s *(?:= *(%(TOKEN)s|%(QUOTED)s))? *' % locals())
-RE_SEMI       = re.compile(r'; *')
-RE_COMMA      = re.compile(r', *')
+RE_ATTR = re.compile(r'%(TOKEN)s *(?:= *(%(TOKEN)s|%(QUOTED)s))? *' % locals())
+RE_SEMI = re.compile(r'; *')
+RE_COMMA = re.compile(r', *')
 
 
 def parse(header):
@@ -90,8 +101,10 @@ def parse(header):
 
     return LinkHeader(links)
 
+
 def format_links(*args, **kwargs):
     return str(LinkHeader(*args, **kwargs))
+
 
 def format_link(*args, **kwargs):
     return str(Link(*args, **kwargs))
@@ -102,8 +115,8 @@ class ParseException(Exception):
 
 
 class LinkHeader(object):
-    '''Represents a sequence of links that can be formatted together as a link header.
-    '''
+    '''Represents a sequence of links that can be formatted together as a link header.'''
+
     def __init__(self, links=None):
         '''Initializes a LinkHeader object with a list of Link objects or with
         list of parameters from which Link objects can be created:
@@ -128,8 +141,8 @@ class LinkHeader(object):
         '''
 
         self.links = [
-            link if isinstance(link, Link) else Link(*link)
-            for link in links or []]
+            link if isinstance(link, Link) else Link(*link) for link in links or []
+        ]
 
     def to_py(self):
         '''Supports list conversion:
@@ -153,18 +166,19 @@ class LinkHeader(object):
     def links_by_attr_pairs(self, pairs):
         '''Lists links that have attribute pairs matching all the supplied pairs:
 
-         >>> parse('<http://example.com/foo>; rel="foo", <http://example.com>; rel="up"'
-         ...      ).links_by_attr_pairs([('rel', 'up')])
-         [Link('http://example.com', rel='up')]
+        >>> parse('<http://example.com/foo>; rel="foo", <http://example.com>; rel="up"'
+        ...      ).links_by_attr_pairs([('rel', 'up')])
+        [Link('http://example.com', rel='up')]
         '''
-        return [link
-                for link in self.links
-                if all([key, value] in link.attr_pairs
-                       for key, value in pairs)]
+        return [
+            link
+            for link in self.links
+            if all([key, value] in link.attr_pairs for key, value in pairs)
+        ]
+
 
 class Link(object):
-    '''Represents a single link.
-    '''
+    '''Represents a single link.'''
 
     def __init__(self, href, attr_pairs=None, **kwargs):
         '''Initializes a Link object with an href and attributes either in
@@ -184,8 +198,8 @@ class Link(object):
         '''
         self.href = href
         self.attr_pairs = [
-            list(pair)
-            for pair in (attr_pairs or []) + list(kwargs.items())]
+            list(pair) for pair in (attr_pairs or []) + list(kwargs.items())
+        ]
 
     def to_py(self):
         '''Convert to a json-friendly list-based structure:
@@ -201,11 +215,9 @@ class Link(object):
         Link('http://example.com', rel='self')
         '''
         return 'Link(%s)' % ', '.join(
-            [
-                repr(self.href)
-            ] + [
-                "%s=%s" % (pair[0], repr(pair[1]))
-                for pair in self.attr_pairs])
+            [repr(self.href)]
+            + ["%s=%s" % (pair[0], repr(pair[1])) for pair in self.attr_pairs]
+        )
 
     def __str__(self):
         '''Formats a single link:
@@ -219,6 +231,7 @@ class Link(object):
         than to output it unquoted.  Where used, it is up to client applications to
         provide values that meet RFC2231 Section 7.
         '''
+
         def str_pair(key, value):
             if value is None:
                 return key
@@ -226,9 +239,11 @@ class Link(object):
                 return '%s=%s' % (key, value)
             else:
                 return '%s="%s"' % (key, value.replace('"', r'\"'))
-        return '; '.join(['<%s>' % self.href] +
-                         [str_pair(key, value)
-                          for key, value in self.attr_pairs])
+
+        return '; '.join(
+            ['<%s>' % self.href]
+            + [str_pair(key, value) for key, value in self.attr_pairs]
+        )
 
     def __getattr__(self, name):
         '''
@@ -250,14 +265,12 @@ class Link(object):
         []
         '''
         name_lower = name.lower()
-        values = [value
-                  for key, value in self.attr_pairs
-                  if key.lower() == name_lower]
+        values = [value for key, value in self.attr_pairs if key.lower() == name_lower]
         if name in SINGLE_VALUED_ATTRS:
             if values:
                 return values[0]
             else:
-                raise AttributeError("No attribute of type %r present"%name_lower)
+                raise AttributeError("No attribute of type %r present" % name_lower)
         return values
 
     def __contains__(self, name):
@@ -299,6 +312,7 @@ class Link(object):
         '''
         return urljoin(requested_resource_address, self.href)
 
+
 class _Scanner(object):
     def __init__(self, buf):
         self.buf = buf
@@ -310,7 +324,7 @@ class _Scanner(object):
     def scan(self, pattern):
         self.match = pattern.match(self.buf)
         if self.match:
-            self.buf = self.buf[self.match.end():]
+            self.buf = self.buf[self.match.end() :]
         return self.match
 
 

@@ -8,6 +8,7 @@ import socket
 import itertools
 import errno
 
+
 async def getaddrinfo_routechecked(loop, log, host, port):
     """Variant of getaddrinfo that works like AI_ADDRCONFIG should probably work.
 
@@ -49,19 +50,25 @@ async def getaddrinfo_routechecked(loop, log, host, port):
         proto=socket.IPPROTO_UDP,
         # Still setting that -- it spares us the traffic of pointless requests.
         flags=socket.AI_ADDRCONFIG,
-        )
+    )
 
     if any(a[0] not in (socket.AF_INET6, socket.AF_INET) for a in addrinfo):
         log.warning("Addresses outside of INET and INET6 families ignored.")
 
-    v6_addresses = (sockaddr for (family, *_, sockaddr) in addrinfo if family == socket.AF_INET6)
+    v6_addresses = (
+        sockaddr for (family, *_, sockaddr) in addrinfo if family == socket.AF_INET6
+    )
     # Dress them just as AI_V4MAPPED would do. Note that we can't do (ip, port)
     # instead of sockaddr b/c it's destructured already for the family check,
     # and at that time it may be a different AF with more members.
-    v4_addresses = (('::ffff:' + sockaddr[0], sockaddr[1], 0, 0) for (family, *_, sockaddr) in addrinfo if family == socket.AF_INET)
+    v4_addresses = (
+        ('::ffff:' + sockaddr[0], sockaddr[1], 0, 0)
+        for (family, *_, sockaddr) in addrinfo
+        if family == socket.AF_INET
+    )
 
     yielded = 0
-    for (ip, port, flowinfo, scope_id) in itertools.chain(v6_addresses, v4_addresses):
+    for ip, port, flowinfo, scope_id in itertools.chain(v6_addresses, v4_addresses):
         # Side-step connectivity test when explicitly giving an address. This
         # should be purely a cosmetic change, but given we try not to give IP
         # addresses special treatment over host names, it needs to be done
@@ -69,7 +76,9 @@ async def getaddrinfo_routechecked(loop, log, host, port):
         # addresses to err with "No address information found" on V4-only
         # hosts.
         if ip != host:
-            with socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM, proto=socket.IPPROTO_UDP) as tempsock:
+            with socket.socket(
+                family=socket.AF_INET6, type=socket.SOCK_DGRAM, proto=socket.IPPROTO_UDP
+            ) as tempsock:
                 try:
                     tempsock.connect((ip, port))
                 except OSError as e:

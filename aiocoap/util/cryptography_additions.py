@@ -18,12 +18,13 @@ distributed through a KDC aka. group manager).
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from cryptography.hazmat.primitives import serialization
 
+
 def sk_to_curve25519(ed: ed25519.Ed25519PrivateKey) -> x25519.X25519PrivateKey:
     raw = ed.private_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption(),
-            )
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
 
     # as proposed in https://github.com/pyca/cryptography/issues/5557#issuecomment-739339132
 
@@ -39,11 +40,12 @@ def sk_to_curve25519(ed: ed25519.Ed25519PrivateKey) -> x25519.X25519PrivateKey:
 
     return x25519.X25519PrivateKey.from_private_bytes(h[0:32])
 
+
 def pk_to_curve25519(ed: ed25519.Ed25519PublicKey) -> x25519.X25519PublicKey:
     raw = ed.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-            )
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
 
     # This is libsodium's crypto_sign_ed25519_pk_to_curve25519 translated into
     # the Pyton module ge25519.

@@ -8,9 +8,10 @@ from warnings import warn
 from .numbers.optionnumbers import OptionNumber
 from .error import UnparsableMessage
 
+
 def _read_extended_field_value(value, rawdata):
     """Used to decode large values of option delta and option length
-       from raw binary form."""
+    from raw binary form."""
     if value >= 0 and value < 13:
         return (value, rawdata)
     elif value == 13:
@@ -27,9 +28,9 @@ def _read_extended_field_value(value, rawdata):
 
 def _write_extended_field_value(value):
     """Used to encode large values of option delta and option length
-       into raw binary form.
-       In CoAP option delta and length can be represented by a variable
-       number of bytes depending on the value."""
+    into raw binary form.
+    In CoAP option delta and length can be represented by a variable
+    number of bytes depending on the value."""
     if value >= 0 and value < 13:
         return (value, b'')
     elif value >= 13 and value < 269:
@@ -74,7 +75,13 @@ def _single_value_view(option_number, doc=None, deprecated=None):
             warn(deprecated, stacklevel=2)
         self.delete_option(option_number)
 
-    return property(_getter, _setter, _deleter, doc or "Single-value view on the %s option." % option_number)
+    return property(
+        _getter,
+        _setter,
+        _deleter,
+        doc or "Single-value view on the %s option." % option_number,
+    )
+
 
 def _items_view(option_number, doc=None):
     """Generate a property for a given option number, where the option is
@@ -93,7 +100,13 @@ def _items_view(option_number, doc=None):
     def _deleter(self, option_number=option_number):
         self.delete_option(option_number)
 
-    return property(_getter, _setter, _deleter, doc=doc or "Iterable view on the %s option." % option_number)
+    return property(
+        _getter,
+        _setter,
+        _deleter,
+        doc=doc or "Iterable view on the %s option." % option_number,
+    )
+
 
 def _empty_presence_view(option_number, doc=None):
     """Generate a property for a given option number, where the option is not
@@ -108,7 +121,10 @@ def _empty_presence_view(option_number, doc=None):
         if value:
             self.add_option(option_number.create_option())
 
-    return property(_getter, _setter, doc=doc or "Presence of the %s option." % option_number)
+    return property(
+        _getter, _setter, doc=doc or "Presence of the %s option." % option_number
+    )
+
 
 class Options(object):
     """Represent CoAP Header Options."""
@@ -129,13 +145,19 @@ class Options(object):
         return self.encode() == other.encode()
 
     def __repr__(self):
-        text = ", ".join("%s: %s" % (OptionNumber(k), " / ".join(map(str, v))) for (k, v) in self._options.items())
+        text = ", ".join(
+            "%s: %s" % (OptionNumber(k), " / ".join(map(str, v)))
+            for (k, v) in self._options.items()
+        )
         return "<aiocoap.options.Options at %#x: %s>" % (id(self), text or "empty")
 
     def _repr_html_(self):
         if self._options:
             n_opt = sum(len(o) for o in self._options.values())
-            items = (f'<li value="{int(k)}">{OptionNumber(k)._repr_html_()}: {", ".join(vi._repr_html_() for vi in v)}' for (k, v) in sorted(self._options.items()))
+            items = (
+                f'<li value="{int(k)}">{OptionNumber(k)._repr_html_()}: {", ".join(vi._repr_html_() for vi in v)}'
+                for (k, v) in sorted(self._options.items())
+            )
             return f"""<details><summary style="display:list-item">{n_opt} option{'s' if n_opt != 1 else ''}</summary><ol>{''.join(items)}</ol></details>"""
         else:
             return "<div>No options</div>"
@@ -151,7 +173,7 @@ class Options(object):
                 return rawdata[1:]
             dllen = rawdata[0]
             delta = (dllen & 0xF0) >> 4
-            length = (dllen & 0x0F)
+            length = dllen & 0x0F
             rawdata = rawdata[1:]
             (delta, rawdata) = _read_extended_field_value(delta, rawdata)
             (length, rawdata) = _read_extended_field_value(length, rawdata)
@@ -170,7 +192,9 @@ class Options(object):
         for option in self.option_list():
             optiondata = option.encode()
 
-            delta, extended_delta = _write_extended_field_value(option.number - current_opt_num)
+            delta, extended_delta = _write_extended_field_value(
+                option.number - current_opt_num
+            )
             length, extended_length = _write_extended_field_value(len(optiondata))
 
             data.append(bytes([((delta & 0x0F) << 4) + (length & 0x0F)]))
@@ -196,7 +220,9 @@ class Options(object):
         return self._options.get(number, ())
 
     def option_list(self):
-        return chain.from_iterable(sorted(self._options.values(), key=lambda x: x[0].number))
+        return chain.from_iterable(
+            sorted(self._options.values(), key=lambda x: x[0].number)
+        )
 
     uri_path = _items_view(OptionNumber.URI_PATH)
     uri_query = _items_view(OptionNumber.URI_QUERY)
@@ -216,14 +242,18 @@ class Options(object):
     proxy_scheme = _single_value_view(OptionNumber.PROXY_SCHEME)
     size1 = _single_value_view(OptionNumber.SIZE1)
     oscore = _single_value_view(OptionNumber.OSCORE)
-    object_security = _single_value_view(OptionNumber.OSCORE, deprecated="Use `oscore` instead of `object_security`")
+    object_security = _single_value_view(
+        OptionNumber.OSCORE, deprecated="Use `oscore` instead of `object_security`"
+    )
     max_age = _single_value_view(OptionNumber.MAX_AGE)
     if_match = _items_view(OptionNumber.IF_MATCH)
     no_response = _single_value_view(OptionNumber.NO_RESPONSE)
     echo = _single_value_view(OptionNumber.ECHO)
     request_tag = _items_view(OptionNumber.REQUEST_TAG)
     hop_limit = _single_value_view(OptionNumber.HOP_LIMIT)
-    request_hash = _single_value_view(OptionNumber.REQUEST_HASH,
-        "Experimental property for draft-amsuess-core-cachable-oscore")
+    request_hash = _single_value_view(
+        OptionNumber.REQUEST_HASH,
+        "Experimental property for draft-amsuess-core-cachable-oscore",
+    )
     edhoc = _empty_presence_view(OptionNumber.EDHOC)
     size2 = _single_value_view(OptionNumber.SIZE2)

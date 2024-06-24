@@ -7,8 +7,10 @@ import collections
 
 from .numbers.contentformat import ContentFormat
 
+
 def _to_minimum_bytes(value):
     return value.to_bytes((value.bit_length() + 7) // 8, 'big')
+
 
 class OptionType(metaclass=abc.ABCMeta):
     """Interface for decoding and encoding option values
@@ -38,7 +40,9 @@ class OptionType(metaclass=abc.ABCMeta):
 
     def _repr_html_(self):
         import html
+
         return f"<tt>{html.escape(repr(self))}</tt>"
+
 
 class StringOption(OptionType):
     """String CoAP option - used to represent string options. Always encoded in
@@ -61,7 +65,9 @@ class StringOption(OptionType):
 
     def _repr_html_(self):
         import html
+
         return f"<tt>{html.escape(repr(self.value))}</tt>"
+
 
 class OpaqueOption(OptionType):
     """Opaque CoAP option - used to represent options that just have their
@@ -84,6 +90,7 @@ class OpaqueOption(OptionType):
     def _repr_html_(self):
         return f'<tt>{self.value.hex()}</tt>'
 
+
 class UintOption(OptionType):
     """Uint CoAP option - used to represent integer options."""
 
@@ -102,7 +109,9 @@ class UintOption(OptionType):
 
     def _repr_html_(self):
         import html
+
         return f"<tt>{html.escape(repr(self.value))}</tt>"
+
 
 class TypedOption(OptionType, metaclass=abc.ABCMeta):
     @property
@@ -116,7 +125,9 @@ class TypedOption(OptionType, metaclass=abc.ABCMeta):
         if value is not None:
             self.value = value
 
-    value = property(lambda self: self._value, lambda self, value: self._set_from_opt_value(value))
+    value = property(
+        lambda self: self._value, lambda self, value: self._set_from_opt_value(value)
+    )
 
     def _set_from_opt_value(self, value: object):
         """Convert a value set as ``message.opt.option_name = value`` into the
@@ -124,7 +135,10 @@ class TypedOption(OptionType, metaclass=abc.ABCMeta):
         value (anticipating that encoding an unsuitable value would otherwise
         fail at a hard-to-debug location)."""
         if not isinstance(value, self.type):
-            raise ValueError("Setting values of type %s is not supported on this option" % type(value))
+            raise ValueError(
+                "Setting values of type %s is not supported on this option"
+                % type(value)
+            )
         self._value = value
 
     def __str__(self):
@@ -135,20 +149,27 @@ class TypedOption(OptionType, metaclass=abc.ABCMeta):
             return self.value._repr_html_()
         else:
             import html
+
             return f"<tt>{html.escape(repr(self.value))}</tt>"
+
 
 class BlockOption(TypedOption):
     """Block CoAP option - special option used only for Block1 and Block2 options.
-       Currently it is the only type of CoAP options that has
-       internal structure.
+    Currently it is the only type of CoAP options that has
+    internal structure.
 
-       That structure (BlockwiseTuple) covers not only the block options of
-       RFC7959, but also the BERT extension of RFC8323. If the reserved size
-       exponent 7 is used for purposes incompatible with BERT, the implementor
-       might want to look at the context dependent option number
-       interpretations which will hopefully be in place for Signaling (7.xx)
-       messages by then."""
-    class BlockwiseTuple(collections.namedtuple('_BlockwiseTuple', ['block_number', 'more', 'size_exponent'])):
+    That structure (BlockwiseTuple) covers not only the block options of
+    RFC7959, but also the BERT extension of RFC8323. If the reserved size
+    exponent 7 is used for purposes incompatible with BERT, the implementor
+    might want to look at the context dependent option number
+    interpretations which will hopefully be in place for Signaling (7.xx)
+    messages by then."""
+
+    class BlockwiseTuple(
+        collections.namedtuple(
+            '_BlockwiseTuple', ['block_number', 'more', 'size_exponent']
+        )
+    ):
         @property
         def size(self):
             return 2 ** (min(self.size_exponent, 6) + 4)
@@ -195,24 +216,35 @@ class BlockOption(TypedOption):
                 return self
             if maximum_exponent == 6 and self.size_exponent == 7:
                 return (self.block_number, self.more, 6)
-            increasednumber = self.block_number << (min(self.size_exponent, 6) - maximum_exponent)
+            increasednumber = self.block_number << (
+                min(self.size_exponent, 6) - maximum_exponent
+            )
             return type(self)(increasednumber, self.more, maximum_exponent)
 
     type = BlockwiseTuple
 
     def encode(self):
-        as_integer = (self.value.block_number << 4) + (self.value.more * 0x08) + self.value.size_exponent
+        as_integer = (
+            (self.value.block_number << 4)
+            + (self.value.more * 0x08)
+            + self.value.size_exponent
+        )
         return _to_minimum_bytes(as_integer)
 
     def decode(self, rawdata):
         as_integer = int.from_bytes(rawdata, 'big')
-        self.value = self.BlockwiseTuple(block_number=(as_integer >> 4), more=bool(as_integer & 0x08), size_exponent=(as_integer & 0x07))
+        self.value = self.BlockwiseTuple(
+            block_number=(as_integer >> 4),
+            more=bool(as_integer & 0x08),
+            size_exponent=(as_integer & 0x07),
+        )
 
     def _set_from_opt_value(self, value):
         # Casting it through the constructor makes it easy to set the option as
         # `(num, more, sz)` without having to pick the type out of a very long
         # module name
         super()._set_from_opt_value(self.type(*value))
+
 
 class ContentFormatOption(TypedOption):
     """Type of numeric options whose number has :class:`ContentFormat`

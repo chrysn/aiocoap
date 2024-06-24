@@ -14,6 +14,7 @@ from .message import Message
 from .optiontypes import BlockOption
 from .util.asyncio.timeoutdict import TimeoutDict
 
+
 def _extract_block_key(message):
     """Extract a key that hashes equally for all blocks of a blockwise
     operation from a request message.
@@ -21,11 +22,18 @@ def _extract_block_key(message):
     See discussion at <https://mailarchive.ietf.org/arch/msg/core/I-6LzAL6lIUVDA6_g9YM3Zjhg8E>.
     """
 
-    return (message.remote.blockwise_key, message.code, message.get_cache_key([
-        OptionNumber.BLOCK1,
-        OptionNumber.BLOCK2,
-        OptionNumber.OBSERVE,
-        ]))
+    return (
+        message.remote.blockwise_key,
+        message.code,
+        message.get_cache_key(
+            [
+                OptionNumber.BLOCK1,
+                OptionNumber.BLOCK2,
+                OptionNumber.OBSERVE,
+            ]
+        ),
+    )
+
 
 class ContinueException(ConstructionRenderableError):
     """Not an error in the CoAP sense, but an error in the processing sense,
@@ -33,6 +41,7 @@ class ContinueException(ConstructionRenderableError):
 
     It reflects back the request's block1 option when rendered.
     """
+
     def __init__(self, block1):
         self.block1 = block1
 
@@ -43,8 +52,10 @@ class ContinueException(ConstructionRenderableError):
 
     code = codes.CONTINUE
 
+
 class IncompleteException(ConstructionRenderableError):
     code = codes.REQUEST_ENTITY_INCOMPLETE
+
 
 class Block1Spool:
     def __init__(self):
@@ -80,6 +91,7 @@ class Block1Spool:
             return self._assemblies[block_key]
             # which happens to carry the last block's block1 option
 
+
 class Block2Cache:
     """A cache of responses to a give block key.
 
@@ -87,11 +99,14 @@ class Block2Cache:
     output -- otherwise it's often better to calculate the full response again
     and serve chunks.
     """
+
     def __init__(self):
         # FIXME: introduce an actual parameter here
         self._completes = TimeoutDict(numbers.TransportTuning().MAX_TRANSMIT_WAIT)
 
-    async def extract_or_insert(self, req: Message, response_builder: Callable[[], Awaitable[Message]]):
+    async def extract_or_insert(
+        self, req: Message, response_builder: Callable[[], Awaitable[Message]]
+    ):
         """Given a request message,
 
         * if it is querying a particular block, look it up in the cache or
@@ -112,16 +127,20 @@ class Block2Cache:
             except KeyError:
                 raise IncompleteException from None
 
-        if len(assembled.payload) > req.remote.maximum_payload_size or \
-                req.opt.block2 is not None and len(assembled.payload) > req.opt.block2.size:
+        if (
+            len(assembled.payload) > req.remote.maximum_payload_size
+            or req.opt.block2 is not None
+            and len(assembled.payload) > req.opt.block2.size
+        ):
             self._completes[block_key] = assembled
 
-            block2 = req.opt.block2 or \
-                    BlockOption.BlockwiseTuple(0, 0, req.remote.maximum_block_size_exp)
+            block2 = req.opt.block2 or BlockOption.BlockwiseTuple(
+                0, 0, req.remote.maximum_block_size_exp
+            )
             return assembled._extract_block(
-                    block2.block_number,
-                    block2.size_exponent,
-                    req.remote.maximum_payload_size
-                    )
+                block2.block_number,
+                block2.size_exponent,
+                req.remote.maximum_payload_size,
+            )
         else:
             return assembled

@@ -46,26 +46,35 @@ import aiocoap.error as error
 import aiocoap.numbers.codes as codes
 from aiocoap.resource import Resource
 from aiocoap.util.cli import AsyncCLIDaemon
-from aiocoap.cli.common import (add_server_arguments,
-    server_context_from_arguments, extract_server_arguments)
+from aiocoap.cli.common import (
+    add_server_arguments,
+    server_context_from_arguments,
+    extract_server_arguments,
+)
 from aiocoap.resourcedirectory.client.register import Registerer
+
 
 class InvalidPathError(error.ConstructionRenderableError):
     code = codes.BAD_REQUEST
+
 
 class TrailingSlashMissingError(error.ConstructionRenderableError):
     code = codes.BAD_REQUEST
     message = "Error: Not a file (add trailing slash)"
 
+
 class AbundantTrailingSlashError(error.ConstructionRenderableError):
     code = codes.BAD_REQUEST
     message = "Error: Not a directory (strip the trailing slash)"
 
-class NoSuchFile(error.NotFound): # just for the better error msg
+
+class NoSuchFile(error.NotFound):  # just for the better error msg
     message = "Error: File not found!"
+
 
 class PreconditionFailed(error.ConstructionRenderableError):
     code = codes.PRECONDITION_FAILED
+
 
 class FileServer(Resource, aiocoap.interfaces.ObservableResource):
     # Resource is only used to give the nice render_xxx methods
@@ -76,7 +85,7 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         self.log = log
         self.write = write
 
-        self._observations = {} # path -> [last_stat, [callbacks]]
+        self._observations = {}  # path -> [last_stat, [callbacks]]
 
     # While we don't have a .well-known/core resource that would need this, we
     # still allow registration at an RD and thus need something in here.
@@ -95,13 +104,15 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
             for path, data in list(self._observations.items()):
                 last_stat, callbacks = data
                 if last_stat is None:
-                    continue # this hit before the original response even triggered
+                    continue  # this hit before the original response even triggered
                 try:
                     new_stat = path.stat()
                 except Exception:
                     new_stat = False
+
                 def relevant(s):
                     return (s.st_ino, s.st_dev, s.st_size, s.st_mtime, s.st_ctime)
+
                 if relevant(new_stat) != relevant(last_stat):
                     self.log.info("New stat for %s", path)
                     data[0] = new_stat
@@ -118,8 +129,11 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
     async def needs_blockwise_assembly(self, request):
         if request.code != codes.GET:
             return True
-        if not request.opt.uri_path or request.opt.uri_path[-1] == '' or \
-                request.opt.uri_path == ('.well-known', 'core'):
+        if (
+            not request.opt.uri_path
+            or request.opt.uri_path[-1] == ''
+            or request.opt.uri_path == ('.well-known', 'core')
+        ):
             return True
         # Only GETs to non-directory access handle it explicitly
         return False
@@ -133,9 +147,9 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
     async def render_get(self, request):
         if request.opt.uri_path == ('.well-known', 'core'):
             return aiocoap.Message(
-                    payload=str(self.get_resources_as_linkheader()).encode('utf8'),
-                    content_format=40
-                    )
+                payload=str(self.get_resources_as_linkheader()).encode('utf8'),
+                content_format=40,
+            )
 
         path = self.request_to_localpath(request)
         try:
@@ -256,7 +270,9 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
 
         self.log.info("Serving file %s", path)
 
-        block_in = request.opt.block2 or aiocoap.optiontypes.BlockOption.BlockwiseTuple(0, 0, 6)
+        block_in = request.opt.block2 or aiocoap.optiontypes.BlockOption.BlockwiseTuple(
+            0, 0, 6
+        )
 
         with path.open('rb') as f:
             f.seek(block_in.start)
@@ -272,20 +288,24 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
 
         guessed_type, _ = mimetypes.guess_type(str(path))
 
-        block_out = aiocoap.optiontypes.BlockOption.BlockwiseTuple(block_in.block_number, len(data) > block_in.size, block_in.size_exponent)
+        block_out = aiocoap.optiontypes.BlockOption.BlockwiseTuple(
+            block_in.block_number, len(data) > block_in.size, block_in.size_exponent
+        )
         content_format = None
         if guessed_type is not None:
             try:
-                content_format = aiocoap.numbers.ContentFormat.by_media_type(guessed_type)
+                content_format = aiocoap.numbers.ContentFormat.by_media_type(
+                    guessed_type
+                )
             except KeyError:
                 if guessed_type and guessed_type.startswith('text/'):
                     content_format = aiocoap.numbers.ContentFormat.TEXT
         return aiocoap.Message(
-                payload=data[:block_in.size],
-                block2=block_out,
-                content_format=content_format,
-                observe=request.opt.observe
-                )
+            payload=data[: block_in.size],
+            block2=block_out,
+            content_format=content_format,
+            observe=request.opt.observe,
+        )
 
     async def add_observation(self, request, serverobservation):
         path = self.request_to_localpath(request)
@@ -297,7 +317,10 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         last_stat, callbacks = self._observations.setdefault(path, [None, []])
         cb = serverobservation.trigger
         callbacks.append(cb)
-        serverobservation.accept(lambda self=self, path=path, cb=cb: self._observations[path][1].remove(cb))
+        serverobservation.accept(
+            lambda self=self, path=path, cb=cb: self._observations[path][1].remove(cb)
+        )
+
 
 class FileServerProgram(AsyncCLIDaemon):
     async def start(self):
@@ -315,17 +338,37 @@ class FileServerProgram(AsyncCLIDaemon):
     @staticmethod
     def build_parser():
         p = argparse.ArgumentParser(description=__doc__)
-        p.add_argument("-v", "--verbose", help="Be more verbose (repeat to debug)", action='count', dest="verbosity", default=0)
-        p.add_argument("--register", help="Register with a Resource directory", metavar='RD-URI', nargs='?', default=False)
+        p.add_argument(
+            "-v",
+            "--verbose",
+            help="Be more verbose (repeat to debug)",
+            action='count',
+            dest="verbosity",
+            default=0,
+        )
+        p.add_argument(
+            "--register",
+            help="Register with a Resource directory",
+            metavar='RD-URI',
+            nargs='?',
+            default=False,
+        )
         p.add_argument("--write", help="Allow writes by any user", action='store_true')
-        p.add_argument("path", help="Root directory of the server", nargs="?", default=".", type=Path)
+        p.add_argument(
+            "path",
+            help="Root directory of the server",
+            nargs="?",
+            default=".",
+            type=Path,
+        )
 
         add_server_arguments(p)
 
         return p
 
-    async def start_with_options(self, path, verbosity=0, register=False,
-            server_opts=None, write=False):
+    async def start_with_options(
+        self, path, verbosity=0, register=False, server_opts=None, write=False
+    ):
         log = logging.getLogger('fileserver')
         coaplog = logging.getLogger('coap-server')
 
@@ -345,9 +388,9 @@ class FileServerProgram(AsyncCLIDaemon):
             self.context = await server_context_from_arguments(server, server_opts)
 
         self.refreshes = asyncio.create_task(
-                server.check_files_for_refreshes(),
-                name="Refresh on %r" % (path,),
-                )
+            server.check_files_for_refreshes(),
+            name="Refresh on %r" % (path,),
+        )
 
         if register is not False:
             if register is not None and register.count('/') != 2:
@@ -365,6 +408,7 @@ class FileServerProgram(AsyncCLIDaemon):
             await self.registerer.shutdown()
         self.refreshes.cancel()
         await self.context.shutdown()
+
 
 # used by doc/aiocoap_index.py
 build_parser = FileServerProgram.build_parser
