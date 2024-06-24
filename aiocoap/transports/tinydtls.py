@@ -64,7 +64,7 @@ DTLS_EVENT_CONNECT = 0x01DC
 DTLS_EVENT_CONNECTED = 0x01DE
 DTLS_EVENT_RENEGOTIATE = 0x01DF
 
-LEVEL_NOALERT = 0 # seems only to be issued by tinydtls-internal events
+LEVEL_NOALERT = 0  # seems only to be issued by tinydtls-internal events
 
 # from RFC 5246
 LEVEL_WARNING = 1
@@ -73,11 +73,12 @@ CODE_CLOSE_NOTIFY = 0
 
 # tinydtls can not be debugged in the Python way; if you need to get more
 # information out of it, use the following line:
-#dtls.setLogLevel(dtls.DTLS_LOG_DEBUG)
+# dtls.setLogLevel(dtls.DTLS_LOG_DEBUG)
 
 # FIXME this should be exposed by the dtls wrapper
 DTLS_TICKS_PER_SECOND = 1000
 DTLS_CLOCK_OFFSET = time.time()
+
 
 # Currently kept a bit private by not inheriting from NetworkError -- thus
 # they'll be wrapped in a NetworkError when they fly out of a request.
@@ -85,9 +86,11 @@ class CloseNotifyReceived(Exception):
     """The DTLS connection a request was sent on raised was closed by the
     server while the request was being processed"""
 
+
 class FatalDTLSError(Exception):
     """The DTLS connection a request was sent on raised a fatal error while the
     request was being processed"""
+
 
 class DTLSClientConnection(interfaces.EndpointAddress):
     # FIXME not only does this not do error handling, it seems not to even
@@ -95,17 +98,17 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
     is_multicast = False
     is_multicast_locally = False
-    hostinfo = None # stored at initualization time
-    uri_base = property(lambda self: 'coaps://' + self.hostinfo)
+    hostinfo = None  # stored at initualization time
+    uri_base = property(lambda self: "coaps://" + self.hostinfo)
     # Not necessarily very usable given we don't implement responding to server
     # connection, but valid anyway
-    uri_base_local = property(lambda self: 'coaps://' + self.hostinfo_local)
-    scheme = 'coaps'
+    uri_base_local = property(lambda self: "coaps://" + self.hostinfo_local)
+    scheme = "coaps"
 
     @property
     def hostinfo_local(self):
         # See TCP's.hostinfo_local
-        host, port, *_ = self._transport.get_extra_info('socket').getsockname()
+        host, port, *_ = self._transport.get_extra_info("socket").getsockname()
         if port == COAPS_PORT:
             port = None
         return hostportjoin(host, port)
@@ -116,7 +119,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
     def __init__(self, host, port, pskId, psk, coaptransport):
         self._ready = False
-        self._queue = [] # stores sent packages while connection is being built
+        self._queue = []  # stores sent packages while connection is being built
 
         self._host = host
         self._port = port
@@ -148,9 +151,9 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             self._dtls_socket.write(self._connection, message)
 
             self._retransmission_task = asyncio.create_task(
-                    self._run_retransmissions(),
-                    name="DTLS handshake retransmissions",
-                    )
+                self._run_retransmissions(),
+                name="DTLS handshake retransmissions",
+            )
 
     log = property(lambda self: self.coaptransport.log)
 
@@ -159,14 +162,17 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         it's returning a weak wrapper that allows refcounting-based GC to
         happen when the remote falls out of use"""
         weakself = weakref.ref(self)
+
         def wrapper(*args, __weakself=weakself, __method=method, __deadvalue=deadvalue):
             self = __weakself()
             if self is None:
-                warnings.warn("DTLS module did not shut down the DTLSSocket "
-                        "perfectly; it still tried to call %s in vain" %
-                        __method)
+                warnings.warn(
+                    "DTLS module did not shut down the DTLSSocket "
+                    "perfectly; it still tried to call %s in vain" % __method
+                )
                 return __deadvalue
             return getattr(self, __method)(*args)
+
         wrapper.__name__ = "_build_accessor(%s)" % method
         return wrapper
 
@@ -179,23 +185,25 @@ class DTLSClientConnection(interfaces.EndpointAddress):
 
         try:
             self._transport, _ = await self.coaptransport.loop.create_datagram_endpoint(
-                    self.SingleConnection.factory(self),
-                    remote_addr=(self._host, self._port),
-                    )
+                self.SingleConnection.factory(self),
+                remote_addr=(self._host, self._port),
+            )
 
             self._dtls_socket = dtls.DTLS(
-                    read=self._build_accessor("_read", 0),
-                    write=self._build_accessor("_write", 0),
-                    event=self._build_accessor("_event", 0),
-                    pskId=self._pskId,
-                    pskStore={self._pskId: self._psk},
-                    )
-            self._connection = self._dtls_socket.connect(_SENTINEL_ADDRESS, _SENTINEL_PORT)
+                read=self._build_accessor("_read", 0),
+                write=self._build_accessor("_write", 0),
+                event=self._build_accessor("_event", 0),
+                pskId=self._pskId,
+                pskStore={self._pskId: self._psk},
+            )
+            self._connection = self._dtls_socket.connect(
+                _SENTINEL_ADDRESS, _SENTINEL_PORT
+            )
 
             self._retransmission_task = asyncio.create_task(
-                    self._run_retransmissions(),
-                    name="DTLS handshake retransmissions",
-                    )
+                self._run_retransmissions(),
+                name="DTLS handshake retransmissions",
+            )
 
             self._connecting = asyncio.get_running_loop().create_future()
             await self._connecting
@@ -228,7 +236,6 @@ class DTLSClientConnection(interfaces.EndpointAddress):
                 return
             now = time.time() - DTLS_CLOCK_OFFSET
             await asyncio.sleep(when - now)
-
 
     def shutdown(self):
         self._remove_from_pool()
@@ -309,7 +316,7 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             return functools.partial(cls, weakref.ref(parent))
 
         def __init__(self, parent):
-            self.parent = parent #: DTLSClientConnection
+            self.parent = parent  #: DTLSClientConnection
 
         def connection_made(self, transport):
             # only for for shutdown
@@ -332,9 +339,12 @@ class DTLSClientConnection(interfaces.EndpointAddress):
                 return
             parent._dtls_socket.handleMessage(parent._connection, data)
 
+
 class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
     def __init__(self, ctx: interfaces.MessageManager, log, loop):
-        self._pool: weakref.WeakValueDictionary = weakref.WeakValueDictionary({}) # see _connection_for_address
+        self._pool: weakref.WeakValueDictionary = weakref.WeakValueDictionary(
+            {}
+        )  # see _connection_for_address
 
         self.ctx = ctx
 
@@ -350,20 +360,29 @@ class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
         try:
             return self._pool[(host, port, pskId)]
         except KeyError:
-            self.log.info("No DTLS connection active to (%s, %s, %s), creating one", host, port, pskId)
+            self.log.info(
+                "No DTLS connection active to (%s, %s, %s), creating one",
+                host,
+                port,
+                pskId,
+            )
             connection = DTLSClientConnection(host, port, pskId, psk, self)
             self._pool[(host, port, pskId)] = connection
             return connection
 
     @classmethod
-    async def create_client_transport_endpoint(cls, ctx: interfaces.MessageManager, log, loop):
+    async def create_client_transport_endpoint(
+        cls, ctx: interfaces.MessageManager, log, loop
+    ):
         return cls(ctx, log, loop)
 
     async def recognize_remote(self, remote):
-        return isinstance(remote, DTLSClientConnection) and remote in self._pool.values()
+        return (
+            isinstance(remote, DTLSClientConnection) and remote in self._pool.values()
+        )
 
     async def determine_remote(self, request):
-        if request.requested_scheme != 'coaps':
+        if request.requested_scheme != "coaps":
             return None
 
         if request.unresolved_remote:
@@ -373,13 +392,17 @@ class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
             host = request.opt.uri_host
             port = request.opt.uri_port or COAPS_PORT
         else:
-            raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
+            raise ValueError(
+                "No location found to send message to (neither in .opt.uri_host nor in .remote)"
+            )
 
         dtlsparams = self.ctx.client_credentials.credentials_from_request(request)
         try:
             pskId, psk = dtlsparams.as_dtls_psk()
         except AttributeError:
-            raise CredentialsMissingError("Credentials for requested URI are not compatible with DTLS-PSK")
+            raise CredentialsMissingError(
+                "Credentials for requested URI are not compatible with DTLS-PSK"
+            )
         result = self._connection_for_address(host, port, pskId, psk)
         return result
 

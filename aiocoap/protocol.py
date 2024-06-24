@@ -52,8 +52,7 @@ from .tokenmanager import TokenManager
 from .pipe import Pipe, run_driving_pipe, error_to_message
 from . import interfaces
 from . import error
-from .numbers import (INTERNAL_SERVER_ERROR, NOT_FOUND,
-        CONTINUE, SHUTDOWN_TIMEOUT)
+from .numbers import INTERNAL_SERVER_ERROR, NOT_FOUND, CONTINUE, SHUTDOWN_TIMEOUT
 
 import warnings
 import logging
@@ -109,7 +108,15 @@ class Context(interfaces.RequestProvider):
     when the project reaches a stable version number; please file a feature
     request for stabilization if you want to reliably access any of them.
     """
-    def __init__(self, loop=None, serversite=None, loggername="coap", client_credentials=None, server_credentials=None):
+
+    def __init__(
+        self,
+        loop=None,
+        serversite=None,
+        loggername="coap",
+        client_credentials=None,
+        server_credentials=None,
+    ):
         self.log = logging.getLogger(loggername)
 
         self.loop = loop or asyncio.get_event_loop()
@@ -125,7 +132,9 @@ class Context(interfaces.RequestProvider):
     # convenience methods for class instanciation
     #
 
-    async def _append_tokenmanaged_messagemanaged_transport(self, message_interface_constructor):
+    async def _append_tokenmanaged_messagemanaged_transport(
+        self, message_interface_constructor
+    ):
         tman = TokenManager(self)
         mman = MessageManager(tman)
         transport = await message_interface_constructor(mman)
@@ -144,7 +153,9 @@ class Context(interfaces.RequestProvider):
         self.request_interfaces.append(tman)
 
     @classmethod
-    async def create_client_context(cls, *, loggername="coap", loop=None, transports: Optional[List[str]] = None):
+    async def create_client_context(
+        cls, *, loggername="coap", loop=None, transports: Optional[List[str]] = None
+    ):
         """Create a context bound to all addresses on a random listening port.
 
         This is the easiest way to get a context suitable for sending client
@@ -160,46 +171,83 @@ class Context(interfaces.RequestProvider):
 
         self = cls(loop=loop, serversite=None, loggername=loggername)
 
-        selected_transports = transports or defaults.get_default_clienttransports(loop=loop)
+        selected_transports = transports or defaults.get_default_clienttransports(
+            loop=loop
+        )
 
         # FIXME make defaults overridable (postponed until they become configurable too)
         for transportname in selected_transports:
-            if transportname == 'udp6':
+            if transportname == "udp6":
                 from .transports.udp6 import MessageInterfaceUDP6
-                await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceUDP6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
-            elif transportname == 'simple6':
-                from .transports.simple6 import MessageInterfaceSimple6
-                await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
-            elif transportname == 'tinydtls':
-                from .transports.tinydtls import MessageInterfaceTinyDTLS
-                await self._append_tokenmanaged_messagemanaged_transport(
 
-                    lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop))
-            elif transportname == 'tcpclient':
+                await self._append_tokenmanaged_messagemanaged_transport(
+                    lambda mman: MessageInterfaceUDP6.create_client_transport_endpoint(
+                        mman, log=self.log, loop=loop
+                    )
+                )
+            elif transportname == "simple6":
+                from .transports.simple6 import MessageInterfaceSimple6
+
+                await self._append_tokenmanaged_messagemanaged_transport(
+                    lambda mman: MessageInterfaceSimple6.create_client_transport_endpoint(
+                        mman, log=self.log, loop=loop
+                    )
+                )
+            elif transportname == "tinydtls":
+                from .transports.tinydtls import MessageInterfaceTinyDTLS
+
+                await self._append_tokenmanaged_messagemanaged_transport(
+                    lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(
+                        mman, log=self.log, loop=loop
+                    )
+                )
+            elif transportname == "tcpclient":
                 from .transports.tcp import TCPClient
+
                 await self._append_tokenmanaged_transport(
-                    lambda tman: TCPClient.create_client_transport(tman, self.log, loop))
-            elif transportname == 'tlsclient':
+                    lambda tman: TCPClient.create_client_transport(tman, self.log, loop)
+                )
+            elif transportname == "tlsclient":
                 from .transports.tls import TLSClient
+
                 await self._append_tokenmanaged_transport(
-                    lambda tman: TLSClient.create_client_transport(tman, self.log, loop, self.client_credentials))
-            elif transportname == 'ws':
+                    lambda tman: TLSClient.create_client_transport(
+                        tman, self.log, loop, self.client_credentials
+                    )
+                )
+            elif transportname == "ws":
                 from .transports.ws import WSPool
+
                 await self._append_tokenmanaged_transport(
-                    lambda tman: WSPool.create_transport(tman, self.log, loop, client_credentials=self.client_credentials))
-            elif transportname == 'oscore':
+                    lambda tman: WSPool.create_transport(
+                        tman, self.log, loop, client_credentials=self.client_credentials
+                    )
+                )
+            elif transportname == "oscore":
                 from .transports.oscore import TransportOSCORE
+
                 oscoretransport = TransportOSCORE(self, self)
                 self.request_interfaces.append(oscoretransport)
             else:
-                raise RuntimeError("Transport %r not know for client context creation" % transportname)
+                raise RuntimeError(
+                    "Transport %r not know for client context creation" % transportname
+                )
 
         return self
 
     @classmethod
-    async def create_server_context(cls, site, bind=None, *, loggername="coap-server", loop=None, _ssl_context=None, multicast=[], server_credentials=None, transports: Optional[List[str]] = None):
+    async def create_server_context(
+        cls,
+        site,
+        bind=None,
+        *,
+        loggername="coap-server",
+        loop=None,
+        _ssl_context=None,
+        multicast=[],
+        server_credentials=None,
+        transports: Optional[List[str]] = None,
+    ):
         """Create a context, bound to all addresses on the CoAP port (unless
         otherwise specified in the ``bind`` argument).
 
@@ -233,70 +281,124 @@ class Context(interfaces.RequestProvider):
         if loop is None:
             loop = asyncio.get_event_loop()
 
-        self = cls(loop=loop, serversite=site, loggername=loggername, server_credentials=server_credentials)
+        self = cls(
+            loop=loop,
+            serversite=site,
+            loggername=loggername,
+            server_credentials=server_credentials,
+        )
 
         multicast_done = not multicast
 
-        selected_transports = transports or defaults.get_default_servertransports(loop=loop)
+        selected_transports = transports or defaults.get_default_servertransports(
+            loop=loop
+        )
 
         for transportname in selected_transports:
-            if transportname == 'udp6':
+            if transportname == "udp6":
                 from .transports.udp6 import MessageInterfaceUDP6
 
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(mman, log=self.log, loop=loop, bind=bind, multicast=multicast))
+                    lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(
+                        mman, log=self.log, loop=loop, bind=bind, multicast=multicast
+                    )
+                )
                 multicast_done = True
             # FIXME this is duplicated from the client version, as those are client-only anyway
-            elif transportname == 'simple6':
+            elif transportname == "simple6":
                 from .transports.simple6 import MessageInterfaceSimple6
+
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceSimple6.create_client_transport_endpoint(mman, log=self.log, loop=loop))
-            elif transportname == 'tinydtls':
+                    lambda mman: MessageInterfaceSimple6.create_client_transport_endpoint(
+                        mman, log=self.log, loop=loop
+                    )
+                )
+            elif transportname == "tinydtls":
                 from .transports.tinydtls import MessageInterfaceTinyDTLS
 
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(mman, log=self.log, loop=loop))
+                    lambda mman: MessageInterfaceTinyDTLS.create_client_transport_endpoint(
+                        mman, log=self.log, loop=loop
+                    )
+                )
             # FIXME end duplication
-            elif transportname == 'tinydtls_server':
+            elif transportname == "tinydtls_server":
                 from .transports.tinydtls_server import MessageInterfaceTinyDTLSServer
 
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceTinyDTLSServer.create_server(bind, mman, log=self.log, loop=loop, server_credentials=self.server_credentials))
-            elif transportname == 'simplesocketserver':
+                    lambda mman: MessageInterfaceTinyDTLSServer.create_server(
+                        bind,
+                        mman,
+                        log=self.log,
+                        loop=loop,
+                        server_credentials=self.server_credentials,
+                    )
+                )
+            elif transportname == "simplesocketserver":
                 from .transports.simplesocketserver import MessageInterfaceSimpleServer
+
                 await self._append_tokenmanaged_messagemanaged_transport(
-                    lambda mman: MessageInterfaceSimpleServer.create_server(bind, mman, log=self.log, loop=loop))
-            elif transportname == 'tcpserver':
+                    lambda mman: MessageInterfaceSimpleServer.create_server(
+                        bind, mman, log=self.log, loop=loop
+                    )
+                )
+            elif transportname == "tcpserver":
                 from .transports.tcp import TCPServer
+
                 await self._append_tokenmanaged_transport(
-                    lambda tman: TCPServer.create_server(bind, tman, self.log, loop))
-            elif transportname == 'tcpclient':
+                    lambda tman: TCPServer.create_server(bind, tman, self.log, loop)
+                )
+            elif transportname == "tcpclient":
                 from .transports.tcp import TCPClient
+
                 await self._append_tokenmanaged_transport(
-                    lambda tman: TCPClient.create_client_transport(tman, self.log, loop))
-            elif transportname == 'tlsserver':
+                    lambda tman: TCPClient.create_client_transport(tman, self.log, loop)
+                )
+            elif transportname == "tlsserver":
                 if _ssl_context is not None:
                     from .transports.tls import TLSServer
+
                     await self._append_tokenmanaged_transport(
-                        lambda tman: TLSServer.create_server(bind, tman, self.log, loop, _ssl_context))
-            elif transportname == 'tlsclient':
+                        lambda tman: TLSServer.create_server(
+                            bind, tman, self.log, loop, _ssl_context
+                        )
+                    )
+            elif transportname == "tlsclient":
                 from .transports.tls import TLSClient
+
                 await self._append_tokenmanaged_transport(
-                    lambda tman: TLSClient.create_client_transport(tman, self.log, loop, self.client_credentials))
-            elif transportname == 'ws':
+                    lambda tman: TLSClient.create_client_transport(
+                        tman, self.log, loop, self.client_credentials
+                    )
+                )
+            elif transportname == "ws":
                 from .transports.ws import WSPool
+
                 await self._append_tokenmanaged_transport(
                     # None, None: Unlike the other transports this has a server/client generic creator, and only binds if there is some bind
-                    lambda tman: WSPool.create_transport(tman, self.log, loop, client_credentials=self.client_credentials, server_bind=bind or (None, None), server_context=_ssl_context))
-            elif transportname == 'oscore':
+                    lambda tman: WSPool.create_transport(
+                        tman,
+                        self.log,
+                        loop,
+                        client_credentials=self.client_credentials,
+                        server_bind=bind or (None, None),
+                        server_context=_ssl_context,
+                    )
+                )
+            elif transportname == "oscore":
                 from .transports.oscore import TransportOSCORE
+
                 oscoretransport = TransportOSCORE(self, self)
                 self.request_interfaces.append(oscoretransport)
             else:
-                raise RuntimeError("Transport %r not know for server context creation" % transportname)
+                raise RuntimeError(
+                    "Transport %r not know for server context creation" % transportname
+                )
 
         if not multicast_done:
-            self.log.warning("Multicast was requested, but no multicast capable transport was selected.")
+            self.log.warning(
+                "Multicast was requested, but no multicast capable transport was selected."
+            )
 
         # This is used in tests to wait for externally launched servers to be ready
         self.log.debug("Server ready to receive requests")
@@ -322,14 +424,16 @@ class Context(interfaces.RequestProvider):
 
         self.log.debug("Shutting down context")
 
-        done, pending = await asyncio.wait([
+        done, pending = await asyncio.wait(
+            [
                 asyncio.create_task(
                     ri.shutdown(),
                     name="Shutdown of %r" % ri,
-                    )
-                for ri
-                in self.request_interfaces],
-            timeout=SHUTDOWN_TIMEOUT)
+                )
+                for ri in self.request_interfaces
+            ],
+            timeout=SHUTDOWN_TIMEOUT,
+        )
         for item in done:
             await item
         if pending:
@@ -338,7 +442,10 @@ class Context(interfaces.RequestProvider):
             # should be easier to follow than the "we didn't garbage collect
             # everything" errors we see anyway (or otherwise, if the error is
             # escalated into a test failure)
-            self.log.error("Shutdown timeout exceeded, returning anyway. Interfaces still busy: %s", pending)
+            self.log.error(
+                "Shutdown timeout exceeded, returning anyway. Interfaces still busy: %s",
+                pending,
+            )
 
     # FIXME: determine how official this should be, or which part of it is
     # public -- now that BlockwiseRequest uses it. (And formalize what can
@@ -360,15 +467,18 @@ class Context(interfaces.RequestProvider):
 
         async def send():
             try:
-                request_interface = await self.find_remote_and_interface(request_message)
+                request_interface = await self.find_remote_and_interface(
+                    request_message
+                )
                 request_interface.request(pipe)
             except Exception as e:
                 pipe.add_exception(e)
                 return
+
         self.loop.create_task(
-                send(),
-                name="Request processing of %r" % result,
-                )
+            send(),
+            name="Request processing of %r" % result,
+        )
         return result
 
     # the following are under consideration for moving into Site or something
@@ -381,20 +491,24 @@ class Context(interfaces.RequestProvider):
         pr_that_can_receive_errors = error_to_message(pipe, self.log)
 
         run_driving_pipe(
-                pr_that_can_receive_errors,
-                self._render_to_pipe(pipe),
-                name="Rendering for %r" % pipe.request,
-                )
+            pr_that_can_receive_errors,
+            self._render_to_pipe(pipe),
+            name="Rendering for %r" % pipe.request,
+        )
 
     async def _render_to_pipe(self, pipe):
         if self.serversite is None:
-            pipe.add_response(Message(code=NOT_FOUND, payload=b"not a server"), is_last=True)
+            pipe.add_response(
+                Message(code=NOT_FOUND, payload=b"not a server"), is_last=True
+            )
             return
 
         return await self.serversite.render_to_pipe(pipe)
 
+
 class BaseRequest(object):
     """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
+
 
 class BaseUnicastRequest(BaseRequest):
     """A utility class that offers the :attr:`response_raising` and
@@ -438,8 +552,8 @@ class BaseUnicastRequest(BaseRequest):
         except Exception:
             return Message(code=INTERNAL_SERVER_ERROR)
 
-class Request(interfaces.Request, BaseUnicastRequest):
 
+class Request(interfaces.Request, BaseUnicastRequest):
     # FIXME: Implement timing out with REQUEST_TIMEOUT here
 
     def __init__(self, pipe, loop, log):
@@ -454,6 +568,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
 
         self._runner = self._run()
         self._runner.send(None)
+
         def process(event):
             try:
                 # would be great to have self or the runner as weak ref, but
@@ -463,6 +578,7 @@ class Request(interfaces.Request, BaseUnicastRequest):
                 return True
             except StopIteration:
                 return False
+
         self._stop_interest = self._pipe.on_event(process)
 
         self.log = log
@@ -504,15 +620,19 @@ class Request(interfaces.Request, BaseUnicastRequest):
             self.response.set_exception(first_event.exception)
             if not isinstance(first_event.exception, error.Error):
                 self.log.warning(
-                       "An exception that is not an aiocoap Error was raised "
-                       "from a transport; please report this as a bug in "
-                       "aiocoap: %r", first_event.exception)
+                    "An exception that is not an aiocoap Error was raised "
+                    "from a transport; please report this as a bug in "
+                    "aiocoap: %r",
+                    first_event.exception,
+                )
 
         if self.observation is None:
             if not first_event.is_last:
-                self.log.error("Pipe indicated more possible responses"
-                               " while the Request handler would not know what to"
-                               " do with them, stopping any further request.")
+                self.log.error(
+                    "Pipe indicated more possible responses"
+                    " while the Request handler would not know what to"
+                    " do with them, stopping any further request."
+                )
                 self._stop_interest()
             return
 
@@ -521,9 +641,11 @@ class Request(interfaces.Request, BaseUnicastRequest):
             return
 
         if first_event.message.opt.observe is None:
-            self.log.error("Pipe indicated more possible responses"
-                           " while the Request handler would not know what to"
-                           " do with them, stopping any further request.")
+            self.log.error(
+                "Pipe indicated more possible responses"
+                " while the Request handler would not know what to"
+                " do with them, stopping any further request."
+            )
             self._stop_interest()
             return
 
@@ -551,10 +673,11 @@ class Request(interfaces.Request, BaseUnicastRequest):
                     self._stop_interest()
                 if not isinstance(next_event.exception, error.Error):
                     self.log.warning(
-                           "An exception that is not an aiocoap Error was "
-                           "raised from a transport during an observation; "
-                           "please report this as a bug in aiocoap: %r",
-                           next_event.exception)
+                        "An exception that is not an aiocoap Error was "
+                        "raised from a transport during an observation; "
+                        "please report this as a bug in aiocoap: %r",
+                        next_event.exception,
+                    )
                 return
 
             self._add_response_properties(next_event.message, self._pipe.request)
@@ -564,9 +687,15 @@ class Request(interfaces.Request, BaseUnicastRequest):
                 v2 = next_event.message.opt.observe
                 t2 = time.time()
 
-                is_recent = (v1 < v2 and v2 - v1 < 2**23) or \
-                        (v1 > v2 and v1 - v2 > 2**23) or \
-                        (t2 > t1 + self._pipe.request.transport_tuning.OBSERVATION_RESET_TIME)
+                is_recent = (
+                    (v1 < v2 and v2 - v1 < 2**23)
+                    or (v1 > v2 and v1 - v2 > 2**23)
+                    or (
+                        t2
+                        > t1
+                        + self._pipe.request.transport_tuning.OBSERVATION_RESET_TIME
+                    )
+                )
                 if is_recent:
                     t1 = t2
                     v1 = v2
@@ -583,9 +712,11 @@ class Request(interfaces.Request, BaseUnicastRequest):
 
             if next_event.message.opt.observe is None:
                 self.observation.error(error.ObservationCancelled())
-                self.log.error("Pipe indicated more possible responses"
-                               " while the Request handler would not know what to"
-                               " do with them, stopping any further request.")
+                self.log.error(
+                    "Pipe indicated more possible responses"
+                    " while the Request handler would not know what to"
+                    " do with them, stopping any further request."
+                )
                 self._stop_interest()
                 return
 
@@ -602,10 +733,13 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         else:
             self.observation = None
 
-        self._runner = protocol.loop.create_task(self._run_outer(
+        self._runner = protocol.loop.create_task(
+            self._run_outer(
                 app_request,
                 self.response,
-                weakref.ref(self.observation) if self.observation is not None else lambda: None,
+                weakref.ref(self.observation)
+                if self.observation is not None
+                else lambda: None,
                 self.protocol,
                 self.log,
             ),
@@ -623,7 +757,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         try:
             await cls._run(app_request, response, weak_observation, protocol, log)
         except asyncio.CancelledError:
-            pass # results already set
+            pass  # results already set
         except Exception as e:
             logged = False
             if not response.done():
@@ -635,7 +769,11 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 obs.error(e)
             if not logged:
                 # should be unreachable
-                log.error("Exception in BlockwiseRequest runner neither went to response nor to observation: %s", e, exc_info=e)
+                log.error(
+                    "Exception in BlockwiseRequest runner neither went to response nor to observation: %s",
+                    e,
+                    exc_info=e,
+                )
 
     # This is a class method because that allows self and self.observation to
     # be freed even when this task is running, and the task to stop itself --
@@ -651,8 +789,12 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         size_exp = app_request.remote.maximum_block_size_exp
 
         if app_request.opt.block1 is not None:
-            assert app_request.opt.block1.block_number == 0, "Unexpected block number in app_request"
-            assert not app_request.opt.block1.more, "Unexpected more-flag in app_request"
+            assert (
+                app_request.opt.block1.block_number == 0
+            ), "Unexpected block number in app_request"
+            assert (
+                not app_request.opt.block1.more
+            ), "Unexpected more-flag in app_request"
             # this is where the library user can traditionally pass in size
             # exponent hints into the library.
             size_exp = app_request.opt.block1.size_exponent
@@ -668,14 +810,15 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 # FIXME from maximum_payload_size
                 fragmentation_threshold = app_request.remote.maximum_payload_size
             else:
-                fragmentation_threshold = (2 ** (size_exp + 4))
+                fragmentation_threshold = 2 ** (size_exp + 4)
 
-            if app_request.opt.block1 is not None or \
-                    len(app_request.payload) > fragmentation_threshold:
+            if (
+                app_request.opt.block1 is not None
+                or len(app_request.payload) > fragmentation_threshold
+            ):
                 current_block1 = app_request._extract_block(
-                        block_cursor,
-                        size_exp,
-                        app_request.remote.maximum_payload_size)
+                    block_cursor, size_exp, app_request.remote.maximum_payload_size
+                )
                 if block_cursor == 0:
                     current_block1.opt.size1 = len(app_request.payload)
             else:
@@ -691,12 +834,19 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
 
             if blockresponse.opt.block1 is None:
                 if blockresponse.code.is_successful() and current_block1.opt.block1:
-                    log.warning("Block1 option completely ignored by server, assuming it knows what it is doing.")
+                    log.warning(
+                        "Block1 option completely ignored by server, assuming it knows what it is doing."
+                    )
                 # FIXME: handle 4.13 and retry with the indicated size option
                 break
 
             block1 = blockresponse.opt.block1
-            log.debug("Response with Block1 option received, number = %d, more = %d, size_exp = %d.", block1.block_number, block1.more, block1.size_exponent)
+            log.debug(
+                "Response with Block1 option received, number = %d, more = %d, size_exp = %d.",
+                block1.block_number,
+                block1.more,
+                block1.size_exponent,
+            )
 
             if block1.block_number != current_block1.opt.block1.block_number:
                 raise error.UnexpectedBlock1Option("Block number mismatch")
@@ -715,7 +865,9 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                     # treating this as a protocol error -- letting it slip
                     # through would misrepresent the whole operation as an
                     # over-all 2.xx (successful) one.
-                    raise error.UnexpectedBlock1Option("Server asked for more data at end of body")
+                    raise error.UnexpectedBlock1Option(
+                        "Server asked for more data at end of body"
+                    )
                 break
 
             # checks before preparing the next round:
@@ -724,12 +876,14 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 # we're not *really* interested in that block, we just sent an
                 # observe option to indicate that we'll want to observe the
                 # resulting representation as a whole
-                log.warning("Server answered Observe in early Block1 phase, cancelling the erroneous observation.")
+                log.warning(
+                    "Server answered Observe in early Block1 phase, cancelling the erroneous observation."
+                )
                 blockrequest.observe.cancel()
 
             if block1.more:
                 # FIXME i think my own server is dowing this wrong
-                #if response.code != CONTINUE:
+                # if response.code != CONTINUE:
                 #    raise error.UnexpectedBlock1Option("more-flag set but no Continue")
                 pass
             else:
@@ -757,7 +911,9 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         # block1 as a reference for now, especially because in the
         # only-one-request-block case, that's the original request we must send
         # again and again anyway
-        assembled_response = await cls._complete_by_requesting_block2(protocol, current_block1, blockresponse, log)
+        assembled_response = await cls._complete_by_requesting_block2(
+            protocol, current_block1, blockresponse, log
+        )
 
         response.set_result(assembled_response)
         # finally set the result
@@ -770,30 +926,37 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             if obs is None:
                 lower_observation.cancel()
                 return
-            future_weak_observation = protocol.loop.create_future() # packing this up because its destroy callback needs to reference the subtask
+            future_weak_observation = protocol.loop.create_future()  # packing this up because its destroy callback needs to reference the subtask
             subtask = asyncio.create_task(
-                    cls._run_observation(
-                        app_request,
-                        lower_observation,
-                        future_weak_observation,
-                        protocol,
-                        log),
-                    name="Blockwise observation for %r" % app_request,
-                    )
-            future_weak_observation.set_result(weakref.ref(obs, lambda obs: subtask.cancel()))
+                cls._run_observation(
+                    app_request,
+                    lower_observation,
+                    future_weak_observation,
+                    protocol,
+                    log,
+                ),
+                name="Blockwise observation for %r" % app_request,
+            )
+            future_weak_observation.set_result(
+                weakref.ref(obs, lambda obs: subtask.cancel())
+            )
             obs.on_cancel(subtask.cancel)
             del obs
             await subtask
 
     @classmethod
-    async def _run_observation(cls, original_request, lower_observation, future_weak_observation, protocol, log):
+    async def _run_observation(
+        cls, original_request, lower_observation, future_weak_observation, protocol, log
+    ):
         weak_observation = await future_weak_observation
         # we can use weak_observation() here at any time, because whenever that
         # becomes None, this task gets cancelled
         try:
             async for block1_notification in lower_observation:
                 log.debug("Notification received")
-                full_notification = await cls._complete_by_requesting_block2(protocol, original_request, block1_notification, log)
+                full_notification = await cls._complete_by_requesting_block2(
+                    protocol, original_request, block1_notification, log
+                )
                 log.debug("Reporting completed notification")
                 weak_observation().callback(full_notification)
             # FIXME verify that this loop actually ends iff the observation
@@ -812,10 +975,15 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 lower_observation.cancel()
 
     @classmethod
-    async def _complete_by_requesting_block2(cls, protocol, request_to_repeat, initial_response, log):
+    async def _complete_by_requesting_block2(
+        cls, protocol, request_to_repeat, initial_response, log
+    ):
         # FIXME this can probably be deduplicated against BlockwiseRequest
 
-        if initial_response.opt.block2 is None or initial_response.opt.block2.more is False:
+        if (
+            initial_response.opt.block2 is None
+            or initial_response.opt.block2.more is False
+        ):
             initial_response.opt.block2 = None
             return initial_response
 
@@ -826,7 +994,9 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         assembled_response = initial_response
         last_response = initial_response
         while True:
-            current_block2 = request_to_repeat._generate_next_block2_request(assembled_response)
+            current_block2 = request_to_repeat._generate_next_block2_request(
+                assembled_response
+            )
 
             current_block2 = current_block2.copy(remote=initial_response.remote)
 
@@ -834,11 +1004,18 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             last_response = await blockrequest.response
 
             if last_response.opt.block2 is None:
-                log.warning("Server sent non-blockwise response after having started a blockwise transfer. Blockwise transfer cancelled, accepting single response.")
+                log.warning(
+                    "Server sent non-blockwise response after having started a blockwise transfer. Blockwise transfer cancelled, accepting single response."
+                )
                 return last_response
 
             block2 = last_response.opt.block2
-            log.debug("Response with Block2 option received, number = %d, more = %d, size_exp = %d.", block2.block_number, block2.more, block2.size_exponent)
+            log.debug(
+                "Response with Block2 option received, number = %d, more = %d, size_exp = %d.",
+                block2.block_number,
+                block2.more,
+                block2.size_exponent,
+            )
             try:
                 assembled_response._append_response_block(last_response)
             except error.Error as e:
@@ -848,6 +1025,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
             if block2.more is False:
                 return assembled_response
 
+
 class ClientObservation:
     """An interface to observe notification updates arriving on a request.
 
@@ -856,6 +1034,7 @@ class ClientObservation:
     iteration. It gets driven (ie. populated with responses or errors including
     observation termination) by a Request object.
     """
+
     def __init__(self):
         self.callbacks = []
         self.errbacks = []
@@ -939,8 +1118,11 @@ class ClientObservation:
         The use of this function is deprecated: Use the asynchronous iteration
         interface instead."""
         if not _suppress_deprecation:
-            warnings.warn("register_callback on observe results is deprected: Use `async for notify in request.observation` instead.",
-                      DeprecationWarning, stacklevel=2)
+            warnings.warn(
+                "register_callback on observe results is deprected: Use `async for notify in request.observation` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         if self.cancelled:
             return
 
@@ -956,8 +1138,11 @@ class ClientObservation:
         The use of this function is deprecated: Use the asynchronous iteration
         interface instead."""
         if not _suppress_deprecation:
-            warnings.warn("register_errback on observe results is deprected: Use `async for notify in request.observation` instead.",
-                      DeprecationWarning, stacklevel=2)
+            warnings.warn(
+                "register_errback on observe results is deprected: Use `async for notify in request.observation` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         if self.cancelled:
             callback(self._cancellation_reason)
             return
@@ -976,7 +1161,9 @@ class ClientObservation:
         can only be called once."""
 
         if self.errbacks is None:
-            raise RuntimeError("Error raised in an already cancelled ClientObservation") from exception
+            raise RuntimeError(
+                "Error raised in an already cancelled ClientObservation"
+            ) from exception
         for c in self.errbacks:
             c(exception)
 
@@ -1013,7 +1200,15 @@ class ClientObservation:
         self._on_cancel.append(callback)
 
     def __repr__(self):
-        return '<%s %s at %#x>' % (type(self).__name__, "(cancelled)" if self.cancelled else "(%s call-, %s errback(s))" % (len(self.callbacks), len(self.errbacks)), id(self))
+        return "<%s %s at %#x>" % (
+            type(self).__name__,
+            "(cancelled)"
+            if self.cancelled
+            else "(%s call-, %s errback(s))"
+            % (len(self.callbacks), len(self.errbacks)),
+            id(self),
+        )
+
 
 class ServerObservation:
     def __init__(self):
@@ -1038,11 +1233,15 @@ class ServerObservation:
             self._early_deregister = True
             return
 
-        warnings.warn("Late use of ServerObservation.deregister() is"
-                      " deprecated, use .trigger with an unsuccessful value"
-                      " instead",
-                      DeprecationWarning)
-        self.trigger(Message(code=INTERNAL_SERVER_ERROR, payload=b"Resource became unobservable"))
+        warnings.warn(
+            "Late use of ServerObservation.deregister() is"
+            " deprecated, use .trigger with an unsuccessful value"
+            " instead",
+            DeprecationWarning,
+        )
+        self.trigger(
+            Message(code=INTERNAL_SERVER_ERROR, payload=b"Resource became unobservable")
+        )
 
     def trigger(self, response=None, *, is_last=False):
         """Send an updated response; if None is given, the observed resource's

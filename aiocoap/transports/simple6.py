@@ -47,8 +47,14 @@ from ..numbers import COAP_PORT, constants
 from ..util import hostportjoin
 from .generic_udp import GenericMessageInterface
 
+
 class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
-    def __init__(self, ready_callback, message_interface: "GenericMessageInterface", stored_sockaddr):
+    def __init__(
+        self,
+        ready_callback,
+        message_interface: "GenericMessageInterface",
+        stored_sockaddr,
+    ):
         self._ready_callback = ready_callback
         self._message_interface = message_interface
 
@@ -61,16 +67,20 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
         # If _Connections become used in other contexts (eg. tinydtls starts
         # using them), it might be a good idea to move all this into a subclass
         # and split it from the pure networking stuff.
-        self.hostinfo = hostportjoin(stored_sockaddr[0], None if stored_sockaddr[1] == COAP_PORT else stored_sockaddr[1])
+        self.hostinfo = hostportjoin(
+            stored_sockaddr[0],
+            None if stored_sockaddr[1] == COAP_PORT else stored_sockaddr[1],
+        )
 
-        self._stage = "initializing" #: Status property purely for debugging
+        self._stage = "initializing"  #: Status property purely for debugging
 
     def __repr__(self):
         return "<%s at %#x on transport %s, %s>" % (
-                type(self).__name__,
-                id(self),
-                getattr(self, "_transport", "(none)"),
-                self._stage)
+            type(self).__name__,
+            id(self),
+            getattr(self, "_transport", "(none)"),
+            self._stage,
+        )
 
     # address interface
 
@@ -78,7 +88,7 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
 
     is_multicast_locally = False
 
-    scheme = 'coap'
+    scheme = "coap"
 
     # Unlike for other remotes, this is settable per instance.
     maximum_block_size_exp = constants.MAX_REGULAR_BLOCK_SIZE_EXP
@@ -86,7 +96,7 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
     # statically initialized in init
     hostinfo = None
     uri_base = None
-    uri_base = property(lambda self: 'coap://' + self.hostinfo)
+    uri_base = property(lambda self: "coap://" + self.hostinfo)
 
     @property
     def hostinfo_local(self):
@@ -97,13 +107,19 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
         # something that can not be determined. (Some more effort could go into
         # falling back to get_extra_info('socket').getsockname(), but that
         # should really be fixed in the transport provider).
-        if not hasattr(self, '_transport'):
-            raise RuntimeError("Simple6 does not have defined local host info in current stage %s" % self._stage)
-        sockname = self._transport.get_extra_info('sockname')
+        if not hasattr(self, "_transport"):
+            raise RuntimeError(
+                "Simple6 does not have defined local host info in current stage %s"
+                % self._stage
+            )
+        sockname = self._transport.get_extra_info("sockname")
         if sockname is None:
-            raise RuntimeError("Simple6 can not determine local address from the underlying UDP implementation")
+            raise RuntimeError(
+                "Simple6 can not determine local address from the underlying UDP implementation"
+            )
         return hostportjoin(*sockname[:2])
-    uri_base_local = property(lambda self: 'coap://' + self.hostinfo_local)
+
+    uri_base_local = property(lambda self: "coap://" + self.hostinfo_local)
 
     @property
     def blockwise_key(self):
@@ -112,19 +128,19 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
         # changing port, that's probably fine.
         return self.hostinfo
 
-# fully disabled because some implementations of asyncio don't make the
-# information available; going the easy route and storing it for all (see
-# attribute population in __init__)
+    # fully disabled because some implementations of asyncio don't make the
+    # information available; going the easy route and storing it for all (see
+    # attribute population in __init__)
 
-#     # FIXME continued: probably this is, and the above is not (or should not be)
-#     @property
-#     def hostinfo(self):
-#         print("ACCESSING HOSTINFO")
-#         host, port = self._transport.get_extra_info('socket').getpeername()[:2]
-#         if port == COAP_PORT:
-#             port = None
-#         # FIXME this should use some of the _plainaddress mechanisms of the udp6 addresses
-#         return hostportjoin(host, port)
+    #     # FIXME continued: probably this is, and the above is not (or should not be)
+    #     @property
+    #     def hostinfo(self):
+    #         print("ACCESSING HOSTINFO")
+    #         host, port = self._transport.get_extra_info('socket').getpeername()[:2]
+    #         if port == COAP_PORT:
+    #             port = None
+    #         # FIXME this should use some of the _plainaddress mechanisms of the udp6 addresses
+    #         return hostportjoin(host, port)
 
     # datagram protocol interface
 
@@ -158,6 +174,7 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
         del self._message_interface
         self._stage = "destroyed"
 
+
 class _DatagramClientSocketpoolSimple6:
     """This class is used to explore what an Python/asyncio abstraction around
     a hypothetical "UDP connections" mechanism could look like.
@@ -189,7 +206,7 @@ class _DatagramClientSocketpoolSimple6:
         self._message_interface = mi
 
     async def _maybe_purge_sockets(self):
-        while len(self._sockets) >= self.max_sockets: # more of an if
+        while len(self._sockets) >= self.max_sockets:  # more of an if
             oldaddr, oldest = next(iter(self._sockets.items()))
             await oldest.shutdown()
             del self._sockets[oldaddr]
@@ -216,16 +233,21 @@ class _DatagramClientSocketpoolSimple6:
         ready = asyncio.get_running_loop().create_future()
         try:
             transport, protocol = await self._loop.create_datagram_endpoint(
-                    lambda: _Connection(lambda: ready.set_result(None), self._message_interface, sockaddr),
-                    remote_addr=sockaddr)
+                lambda: _Connection(
+                    lambda: ready.set_result(None), self._message_interface, sockaddr
+                ),
+                remote_addr=sockaddr,
+            )
         except socket.gaierror as e:
-            raise error.ResolutionError("No address information found for requests to %r" % (sockaddr,)) from e
+            raise error.ResolutionError(
+                "No address information found for requests to %r" % (sockaddr,)
+            ) from e
         await ready
 
-#         # Enable this to easily make every connection to localhost a new one
-#         # during testing
-#         import random
-#         sockaddr = sockaddr + (random.random(),)
+        #         # Enable this to easily make every connection to localhost a new one
+        #         # during testing
+        #         import random
+        #         sockaddr = sockaddr + (random.random(),)
 
         # FIXME twice: 1., those never get removed yet (should timeout or
         # remove themselves on error), and 2., this is racy against a shutdown right after a connect
@@ -239,16 +261,19 @@ class _DatagramClientSocketpoolSimple6:
         del self._message_interface
 
         if self._sockets:
-            done, pending = await asyncio.wait([
-                asyncio.create_task(
-                    s.shutdown(),
-                    name="Socket shutdown of %r" % s,
+            done, pending = await asyncio.wait(
+                [
+                    asyncio.create_task(
+                        s.shutdown(),
+                        name="Socket shutdown of %r" % s,
                     )
-                for s
-                in self._sockets.values()])
+                    for s in self._sockets.values()
+                ]
+            )
             for item in done:
                 await item
         del self._sockets
+
 
 class MessageInterfaceSimple6(GenericMessageInterface):
     @classmethod

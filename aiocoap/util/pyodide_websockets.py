@@ -20,8 +20,10 @@ its items. When that happens, it should be split out of aiocoap.
 
 import asyncio
 
+
 class WebSocketCommonProtocol:
     pass
+
 
 class WebSocketClientProtocol(WebSocketCommonProtocol):
     def __init__(self, socket):
@@ -55,6 +57,7 @@ class WebSocketClientProtocol(WebSocketCommonProtocol):
 
     async def send(self, msg):
         from js import Blob, Uint8Array
+
         blob = Blob.new([Uint8Array.new(msg)])
         self._socket.send(blob)
 
@@ -77,7 +80,10 @@ class WebSocketClientProtocol(WebSocketCommonProtocol):
         self.open = False
         self._queue.put_nowait(("close", event))
 
-async def connect(uri, subprotocols=None, ping_interval=20, ssl=None) -> WebSocketClientProtocol:
+
+async def connect(
+    uri, subprotocols=None, ping_interval=20, ssl=None
+) -> WebSocketClientProtocol:
     from pyodide.ffi.wrappers import add_event_listener
     from js import WebSocket
 
@@ -91,7 +97,9 @@ async def connect(uri, subprotocols=None, ping_interval=20, ssl=None) -> WebSock
 
     proto = WebSocketClientProtocol(socket)
 
-    add_event_listener(socket, "open", lambda e, q=proto._queue: q.put_nowait(("open", e)))
+    add_event_listener(
+        socket, "open", lambda e, q=proto._queue: q.put_nowait(("open", e))
+    )
     add_event_listener(socket, "message", proto.on_message)
     add_event_listener(socket, "error", proto.on_error)
     add_event_listener(socket, "close", proto.on_close)
@@ -102,22 +110,28 @@ async def connect(uri, subprotocols=None, ping_interval=20, ssl=None) -> WebSock
 
     return proto
 
+
 class exceptions:
     """A class that is a good-enough approximation of ``websockets.exceptions``
     to get away with a single file implementing pyodide_websockets."""
+
     class WebSocketException(Exception):
         pass
 
     class ConnectionClosed(WebSocketException):
         pass
 
+
 # Mocks required by the aiocoap.transports.ws module expecting a full implementation
+
 
 class WebSocketServerProtocol:
     def __init__(self, *args, **kwargs):
         raise RuntimeError("Web sockets in web browsers can not be used as servers")
 
+
 WebSocketServer = WebSocketServerProtocol
+
 
 def serve(*args, **kwargs):
     WebSocketServer()

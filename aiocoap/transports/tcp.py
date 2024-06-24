@@ -12,6 +12,7 @@ from aiocoap import interfaces, error, util
 from aiocoap import COAP_PORT, Message
 from aiocoap import defaults
 
+
 def _extract_message_size(data: bytes):
     """Read out the full length of a CoAP messsage represented by data.
 
@@ -24,15 +25,15 @@ def _extract_message_size(data: bytes):
     if not data:
         return None
 
-    l = data[0] >> 4
+    length = data[0] >> 4
     tokenoffset = 2
-    tkl = data[0] & 0x0f
+    tkl = data[0] & 0x0F
 
-    if l >= 13:
-        if l == 13:
+    if length >= 13:
+        if length == 13:
             extlen = 1
             offset = 13
-        elif l == 14:
+        elif length == 14:
             extlen = 2
             offset = 269
         else:
@@ -41,52 +42,54 @@ def _extract_message_size(data: bytes):
         if len(data) < extlen + 1:
             return None
         tokenoffset = 2 + extlen
-        l = int.from_bytes(data[1:1 + extlen], "big") + offset
-    return tokenoffset, tkl, l
+        length = int.from_bytes(data[1 : 1 + extlen], "big") + offset
+    return tokenoffset, tkl, length
+
 
 def _decode_message(data: bytes) -> Message:
     tokenoffset, tkl, _ = _extract_message_size(data)
     if tkl > 8:
         raise error.UnparsableMessage("Overly long token")
     code = data[tokenoffset - 1]
-    token = data[tokenoffset:tokenoffset + tkl]
+    token = data[tokenoffset : tokenoffset + tkl]
 
     msg = Message(code=code, token=token)
 
-    msg.payload = msg.opt.decode(data[tokenoffset + tkl:])
+    msg.payload = msg.opt.decode(data[tokenoffset + tkl :])
 
     return msg
 
-def _encode_length(l: int):
-    if l < 13:
-        return (l, b"")
-    elif l < 269:
-        return (13, (l - 13).to_bytes(1, 'big'))
-    elif l < 65805:
-        return (14, (l - 269).to_bytes(2, 'big'))
+
+def _encode_length(length: int):
+    if length < 13:
+        return (length, b"")
+    elif length < 269:
+        return (13, (length - 13).to_bytes(1, "big"))
+    elif length < 65805:
+        return (14, (length - 269).to_bytes(2, "big"))
     else:
-        return (15, (l - 65805).to_bytes(4, 'big'))
+        return (15, (length - 65805).to_bytes(4, "big"))
+
 
 def _serialize(msg: Message) -> bytes:
     data_list = [msg.opt.encode()]
     if msg.payload:
-        data_list += [b'\xff', msg.payload]
+        data_list += [b"\xff", msg.payload]
     data = b"".join(data_list)
-    l, extlen = _encode_length(len(data))
+    length, extlen = _encode_length(len(data))
 
     tkl = len(msg.token)
     if tkl > 8:
         raise ValueError("Overly long token")
 
-    return b"".join((
-            bytes(((l << 4) | tkl,)),
-            extlen,
-            bytes((msg.code,)),
-            msg.token,
-            data
-            ))
+    return b"".join(
+        (bytes(((length << 4) | tkl,)), extlen, bytes((msg.code,)), msg.token, data)
+    )
 
-class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
+
+class TcpConnection(
+    asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.EndpointAddress
+):
     # currently, both the protocol and the EndpointAddress are the same object.
     # if, at a later point in time, the keepaliving of TCP connections should
     # depend on whether the library user still keeps a usable address around,
@@ -111,7 +114,9 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
 
     def _send_message(self, msg: Message):
         self.log.debug("Sending message: %r", msg)
-        assert self._transport is not None, "Attempted to send message before connection"
+        assert (
+            self._transport is not None
+        ), "Attempted to send message before connection"
         self._transport.write(_serialize(msg))
 
     def _abort_with(self, abort_msg):
@@ -130,7 +135,7 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
     def connection_made(self, transport):
         self._transport = transport
 
-        ssl_object = transport.get_extra_info('ssl_object')
+        ssl_object = transport.get_extra_info("ssl_object")
         if ssl_object is not None:
             server_name = getattr(ssl_object, "indicated_server_name", None)
         else:
@@ -138,11 +143,15 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
 
         # `host` already contains the interface identifier, so throwing away
         # scope and interface identifier
-        self._local_hostinfo = transport.get_extra_info('sockname')[:2]
-        self._remote_hostinfo = transport.get_extra_info('peername')[:2]
+        self._local_hostinfo = transport.get_extra_info("sockname")[:2]
+        self._remote_hostinfo = transport.get_extra_info("peername")[:2]
 
         def none_default_port(sockname):
-            return (sockname[0], None if sockname[1] == self._ctx._default_port else sockname[1])
+            return (
+                sockname[0],
+                None if sockname[1] == self._ctx._default_port else sockname[1],
+            )
+
         self._local_hostinfo = none_default_port(self._local_hostinfo)
         self._remote_hostinfo = none_default_port(self._remote_hostinfo)
 
@@ -228,6 +237,7 @@ class TcpConnection(asyncio.Protocol, rfc8323common.RFC8323Remote, interfaces.En
     # RFC8323Remote.release recommends subclassing this, but there's no easy
     # awaitable here yet, and no important business to finish, timeout-wise.
 
+
 class _TCPPooling:
     # implementing TokenInterface
 
@@ -237,7 +247,9 @@ class _TCPPooling:
         # down the complete connection
 
         if message.code.is_response():
-            no_response = (message.opt.no_response or 0) & (1 << message.code.class_ - 1) != 0
+            no_response = (message.opt.no_response or 0) & (
+                1 << message.code.class_ - 1
+            ) != 0
             if no_response:
                 return
 
@@ -272,8 +284,9 @@ class _TCPPooling:
         self._tokenmanager.dispatch_error(exc, connection)
 
     # for diverting behavior of _TLSMixIn
-    _scheme = 'coap+tcp'
+    _scheme = "coap+tcp"
     _default_port = COAP_PORT
+
 
 class TCPServer(_TCPPooling, interfaces.TokenInterface):
     def __init__(self) -> None:
@@ -282,14 +295,21 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         self.server = None
 
     @classmethod
-    async def create_server(cls, bind, tman: interfaces.TokenManager, log, loop, *, _server_context=None):
+    async def create_server(
+        cls, bind, tman: interfaces.TokenManager, log, loop, *, _server_context=None
+    ):
         self = cls()
         self._tokenmanager = tman
         self.log = log
-        #self.loop = loop
+        # self.loop = loop
 
-        bind = bind or ('::', None)
-        bind = (bind[0], bind[1] + (self._default_port - COAP_PORT) if bind[1] else self._default_port)
+        bind = bind or ("::", None)
+        bind = (
+            bind[0],
+            bind[1] + (self._default_port - COAP_PORT)
+            if bind[1]
+            else self._default_port,
+        )
 
         def new_connection():
             c = TcpConnection(self, log, loop, is_server=True)
@@ -297,10 +317,17 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
             return c
 
         try:
-            server = await loop.create_server(new_connection, bind[0], bind[1],
-                    ssl=_server_context, reuse_port=defaults.has_reuse_port())
+            server = await loop.create_server(
+                new_connection,
+                bind[0],
+                bind[1],
+                ssl=_server_context,
+                reuse_port=defaults.has_reuse_port(),
+            )
         except socket.gaierror as e:
-            raise error.ResolutionError("No local bindable address found for %s" % bind[0]) from e
+            raise error.ResolutionError(
+                "No local bindable address found for %s" % bind[0]
+            ) from e
         self.server = server
 
         return self
@@ -314,9 +341,11 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
     # implementing TokenInterface
 
     async def fill_or_recognize_remote(self, message):
-        if message.remote is not None \
-                and isinstance(message.remote, TcpConnection) \
-                and message.remote._ctx is self:
+        if (
+            message.remote is not None
+            and isinstance(message.remote, TcpConnection)
+            and message.remote._ctx is self
+        ):
             return True
 
         return False
@@ -328,23 +357,26 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         # Since server has been closed, we won't be getting any *more*
         # connections, so we can process them all now:
         shutdowns = [
-                asyncio.create_task(
-                    c.release(),
-                    name="Close client %s" % c,
-                )
-                for c
-                in self._pool
-                ]
-        shutdowns.append(asyncio.create_task(
-                self.server.wait_closed(),
-                name="Close server %s" % self),
-                )
+            asyncio.create_task(
+                c.release(),
+                name="Close client %s" % c,
+            )
+            for c in self._pool
+        ]
+        shutdowns.append(
+            asyncio.create_task(
+                self.server.wait_closed(), name="Close server %s" % self
+            ),
+        )
         # There is at least one member, so we can just .wait()
         await asyncio.wait(shutdowns)
 
+
 class TCPClient(_TCPPooling, interfaces.TokenInterface):
     def __init__(self) -> None:
-        self._pool: Dict[Tuple[str, int], TcpConnection] = {} #: (host, port) -> connection
+        self._pool: Dict[
+            Tuple[str, int], TcpConnection
+        ] = {}  #: (host, port) -> connection
         # note that connections are filed by host name, so different names for
         # the same address might end up with different connections, which is
         # probably okay for TCP, and crucial for later work with TLS.
@@ -357,7 +389,9 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
             host = message.opt.uri_host
             port = message.opt.uri_port or self._default_port
             if host is None:
-                raise ValueError("No location found to send message to (neither in .opt.uri_host nor in .remote)")
+                raise ValueError(
+                    "No location found to send message to (neither in .opt.uri_host nor in .remote)"
+                )
         else:
             host, port = util.hostportsplit(message.unresolved_remote)
             port = port or self._default_port
@@ -367,12 +401,15 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
 
         try:
             _, protocol = await self.loop.create_connection(
-                    lambda: TcpConnection(self, self.log, self.loop,
-                        is_server=False),
-                    host, port,
-                    ssl=self._ssl_context_factory(message.unresolved_remote))
+                lambda: TcpConnection(self, self.log, self.loop, is_server=False),
+                host,
+                port,
+                ssl=self._ssl_context_factory(message.unresolved_remote),
+            )
         except socket.gaierror as e:
-            raise error.ResolutionError("No address information found for requests to %r" % host) from e
+            raise error.ResolutionError(
+                "No address information found for requests to %r" % host
+            ) from e
         except OSError as e:
             raise error.NetworkError("Connection failed to %r" % host) from e
 
@@ -394,7 +431,9 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
             self._pool.pop(k)
 
     @classmethod
-    async def create_client_transport(cls, tman: interfaces.TokenManager, log, loop, credentials=None):
+    async def create_client_transport(
+        cls, tman: interfaces.TokenManager, log, loop, credentials=None
+    ):
         # this is not actually asynchronous, and even though the interface
         # between the context and the creation of interfaces is not fully
         # standardized, this stays in the other inferfaces' style.
@@ -410,9 +449,11 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
     # implementing TokenInterface
 
     async def fill_or_recognize_remote(self, message):
-        if message.remote is not None \
-                and isinstance(message.remote, TcpConnection) \
-                and message.remote._ctx is self:
+        if (
+            message.remote is not None
+            and isinstance(message.remote, TcpConnection)
+            and message.remote._ctx is self
+        ):
             return True
 
         if message.requested_scheme == self._scheme:
@@ -430,11 +471,13 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
         self.log.debug("Shutting down any outgoing connections on on %r", self)
         self._tokenmanager = None
 
-        shutdowns = [asyncio.create_task(
+        shutdowns = [
+            asyncio.create_task(
                 c.release(),
                 name="Close client %s" % c,
             )
-            for c in self._pool.values()]
+            for c in self._pool.values()
+        ]
         if not shutdowns:
             # wait is documented to require a non-empty set
             return

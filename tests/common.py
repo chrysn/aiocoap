@@ -10,26 +10,30 @@ import asyncio
 
 import aiocoap.defaults
 
-if os.environ.get('AIOCOAP_TESTS_LOOP', None) == 'uvloop':
+if os.environ.get("AIOCOAP_TESTS_LOOP", None) == "uvloop":
     import asyncio
     import uvloop
+
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-elif os.environ.get('AIOCOAP_TESTS_LOOP', None) == 'gbulb':
+elif os.environ.get("AIOCOAP_TESTS_LOOP", None) == "gbulb":
     import gbulb
+
     gbulb.install()
-elif os.environ.get('AIOCOAP_TESTS_LOOP', None) == 'glib':
+elif os.environ.get("AIOCOAP_TESTS_LOOP", None) == "glib":
     from gi.events import GLibEventLoopPolicy
+
     policy = GLibEventLoopPolicy()
     asyncio.set_event_loop_policy(policy)
 
 # All test servers are bound to loopback; if for any reason one'd want to run
 # with particular transports, just set them explicitly.
-os.environ['AIOCOAP_DTLSSERVER_ENABLED'] = '1'
+os.environ["AIOCOAP_DTLSSERVER_ENABLED"] = "1"
 
-if 'coverage' in sys.modules:
-    PYTHON_PREFIX = [sys.executable, '-m', 'coverage', 'run', '--parallel-mode']
+if "coverage" in sys.modules:
+    PYTHON_PREFIX = [sys.executable, "-m", "coverage", "run", "--parallel-mode"]
 else:
     PYTHON_PREFIX = [sys.executable]
+
 
 def _find_loopbacknames():
     """Try the lookup results of common 'localhost' names and variations to
@@ -40,11 +44,12 @@ def _find_loopbacknames():
     import socket
 
     candidates = [
-            # the obvious choice
-            'localhost',
-            # seen on debian; ip6-localhost is present on debian too
-            'ip6-localhost', 'ip6-loopback'
-            ]
+        # the obvious choice
+        "localhost",
+        # seen on debian; ip6-localhost is present on debian too
+        "ip6-localhost",
+        "ip6-loopback",
+    ]
 
     v4 = []
     v6 = []
@@ -54,7 +59,7 @@ def _find_loopbacknames():
         except socket.gaierror:
             pass
         else:
-            if results and all(x[4] == ('127.0.0.1', 1234) for x in results):
+            if results and all(x[4] == ("127.0.0.1", 1234) for x in results):
                 v4.append(c)
         try:
             # Not probing for AF_INET6 because Windows applies its regular
@@ -75,24 +80,30 @@ def _find_loopbacknames():
         except socket.gaierror:
             pass
         else:
-            if results and any(x[4][:2] == ('::1', 1234) for x in results):
+            if results and any(x[4][:2] == ("::1", 1234) for x in results):
                 v6.append(c)
 
     v4only = [c for c in v4 if c not in v6]
     v6only = [c for c in v6 if c not in v4]
     v46 = [c for c in v4 if c in v6]
 
-    return v4only[0] if v4only else None, \
-            v6only[0] if v6only else None, \
-            v46[0] if v46 else None
+    return (
+        v4only[0] if v4only else None,
+        v6only[0] if v6only else None,
+        v46[0] if v46 else None,
+    )
+
 
 loopbackname_v4, loopbackname_v6, loopbackname_v46 = _find_loopbacknames()
 
-using_simple6 = 'simple6' in list(aiocoap.defaults.get_default_clienttransports())
+using_simple6 = "simple6" in list(aiocoap.defaults.get_default_clienttransports())
 
-tcp_disabled = 'tcp' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'tcp is default')
-ws_disabled = 'ws' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'ws is default')
-dtls_disabled = 'dtls' not in os.environ.get('AIOCOAP_SERVER_TRANSPORT', 'dtls is default')
+tcp_disabled = "tcp" not in os.environ.get("AIOCOAP_SERVER_TRANSPORT", "tcp is default")
+ws_disabled = "ws" not in os.environ.get("AIOCOAP_SERVER_TRANSPORT", "ws is default")
+dtls_disabled = "dtls" not in os.environ.get(
+    "AIOCOAP_SERVER_TRANSPORT", "dtls is default"
+)
+
 
 class CapturingSubprocess(asyncio.SubprocessProtocol):
     """This protocol just captures stdout and stderr into properties of the
@@ -123,8 +134,12 @@ class CapturingSubprocess(asyncio.SubprocessProtocol):
     def process_exited(self):
         self.read_more.set_result(None)
 
+
 if __name__ == "__main__":
     print("Python prefix:", PYTHON_PREFIX)
-    print("Loopback names:\n  %s (IPv4)\n  %s (IPv6),\n  %s (IPv4+IPv6)"%(loopbackname_v4, loopbackname_v6, loopbackname_v46))
+    print(
+        "Loopback names:\n  %s (IPv4)\n  %s (IPv6),\n  %s (IPv4+IPv6)"
+        % (loopbackname_v4, loopbackname_v6, loopbackname_v46)
+    )
     print("simple6 transport in use:", using_simple6)
     print("TCP disabled:", tcp_disabled)

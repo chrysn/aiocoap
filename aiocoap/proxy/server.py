@@ -21,49 +21,64 @@ from ..pipe import Pipe
 class CanNotRedirect(error.ConstructionRenderableError):
     message = "Proxy redirection failed"
 
+
 class NoUriSplitting(CanNotRedirect):
     code = codes.NOT_IMPLEMENTED
     message = "URI splitting not implemented, please use Proxy-Scheme."
+
 
 class IncompleteProxyUri(CanNotRedirect):
     code = codes.BAD_REQUEST
     message = "Proxying requires Proxy-Scheme and Uri-Host"
 
+
 class NotAForwardProxy(CanNotRedirect):
     code = codes.PROXYING_NOT_SUPPORTED
     message = "This is a reverse proxy, not a forward one."
+
 
 class NoSuchHostname(CanNotRedirect):
     code = codes.NOT_FOUND
     message = ""
 
+
 class CanNotRedirectBecauseOfUnsafeOptions(CanNotRedirect):
     code = codes.BAD_OPTION
 
     def __init__(self, options):
-        self.message = "Unsafe options in request: %s" % (", ".join(str(o.number) for o in options))
+        self.message = "Unsafe options in request: %s" % (
+            ", ".join(str(o.number) for o in options)
+        )
+
 
 def raise_unless_safe(request, known_options):
     """Raise a BAD_OPTION CanNotRedirect unless all options in request are
     safe to forward or known"""
 
-    known_options = set(known_options).union({
-        # it is expected that every proxy is aware of these options even though
-        # one of them often doesn't need touching
-        numbers.OptionNumber.URI_HOST,
-        numbers.OptionNumber.URI_PORT,
-        numbers.OptionNumber.URI_PATH,
-        numbers.OptionNumber.URI_QUERY,
-        # handled by the Context
-        numbers.OptionNumber.BLOCK1,
-        numbers.OptionNumber.BLOCK2,
-        # handled by the proxy resource
-        numbers.OptionNumber.OBSERVE,
-        })
+    known_options = set(known_options).union(
+        {
+            # it is expected that every proxy is aware of these options even though
+            # one of them often doesn't need touching
+            numbers.OptionNumber.URI_HOST,
+            numbers.OptionNumber.URI_PORT,
+            numbers.OptionNumber.URI_PATH,
+            numbers.OptionNumber.URI_QUERY,
+            # handled by the Context
+            numbers.OptionNumber.BLOCK1,
+            numbers.OptionNumber.BLOCK2,
+            # handled by the proxy resource
+            numbers.OptionNumber.OBSERVE,
+        }
+    )
 
-    unsafe_options = [o for o in request.opt.option_list() if o.number.is_unsafe() and o.number not in known_options]
+    unsafe_options = [
+        o
+        for o in request.opt.option_list()
+        if o.number.is_unsafe() and o.number not in known_options
+    ]
     if unsafe_options:
         raise CanNotRedirectBecauseOfUnsafeOptions(unsafe_options)
+
 
 class Proxy(interfaces.Resource):
     # other than in special cases, we're trying to be transparent wrt blockwise transfers
@@ -79,7 +94,7 @@ class Proxy(interfaces.Resource):
         self._block2 = Block2Cache()
 
         self.outgoing_context = outgoing_context
-        self.log = logger or logging.getLogger('proxy')
+        self.log = logger or logging.getLogger("proxy")
 
         self._redirectors = []
 
@@ -114,7 +129,9 @@ class Proxy(interfaces.Resource):
             return response
 
         try:
-            response = await self.outgoing_context.request(request, handle_blockwise=self.interpret_block_options).response
+            response = await self.outgoing_context.request(
+                request, handle_blockwise=self.interpret_block_options
+            ).response
         except error.TimeoutError:
             return message.Message(code=numbers.codes.GATEWAY_TIMEOUT)
 
@@ -131,7 +148,8 @@ class Proxy(interfaces.Resource):
     # resolution tree (it can't deal with None requests, which are used among
     # proxy implementations)
     async def render_to_pipe(self, pipe: Pipe) -> None:
-        await resource.Resource.render_to_pipe(self, pipe) # type: ignore
+        await resource.Resource.render_to_pipe(self, pipe)  # type: ignore
+
 
 class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
     def __init__(self, outgoing_context, logger=None):
@@ -167,35 +185,55 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         try:
             obs = self._outgoing_observations[cachekey]
         except KeyError:
-            obs = self._outgoing_observations[cachekey] = self.outgoing_context.request(request)
+            obs = self._outgoing_observations[cachekey] = self.outgoing_context.request(
+                request
+            )
             obs.__users = set()
             obs.__cachekey = cachekey
-            obs.__latest_response = None # this becomes a cached response right after the .response comes in (so only use this after waiting for it), and gets updated when new responses arrive.
+            obs.__latest_response = None  # this becomes a cached response right after the .response comes in (so only use this after waiting for it), and gets updated when new responses arrive.
 
             def when_first_request_done(result, obs=obs):
                 obs.__latest_response = result.result()
+
             obs.response.add_done_callback(when_first_request_done)
 
             def cb(incoming_message, obs=obs):
-                self.log.info("Received incoming message %r, relaying it to %d clients", incoming_message, len(obs.__users))
+                self.log.info(
+                    "Received incoming message %r, relaying it to %d clients",
+                    incoming_message,
+                    len(obs.__users),
+                )
                 obs.__latest_response = incoming_message
                 for observationserver in set(obs.__users):
                     observationserver.trigger(incoming_message.copy())
+
             obs.observation.register_callback(cb)
+
             def eb(exception, obs=obs):
                 if obs.__users:
                     code = numbers.codes.INTERNAL_SERVER_ERROR
                     payload = b""
                     if isinstance(exception, error.RenderableError):
                         code = exception.code
-                        payload = exception.message.encode('ascii')
-                    self.log.debug("Received error %r, which did not lead to unregistration of the clients. Actively deregistering them with %s %r.", exception, code, payload)
+                        payload = exception.message.encode("ascii")
+                    self.log.debug(
+                        "Received error %r, which did not lead to unregistration of the clients. Actively deregistering them with %s %r.",
+                        exception,
+                        code,
+                        payload,
+                    )
                     for u in list(obs.__users):
                         u.trigger(message.Message(code=code, payload=payload))
                     if obs.__users:
-                        self.log.error("Observations survived sending them an error message.")
+                        self.log.error(
+                            "Observations survived sending them an error message."
+                        )
                 else:
-                    self.log.debug("Received error %r, but that seems to have been passed on cleanly to the observers as they are gone by now.", exception)
+                    self.log.debug(
+                        "Received error %r, but that seems to have been passed on cleanly to the observers as they are gone by now.",
+                        exception,
+                    )
+
             obs.observation.register_errback(eb)
 
         return obs
@@ -207,11 +245,15 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         clientobservationrequest.__users.remove(serverobservation)
         # give the request that just cancelled time to be dealt with before
         # dropping the __latest_response
-        asyncio.get_event_loop().call_soon(self._consider_dropping, clientobservationrequest)
+        asyncio.get_event_loop().call_soon(
+            self._consider_dropping, clientobservationrequest
+        )
 
     def _consider_dropping(self, clientobservationrequest):
         if not clientobservationrequest.__users:
-            self.log.debug("Last client of observation went away, deregistering with server.")
+            self.log.debug(
+                "Last client of observation went away, deregistering with server."
+            )
             self._outgoing_observations.pop(clientobservationrequest.__cachekey)
             if not clientobservationrequest.observation.cancelled:
                 clientobservationrequest.observation.cancel()
@@ -224,10 +266,16 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         try:
             clientobservationrequest = self._get_observation_for(request)
         except CanNotRedirect:
-            pass # just don't accept the observation, the rest will be taken care of at rendering
+            pass  # just don't accept the observation, the rest will be taken care of at rendering
         else:
             self._add_observation_user(clientobservationrequest, serverobservation)
-            serverobservation.accept(functools.partial(self._remove_observation_user, clientobservationrequest, serverobservation))
+            serverobservation.accept(
+                functools.partial(
+                    self._remove_observation_user,
+                    clientobservationrequest,
+                    serverobservation,
+                )
+            )
 
     async def render(self, request):
         # FIXME this is evaulated twice in the implementation (once here, but
@@ -244,13 +292,28 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
             clientobservationrequest = self._peek_observation_for(redirected_request)
         except (KeyError, CanNotRedirect) as e:
             if not isinstance(e, CanNotRedirect) and request.opt.observe is not None:
-                self.log.warning("No matching observation found: request is %r (cache key %r), outgoing observations %r", redirected_request, self._cache_key(redirected_request), self._outgoing_observations)
+                self.log.warning(
+                    "No matching observation found: request is %r (cache key %r), outgoing observations %r",
+                    redirected_request,
+                    self._cache_key(redirected_request),
+                    self._outgoing_observations,
+                )
 
-                return message.Message(code=numbers.codes.BAD_OPTION, payload="Observe option can not be proxied without active observation.".encode('utf8'))
-            self.log.debug("Request is not an observation or can't be proxied, passing it on to regular proxying mechanisms.")
+                return message.Message(
+                    code=numbers.codes.BAD_OPTION,
+                    payload="Observe option can not be proxied without active observation.".encode(
+                        "utf8"
+                    ),
+                )
+            self.log.debug(
+                "Request is not an observation or can't be proxied, passing it on to regular proxying mechanisms."
+            )
             return await super(ProxyWithPooledObservations, self).render(request)
         else:
-            self.log.info("Serving request using latest cached response of %r", clientobservationrequest)
+            self.log.info(
+                "Serving request using latest cached response of %r",
+                clientobservationrequest,
+            )
             await clientobservationrequest.response
             cached_response = clientobservationrequest.__latest_response
             cached_response.mid = None
@@ -270,9 +333,19 @@ class ForwardProxy(Proxy):
         if request.opt.uri_host is None:
             raise IncompleteProxyUri
 
-        raise_unless_safe(request, (numbers.OptionNumber.PROXY_SCHEME, numbers.OptionNumber.URI_HOST, numbers.OptionNumber.URI_PORT))
+        raise_unless_safe(
+            request,
+            (
+                numbers.OptionNumber.PROXY_SCHEME,
+                numbers.OptionNumber.URI_HOST,
+                numbers.OptionNumber.URI_PORT,
+            ),
+        )
 
-        request.remote = message.UndecidedRemote(request.opt.proxy_scheme, util.hostportjoin(request.opt.uri_host, request.opt.uri_port))
+        request.remote = message.UndecidedRemote(
+            request.opt.proxy_scheme,
+            util.hostportjoin(request.opt.uri_host, request.opt.uri_port),
+        )
         request.opt.proxy_scheme = None
         request.opt.uri_port = None
         forward_host = request.opt.uri_host
@@ -281,15 +354,17 @@ class ForwardProxy(Proxy):
             # offer any other choice
             ipaddress.ip_address(request.opt.uri_host)
 
-            warnings.warn("URI-Host looks like IPv6 but has no square "
-                    "brackets. This is deprecated, see "
-                    "https://github.com/chrysn/aiocoap/issues/216",
-                    DeprecationWarning)
+            warnings.warn(
+                "URI-Host looks like IPv6 but has no square "
+                "brackets. This is deprecated, see "
+                "https://github.com/chrysn/aiocoap/issues/216",
+                DeprecationWarning,
+            )
         except ValueError:
             pass
         else:
             request.opt.uri_host = None
-        if forward_host.startswith('['):
+        if forward_host.startswith("["):
             # IPv6 or future literals are not recognized by ipaddress which
             # does not look at host-encoded form
             request.opt.uri_host = None
@@ -301,23 +376,33 @@ class ForwardProxy(Proxy):
 
         return request
 
+
 class ForwardProxyWithPooledObservations(ForwardProxy, ProxyWithPooledObservations):
     pass
+
 
 class ReverseProxy(Proxy):
     def __init__(self, *args, **kwargs):
         import warnings
-        warnings.warn("ReverseProxy has become moot due to proxy operation "
-                "changes, just instanciate Proxy and set the appropriate "
-                "redirectors", DeprecationWarning, stacklevel=1)
+
+        warnings.warn(
+            "ReverseProxy has become moot due to proxy operation "
+            "changes, just instanciate Proxy and set the appropriate "
+            "redirectors",
+            DeprecationWarning,
+            stacklevel=1,
+        )
         super().__init__(*args, **kwargs)
+
 
 class ReverseProxyWithPooledObservations(ReverseProxy, ProxyWithPooledObservations):
     pass
 
-class Redirector():
+
+class Redirector:
     def apply_redirection(self, request):
         return None
+
 
 class NameBasedVirtualHost(Redirector):
     def __init__(self, match_name, target, rewrite_uri_host=False, use_as_proxy=False):
@@ -340,14 +425,18 @@ class NameBasedVirtualHost(Redirector):
     def _matches(self, hostname):
         return hostname == self.match_name
 
+
 class SubdomainVirtualHost(NameBasedVirtualHost):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.rewrite_uri_host:
-            raise TypeError("rewrite_uri_host makes no sense with subdomain virtual hosting")
+            raise TypeError(
+                "rewrite_uri_host makes no sense with subdomain virtual hosting"
+            )
 
     def _matches(self, hostname):
-        return hostname.endswith('.' + self.match_name)
+        return hostname.endswith("." + self.match_name)
+
 
 class UnconditionalRedirector(Redirector):
     def __init__(self, target, use_as_proxy=False):
@@ -362,6 +451,7 @@ class UnconditionalRedirector(Redirector):
         request.unresolved_remote = self.target
         return request
 
+
 class SubresourceVirtualHost(Redirector):
     def __init__(self, path, target):
         self.path = tuple(path)
@@ -370,7 +460,7 @@ class SubresourceVirtualHost(Redirector):
     def apply_redirection(self, request):
         raise_unless_safe(request, ())
 
-        if self.path == request.opt.uri_path[:len(self.path)]:
-            request.opt.uri_path = request.opt.uri_path[len(self.path):]
+        if self.path == request.opt.uri_path[: len(self.path)]:
+            request.opt.uri_path = request.opt.uri_path[len(self.path) :]
             request.unresolved_remote = self.target
             return request

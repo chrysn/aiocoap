@@ -39,7 +39,17 @@ from .. import error, interfaces
 from . import simplesocketserver
 from .simplesocketserver import _DatagramServerSocketSimple
 
-from .tinydtls import LEVEL_NOALERT, LEVEL_FATAL, DTLS_EVENT_CONNECT, DTLS_EVENT_CONNECTED, CODE_CLOSE_NOTIFY, CloseNotifyReceived, DTLS_TICKS_PER_SECOND, DTLS_CLOCK_OFFSET, FatalDTLSError
+from .tinydtls import (
+    LEVEL_NOALERT,
+    LEVEL_FATAL,
+    DTLS_EVENT_CONNECT,
+    DTLS_EVENT_CONNECTED,
+    CODE_CLOSE_NOTIFY,
+    CloseNotifyReceived,
+    DTLS_TICKS_PER_SECOND,
+    DTLS_CLOCK_OFFSET,
+    FatalDTLSError,
+)
 
 # tinyDTLS passes address information around in its session data, but the way
 # it's used here that will be ignored; this is the data that is sent to / read
@@ -51,6 +61,7 @@ _SENTINEL_PORT = 1234
 # packets from sending in rapid succession
 _SEND_SLEEP_WORKAROUND = 0
 
+
 class _AddressDTLS(interfaces.EndpointAddress):
     # no slots here, thus no equality other than identity, which is good
 
@@ -58,37 +69,39 @@ class _AddressDTLS(interfaces.EndpointAddress):
         from DTLSSocket import dtls
 
         self._protocol = protocol
-        self._underlying_address = simplesocketserver._Address(protocol, underlying_address)
+        self._underlying_address = simplesocketserver._Address(
+            protocol, underlying_address
+        )
 
         self._dtls_socket = None
 
         self._psk_store = SecurityStore(protocol._server_credentials)
 
         self._dtls_socket = dtls.DTLS(
-                # FIXME: Use accessors like tinydtls (but are they needed? maybe shutdown sequence is just already better here...)
-                read=self._read,
-                write=self._write,
-                event=self._event,
-                pskId=b"The socket needs something there but we'll never use it",
-                pskStore=self._psk_store,
-                )
+            # FIXME: Use accessors like tinydtls (but are they needed? maybe shutdown sequence is just already better here...)
+            read=self._read,
+            write=self._write,
+            event=self._event,
+            pskId=b"The socket needs something there but we'll never use it",
+            pskStore=self._psk_store,
+        )
         self._dtls_session = dtls.Session(_SENTINEL_ADDRESS, _SENTINEL_PORT)
 
         self._retransmission_task = asyncio.create_task(
-                self._run_retransmissions(),
-                name="DTLS server handshake retransmissions",
-                )
+            self._run_retransmissions(),
+            name="DTLS server handshake retransmissions",
+        )
 
         self.log = protocol.log
 
     is_multicast = False
     is_multicast_locally = False
     hostinfo = property(lambda self: self._underlying_address.hostinfo)
-    uri_base = property(lambda self: 'coaps://' + self.hostinfo)
+    uri_base = property(lambda self: "coaps://" + self.hostinfo)
     hostinfo_local = property(lambda self: self._underlying_address.hostinfo_local)
-    uri_base_local = property(lambda self: 'coaps://' + self.hostinfo_local)
+    uri_base_local = property(lambda self: "coaps://" + self.hostinfo_local)
 
-    scheme = 'coaps'
+    scheme = "coaps"
 
     authenticated_claims = property(lambda self: [self._psk_store._claims])
 
@@ -113,8 +126,12 @@ class _AddressDTLS(interfaces.EndpointAddress):
         return len(data)
 
     def _write(self, recipient, data):
-        if _SEND_SLEEP_WORKAROUND and \
-                len(data) > 13 and data[0] == 22 and data[13] == 14:
+        if (
+            _SEND_SLEEP_WORKAROUND
+            and len(data) > 13
+            and data[0] == 22
+            and data[13] == 14
+        ):
             time.sleep(_SEND_SLEEP_WORKAROUND)
         self._underlying_address.send(data)
         return len(data)
@@ -158,16 +175,17 @@ class _AddressDTLS(interfaces.EndpointAddress):
         now = time.time() - DTLS_CLOCK_OFFSET
         await asyncio.sleep(when - now)
         self._retransmission_task = asyncio.create_task(
-                self._run_retransmissions(),
-                name="DTLS server handshake retransmissions",
-                )
+            self._run_retransmissions(),
+            name="DTLS server handshake retransmissions",
+        )
+
 
 class _DatagramServerSocketSimpleDTLS(_DatagramServerSocketSimple):
     _Address = _AddressDTLS  # type: ignore
     max_sockets = 64
 
     def __init__(self, *args, **kwargs):
-        self._connections = OrderedDict() # analogous to simple6's _sockets
+        self._connections = OrderedDict()  # analogous to simple6's _sockets
         return super().__init__(*args, **kwargs)
 
     async def connect(self, sockaddr):
@@ -195,14 +213,18 @@ class _DatagramServerSocketSimpleDTLS(_DatagramServerSocketSimple):
         self._message_interface._received_datagram(address, data)
 
     def _maybe_purge_sockets(self):
-        while len(self._connections) >= self.max_sockets: # more of an if
+        while len(self._connections) >= self.max_sockets:  # more of an if
             oldaddr, oldest = next(iter(self._connections.items()))
             # FIXME custom error?
-            oldest._inject_error(error.LibraryShutdown("Connection is being closed for lack of activity"))
+            oldest._inject_error(
+                error.LibraryShutdown("Connection is being closed for lack of activity")
+            )
+
 
 class GoingThroughMessageDecryption:
     """Warapper around GenericMessageInterface that puts incoming data through
     the DTLS context stored with the address"""
+
     def __init__(self, plaintext_interface: "GenericMessageInterface"):
         self._plaintext_interface = plaintext_interface
 
@@ -211,15 +233,16 @@ class GoingThroughMessageDecryption:
         address._retransmission_task.cancel()
         address._dtls_socket.handleMessage(address._dtls_session, data)
         address._retransmission_task = asyncio.create_task(
-                address._run_retransmissions(),
-                name="DTLS server handshake retransmissions",
-                )
+            address._run_retransmissions(),
+            name="DTLS server handshake retransmissions",
+        )
 
     def _received_exception(self, address, exception):
         self._plaintext_interface._received_exception(address, exception)
 
     def _received_plaintext(self, address, data):
         self._plaintext_interface._received_datagram(address, data)
+
 
 class SecurityStore:
     """Wrapper around a CredentialsMap that makes it accessible to the
@@ -257,12 +280,15 @@ class SecurityStore:
         self._claims = claims
         return psk
 
+
 class MessageInterfaceTinyDTLSServer(simplesocketserver.MessageInterfaceSimpleServer):
     _default_port = COAPS_PORT
     _serversocket = _DatagramServerSocketSimpleDTLS
 
     @classmethod
-    async def create_server(cls, bind, ctx: interfaces.MessageManager, log, loop, server_credentials):
+    async def create_server(
+        cls, bind, ctx: interfaces.MessageManager, log, loop, server_credentials
+    ):
         self = await super().create_server(bind, ctx, log, loop)
 
         self._pool._server_credentials = server_credentials

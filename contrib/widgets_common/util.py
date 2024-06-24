@@ -4,9 +4,11 @@
 
 import time
 
+
 class _Throttler:
     """Wrapper around an argumentless function that silently drops calls if
     there are too many."""
+
     # FIXME i'd rather have the ObservableResource or even the observation
     # itself handle this
     def __init__(self, callback):

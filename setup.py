@@ -6,6 +6,7 @@
 
 from setuptools import setup, Command
 
+
 class Cite(Command):
     description = """Print how to cite aiocoap in a publication"""
 
@@ -33,8 +34,9 @@ class Cite(Command):
         url = {https://christian.amsuess.com/tools/aiocoap/},
         }"""
 
+
 setup(
     cmdclass={
-        'cite': Cite,
-        },
+        "cite": Cite,
+    },
 )

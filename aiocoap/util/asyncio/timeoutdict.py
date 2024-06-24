@@ -5,8 +5,9 @@
 import asyncio
 from typing import Dict, Generic, TypeVar
 
-K = TypeVar('K')
-V = TypeVar('V')
+K = TypeVar("K")
+V = TypeVar("V")
+
 
 class TimeoutDict(Generic[K, V]):
     """A dict-ish type whose entries live on a timeout; adding and accessing an
@@ -57,7 +58,9 @@ class TimeoutDict(Generic[K, V]):
             self._recently_accessed.add(key)
 
     def _tick(self):
-        self._items = {k: v for (k, v) in self._items.items() if k in self._recently_accessed}
+        self._items = {
+            k: v for (k, v) in self._items.items() if k in self._recently_accessed
+        }
         if self._items:
             self._start_over()
         else:

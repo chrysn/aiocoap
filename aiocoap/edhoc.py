@@ -19,11 +19,13 @@ from . import oscore, credentials, error
 from . import Message
 from .numbers import POST
 
+
 def load_cbor_or_edn(filename: Path):
     """Common heuristic for whether something is CBOR or EDN"""
     import cbor_diag
     import cbor2
-    with filename.open('rb') as binary:
+
+    with filename.open("rb") as binary:
         try:
             result = cbor2.load(binary)
         except cbor2.CBORDecodeError:
@@ -36,10 +38,14 @@ def load_cbor_or_edn(filename: Path):
         try:
             converted = cbor_diag.diag2cbor(textual.read())
         except ValueError:
-            raise credentials.CredentialsLoadError("Data loaded from %s was recognized neither as CBOR nor CBOR Diagnostic Notation (EDN)" % filename)
+            raise credentials.CredentialsLoadError(
+                "Data loaded from %s was recognized neither as CBOR nor CBOR Diagnostic Notation (EDN)"
+                % filename
+            )
         # no need to check for completeness: diag2cbor doesn't do diagnostic
         # sequences, AIU that's not even a thing
         return cbor2.loads(converted)
+
 
 class CoseKeyForEdhoc:
     kty: int
@@ -50,7 +56,9 @@ class CoseKeyForEdhoc:
     def from_file(cls, filename: Path) -> "CoseKeyForEdhoc":
         """Load a key from a file (in CBOR or EDN), asserting that the file is not group/world readable"""
         if filename.stat().st_mode & 0o077 != 0:
-            raise credentials.CredentialsLoadError("Refusing to load private key that is group or world accessible")
+            raise credentials.CredentialsLoadError(
+                "Refusing to load private key that is group or world accessible"
+            )
 
         loaded = load_cbor_or_edn(filename)
         return cls.from_map(loaded)
@@ -58,20 +66,33 @@ class CoseKeyForEdhoc:
     @classmethod
     def from_map(cls, key: dict) -> "CoseKeyForEdhoc":
         if not isinstance(key, dict):
-            raise credentials.CredentialsLoadError("Data is not shaped like COSE_KEY (expected top-level dictionary)")
+            raise credentials.CredentialsLoadError(
+                "Data is not shaped like COSE_KEY (expected top-level dictionary)"
+            )
         if 1 not in key:
-            raise credentials.CredentialsLoadError("Data is not shaped like COSE_KEY (expected key 1 (kty) in top-level dictionary)")
+            raise credentials.CredentialsLoadError(
+                "Data is not shaped like COSE_KEY (expected key 1 (kty) in top-level dictionary)"
+            )
         if key[1] != 2:
-            raise credentials.CredentialsLoadError("Private key type %s is not supported (currently only 2 (EC) is supported)" % (key[1],))
+            raise credentials.CredentialsLoadError(
+                "Private key type %s is not supported (currently only 2 (EC) is supported)"
+                % (key[1],)
+            )
 
         if key.get(-1) != 1:
-            raise credentials.CredentialsLoadError("Private key of type EC requires key -1 (crv), currently supported values: 1 (P-256)")
+            raise credentials.CredentialsLoadError(
+                "Private key of type EC requires key -1 (crv), currently supported values: 1 (P-256)"
+            )
 
         if not isinstance(key.get(-4), bytes) or len(key[-4]) != 32:
-            raise credentials.CredentialsLoadError("Private key of type EC P-256 requires key -4 (d) to be a 32-byte long byte string")
+            raise credentials.CredentialsLoadError(
+                "Private key of type EC P-256 requires key -4 (d) to be a 32-byte long byte string"
+            )
 
         if any(k not in (1, -1, -4) for k in key):
-            raise credentials.CredentialsLoadError("Extraneous data in key, consider allow-listing the item if acceptable")
+            raise credentials.CredentialsLoadError(
+                "Extraneous data in key, consider allow-listing the item if acceptable"
+            )
 
         s = cls()
         s.kty = 1
@@ -108,12 +129,14 @@ class CoseKeyForEdhoc:
 
         return cls.from_map(key_cose)
 
-    def as_ccs(self, kid: Optional[bytes], subject: Optional[str]) -> Dict[Literal[14], dict]:
-        """Given a key, generate a corresponding KCCS """
+    def as_ccs(
+        self, kid: Optional[bytes], subject: Optional[str]
+    ) -> Dict[Literal[14], dict]:
+        """Given a key, generate a corresponding KCCS"""
 
         from cryptography.hazmat.primitives.asymmetric import ec
 
-        private = ec.derive_private_key(int.from_bytes(self.d, 'big'), ec.SECP256R1())
+        private = ec.derive_private_key(int.from_bytes(self.d, "big"), ec.SECP256R1())
         public = private.public_key()
 
         x = public.public_numbers().x.to_bytes(32, "big")
@@ -130,16 +153,17 @@ class CoseKeyForEdhoc:
         # kccs: cnf
         return {14: credential_kccs}
 
+
 class EdhocCredentials(credentials._Objectish):
     def __init__(
-            self,
-            suite: int,
-            method: int,
-            own_cred_style: Optional[str] = None,
-            peer_cred: Optional[dict] = None,
-            own_cred: Optional[dict] = None,
-            private_key_file: Optional[str] = None,
-            ):
+        self,
+        suite: int,
+        method: int,
+        own_cred_style: Optional[str] = None,
+        peer_cred: Optional[dict] = None,
+        own_cred: Optional[dict] = None,
+        private_key_file: Optional[str] = None,
+    ):
         from . import edhoc
 
         self.suite = suite
@@ -147,9 +171,12 @@ class EdhocCredentials(credentials._Objectish):
         self.own_cred = own_cred
         self.peer_cred = peer_cred
 
-        if (own_cred is None) != (own_cred_style is None) or \
-                (own_cred is None) != (private_key_file is None):
-            raise credentials.CredentialsLoadError("If own credentials are given, all of own_cred, own_cred_style and private_key_path need to be given")
+        if (own_cred is None) != (own_cred_style is None) or (own_cred is None) != (
+            private_key_file is None
+        ):
+            raise credentials.CredentialsLoadError(
+                "If own credentials are given, all of own_cred, own_cred_style and private_key_path need to be given"
+            )
 
         if own_cred_style is None:
             self.own_cred_style = None
@@ -188,10 +215,14 @@ class EdhocCredentials(credentials._Objectish):
     def peer_cred_is_unauthenticated(self):
         # FIXME: This is rather weird internal API, and rather weird
         # format-wise -- but it will suffice until credentials are rewritten.
-        return self.peer_cred is not None and self.peer_cred == {"unauthenticated": True}
+        return self.peer_cred is not None and self.peer_cred == {
+            "unauthenticated": True
+        }
 
     async def establish_context(self, wire, underlying_address, logger):
-        logger.info("No OSCORE context found for EDHOC context %r, initiating one.", self)
+        logger.info(
+            "No OSCORE context found for EDHOC context %r, initiating one.", self
+        )
         # FIXME: We don't support role reversal yet, but once we
         # register this context to be available for incoming
         # requests, we'll have to pick more carefully
@@ -201,7 +232,7 @@ class EdhocCredentials(credentials._Objectish):
 
         msg1 = Message(
             code=POST,
-            uri_path=['.well-known', 'edhoc'],
+            uri_path=[".well-known", "edhoc"],
             payload=cbor2.dumps(True) + message_1,
         )
         msg1.remote = underlying_address
@@ -209,7 +240,10 @@ class EdhocCredentials(credentials._Objectish):
 
         (c_r, id_cred_r, ead_2) = initiator.parse_message_2(msg2.payload)
 
-        assert isinstance(self.own_cred, dict) and list(self.own_cred.keys()) == [14], "So far can only process CCS style own credentials a la {14: ...}, own_cred = %r" % self.own_cred
+        assert isinstance(self.own_cred, dict) and list(self.own_cred.keys()) == [14], (
+            "So far can only process CCS style own credentials a la {14: ...}, own_cred = %r"
+            % self.own_cred
+        )
         cred_i = cbor2.dumps(self.own_cred[14], canonical=True)
         key_i = self.own_key.d
 
@@ -220,7 +254,9 @@ class EdhocCredentials(credentials._Objectish):
             parsed = cbor2.loads(id_cred_r)
 
             if not isinstance(parsed, dict):
-                raise credentials.CredentialsMissingError("Peer presented credential-by-reference when no credential was pre-agreed")
+                raise credentials.CredentialsMissingError(
+                    "Peer presented credential-by-reference when no credential was pre-agreed"
+                )
 
             cred_r = id_cred_r
         else:
@@ -238,12 +274,15 @@ class EdhocCredentials(credentials._Objectish):
             cred_r = cbor2.dumps(self.peer_cred[14], canonical=True)
 
         initiator.verify_message_2(
-            key_i, cred_i, cred_r,
+            key_i,
+            cred_i,
+            cred_r,
         )  # odd that we provide that here rather than in the next function
 
         logger.debug("Message 2 was verified")
 
         return EdhocInitiatorContext(initiator, c_i, c_r, self.own_cred_style, logger)
+
 
 class _EdhocContextBase(
     oscore.CanProtect, oscore.CanUnprotect, oscore.SecurityContextUtils
@@ -267,7 +306,10 @@ class _EdhocContextBase(
 
     def _make_ready(self, edhoc_context, c_ours, c_theirs):
         # FIXME: both should offer this
-        if isinstance(edhoc_context, lakers.EdhocResponder) or edhoc_context.selected_cipher_suite() == 2:
+        if (
+            isinstance(edhoc_context, lakers.EdhocResponder)
+            or edhoc_context.selected_cipher_suite() == 2
+        ):
             self.alg_aead = oscore.algorithms["AES-CCM-16-64-128"]
             self.hashfun = oscore.hashfunctions["sha256"]
         else:
@@ -301,6 +343,7 @@ class _EdhocContextBase(
 
         This may modify self to only return something once."""
 
+
 class EdhocInitiatorContext(_EdhocContextBase):
     """An OSCORE context that is derived from an EDHOC exchange.
 
@@ -308,12 +351,15 @@ class EdhocInitiatorContext(_EdhocContextBase):
     up by an initiator already when message 2 has been received, prepares a
     message 3 at setup time, and sends it with the first request that is sent
     through it."""
+
     # FIXME: Should we rather send it with *every* request that is sent before a message 4 is received implicitly?
     def __init__(self, initiator, c_ours, c_theirs, cred_i_mode, logger):
         super().__init__(logger)
 
         # Only this line is role specific
-        self._message_3, _i_prk_out = initiator.prepare_message_3(cred_i_mode.as_lakers(), None)
+        self._message_3, _i_prk_out = initiator.prepare_message_3(
+            cred_i_mode.as_lakers(), None
+        )
 
         self._make_ready(initiator, c_ours, c_theirs)
 
@@ -323,6 +369,7 @@ class EdhocInitiatorContext(_EdhocContextBase):
             self._message_3 = None
             return result
         return None
+
 
 class EdhocResponderContext(_EdhocContextBase):
     def __init__(self, responder, c_i, c_r, server_credentials, logger):
@@ -358,13 +405,17 @@ class EdhocResponderContext(_EdhocContextBase):
 
     def protect(self, *args, **kwargs):
         if self._incomplete:
-            raise RuntimeError("EDHOC has not completed yet, waiting for message 3, can not protect own messages yet")
+            raise RuntimeError(
+                "EDHOC has not completed yet, waiting for message 3, can not protect own messages yet"
+            )
         return super().protect(*args, **kwargs)
 
     def unprotect(self, protected_message, request_id=None):
         if self._incomplete:
             if not protected_message.opt.edhoc:
-                self.log.error("OSCORE failed: No EDHOC message 3 received and none present")
+                self.log.error(
+                    "OSCORE failed: No EDHOC message 3 received and none present"
+                )
                 raise error.BadRequest("EDHOC incomplete")
 
             payload_stream = io.BytesIO(protected_message.payload)
@@ -379,9 +430,14 @@ class EdhocResponderContext(_EdhocContextBase):
                 raise error.BadRequest
 
             try:
-                (cred_i, claims) = self._server_credentials.find_edhoc_by_id_cred_peer(id_cred_i)
+                (cred_i, claims) = self._server_credentials.find_edhoc_by_id_cred_peer(
+                    id_cred_i
+                )
             except KeyError:
-                self.log.error("Aborting EDHOC: No credentials found for client with id_cred_i=h'%s'", id_cred_i.hex())
+                self.log.error(
+                    "Aborting EDHOC: No credentials found for client with id_cred_i=h'%s'",
+                    id_cred_i.hex(),
+                )
                 raise error.BadRequest
 
             self.authenticated_claims.extend(claims)
@@ -391,15 +447,17 @@ class EdhocResponderContext(_EdhocContextBase):
             self._make_ready(self._responder, self.recipient_id, self.sender_id)
             self._incomplete = False
 
-            protected_message = protected_message.copy(edhoc=False, payload=protected_message.payload[m3len:])
+            protected_message = protected_message.copy(
+                edhoc=False, payload=protected_message.payload[m3len:]
+            )
 
         return super().unprotect(protected_message, request_id)
-
 
 
 class OwnCredStyle(enum.Enum):
     """Guidance for how the own credential should be sent in an EDHOC
     exchange"""
+
     ByKeyId = "by-key-id"
     ByValue = "by-value"
 

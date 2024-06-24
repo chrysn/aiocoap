@@ -43,20 +43,26 @@ def _requires_ua(f):
     @wraps(f)
     def wrapper(self):
         if self.underlying_address is None:
-            raise ValueError("No underlying address populated that could be used to derive a hostinfo")
+            raise ValueError(
+                "No underlying address populated that could be used to derive a hostinfo"
+            )
         return f(self)
 
     return wrapper
 
 
 class OSCOREAddress(
-        namedtuple("_OSCOREAddress", ["security_context", "underlying_address"]),
-        interfaces.EndpointAddress
-        ):
+    namedtuple("_OSCOREAddress", ["security_context", "underlying_address"]),
+    interfaces.EndpointAddress,
+):
     """Remote address type for :class:`TransportOSCORE`."""
 
     def __repr__(self):
-        return "<%s in context %r to %r>" % (type(self).__name__, self.security_context, self.underlying_address)
+        return "<%s in context %r to %r>" % (
+            type(self).__name__,
+            self.security_context,
+            self.underlying_address,
+        )
 
     @property
     @_requires_ua
@@ -95,15 +101,18 @@ class OSCOREAddress(
 
     @property
     def blockwise_key(self):
-        if hasattr(self.security_context, 'groupcontext'):
+        if hasattr(self.security_context, "groupcontext"):
             # it's an aspect, and all aspects work compatibly as long as data
             # comes from the same recipient ID -- taking the group recipient
             # key for that one which is stable across switches between pairwise
             # and group mode
-            detail = self.security_context.groupcontext.recipient_keys[self.security_context.recipient_id]
+            detail = self.security_context.groupcontext.recipient_keys[
+                self.security_context.recipient_id
+            ]
         else:
             detail = self.security_context.recipient_key
         return (self.underlying_address.blockwise_key, detail)
+
 
 class TransportOSCORE(interfaces.RequestProvider):
     def __init__(self, context, forward_context):
@@ -135,7 +144,7 @@ class TransportOSCORE(interfaces.RequestProvider):
             # double oscore is not specified; using this fact to make `._wire
             # is ._context` an option
             return False
-        if message.opt.uri_path == ('.well-known', 'edhoc'):
+        if message.opt.uri_path == (".well-known", "edhoc"):
             # FIXME better criteria based on next-hop?
             return False
 
@@ -145,25 +154,33 @@ class TransportOSCORE(interfaces.RequestProvider):
             return False
 
         # FIXME: it'd be better to have a "get me credentials *of this type* if they exist"
-        if isinstance(secctx, oscore.CanProtect) or isinstance(secctx, edhoc.EdhocCredentials):
+        if isinstance(secctx, oscore.CanProtect) or isinstance(
+            secctx, edhoc.EdhocCredentials
+        ):
             message.remote = OSCOREAddress(secctx, message.remote)
-            self.log.debug("Selecting OSCORE transport based on context %r for new request %r", secctx, message)
+            self.log.debug(
+                "Selecting OSCORE transport based on context %r for new request %r",
+                secctx,
+                message,
+            )
             return True
         else:
             return False
 
     def request(self, request):
         t = self.loop.create_task(
-                self._request(request),
-                name="OSCORE request %r" % request,
-                )
+            self._request(request),
+            name="OSCORE request %r" % request,
+        )
         self._tasks.add(t)
+
         def done(t, _tasks=self._tasks, _request=request):
             _tasks.remove(t)
             try:
                 t.result()
             except Exception as e:
                 _request.add_exception(e)
+
         t.add_done_callback(done)
 
     async def _request(self, request) -> None:
@@ -183,11 +200,13 @@ class TransportOSCORE(interfaces.RequestProvider):
 
         if isinstance(secctx, edhoc.EdhocCredentials):
             if secctx._established_context is None:
-                self._established_context = msg.remote.security_context.establish_context(
+                self._established_context = (
+                    msg.remote.security_context.establish_context(
                         wire=self._wire,
                         underlying_address=msg.remote.underlying_address,
-                        logger=self.log.getChild("edhoc")
-                        )
+                        logger=self.log.getChild("edhoc"),
+                    )
+                )
             # FIXME: Who should drive retries here? We probably don't retry if
             # it fails immediately, but what happens with the request that
             # finds this broken, will it recurse?
@@ -198,7 +217,9 @@ class TransportOSCORE(interfaces.RequestProvider):
                 msg_to_protect = msg
             else:
                 if msg.opt.echo:
-                    self.log.warning("Overwriting the requested Echo value with the one to answer a 4.01 Unauthorized")
+                    self.log.warning(
+                        "Overwriting the requested Echo value with the one to answer a 4.01 Unauthorized"
+                    )
                 msg_to_protect = msg.copy(echo=echo)
             protected, original_request_seqno = secctx.protect(msg_to_protect)
             protected.remote = msg.remote.underlying_address
@@ -217,7 +238,9 @@ class TransportOSCORE(interfaces.RequestProvider):
 
         def _check(more, unprotected_response):
             if more and not unprotected_response.code.is_successful():
-                self.log.warning("OSCORE protected message contained observe, but unprotected code is unsuccessful. Ignoring the observation.")
+                self.log.warning(
+                    "OSCORE protected message contained observe, but unprotected code is unsuccessful. Ignoring the observation."
+                )
                 return False
             return more
 
@@ -230,19 +253,36 @@ class TransportOSCORE(interfaces.RequestProvider):
             unprotected = oscore.verify_start(protected_response)
             secctx = secctx.context_from_response(unprotected)
 
-            unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)
+            unprotected_response, _ = secctx.unprotect(
+                protected_response, original_request_seqno
+            )
 
-            if unprotected_response.code == UNAUTHORIZED and unprotected_response.opt.echo is not None:
+            if (
+                unprotected_response.code == UNAUTHORIZED
+                and unprotected_response.opt.echo is not None
+            ):
                 # Assist the server in B.1.2 Echo receive window recovery
-                self.log.info("Answering the server's 4.01 Unauthorized / Echo as part of OSCORE B.1.2 recovery")
+                self.log.info(
+                    "Answering the server's 4.01 Unauthorized / Echo as part of OSCORE B.1.2 recovery"
+                )
 
-                wire_request, original_request_seqno = protect(unprotected_response.opt.echo)
+                wire_request, original_request_seqno = protect(
+                    unprotected_response.opt.echo
+                )
 
                 protected_response = await wire_request.response
-                unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)
+                unprotected_response, _ = secctx.unprotect(
+                    protected_response, original_request_seqno
+                )
 
-            unprotected_response.remote = OSCOREAddress(secctx, protected_response.remote)
-            self.log.debug("Successfully unprotected %r into %r", protected_response, unprotected_response)
+            unprotected_response.remote = OSCOREAddress(
+                secctx, protected_response.remote
+            )
+            self.log.debug(
+                "Successfully unprotected %r into %r",
+                protected_response,
+                unprotected_response,
+            )
             # FIXME: if i could tap into the underlying Pipe, that'd
             # be a lot easier -- and also get rid of the awkward _check
             # code moved into its own function just to avoid duplication.
@@ -254,26 +294,38 @@ class TransportOSCORE(interfaces.RequestProvider):
                 return
 
             async for protected_response in wire_request.observation:
-                unprotected_response, _ = secctx.unprotect(protected_response, original_request_seqno)
+                unprotected_response, _ = secctx.unprotect(
+                    protected_response, original_request_seqno
+                )
 
                 more = protected_response.opt.observe is not None
                 more = _check(more, unprotected_response)
 
-                unprotected_response.remote = OSCOREAddress(secctx, protected_response.remote)
-                self.log.debug("Successfully unprotected %r into %r", protected_response, unprotected_response)
+                unprotected_response.remote = OSCOREAddress(
+                    secctx, protected_response.remote
+                )
+                self.log.debug(
+                    "Successfully unprotected %r into %r",
+                    protected_response,
+                    unprotected_response,
+                )
                 # FIXME: discover is_last from the underlying response
                 request.add_response(unprotected_response, is_last=not more)
 
                 if not more:
                     return
-            request.add_exception(NotImplementedError("End of observation"
-                " should have been indicated in is_last, see above lines"))
+            request.add_exception(
+                NotImplementedError(
+                    "End of observation"
+                    " should have been indicated in is_last, see above lines"
+                )
+            )
         finally:
             # FIXME: no way yet to cancel observations exists yet, let alone
             # one that can be used in a finally clause (ie. won't raise
             # something else if the observation terminated server-side)
             pass
-            #if wire_request.observation is not None:
+            # if wire_request.observation is not None:
             #    wire_request.observation.cancel()
 
     async def shutdown(self):
