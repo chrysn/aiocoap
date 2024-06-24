@@ -64,6 +64,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC8323: https://tools.ietf.org/html/rfc8323
 .. _RFC8613: https://tools.ietf.org/html/rfc8613
 .. _RFC9176: https://tools.ietf.org/html/rfc9176
+.. _RFC9528: https://tools.ietf.org/html/rfc9528
 .. _draft-ietf-core-oscore-groupcomm-17: https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-17
 .. _lakers: https://pypi.org/project/lakers-python/
 
