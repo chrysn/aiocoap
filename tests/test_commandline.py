@@ -9,7 +9,6 @@ orchestration of success reporting is not that easy with a daemon process;
 aiocoap-rd might need to get tested in a similar way to -proxy."""
 
 import subprocess
-import asyncio
 import unittest
 import os
 

@@ -2,12 +2,10 @@
 #
 # SPDX-License-Identifier: MIT
 
-import asyncio
 import warnings
 
 from ..message import UndecidedRemote
 from .. import interfaces
-from ..protocol import ClientObservation
 
 from ..util import hostportsplit
 

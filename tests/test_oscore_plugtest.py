@@ -4,8 +4,6 @@
 
 """Run the OSCORE plug test"""
 
-import os
-import sys
 import asyncio
 import unittest
 import tempfile
@@ -16,7 +14,6 @@ import aiocoap.defaults
 from aiocoap.util import hostportjoin
 
 from .test_server import WithAsyncLoop, WithClient, asynctest
-from . import common
 from .fixtures import is_test_successful
 
 from .common import PYTHON_PREFIX, CapturingSubprocess

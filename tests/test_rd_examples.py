@@ -6,7 +6,6 @@
 specification against it.
 """
 
-import asyncio
 import unittest
 
 import aiocoap

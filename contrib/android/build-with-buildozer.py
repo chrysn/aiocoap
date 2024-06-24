@@ -18,7 +18,7 @@ buildozer_venv = Path(__file__).parent / 'venv-buildozer'
 contrib = Path(__file__).parent.parent
 
 with (out / "buildozer.spec").open("w") as buildozerspec:
-    buildozerspec.write(f"""\
+    buildozerspec.write("""\
 [app]
 title = aiocoap widget demo
 package.name = aiocoap_widget_demo

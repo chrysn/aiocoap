@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: MIT
 
 import asyncio
-import unittest
 
 from aiocoap.util.asyncio.timeoutdict import TimeoutDict
 

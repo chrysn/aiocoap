@@ -13,8 +13,7 @@ import os
 import json
 
 from . import common
-from .fixtures import (WithLogMonitoring, no_warnings, precise_warnings,
-    WithAsyncLoop, Destructing, CLEANUPTIME, asynctest)
+from .fixtures import (no_warnings, WithAsyncLoop, Destructing, CLEANUPTIME, asynctest)
 
 class MultiRepresentationResource(aiocoap.resource.Resource):
     def __init__(self, representations):

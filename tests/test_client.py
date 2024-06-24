@@ -4,7 +4,6 @@
 
 import asyncio
 import aiocoap
-import unittest
 import errno
 
 from .test_server import WithTestServer, WithClient, no_warnings, asynctest

@@ -10,7 +10,6 @@ from pathlib import Path
 
 import aiocoap
 
-from . import common
 from .test_server import TestServerBase, WithClient, WithTestServer
 from .fixtures import no_warnings
 

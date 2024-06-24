@@ -5,12 +5,9 @@
 """Confront an aiocoap server with a client that speaks so bad protocol it is
 easier to mock with sending byte sequences than with aiocoap"""
 
-import sys
 import socket
 import asyncio
 from asyncio import wait_for, TimeoutError
-import signal
-import contextlib
 import os
 import unittest
 
