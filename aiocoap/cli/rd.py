@@ -2,8 +2,7 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""A plain CoAP resource directory according to
-draft-ietf-core-resource-directory-25
+"""A plain CoAP resource directory according to RFC9176_
 
 Known Caveats:
 
@@ -18,6 +17,8 @@ Known Caveats:
       (ep, d) are not checked for their lengths or other validity.
 
     * Simple registrations don't cache .well-known/core contents
+
+.. _RFC9176: https://datatracker.ietf.org/doc/html/rfc9176
 """
 
 import string
