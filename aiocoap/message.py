@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import urllib.parse
 import struct
 import copy
@@ -673,7 +674,23 @@ class UndecidedRemote(
     * :attr:`scheme`: The scheme string
     * :attr:`hostinfo`: The authority component of the URI, as it would occur
       in the URI.
+
+    In order to produce URIs identical to those received in responses, and
+    because the underlying types should really be binary anyway, IP addresses
+    in the hostinfo are normalized:
+
+    >>> UndecidedRemote("coap+tcp", "[::0001]:1234")
+    UndecidedRemote(scheme='coap+tcp', hostinfo='[::1]:1234')
     """
+
+    def __new__(cls, scheme, hostinfo):
+        if "[" in hostinfo:
+            (host, port) = hostportsplit(hostinfo)
+            ip = ipaddress.ip_address(host)
+            host = str(ip)
+            hostinfo = hostportjoin(host, port)
+
+        return super().__new__(cls, scheme, hostinfo)
 
     @classmethod
     def from_pathless_uri(cls, uri: str) -> UndecidedRemote:
@@ -683,8 +700,6 @@ class UndecidedRemote(
         >>> from aiocoap.message import UndecidedRemote
         >>> UndecidedRemote.from_pathless_uri("coap://localhost")
         UndecidedRemote(scheme='coap', hostinfo='localhost')
-        >>> UndecidedRemote.from_pathless_uri("coap+tcp://[::1]:1234")
-        UndecidedRemote(scheme='coap+tcp', hostinfo='[::1]:1234')
         """
 
         parsed = urllib.parse.urlparse(uri)
