@@ -13,7 +13,8 @@ import unittest
 
 import aiocoap
 
-from .test_server import WithTestServer, precise_warnings, no_warnings, asynctest, WithAsyncLoop
+from .fixtures import precise_warnings, no_warnings, asynctest
+from .test_server import WithTestServer, WithAsyncLoop
 
 # For some reasons site-local requests do not work on my test setup, resorting
 # to link-local; that means a link needs to be given, and while we never need

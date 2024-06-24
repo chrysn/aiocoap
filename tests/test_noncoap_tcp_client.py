@@ -9,7 +9,8 @@ import asyncio
 import unittest
 import aiocoap
 
-from .test_server import WithTestServer, precise_warnings, no_warnings, asynctest
+from .fixtures import precise_warnings, no_warnings, asynctest
+from .test_server import WithTestServer
 from .common import tcp_disabled
 
 @unittest.skipIf(tcp_disabled, "TCP disabled in environment")
