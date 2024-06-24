@@ -358,8 +358,8 @@ class Resource(metaclass=abc.ABCMeta):
         the request stream.
 
         This method is provided by the base Resource classes; if it is
-        overridden, then :meth:`~.Resource.render`, :meth:`needs_blockwise_assembly` and
-        :meth:`~.ObservableResource.add_observation` are not used any more.
+        overridden, then :meth:`~interfaces.Resource.render`, :meth:`needs_blockwise_assembly` and
+        :meth:`~.interfaces.ObservableResource.add_observation` are not used any more.
         (They still need to be implemented to comply with the interface
         definition, which is yet to be updated)."""
         warnings.warn("Request interface is changing: Resources should "
