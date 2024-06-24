@@ -8,6 +8,7 @@ import errno
 
 from .test_server import WithTestServer, WithClient, no_warnings, asynctest
 
+
 class TestClientWithSetHost(WithTestServer, WithClient):
     set_uri_host = True
 
@@ -17,23 +18,49 @@ class TestClientWithSetHost(WithTestServer, WithClient):
         request = aiocoap.Message(code=aiocoap.GET)
         request_uri = "coap://" + self.servernetloc + "/empty?query=a&query=b"
         request.set_request_uri(request_uri, set_uri_host=self.set_uri_host)
-        self.assertEqual(request.get_request_uri(), request_uri, "Request URL does not round-trip in request")
+        self.assertEqual(
+            request.get_request_uri(),
+            request_uri,
+            "Request URL does not round-trip in request",
+        )
         response = await self.client.request(request).response
-        self.assertEqual(response.get_request_uri(), request_uri, "Request URL does not round-trip in response")
+        self.assertEqual(
+            response.get_request_uri(),
+            request_uri,
+            "Request URL does not round-trip in response",
+        )
         self.assertEqual(response.code, aiocoap.CONTENT, "Request URL building failed")
 
         request = aiocoap.Message(code=aiocoap.GET)
-        request.set_request_uri("coap://" + self.servernamealias + "/empty", set_uri_host=self.set_uri_host)
-        self.assertEqual(request.get_request_uri(), "coap://" + self.servernamealias + "/empty")
+        request.set_request_uri(
+            "coap://" + self.servernamealias + "/empty", set_uri_host=self.set_uri_host
+        )
+        self.assertEqual(
+            request.get_request_uri(), "coap://" + self.servernamealias + "/empty"
+        )
         response = await self.client.request(request).response
-        self.assertEqual(response.code, aiocoap.CONTENT, "Resolving WithTestServer.servernamealias failed")
+        self.assertEqual(
+            response.code,
+            aiocoap.CONTENT,
+            "Resolving WithTestServer.servernamealias failed",
+        )
         if self.set_uri_host:
-            self.assertEqual(response.get_request_uri(), "coap://" + self.servernamealias + "/empty", "Host name did not get round-tripped")
+            self.assertEqual(
+                response.get_request_uri(),
+                "coap://" + self.servernamealias + "/empty",
+                "Host name did not get round-tripped",
+            )
         else:
             # The simple6 transport misreports remotes to which a socket was
             # opened with a name.
-            if 'simple6' not in list(aiocoap.defaults.get_default_clienttransports(loop=self.loop)):
-                self.assertEqual(response.get_request_uri(), "coap://" + self.servernetloc + "/empty", "Response's request URI is not numeric in hostname-less query")
+            if "simple6" not in list(
+                aiocoap.defaults.get_default_clienttransports(loop=self.loop)
+            ):
+                self.assertEqual(
+                    response.get_request_uri(),
+                    "coap://" + self.servernetloc + "/empty",
+                    "Response's request URI is not numeric in hostname-less query",
+                )
 
     @no_warnings
     @asynctest
@@ -42,7 +69,10 @@ class TestClientWithSetHost(WithTestServer, WithClient):
         around, bothering later tests"""
 
         request = aiocoap.Message(code=aiocoap.GET)
-        request.set_request_uri("coap://" + self.servernetloc + ":9999/empty", set_uri_host=self.set_uri_host)
+        request.set_request_uri(
+            "coap://" + self.servernetloc + ":9999/empty",
+            set_uri_host=self.set_uri_host,
+        )
         resp = self.client.request(request).response
         try:
             # give the request some time to finish getaddrinfo
@@ -54,14 +84,23 @@ class TestClientWithSetHost(WithTestServer, WithClient):
             # ECONNREFUSED: linux; ECONNRESET: win32
             self.assertTrue(e.__cause__.errno in (errno.ECONNREFUSED, errno.ECONNRESET))
         except asyncio.TimeoutError:
-            self.fail("Request to non-opened port did not come back with 'Connection Refused' immediately")
+            self.fail(
+                "Request to non-opened port did not come back with 'Connection Refused' immediately"
+            )
         else:
-            self.fail("Request to non-opened port did not come back with 'Connection Refused', but another result: %s"%(result,))
-        self.assertTrue(request.remote.hostinfo.endswith(':9999'), "Remote port was not parsed")
+            self.fail(
+                "Request to non-opened port did not come back with 'Connection Refused', but another result: %s"
+                % (result,)
+            )
+        self.assertTrue(
+            request.remote.hostinfo.endswith(":9999"), "Remote port was not parsed"
+        )
         resp.cancel()
+
 
 class TestClientWithHostlessMessages(TestClientWithSetHost):
     set_uri_host = False
+
 
 class TestClientOther(WithTestServer, WithClient):
     @no_warnings
@@ -71,26 +110,45 @@ class TestClientOther(WithTestServer, WithClient):
         Request."""
         yieldfrom = self.loop.run_until_complete
 
-        request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/empty")
+        request = aiocoap.Message(
+            code=aiocoap.GET, uri="coap://" + self.servernetloc + "/empty"
+        )
         response = yieldfrom(self.client.request(request).response_raising)
-        self.assertEqual(response.code, aiocoap.CONTENT, "Response access via response_raising failed")
+        self.assertEqual(
+            response.code,
+            aiocoap.CONTENT,
+            "Response access via response_raising failed",
+        )
 
-        request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/nonexistent")
+        request = aiocoap.Message(
+            code=aiocoap.GET, uri="coap://" + self.servernetloc + "/nonexistent"
+        )
         ## @FIXME i'd like to assertRaises(NotFound), see docstring of
         # :class:`ResponseWrappingError`
-        self.assertRaises(aiocoap.error.ResponseWrappingError, yieldfrom,
-                self.client.request(request).response_raising)
+        self.assertRaises(
+            aiocoap.error.ResponseWrappingError,
+            yieldfrom,
+            self.client.request(request).response_raising,
+        )
 
     @no_warnings
     @asynctest
     async def test_nonraising(self):
         """This test obtains results via the response_nonraising property of a
         Request."""
-        request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/empty")
+        request = aiocoap.Message(
+            code=aiocoap.GET, uri="coap://" + self.servernetloc + "/empty"
+        )
         response = await self.client.request(request).response_nonraising
-        self.assertEqual(response.code, aiocoap.CONTENT, "Response access via response_nonraising failed")
+        self.assertEqual(
+            response.code,
+            aiocoap.CONTENT,
+            "Response access via response_nonraising failed",
+        )
 
-        request = aiocoap.Message(code=aiocoap.GET, uri="coap://cant.resolve.this.example./empty")
+        request = aiocoap.Message(
+            code=aiocoap.GET, uri="coap://cant.resolve.this.example./empty"
+        )
         response = await self.client.request(request).response_nonraising
         self.assertEqual(response.code, aiocoap.INTERNAL_SERVER_ERROR)
 
@@ -110,10 +168,17 @@ class TestClientOther(WithTestServer, WithClient):
         # ensure this per documentation, but still it's good to see when this
         # changes.
         loglength = len(self.handler.list)
-        request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/empty")
+        request = aiocoap.Message(
+            code=aiocoap.GET, uri="coap://" + self.servernetloc + "/empty"
+        )
         self.resp = self.client.request(request).response
         self.resp.cancel()
-        self.assertEqual(loglength, len(self.handler.list), "Something was logged during request creation and immediate cancellation: %r" % (self.handler.list[loglength:],))
+        self.assertEqual(
+            loglength,
+            len(self.handler.list),
+            "Something was logged during request creation and immediate cancellation: %r"
+            % (self.handler.list[loglength:],),
+        )
 
         # FIXME: What is slightly weird here is that on uvloop, something
         # *does* get sent -- but it appears that that happens even after the
@@ -129,15 +194,25 @@ class TestClientOther(WithTestServer, WithClient):
         # Note that the resource implementation deliberately sends responses as CON,
         # as to allow us to peek into the internals of aiocoap by
         # looking at wehter it returns a RST or an ACK.
-        request = aiocoap.Message(code=aiocoap.GET, uri="coap://" + self.servernetloc + "/slow", mtype=aiocoap.NON)
+        request = aiocoap.Message(
+            code=aiocoap.GET,
+            uri="coap://" + self.servernetloc + "/slow",
+            mtype=aiocoap.NON,
+        )
         self.resp = self.client.request(request).response
         # Wait for the request to actually be sent
-        while not any('Sending request' in l.getMessage() for l in self.handler.list):
+        while not any("Sending request" in l.getMessage() for l in self.handler.list):
             await asyncio.sleep(0.001)
         # Now the request was sent, let's look at what happens during and after the cancellation
         loglength = len(self.handler.list)
         self.resp.cancel()
-        await asyncio.sleep(0.4) # server takes 0.2 to respond
+        await asyncio.sleep(0.4)  # server takes 0.2 to respond
         logmsgs = self.handler.list[loglength:]
-        unmatched_msgs = [l for l in logmsgs if "could not be matched to any request" in l.getMessage()]
-        self.assertEqual(len(unmatched_msgs), 1, "The incoming response was not treated as unmatched")
+        unmatched_msgs = [
+            l
+            for l in logmsgs
+            if "could not be matched to any request" in l.getMessage()
+        ]
+        self.assertEqual(
+            len(unmatched_msgs), 1, "The incoming response was not treated as unmatched"
+        )

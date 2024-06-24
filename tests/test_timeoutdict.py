@@ -8,6 +8,7 @@ from aiocoap.util.asyncio.timeoutdict import TimeoutDict
 
 from .fixtures import WithAsyncLoop, asynctest
 
+
 class TestTimeoutDict(WithAsyncLoop):
     @asynctest
     async def test_presence_and_absence(self):
