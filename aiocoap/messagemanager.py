@@ -309,7 +309,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         self._send_initially(rst)
 
     def _process_request(self, request):
-        """Spawn a Responder for an incoming request, or feed a long-running
+        """Spawn a responder for an incoming request, or feed a long-running
         responder if one exists."""
 
         if request.mtype == CON:
@@ -455,7 +455,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     def _send_empty_ack(self, remote, mid, reason):
         """Send separate empty ACK for any reason.
 
-        Currently, this can happen only once per Responder, that is, when the
+        Currently, this can happen only once per responder, that is, when the
         last block1 has been transferred and the first block2 is not ready
         yet."""
 

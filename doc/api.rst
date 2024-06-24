@@ -61,5 +61,8 @@ Modules with stable components
    module/aiocoap.meta
 
    module/aiocoap.oscore
+   module/aiocoap.oscore_sitewrapper
+   module/aiocoap.edhoc
+   module/aiocoap.credentials
 
 .. _`semantically versioned`: https://semver.org/

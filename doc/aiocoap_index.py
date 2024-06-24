@@ -9,13 +9,6 @@ import textwrap
 import glob
 import os.path
 
-def glob35(dir, recursive=True):
-    return glob.glob(dir.replace('**', '*')) + \
-            glob.glob(dir.replace('**', '*/*')) + \
-            glob.glob(dir.replace('**', '*/*/*')) + \
-            glob.glob(dir.replace('**', '*/*/*/*')) + \
-            glob.glob(dir.replace('/**', ''))
-
 from docutils.parsers.rst.directives.misc import Include
 
 rtd_re = re.compile("^\\.\\. _([^:]+): http://aiocoap.readthedocs.io/en/latest/(.*)\\.html$")
@@ -74,36 +67,41 @@ def build_moduledocs(app):
     customizations."""
     srcdir = app.builder.srcdir
 
-    moddir = srcdir + '/module'
+    moddir = srcdir / 'module'
     os.makedirs(moddir, exist_ok=True)
 
-    basedir = os.path.dirname(srcdir)
-    docs = [x[len(basedir)+1:-3].replace('/', '.').replace('.__init__', '') for x in glob35(basedir + '/aiocoap/**/*.py', recursive=True)]
+    basedir = srcdir.parent
+    docs = [x.removesuffix(".py").replace('/', '.').replace('.__init__', '') for x in glob.glob('aiocoap/**/*.py', recursive=True, root_dir=basedir)]
 
     for x in docs:
-        commonstart = textwrap.dedent("""\
+        commonstart = textwrap.dedent(f"""\
             {x} module
             ====================================================================================
-            """).format(x=x)
+            """)
 
         if x in ('aiocoap.numbers', 'aiocoap.transports'):
             # They have explicit intros pointing out submodules and/or
             # describing any reexports
-            text = commonstart + textwrap.dedent("""
+            text = commonstart + textwrap.dedent(f"""
                 .. automodule:: {x}
                 .. toctree::
                     :glob:
 
                     {x}.*
-                """).format(x=x)
+                """)
+        elif x in ('aiocoap',):
+            # They have explicit intros listing submodules
+            text = commonstart + textwrap.dedent(f"""
+                .. automodule:: {x}
+                """)
         elif x.startswith('aiocoap.cli.'):
             if x in ('aiocoap.cli.defaults', 'aiocoap.cli.common'):
                 # These neither have a man page, nor do they go into the documentation
                 continue
-            executablename = "aiocoap-" + x[len('aiocoap.cli.'):]
+            executablename = "aiocoap-" + x.removeprefix('aiocoap.cli.')
             # no ".. automodule:: {x}" because the doc string is already used
             # by the argparse, and thus would be repeated
-            text = textwrap.dedent("""
+            text = textwrap.dedent(f"""
                     {executablename}
                     ==============================
 
@@ -111,24 +109,24 @@ def build_moduledocs(app):
                         :ref: {x}.build_parser
                         :prog: {executablename}
 
-                    """).format(x=x, executablename=executablename)
+                    """)
         else:
-            text = commonstart + textwrap.dedent("""
+            text = commonstart + textwrap.dedent(f"""
                 .. automodule:: {x}
                     :members:
                     :undoc-members:
                     :show-inheritance:
-                """).format(x=x)
-        docname = "%s/%s.rst"%(moddir, x)
+                """)
+        docname = f"{moddir}/{x}.rst"
 
         if os.path.exists(docname) and open(docname).read() == text:
             continue
         else:
-            with open(moddir + '/' + x + '.rst', 'w') as outfile:
+            with open(moddir / (x + '.rst'), 'w') as outfile:
                 outfile.write(text)
 
     for f in os.listdir(moddir):
-        if f.endswith('.rst') and f[:-4] not in docs:
+        if f.endswith('.rst') and f.removesuffix('.rst') not in docs:
             os.unlink(moddir + '/' + f)
 
 def setup(app):

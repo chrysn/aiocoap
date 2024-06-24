@@ -350,14 +350,12 @@ class AlgorithmCountersign(metaclass=abc.ABCMeta):
         tobesigned = cbor.dumps(countersign_structure)
         return tobesigned
 
-    @property
     @abc.abstractproperty
-    def signature_length(self):
+    def signature_length(self) -> int:
         """The length of a signature using this algorithm"""
 
-    @property
     @abc.abstractproperty
-    def curve_number(self):
+    def curve_number(self) -> int:
         """Registered curve number used with this algorithm.
 
         Only used for verification of credentials' details"""

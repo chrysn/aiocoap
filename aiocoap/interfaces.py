@@ -268,6 +268,11 @@ class RequestInterface(metaclass=abc.ABCMeta):
         pass
 
 class RequestProvider(metaclass=abc.ABCMeta):
+    """
+    .. automethod:: request
+    .. (which we have to list here manually because the private override in the
+       method is needed for the repeated signature in Context)
+    """
     @abc.abstractmethod
     def request(self, request_message):
         """Create and act on a a :class:`Request` object that will be handled
@@ -275,7 +280,12 @@ class RequestProvider(metaclass=abc.ABCMeta):
 
         Note that the request is not necessarily sent on the wire immediately;
         it may (but, depend on the transport does not necessarily) rely on the
-        response to be waited for."""
+        response to be waited for.
+
+        :meta private:
+            (not actually private, just hiding from automodule due to being
+            grouped with the important functions)
+        """
 
 class Request(metaclass=abc.ABCMeta):
     """A CoAP request, initiated by sending a message. Typically, this is not
@@ -322,10 +332,10 @@ class Resource(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     async def needs_blockwise_assembly(self, request):
-        """Indicator to the :class:`.protocol.Responder` about whether it
-        should assemble request blocks to a single request and extract the
-        requested blocks from a complete-resource answer (True), or whether
-        the resource will do that by itself (False)."""
+        """Indicator whether aiocoap should assemble request blocks to a single
+        request and extract the requested blocks from a complete-resource
+        answer (True), or whether the resource will do that by itself
+        (False)."""
 
     async def _render_to_pipe(self, pipe: Pipe) -> None:
         if not hasattr(self, "_block1"):
@@ -358,8 +368,8 @@ class Resource(metaclass=abc.ABCMeta):
         the request stream.
 
         This method is provided by the base Resource classes; if it is
-        overridden, then :meth:`~.Resource.render`, :meth:`needs_blockwise_assembly` and
-        :meth:`~.ObservableResource.add_observation` are not used any more.
+        overridden, then :meth:`~interfaces.Resource.render`, :meth:`needs_blockwise_assembly` and
+        :meth:`~.interfaces.ObservableResource.add_observation` are not used any more.
         (They still need to be implemented to comply with the interface
         definition, which is yet to be updated)."""
         warnings.warn("Request interface is changing: Resources should "

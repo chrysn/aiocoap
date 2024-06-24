@@ -14,6 +14,7 @@ integration in a bigger project in general.
    aiocoap-proxy: A command-line configurable forward and reverse proxy <module/aiocoap.cli.proxy>
    aiocoap-rd: A standalone resource directory server <module/aiocoap.cli.rd>
    aiocoap-fileserver: A simple read-only file server with directory listings <module/aiocoap.cli.fileserver>
+   aiocoap-keygen: A tool for generating keys for EDHOC <module/aiocoap.cli.keygen>
 
 Those utilities are installed by `setup.py` at the usual executable locations;
 during development or when working from a git checkout of the project, wrapper

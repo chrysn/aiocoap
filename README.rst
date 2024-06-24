@@ -64,6 +64,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC8323: https://tools.ietf.org/html/rfc8323
 .. _RFC8613: https://tools.ietf.org/html/rfc8613
 .. _RFC9176: https://tools.ietf.org/html/rfc9176
+.. _RFC9528: https://tools.ietf.org/html/rfc9528
 .. _draft-ietf-core-oscore-groupcomm-17: https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-17
 .. _lakers: https://pypi.org/project/lakers-python/
 
@@ -95,8 +96,8 @@ Bugs (ranging from "design goal" and "wishlist" to typos) are currently tracked
 in the `github issue tracker`_. Pull requests are welcome there; if you start
 working on larger changes, please coordinate on the issue tracker.
 
-Documentation is built using sphinx_ with ``./setup.py build_sphinx``; hacks
-used there are described in ``./doc/README.doc``.
+Documentation is built using sphinx_ with ``python3 -m sphinx doc/ ${TARGET}``;
+hacks used there are described in ``./doc/README.doc``.
 
 Unit tests are implemented in the ``./tests/`` directory and easiest run using
 tox_ (but also available through ``python3 -m unittest`` to test the local environment);
