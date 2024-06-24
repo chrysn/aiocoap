@@ -78,6 +78,9 @@ where = [ "." ]
 # its submodules, in others it didn't. Listing both is safe for both.
 include = [ "aiocoap", "aiocoap.*" ]
 
+[tool.ruff.format]
+quote-style = "preserve"
+
 [[tool.mypy.overrides]]
 module = [
     # Tracked in https://github.com/chrysn/cbor-diag-py/issues/2
