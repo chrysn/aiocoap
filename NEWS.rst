@@ -17,6 +17,7 @@ Deprecations
 Minor fixes
 ~~~~~~~~~~~
 
+* Various broken, missing and duplicate references fixed in the documentation.
 * Doctest failure in 0.4.9 _repr_html_ was fixed.
 
 Version 0.4.9
