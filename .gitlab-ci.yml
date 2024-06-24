@@ -98,6 +98,8 @@ test:ruff:
   script:
     - pip install ruff
     - "ruff format --check aiocoap *.py"
+    # Excluding the client scripts as their heavy reliance on `from aiocoap
+    # import *` would decrease their usefullness as easy quick-start script
     - "ruff check aiocoap
 
 reuse:
