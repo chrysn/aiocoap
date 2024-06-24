@@ -1,3 +1,24 @@
+Version 0.4.10
+--------------
+
+New features
+~~~~~~~~~~~~
+
+* Initial experimental support for EDHOC key establishment was added.
+* CLI: New aiocoap-keygen command was added.
+* Credentials can be processed as CBOR Diagnostic Notation (EDN).
+* aiocoap.cli.defaults can be run as a module.
+
+Deprecations
+~~~~~~~~~~~~
+
+* OSCORE: The context argument "contextfile" was renamed to "basedir".
+
+Minor fixes
+~~~~~~~~~~~
+
+* Doctest failure in 0.4.9 _repr_html_ was fixed.
+
 Version 0.4.9
 -------------
 
