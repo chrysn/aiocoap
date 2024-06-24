@@ -31,7 +31,7 @@ if __debug__:
         constants.__all__
         + types.__all__
         + codes.__all__
-        + ['OptionNumber', 'ContentFormat']
+        + ["OptionNumber", "ContentFormat"]
     )
     if _generated_all != __all__:
         warnings.warn(f"""Hardcoded __all__ is out of sync (as are imports, probably), please updated to

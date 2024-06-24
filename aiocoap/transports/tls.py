@@ -21,7 +21,7 @@ from aiocoap import COAPS_PORT
 
 
 class _TLSMixIn:
-    _scheme = 'coaps+tcp'
+    _scheme = "coaps+tcp"
     _default_port = COAPS_PORT
 
 

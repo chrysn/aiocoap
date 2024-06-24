@@ -44,30 +44,30 @@ def get_default_clienttransports(*, loop=None, use_env=True):
     full udp6 transport is known to work.
     """
 
-    if use_env and 'AIOCOAP_CLIENT_TRANSPORT' in os.environ:
-        yield from os.environ['AIOCOAP_CLIENT_TRANSPORT'].split(':')
+    if use_env and "AIOCOAP_CLIENT_TRANSPORT" in os.environ:
+        yield from os.environ["AIOCOAP_CLIENT_TRANSPORT"].split(":")
         return
 
     if not oscore_missing_modules():
-        yield 'oscore'
+        yield "oscore"
 
     if not dtls_missing_modules():
-        yield 'tinydtls'
+        yield "tinydtls"
 
-    yield 'tcpclient'
-    yield 'tlsclient'
+    yield "tcpclient"
+    yield "tlsclient"
     if not ws_missing_modules():
-        yield 'ws'
+        yield "ws"
 
-    if sys.platform != 'linux':
+    if sys.platform != "linux":
         # udp6 was never reported to work on anything but linux; would happily
         # add more platforms.
-        yield 'simple6'
+        yield "simple6"
         return
 
     # on android it seems that it's only the AI_V4MAPPED that causes trouble,
     # that should be managable in udp6 too.
-    yield 'udp6'
+    yield "udp6"
     return
 
 
@@ -86,35 +86,35 @@ def get_default_servertransports(*, loop=None, use_env=True):
     at.
     """
 
-    if use_env and 'AIOCOAP_SERVER_TRANSPORT' in os.environ:
-        yield from os.environ['AIOCOAP_SERVER_TRANSPORT'].split(':')
+    if use_env and "AIOCOAP_SERVER_TRANSPORT" in os.environ:
+        yield from os.environ["AIOCOAP_SERVER_TRANSPORT"].split(":")
         return
 
     if not oscore_missing_modules():
-        yield 'oscore'
+        yield "oscore"
 
     if not dtls_missing_modules():
-        if 'AIOCOAP_DTLSSERVER_ENABLED' in os.environ:
-            yield 'tinydtls_server'
-        yield 'tinydtls'
+        if "AIOCOAP_DTLSSERVER_ENABLED" in os.environ:
+            yield "tinydtls_server"
+        yield "tinydtls"
 
-    yield 'tcpserver'
-    yield 'tcpclient'
-    yield 'tlsserver'
-    yield 'tlsclient'
+    yield "tcpserver"
+    yield "tcpclient"
+    yield "tlsserver"
+    yield "tlsclient"
     if not ws_missing_modules():
-        yield 'ws'
+        yield "ws"
 
-    if sys.platform != 'linux':
+    if sys.platform != "linux":
         # udp6 was never reported to work on anything but linux; would happily
         # add more platforms.
-        yield 'simple6'
-        yield 'simplesocketserver'
+        yield "simple6"
+        yield "simplesocketserver"
         return
 
     # on android it seems that it's only the AI_V4MAPPED that causes trouble,
     # that should be managable in udp6 too.
-    yield 'udp6'
+    yield "udp6"
     return
 
 
@@ -124,10 +124,10 @@ def has_reuse_port(*, use_env=True):
     Can be overridden by explicitly setting ``AIOCOAP_REUSE_PORT`` to 1 or
     0."""
 
-    if use_env and os.environ.get('AIOCOAP_REUSE_PORT'):
-        return bool(int(os.environ['AIOCOAP_REUSE_PORT']))
+    if use_env and os.environ.get("AIOCOAP_REUSE_PORT"):
+        return bool(int(os.environ["AIOCOAP_REUSE_PORT"]))
 
-    return hasattr(socket, 'SO_REUSEPORT')
+    return hasattr(socket, "SO_REUSEPORT")
 
 
 def use_ai_v4mapped_emulation():
@@ -163,32 +163,32 @@ def oscore_missing_modules():
     try:
         import cbor2  # noqa: F401
     except ImportError:
-        missing.append('cbor2')
+        missing.append("cbor2")
     try:
         import cryptography  # noqa: F401
     except ImportError:
-        missing.append('cryptography')
+        missing.append("cryptography")
     else:
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESCCM
 
             AESCCM(b"x" * 16, 8)
         except (cryptography.exceptions.UnsupportedAlgorithm, ImportError):
-            missing.append('a version of OpenSSL that supports AES-CCM')
+            missing.append("a version of OpenSSL that supports AES-CCM")
     try:
         import filelock  # noqa: F401
     except ImportError:
-        missing.append('filelock')
+        missing.append("filelock")
 
     try:
         import ge25519  # noqa: F401
     except ImportError:
-        missing.append('ge25519')
+        missing.append("ge25519")
 
     try:
         import lakers  # noqa: F401
     except ImportError:
-        missing.append('lakers-python')
+        missing.append("lakers-python")
 
     return missing
 
@@ -204,7 +204,7 @@ def ws_missing_modules():
     try:
         import websockets  # noqa: F401
     except ImportError:
-        missing.append('websockets')
+        missing.append("websockets")
 
     return missing
 
@@ -226,34 +226,34 @@ def prettyprint_missing_modules():
     try:
         import cbor2  # noqa: F401
     except ImportError:
-        missing.append('cbor2')
+        missing.append("cbor2")
     try:
         import pygments  # noqa: F401
     except ImportError:
-        missing.append('pygments')
+        missing.append("pygments")
     try:
         import cbor_diag  # noqa: F401
     except ImportError:
-        missing.append('cbor-diag')
+        missing.append("cbor-diag")
     return missing
 
 
 missing_module_functions = {
-    'dtls': dtls_missing_modules,
-    'oscore': oscore_missing_modules,
-    'linkheader': linkheader_missing_modules,
-    'prettyprint': prettyprint_missing_modules,
-    'ws': ws_missing_modules,
+    "dtls": dtls_missing_modules,
+    "oscore": oscore_missing_modules,
+    "linkheader": linkheader_missing_modules,
+    "prettyprint": prettyprint_missing_modules,
+    "ws": ws_missing_modules,
 }
 
 __all__ = [
-    'get_default_clienttransports',
-    'get_default_servertransports',
-    'has_reuse_port',
-    'dtls_missing_modules',
-    'oscore_missing_modules',
-    'ws_missing_modules',
-    'linkheader_missing_modules',
-    'prettyprint_missing_modules',
-    'missing_module_functions',
+    "get_default_clienttransports",
+    "get_default_servertransports",
+    "has_reuse_port",
+    "dtls_missing_modules",
+    "oscore_missing_modules",
+    "ws_missing_modules",
+    "linkheader_missing_modules",
+    "prettyprint_missing_modules",
+    "missing_module_functions",
 ]

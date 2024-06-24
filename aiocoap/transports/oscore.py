@@ -101,7 +101,7 @@ class OSCOREAddress(
 
     @property
     def blockwise_key(self):
-        if hasattr(self.security_context, 'groupcontext'):
+        if hasattr(self.security_context, "groupcontext"):
             # it's an aspect, and all aspects work compatibly as long as data
             # comes from the same recipient ID -- taking the group recipient
             # key for that one which is stable across switches between pairwise
@@ -144,7 +144,7 @@ class TransportOSCORE(interfaces.RequestProvider):
             # double oscore is not specified; using this fact to make `._wire
             # is ._context` an option
             return False
-        if message.opt.uri_path == ('.well-known', 'edhoc'):
+        if message.opt.uri_path == (".well-known", "edhoc"):
             # FIXME better criteria based on next-hop?
             return False
 

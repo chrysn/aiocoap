@@ -114,7 +114,7 @@ def _serialize(msg: Message) -> bytes:
         msg.opt.encode(),
     ]
     if msg.payload:
-        data += [b'\xff', msg.payload]
+        data += [b"\xff", msg.payload]
 
     return b"".join(data)
 
@@ -259,10 +259,10 @@ class WSPool(interfaces.TokenInterface):
                 port = port + 3000
 
             server = await websockets.serve(
-                functools.partial(self._new_connection, scheme='coap+ws'),
+                functools.partial(self._new_connection, scheme="coap+ws"),
                 host,
                 port,
-                subprotocols=['coap'],
+                subprotocols=["coap"],
                 process_request=self._process_request,
                 ping_interval=None,  # "SHOULD NOT be used"
             )
@@ -270,10 +270,10 @@ class WSPool(interfaces.TokenInterface):
 
             if server_context is not None:
                 server = await websockets.serve(
-                    functools.partial(self._new_connection, scheme='coaps+ws'),
+                    functools.partial(self._new_connection, scheme="coaps+ws"),
                     host,
                     port + 1,
-                    subprotocols=['coap'],
+                    subprotocols=["coap"],
                     process_request=self._process_request,
                     ping_interval=None,  # "SHOULD NOT be used"
                     ssl=server_context,
@@ -290,18 +290,18 @@ class WSPool(interfaces.TokenInterface):
         # (path is present up to 10.0 and absent in 10.1; keeping it around to
         # stay compatible with different versions).
 
-        hostheader = websocket.request_headers['Host']
-        if hostheader.count(':') > 1 and '[' not in hostheader:
+        hostheader = websocket.request_headers["Host"]
+        if hostheader.count(":") > 1 and "[" not in hostheader:
             # Workaround for websockets version before
             # https://github.com/aaugustin/websockets/issues/802
             #
             # To be removed once a websockets version with this fix can be
             # depended on
             hostheader = (
-                '['
-                + hostheader[: hostheader.rfind(':')]
-                + ']'
-                + hostheader[hostheader.rfind(':') :]
+                "["
+                + hostheader[: hostheader.rfind(":")]
+                + "]"
+                + hostheader[hostheader.rfind(":") :]
             )
         local_hostinfo = util.hostportsplit(hostheader)
 
@@ -319,7 +319,7 @@ class WSPool(interfaces.TokenInterface):
 
     @staticmethod
     async def _process_request(path, request_headers):
-        if path != '/.well-known/coap':
+        if path != "/.well-known/coap":
             return (http.HTTPStatus.NOT_FOUND, [], b"")
         # Continue with WebSockets
         return None
@@ -340,13 +340,13 @@ class WSPool(interfaces.TokenInterface):
 
             hostinfo_split = util.hostportsplit(key.hostinfo)
 
-            ws_scheme = {'coap+ws': 'ws', 'coaps+ws': 'wss'}[key.scheme]
+            ws_scheme = {"coap+ws": "ws", "coaps+ws": "wss"}[key.scheme]
 
-            if ws_scheme == 'ws' and ssl_context is not None:
+            if ws_scheme == "ws" and ssl_context is not None:
                 raise ValueError(
                     "An SSL context was provided for a remote accessed via a plaintext websockets."
                 )
-            if ws_scheme == 'wss':
+            if ws_scheme == "wss":
                 if is_pyodide:
                     if ssl_context is not None:
                         raise ValueError(
@@ -363,7 +363,7 @@ class WSPool(interfaces.TokenInterface):
 
             websocket = await websockets.connect(
                 "%s://%s/.well-known/coap" % (ws_scheme, key.hostinfo),
-                subprotocols=['coap'],
+                subprotocols=["coap"],
                 ping_interval=None,
                 ssl=ssl_context,
             )
@@ -394,7 +394,7 @@ class WSPool(interfaces.TokenInterface):
         if isinstance(message.remote, WSRemote) and message.remote._pool() is self:
             return True
 
-        if message.requested_scheme in ('coap+ws', 'coaps+ws'):
+        if message.requested_scheme in ("coap+ws", "coaps+ws"):
             key = PoolKey(message.requested_scheme, message.remote.hostinfo)
 
             if key in self._pool:

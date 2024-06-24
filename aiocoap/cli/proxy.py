@@ -26,8 +26,8 @@ def build_parser():
     mode = p.add_argument_group(
         "mode", "Required argument for setting the operation mode"
     )
-    mode.add_argument('--forward', help="Run as forward proxy", action='store_true')
-    mode.add_argument('--reverse', help="Run as reverse proxy", action='store_true')
+    mode.add_argument("--forward", help="Run as forward proxy", action="store_true")
+    mode.add_argument("--reverse", help="Run as reverse proxy", action="store_true")
 
     details = p.add_argument_group(
         "details", "Options that govern how requests go in and out"
@@ -36,24 +36,24 @@ def build_parser():
     details.add_argument(
         "--register",
         help="Register with a Resource directory",
-        metavar='RD-URI',
-        nargs='?',
+        metavar="RD-URI",
+        nargs="?",
         default=False,
     )
     details.add_argument(
         "--register-as",
         help="Endpoint name (with possibly a domain after a dot) to register as",
-        metavar='EP[.D]',
+        metavar="EP[.D]",
         default=None,
     )
     details.add_argument(
         "--register-proxy",
         help="Ask the RD to serve as a reverse proxy. Note that this is only practical for --unconditional or --pathbased reverse proxies.",
-        action='store_true',
+        action="store_true",
     )
 
     r = p.add_argument_group(
-        'Rules',
+        "Rules",
         description="Sequence of forwarding rules "
         "that, if matched by a request, specify a forwarding destination. Destinations can be prefixed to change their behavior: With an '@' sign, they are treated as forward proxies. With a '!' sign, the destination is set as Uri-Host.",
     )
@@ -65,32 +65,32 @@ def build_parser():
             getattr(namespace, self.dest).append((option_string, values))
 
     r.add_argument(
-        '--namebased',
+        "--namebased",
         help="If Uri-Host matches NAME, route to DEST",
         metavar="NAME:DEST",
         action=TypedAppend,
-        dest='r',
+        dest="r",
     )
     r.add_argument(
-        '--subdomainbased',
+        "--subdomainbased",
         help="If Uri-Host is anything.NAME, route to DEST",
         metavar="NAME:DEST",
         action=TypedAppend,
-        dest='r',
+        dest="r",
     )
     r.add_argument(
-        '--pathbased',
+        "--pathbased",
         help="If a requested path starts with PATH, split that part off and route to DEST",
         metavar="PATH:DEST",
         action=TypedAppend,
-        dest='r',
+        dest="r",
     )
     r.add_argument(
-        '--unconditional',
+        "--unconditional",
         help="Route all requests not previously matched to DEST",
         metavar="DEST",
         action=TypedAppend,
-        dest='r',
+        dest="r",
     )
 
     return p
@@ -99,10 +99,10 @@ def build_parser():
 def destsplit(dest):
     use_as_proxy = False
     rewrite_uri_host = False
-    if dest.startswith('!'):
+    if dest.startswith("!"):
         dest = dest[1:]
         rewrite_uri_host = True
-    if dest.startswith('@'):
+    if dest.startswith("@"):
         dest = dest[1:]
         use_as_proxy = True
     return dest, rewrite_uri_host, use_as_proxy
@@ -123,28 +123,28 @@ class Main(AsyncCLIDaemon):
         else:
             proxy = ProxyWithPooledObservations(self.outgoing_context)
         for kind, data in options.r or ():
-            if kind in ('--namebased', '--subdomainbased'):
+            if kind in ("--namebased", "--subdomainbased"):
                 try:
-                    name, dest = data.split(':', 1)
+                    name, dest = data.split(":", 1)
                 except Exception:
                     raise parser.error("%s needs NAME:DEST as arguments" % kind)
                 dest, rewrite_uri_host, use_as_proxy = destsplit(dest)
-                if rewrite_uri_host and kind == '--subdomainbased':
+                if rewrite_uri_host and kind == "--subdomainbased":
                     parser.error(
                         "The flag '!' makes no sense for subdomain based redirection as the subdomain data would be lost"
                     )
                 r = (
                     NameBasedVirtualHost
-                    if kind == '--namebased'
+                    if kind == "--namebased"
                     else SubdomainVirtualHost
                 )(name, dest, rewrite_uri_host, use_as_proxy)
-            elif kind == '--pathbased':
+            elif kind == "--pathbased":
                 try:
-                    path, dest = data.split(':', 1)
+                    path, dest = data.split(":", 1)
                 except Exception:
                     raise parser.error("--pathbased needs PATH:DEST as arguments")
-                r = SubresourceVirtualHost(path.split('/'), dest)
-            elif kind == '--unconditional':
+                r = SubresourceVirtualHost(path.split("/"), dest)
+            elif kind == "--unconditional":
                 dest, rewrite_uri_host, use_as_proxy = destsplit(data)
                 if rewrite_uri_host:
                     parser.error(
@@ -152,7 +152,7 @@ class Main(AsyncCLIDaemon):
                     )
                 r = UnconditionalRedirector(dest, use_as_proxy)
             else:
-                raise AssertionError('Unknown redirectory kind')
+                raise AssertionError("Unknown redirectory kind")
             proxy.add_redirector(r)
 
         self.proxy_context = await server_context_from_arguments(proxy, options)
@@ -162,13 +162,13 @@ class Main(AsyncCLIDaemon):
 
             params = {}
             if options.register_as:
-                ep, _, d = options.register_as.partition('.')
-                params['ep'] = ep
+                ep, _, d = options.register_as.partition(".")
+                params["ep"] = ep
                 if d:
-                    params['d'] = d
+                    params["d"] = d
             if options.register_proxy:
                 # FIXME: Check this in discovery
-                params['proxy'] = 'on'
+                params["proxy"] = "on"
             # FIXME: Construct this from settings (path-based), and forward results
             proxy.get_resources_as_linkheader = lambda: ""
             self.registerer = Registerer(

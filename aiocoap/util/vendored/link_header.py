@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-'''
+"""
 Parse and format link headers according to RFC 5988 "Web Linking".
 
 Usage (assuming a suitable headers object in the environment):
@@ -28,22 +28,22 @@ Conversions to and from json-friendly list-based structures are also provided:
 '<http://example.com/foo>; rel=self, <http://example.com>; rel=up'
 
 For further information see parse(), LinkHeader and Link.
-'''
+"""
 
 import re
 from typing import Dict
 from urllib.parse import urljoin
 
 __all__ = [
-    'parse',
-    'format_links',
-    'format_link',
-    'LinkHeader',
-    'Link',
-    'ParseException',
+    "parse",
+    "format_links",
+    "format_link",
+    "LinkHeader",
+    "Link",
+    "ParseException",
 ]
 
-SINGLE_VALUED_ATTRS = ['rel', 'anchor', 'rev', 'media', 'title', 'title*', 'type']
+SINGLE_VALUED_ATTRS = ["rel", "anchor", "rev", "media", "title", "title*", "type"]
 
 #
 # Regexes for link header parsing.  TOKEN and QUOTED in particular should conform to RFC2616.
@@ -57,18 +57,18 @@ SINGLE_VALUED_ATTRS = ['rel', 'anchor', 'rev', 'media', 'title', 'title*', 'type
 QUOTED = (
     r'"((?:[^"\\]|\\.)*)"'  # double-quoted strings with backslash-escaped double quotes
 )
-TOKEN = r'([^()<>@,;:\"\[\]?={}\s]+)'  # non-empty sequence of non-separator characters
+TOKEN = r"([^()<>@,;:\"\[\]?={}\s]+)"  # non-empty sequence of non-separator characters
 RE_COMMA_HREF = re.compile(
-    r' *,? *< *([^>]*) *> *'
+    r" *,? *< *([^>]*) *> *"
 )  # includes ',' separator; no attempt to check URI validity
-RE_ONLY_TOKEN = re.compile(r'^%(TOKEN)s$' % locals())
-RE_ATTR = re.compile(r'%(TOKEN)s *(?:= *(%(TOKEN)s|%(QUOTED)s))? *' % locals())
-RE_SEMI = re.compile(r'; *')
-RE_COMMA = re.compile(r', *')
+RE_ONLY_TOKEN = re.compile(r"^%(TOKEN)s$" % locals())
+RE_ATTR = re.compile(r"%(TOKEN)s *(?:= *(%(TOKEN)s|%(QUOTED)s))? *" % locals())
+RE_SEMI = re.compile(r"; *")
+RE_COMMA = re.compile(r", *")
 
 
 def parse(header):
-    '''Parse a link header string, returning a LinkHeader object:
+    """Parse a link header string, returning a LinkHeader object:
 
     >>> parse('<http://example.com/foo>; rel="foo bar", <http://example.com>; rel=up; type=text/html')
     LinkHeader([Link('http://example.com/foo', rel='foo bar'), Link('http://example.com', rel='up', type='text/html')])
@@ -79,7 +79,7 @@ def parse(header):
     Traceback (most recent call last):
         ...
     ParseException: ('link_header.parse() failed near %s', "'error'")
-    '''
+    """
     scanner = _Scanner(header)
     links = []
     while scanner.scan(RE_COMMA_HREF):
@@ -89,7 +89,7 @@ def parse(header):
             if scanner.scan(RE_ATTR):
                 attr_name, token, quoted = scanner[1], scanner[3], scanner[4]
                 if quoted is not None:
-                    attrs.append([attr_name, quoted.replace(r'\"', '"')])
+                    attrs.append([attr_name, quoted.replace(r"\"", '"')])
                 elif token is not None:
                     attrs.append([attr_name, token])
                 else:
@@ -115,10 +115,10 @@ class ParseException(Exception):
 
 
 class LinkHeader(object):
-    '''Represents a sequence of links that can be formatted together as a link header.'''
+    """Represents a sequence of links that can be formatted together as a link header."""
 
     def __init__(self, links=None):
-        '''Initializes a LinkHeader object with a list of Link objects or with
+        """Initializes a LinkHeader object with a list of Link objects or with
         list of parameters from which Link objects can be created:
 
         >>> LinkHeader([Link('http://example.com/foo', rel='foo'), Link('http://example.com', rel='up')])
@@ -138,38 +138,38 @@ class LinkHeader(object):
         >>> LinkHeader([Link('http://example.com/foo', rel='foo'), Link('http://example.com', rel='up')]).to_py()
         [['http://example.com/foo', [['rel', 'foo']]], ['http://example.com', [['rel', 'up']]]]
 
-        '''
+        """
 
         self.links = [
             link if isinstance(link, Link) else Link(*link) for link in links or []
         ]
 
     def to_py(self):
-        '''Supports list conversion:
+        """Supports list conversion:
 
         >>> LinkHeader([Link('http://example.com/foo', rel='foo'), Link('http://example.com', rel='up')]).to_py()
         [['http://example.com/foo', [['rel', 'foo']]], ['http://example.com', [['rel', 'up']]]]
-        '''
+        """
         return [link.to_py() for link in self.links]
 
     def __repr__(self):
-        return 'LinkHeader([%s])' % ', '.join(repr(link) for link in self.links)
+        return "LinkHeader([%s])" % ", ".join(repr(link) for link in self.links)
 
     def __str__(self):
-        '''Formats a link header:
+        """Formats a link header:
 
         >>> str(LinkHeader([Link('http://example.com/foo', rel='foo'), Link('http://example.com', rel='up')]))
         '<http://example.com/foo>; rel=foo, <http://example.com>; rel=up'
-        '''
-        return ', '.join(str(link) for link in self.links)
+        """
+        return ", ".join(str(link) for link in self.links)
 
     def links_by_attr_pairs(self, pairs):
-        '''Lists links that have attribute pairs matching all the supplied pairs:
+        """Lists links that have attribute pairs matching all the supplied pairs:
 
         >>> parse('<http://example.com/foo>; rel="foo", <http://example.com>; rel="up"'
         ...      ).links_by_attr_pairs([('rel', 'up')])
         [Link('http://example.com', rel='up')]
-        '''
+        """
         return [
             link
             for link in self.links
@@ -178,10 +178,10 @@ class LinkHeader(object):
 
 
 class Link(object):
-    '''Represents a single link.'''
+    """Represents a single link."""
 
     def __init__(self, href, attr_pairs=None, **kwargs):
-        '''Initializes a Link object with an href and attributes either in
+        """Initializes a Link object with an href and attributes either in
         the form of a sequence of key/value pairs &/or as keyword arguments.
         The sequence form allows to be repeated.  Attributes may be accessed
         subsequently via the `attr_pairs` property.
@@ -195,32 +195,32 @@ class Link(object):
 
         >>> Link('http://example.com', [('foo', 'bar'), ('foo', 'baz')], rel='self').to_py()
         ['http://example.com', [['foo', 'bar'], ['foo', 'baz'], ['rel', 'self']]]
-        '''
+        """
         self.href = href
         self.attr_pairs = [
             list(pair) for pair in (attr_pairs or []) + list(kwargs.items())
         ]
 
     def to_py(self):
-        '''Convert to a json-friendly list-based structure:
+        """Convert to a json-friendly list-based structure:
 
         >>> Link('http://example.com', rel='foo').to_py()
         ['http://example.com', [['rel', 'foo']]]
-        '''
+        """
         return [self.href, self.attr_pairs]
 
     def __repr__(self):
-        '''
+        """
         >>> Link('http://example.com', rel='self')
         Link('http://example.com', rel='self')
-        '''
-        return 'Link(%s)' % ', '.join(
+        """
+        return "Link(%s)" % ", ".join(
             [repr(self.href)]
             + ["%s=%s" % (pair[0], repr(pair[1])) for pair in self.attr_pairs]
         )
 
     def __str__(self):
-        '''Formats a single link:
+        """Formats a single link:
 
         >>> str(Link('http://example.com/foo', [['rel', 'self']]))
         '<http://example.com/foo>; rel=self'
@@ -230,23 +230,23 @@ class Link(object):
         Note that there is no explicit support for the title* attribute other
         than to output it unquoted.  Where used, it is up to client applications to
         provide values that meet RFC2231 Section 7.
-        '''
+        """
 
         def str_pair(key, value):
             if value is None:
                 return key
-            elif RE_ONLY_TOKEN.match(value) or key.endswith('*'):
-                return '%s=%s' % (key, value)
+            elif RE_ONLY_TOKEN.match(value) or key.endswith("*"):
+                return "%s=%s" % (key, value)
             else:
-                return '%s="%s"' % (key, value.replace('"', r'\"'))
+                return '%s="%s"' % (key, value.replace('"', r"\""))
 
-        return '; '.join(
-            ['<%s>' % self.href]
+        return "; ".join(
+            ["<%s>" % self.href]
             + [str_pair(key, value) for key, value in self.attr_pairs]
         )
 
     def __getattr__(self, name):
-        '''
+        """
         >>> Link('/', rel='self').rel
         'self'
         >>> Link('/', hreflang='EN').hreflang
@@ -263,7 +263,7 @@ class Link(object):
         []
         >>> Link('/').foo
         []
-        '''
+        """
         name_lower = name.lower()
         values = [value for key, value in self.attr_pairs if key.lower() == name_lower]
         if name in SINGLE_VALUED_ATTRS:
@@ -274,19 +274,19 @@ class Link(object):
         return values
 
     def __contains__(self, name):
-        '''
+        """
         >>> 'rel' in Link('/', rel='self')
         True
         >>> 'obs' in Link('/', obs=None)
         True
         >>> 'rel' in Link('/')
         False
-        '''
+        """
         name_lower = name.lower()
         return any(key.lower() == name_lower for key, value in self.attr_pairs)
 
     def get_context(self, requested_resource_address):
-        '''Return the absolute URI of the context of a link. This is usually
+        """Return the absolute URI of the context of a link. This is usually
         equals the base address the statement is about (eg. the requested URL
         if the link header was served in a successful HTTP GET request), but
         can be overridden by the anchor parameter.
@@ -295,13 +295,13 @@ class Link(object):
         'http://www.example.com/book1/chapter1/'
         >>> Link('', rel='next', anchor='../').get_context('http://www.example.com/book1/chapter1/')
         'http://www.example.com/book1/'
-        '''
-        if 'anchor' in self:
+        """
+        if "anchor" in self:
             return urljoin(requested_resource_address, self.anchor)
         return requested_resource_address
 
     def get_target(self, requested_resource_address):
-        '''Return the absolute URI of the target of a link. It is determined by
+        """Return the absolute URI of the target of a link. It is determined by
         joining the address from which the link header was retrieved with the
         link-value (inside angular brackets) according to RFC3986 section 5.
 
@@ -309,7 +309,7 @@ class Link(object):
         'http://www.example.com/book1/'
         >>> Link('', rel='next', anchor='../').get_target('http://www.example.com/book1/chapter1/')
         'http://www.example.com/book1/chapter1/'
-        '''
+        """
         return urljoin(requested_resource_address, self.href)
 
 

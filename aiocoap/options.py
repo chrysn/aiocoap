@@ -21,7 +21,7 @@ def _read_extended_field_value(value, rawdata):
     elif value == 14:
         if len(rawdata) < 2:
             raise UnparsableMessage("Option ended prematurely")
-        return (int.from_bytes(rawdata[:2], 'big') + 269, rawdata[2:])
+        return (int.from_bytes(rawdata[:2], "big") + 269, rawdata[2:])
     else:
         raise UnparsableMessage("Option contained partial payload marker.")
 
@@ -32,11 +32,11 @@ def _write_extended_field_value(value):
     In CoAP option delta and length can be represented by a variable
     number of bytes depending on the value."""
     if value >= 0 and value < 13:
-        return (value, b'')
+        return (value, b"")
     elif value >= 13 and value < 269:
-        return (13, (value - 13).to_bytes(1, 'big'))
+        return (13, (value - 13).to_bytes(1, "big"))
     elif value >= 269 and value < 65804:
-        return (14, (value - 269).to_bytes(2, 'big'))
+        return (14, (value - 269).to_bytes(2, "big"))
     else:
         raise ValueError("Value out of range.")
 
@@ -183,7 +183,7 @@ class Options(object):
             option = option_number.create_option(decode=rawdata[:length])
             self.add_option(option)
             rawdata = rawdata[length:]
-        return b''
+        return b""
 
     def encode(self):
         """Encode all options in option header into string of bytes."""
@@ -204,7 +204,7 @@ class Options(object):
 
             current_opt_num = option.number
 
-        return b''.join(data)
+        return b"".join(data)
 
     def add_option(self, option):
         """Add option into option header."""

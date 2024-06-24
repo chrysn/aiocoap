@@ -64,17 +64,17 @@ def _encode_length(length: int):
     if length < 13:
         return (length, b"")
     elif length < 269:
-        return (13, (length - 13).to_bytes(1, 'big'))
+        return (13, (length - 13).to_bytes(1, "big"))
     elif length < 65805:
-        return (14, (length - 269).to_bytes(2, 'big'))
+        return (14, (length - 269).to_bytes(2, "big"))
     else:
-        return (15, (length - 65805).to_bytes(4, 'big'))
+        return (15, (length - 65805).to_bytes(4, "big"))
 
 
 def _serialize(msg: Message) -> bytes:
     data_list = [msg.opt.encode()]
     if msg.payload:
-        data_list += [b'\xff', msg.payload]
+        data_list += [b"\xff", msg.payload]
     data = b"".join(data_list)
     length, extlen = _encode_length(len(data))
 
@@ -135,7 +135,7 @@ class TcpConnection(
     def connection_made(self, transport):
         self._transport = transport
 
-        ssl_object = transport.get_extra_info('ssl_object')
+        ssl_object = transport.get_extra_info("ssl_object")
         if ssl_object is not None:
             server_name = getattr(ssl_object, "indicated_server_name", None)
         else:
@@ -143,8 +143,8 @@ class TcpConnection(
 
         # `host` already contains the interface identifier, so throwing away
         # scope and interface identifier
-        self._local_hostinfo = transport.get_extra_info('sockname')[:2]
-        self._remote_hostinfo = transport.get_extra_info('peername')[:2]
+        self._local_hostinfo = transport.get_extra_info("sockname")[:2]
+        self._remote_hostinfo = transport.get_extra_info("peername")[:2]
 
         def none_default_port(sockname):
             return (
@@ -284,7 +284,7 @@ class _TCPPooling:
         self._tokenmanager.dispatch_error(exc, connection)
 
     # for diverting behavior of _TLSMixIn
-    _scheme = 'coap+tcp'
+    _scheme = "coap+tcp"
     _default_port = COAP_PORT
 
 
@@ -303,7 +303,7 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
         self.log = log
         # self.loop = loop
 
-        bind = bind or ('::', None)
+        bind = bind or ("::", None)
         bind = (
             bind[0],
             bind[1] + (self._default_port - COAP_PORT)

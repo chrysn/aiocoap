@@ -37,6 +37,6 @@ class Cite(Command):
 
 setup(
     cmdclass={
-        'cite': Cite,
+        "cite": Cite,
     },
 )

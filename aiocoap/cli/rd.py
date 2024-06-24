@@ -50,7 +50,7 @@ from aiocoap.util.linkformat import Link, LinkFormat, parse
 
 from ..util.linkformat import link_header
 
-IMMUTABLE_PARAMETERS = ('ep', 'd', 'proxy')
+IMMUTABLE_PARAMETERS = ("ep", "d", "proxy")
 
 
 class NoActiveRegistration(error.ConstructionRenderableError):
@@ -71,12 +71,12 @@ def query_split(msg):
     """
     result = {}
     for q in msg.opt.uri_query:
-        if '=' not in q:
+        if "=" not in q:
             k = q
             # matching the representation in link_header
             v = None
         else:
-            k, v = q.split('=', 1)
+            k, v = q.split("=", 1)
         result.setdefault(k, []).append(v)
     return result
 
@@ -101,7 +101,7 @@ class CommonRD:
     def __init__(self, proxy_domain=None, log=None):
         super().__init__()
 
-        self.log = log or logging.getLogger('resource-directory')
+        self.log = log or logging.getLogger("resource-directory")
 
         self._by_key = {}  # key -> Registration
         self._by_path = {}  # path -> Registration
@@ -121,7 +121,7 @@ class CommonRD:
 
         @property
         def href(self):
-            return '/' + '/'.join(self.path)
+            return "/" + "/".join(self.path)
 
         def __init__(
             self,
@@ -160,20 +160,20 @@ class CommonRD:
             registration_parameters are {} and all it does is restart the
             lifetime counter)"""
 
-            if any(k in ('ep', 'd') for k in registration_parameters.keys()):
+            if any(k in ("ep", "d") for k in registration_parameters.keys()):
                 # The ep and d of initial registrations are already popped out
                 raise error.BadRequest("Parameters 'd' and 'ep' can not be updated")
 
             # Not in use class "R" or otherwise conflict with common parameters
             if any(
-                k in ('page', 'count', 'rt', 'href', 'anchor')
+                k in ("page", "count", "rt", "href", "anchor")
                 for k in registration_parameters.keys()
             ):
                 raise error.BadRequest("Unsuitable parameter for registration")
 
             if (
                 is_initial or not self.base_is_explicit
-            ) and 'base' not in registration_parameters:
+            ) and "base" not in registration_parameters:
                 # check early for validity to avoid side effects of requests
                 # answered with 4.xx
                 if self.proxy_host is None:
@@ -183,7 +183,7 @@ class CommonRD:
                         raise error.BadRequest("explicit base required")
                 else:
                     # FIXME: Advertise alternative transports (write alternative-transports)
-                    network_base = 'coap://' + self.proxy_host
+                    network_base = "coap://" + self.proxy_host
 
             if is_initial:
                 # technically might be a re-registration, but we can't catch that at this point
@@ -195,14 +195,14 @@ class CommonRD:
             set_lt = None
             set_base = None
 
-            if 'lt' in registration_parameters:
+            if "lt" in registration_parameters:
                 try:
-                    set_lt = int(pop_single_arg(registration_parameters, 'lt'))
+                    set_lt = int(pop_single_arg(registration_parameters, "lt"))
                 except ValueError:
                     raise error.BadRequest("lt must be numeric")
 
-            if 'base' in registration_parameters:
-                set_base = pop_single_arg(registration_parameters, 'base')
+            if "base" in registration_parameters:
+                set_base = pop_single_arg(registration_parameters, "base")
 
             if set_lt is not None and self.lt != set_lt:
                 actual_change = True
@@ -272,13 +272,13 @@ class CommonRD:
             result = []
             for link in self.links.links:
                 href = urljoin(self.base, link.href)
-                if 'anchor' in link:
+                if "anchor" in link:
                     absanchor = urljoin(self.base, link.anchor)
-                    data = [(k, v) for (k, v) in link.attr_pairs if k != 'anchor'] + [
-                        ['anchor', absanchor]
+                    data = [(k, v) for (k, v) in link.attr_pairs if k != "anchor"] + [
+                        ["anchor", absanchor]
                     ]
                 else:
-                    data = link.attr_pairs + [['anchor', urljoin(href, '/')]]
+                    data = link.attr_pairs + [["anchor", urljoin(href, "/")]]
                 result.append(Link(href, data))
             return LinkFormat(result)
 
@@ -303,7 +303,7 @@ class CommonRD:
             # StandaloneResourceDirectory documentation): Whoever strips or
             # ignores trailing slashes shall have a hard time keeping
             # registrations alive.
-            path = (str(i), '')
+            path = (str(i), "")
             if path not in self._by_path:
                 return path
 
@@ -317,19 +317,19 @@ class CommonRD:
             if k in IMMUTABLE_PARAMETERS
         }
 
-        ep = pop_single_arg(registration_parameters, 'ep')
+        ep = pop_single_arg(registration_parameters, "ep")
         if ep is None:
             raise error.BadRequest("ep argument missing")
-        d = pop_single_arg(registration_parameters, 'd')
+        d = pop_single_arg(registration_parameters, "d")
 
-        proxy = pop_single_arg(registration_parameters, 'proxy')
+        proxy = pop_single_arg(registration_parameters, "proxy")
 
-        if proxy is not None and proxy != 'on':
+        if proxy is not None and proxy != "on":
             raise error.BadRequest("Unsupported proxy value")
 
         key = (ep, d)
 
-        if static_registration_parameters.pop('proxy', None):
+        if static_registration_parameters.pop("proxy", None):
             # FIXME: 'ondemand' is done unconditionally
 
             if not self.proxy_domain:
@@ -342,7 +342,7 @@ class CommonRD:
                 # to hostname capitalizatio normalization (otherwise it'd need
                 # to be first-registered-first-served)
                 return s and all(
-                    x in string.ascii_lowercase + string.digits + '-' for x in s
+                    x in string.ascii_lowercase + string.digits + "-" for x in s
                 )
 
             if not is_usable(ep) or (d is not None and not is_usable(d)):
@@ -352,8 +352,8 @@ class CommonRD:
 
             proxy_host = ep
             if d is not None:
-                proxy_host += '.' + d
-            proxy_host = proxy_host + '.' + self.proxy_domain
+                proxy_host += "." + d
+            proxy_host = proxy_host + "." + self.proxy_domain
         else:
             proxy_host = None
 
@@ -407,11 +407,11 @@ def link_format_from_message(message):
     This expects an explicit media type set on the response (or was explicitly requested)
     """
     certain_format = message.opt.content_format
-    if certain_format is None and hasattr(message, 'request'):
+    if certain_format is None and hasattr(message, "request"):
         certain_format = message.request.opt.accept
     try:
         if certain_format == ContentFormat.LINKFORMAT:
-            return parse(message.payload.decode('utf8'))
+            return parse(message.payload.decode("utf8"))
         else:
             raise error.UnsupportedMediaType()
     except (UnicodeDecodeError, link_header.ParseException):
@@ -508,8 +508,8 @@ class RegistrationDispatchSite(ThingWithCommonRD, Resource, PathCapable):
 
 
 def _paginate(candidates, query):
-    page = pop_single_arg(query, 'page')
-    count = pop_single_arg(query, 'count')
+    page = pop_single_arg(query, "page")
+    count = pop_single_arg(query, "count")
 
     try:
         candidates = list(candidates)
@@ -537,11 +537,11 @@ class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
         candidates = self.common_rd.get_endpoints()
 
         for search_key, search_values in query.items():
-            if search_key in ('page', 'count'):
+            if search_key in ("page", "count"):
                 continue  # filtered last
 
             for search_value in search_values:
-                if search_value is not None and search_value.endswith('*'):
+                if search_value is not None and search_value.endswith("*"):
 
                     def matches(x, start=search_value[:-1]):
                         return x.startswith(start)
@@ -550,12 +550,12 @@ class EndpointLookupInterface(ThingWithCommonRD, ObservableResource):
                     def matches(x, search_value=search_value):
                         return x == search_value
 
-                if search_key in ('if', 'rt'):
+                if search_key in ("if", "rt"):
 
                     def matches(x, original_matches=matches):
                         return any(original_matches(v) for v in x.split())
 
-                if search_key == 'href':
+                if search_key == "href":
                     candidates = (
                         c
                         for c in candidates
@@ -597,11 +597,11 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
         candidates = ((e, c) for e in eps for c in e.get_based_links().links)
 
         for search_key, search_values in query.items():
-            if search_key in ('page', 'count'):
+            if search_key in ("page", "count"):
                 continue  # filtered last
 
             for search_value in search_values:
-                if search_value is not None and search_value.endswith('*'):
+                if search_value is not None and search_value.endswith("*"):
 
                     def matches(x, start=search_value[:-1]):
                         return x.startswith(start)
@@ -610,12 +610,12 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
                     def matches(x, search_value=search_value):
                         return x == search_value
 
-                if search_key in ('if', 'rt'):
+                if search_key in ("if", "rt"):
 
                     def matches(x, original_matches=matches):
                         return any(original_matches(v) for v in x.split())
 
-                if search_key == 'href':
+                if search_key == "href":
                     candidates = (
                         (e, c)
                         for (e, c) in candidates
@@ -645,8 +645,8 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
 
         # strip needless anchors
         candidates = [
-            Link(link.href, [(k, v) for (k, v) in link.attr_pairs if k != 'anchor'])
-            if dict(link.attr_pairs)['anchor'] == urljoin(link.href, '/')
+            Link(link.href, [(k, v) for (k, v) in link.attr_pairs if k != "anchor"])
+            if dict(link.attr_pairs)["anchor"] == urljoin(link.href, "/")
             else link
             for link in candidates
         ]
@@ -665,7 +665,7 @@ class SimpleRegistration(ThingWithCommonRD, Resource):
     async def render_post(self, request):
         query = query_split(request)
 
-        if 'base' in query:
+        if "base" in query:
             raise error.BadRequest("base is not allowed in simple registrations")
 
         await self.process_request(
@@ -676,17 +676,17 @@ class SimpleRegistration(ThingWithCommonRD, Resource):
         return aiocoap.Message(code=aiocoap.CHANGED)
 
     async def process_request(self, network_remote, registration_parameters):
-        if 'proxy' not in registration_parameters:
+        if "proxy" not in registration_parameters:
             try:
                 network_base = network_remote.uri
             except error.AnonymousHost:
                 raise error.BadRequest("explicit base required")
 
-            fetch_address = network_base + '/.well-known/core'
+            fetch_address = network_base + "/.well-known/core"
             get = aiocoap.Message(uri=fetch_address)
         else:
             # ignoring that there might be a based present, that will err later
-            get = aiocoap.Message(uri_path=['.well-known', 'core'])
+            get = aiocoap.Message(uri_path=[".well-known", "core"])
             get.remote = network_remote
 
         get.code = aiocoap.GET
@@ -834,19 +834,19 @@ class Main(AsyncCLIDaemon):
         parser.add_argument(
             "--lwm2m-compat",
             help="Compatibility mode for LwM2M clients that can not perform some discovery steps (moving the registration resource to `/rd`)",
-            action='store_true',
+            action="store_true",
             default=None,
         )
         parser.add_argument(
             "--no-lwm2m-compat",
             help="Disable all compativility with LwM2M clients that can not perform some discovery steps (not even accepting registrations at `/rd` with warnings)",
-            action='store_false',
-            dest='lwm2m_compat',
+            action="store_false",
+            dest="lwm2m_compat",
         )
         parser.add_argument(
             "--verbose",
             help="Increase debug log output (repeat for increased verbosity)",
-            action='count',
+            action="count",
             default=0,
         )
         options = parser.parse_args(args if args is not None else sys.argv[1:])
@@ -854,7 +854,7 @@ class Main(AsyncCLIDaemon):
         # Putting in an empty site to construct the site with a context
         self.context = await server_context_from_arguments(None, options)
 
-        self.log = logging.getLogger('resource-directory')
+        self.log = logging.getLogger("resource-directory")
         if options.verbose >= 2:
             self.log.setLevel(logging.DEBUG)
         elif options.verbose == 1:

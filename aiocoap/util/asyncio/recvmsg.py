@@ -39,7 +39,7 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
     max_size = 4096  # Buffer size passed to recvmsg() -- should suffice for a full MTU package and ample ancdata
 
     def __init__(self, loop, sock, protocol, waiter):
-        super().__init__(extra={'socket': sock})
+        super().__init__(extra={"socket": sock})
         self.__sock = sock
         # Persisted outside of sock because when GC breaks a reference cycle,
         # it can happen that the sock gets closed before this; we have to hope
@@ -115,7 +115,7 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
                 else:
                     self._protocol.error_received(exc)
             except Exception as exc:
-                self._fatal_error(exc, 'Fatal read error on datagram transport')
+                self._fatal_error(exc, "Fatal read error on datagram transport")
             else:
                 self._protocol.datagram_errqueue_received(data, ancdata, flags, addr)
 
@@ -129,7 +129,7 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
         except OSError as exc:
             self._protocol.error_received(exc)
         except Exception as exc:
-            self._fatal_error(exc, 'Fatal read error on datagram transport')
+            self._fatal_error(exc, "Fatal read error on datagram transport")
         else:
             self._protocol.datagram_msg_received(data, ancdata, flags, addr)
 
@@ -141,7 +141,7 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
             self._protocol.error_received(exc)
             return
         except Exception as exc:
-            self._fatal_error(exc, 'Fatal write error on datagram transport')
+            self._fatal_error(exc, "Fatal write error on datagram transport")
             return
 
 

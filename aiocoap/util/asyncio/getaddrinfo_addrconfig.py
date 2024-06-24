@@ -62,7 +62,7 @@ async def getaddrinfo_routechecked(loop, log, host, port):
     # instead of sockaddr b/c it's destructured already for the family check,
     # and at that time it may be a different AF with more members.
     v4_addresses = (
-        ('::ffff:' + sockaddr[0], sockaddr[1], 0, 0)
+        ("::ffff:" + sockaddr[0], sockaddr[1], 0, 0)
         for (family, *_, sockaddr) in addrinfo
         if family == socket.AF_INET
     )

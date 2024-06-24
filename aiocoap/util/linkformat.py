@@ -14,7 +14,7 @@ from .vendored import link_header
 
 class LinkFormat(link_header.LinkHeader):
     def __str__(self):
-        return ','.join(str(link) for link in self.links)
+        return ",".join(str(link) for link in self.links)
 
 
 class Link(link_header.Link):
@@ -31,10 +31,10 @@ class Link(link_header.Link):
             #            elif RE_ONLY_TOKEN.match(value) or key.endswith('*'):
             #                return '%s=%s' % (key, value)
             else:
-                return '%s="%s"' % (key, value.replace('"', r'\"'))
+                return '%s="%s"' % (key, value.replace('"', r"\""))
 
-        return ';'.join(
-            ['<%s>' % self.href]
+        return ";".join(
+            ["<%s>" % self.href]
             + [str_pair(key, value) for key, value in self.attr_pairs]
         )
 

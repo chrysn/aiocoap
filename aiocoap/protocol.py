@@ -177,7 +177,7 @@ class Context(interfaces.RequestProvider):
 
         # FIXME make defaults overridable (postponed until they become configurable too)
         for transportname in selected_transports:
-            if transportname == 'udp6':
+            if transportname == "udp6":
                 from .transports.udp6 import MessageInterfaceUDP6
 
                 await self._append_tokenmanaged_messagemanaged_transport(
@@ -185,7 +185,7 @@ class Context(interfaces.RequestProvider):
                         mman, log=self.log, loop=loop
                     )
                 )
-            elif transportname == 'simple6':
+            elif transportname == "simple6":
                 from .transports.simple6 import MessageInterfaceSimple6
 
                 await self._append_tokenmanaged_messagemanaged_transport(
@@ -193,7 +193,7 @@ class Context(interfaces.RequestProvider):
                         mman, log=self.log, loop=loop
                     )
                 )
-            elif transportname == 'tinydtls':
+            elif transportname == "tinydtls":
                 from .transports.tinydtls import MessageInterfaceTinyDTLS
 
                 await self._append_tokenmanaged_messagemanaged_transport(
@@ -201,13 +201,13 @@ class Context(interfaces.RequestProvider):
                         mman, log=self.log, loop=loop
                     )
                 )
-            elif transportname == 'tcpclient':
+            elif transportname == "tcpclient":
                 from .transports.tcp import TCPClient
 
                 await self._append_tokenmanaged_transport(
                     lambda tman: TCPClient.create_client_transport(tman, self.log, loop)
                 )
-            elif transportname == 'tlsclient':
+            elif transportname == "tlsclient":
                 from .transports.tls import TLSClient
 
                 await self._append_tokenmanaged_transport(
@@ -215,7 +215,7 @@ class Context(interfaces.RequestProvider):
                         tman, self.log, loop, self.client_credentials
                     )
                 )
-            elif transportname == 'ws':
+            elif transportname == "ws":
                 from .transports.ws import WSPool
 
                 await self._append_tokenmanaged_transport(
@@ -223,7 +223,7 @@ class Context(interfaces.RequestProvider):
                         tman, self.log, loop, client_credentials=self.client_credentials
                     )
                 )
-            elif transportname == 'oscore':
+            elif transportname == "oscore":
                 from .transports.oscore import TransportOSCORE
 
                 oscoretransport = TransportOSCORE(self, self)
@@ -295,7 +295,7 @@ class Context(interfaces.RequestProvider):
         )
 
         for transportname in selected_transports:
-            if transportname == 'udp6':
+            if transportname == "udp6":
                 from .transports.udp6 import MessageInterfaceUDP6
 
                 await self._append_tokenmanaged_messagemanaged_transport(
@@ -305,7 +305,7 @@ class Context(interfaces.RequestProvider):
                 )
                 multicast_done = True
             # FIXME this is duplicated from the client version, as those are client-only anyway
-            elif transportname == 'simple6':
+            elif transportname == "simple6":
                 from .transports.simple6 import MessageInterfaceSimple6
 
                 await self._append_tokenmanaged_messagemanaged_transport(
@@ -313,7 +313,7 @@ class Context(interfaces.RequestProvider):
                         mman, log=self.log, loop=loop
                     )
                 )
-            elif transportname == 'tinydtls':
+            elif transportname == "tinydtls":
                 from .transports.tinydtls import MessageInterfaceTinyDTLS
 
                 await self._append_tokenmanaged_messagemanaged_transport(
@@ -322,7 +322,7 @@ class Context(interfaces.RequestProvider):
                     )
                 )
             # FIXME end duplication
-            elif transportname == 'tinydtls_server':
+            elif transportname == "tinydtls_server":
                 from .transports.tinydtls_server import MessageInterfaceTinyDTLSServer
 
                 await self._append_tokenmanaged_messagemanaged_transport(
@@ -334,7 +334,7 @@ class Context(interfaces.RequestProvider):
                         server_credentials=self.server_credentials,
                     )
                 )
-            elif transportname == 'simplesocketserver':
+            elif transportname == "simplesocketserver":
                 from .transports.simplesocketserver import MessageInterfaceSimpleServer
 
                 await self._append_tokenmanaged_messagemanaged_transport(
@@ -342,19 +342,19 @@ class Context(interfaces.RequestProvider):
                         bind, mman, log=self.log, loop=loop
                     )
                 )
-            elif transportname == 'tcpserver':
+            elif transportname == "tcpserver":
                 from .transports.tcp import TCPServer
 
                 await self._append_tokenmanaged_transport(
                     lambda tman: TCPServer.create_server(bind, tman, self.log, loop)
                 )
-            elif transportname == 'tcpclient':
+            elif transportname == "tcpclient":
                 from .transports.tcp import TCPClient
 
                 await self._append_tokenmanaged_transport(
                     lambda tman: TCPClient.create_client_transport(tman, self.log, loop)
                 )
-            elif transportname == 'tlsserver':
+            elif transportname == "tlsserver":
                 if _ssl_context is not None:
                     from .transports.tls import TLSServer
 
@@ -363,7 +363,7 @@ class Context(interfaces.RequestProvider):
                             bind, tman, self.log, loop, _ssl_context
                         )
                     )
-            elif transportname == 'tlsclient':
+            elif transportname == "tlsclient":
                 from .transports.tls import TLSClient
 
                 await self._append_tokenmanaged_transport(
@@ -371,7 +371,7 @@ class Context(interfaces.RequestProvider):
                         tman, self.log, loop, self.client_credentials
                     )
                 )
-            elif transportname == 'ws':
+            elif transportname == "ws":
                 from .transports.ws import WSPool
 
                 await self._append_tokenmanaged_transport(
@@ -385,7 +385,7 @@ class Context(interfaces.RequestProvider):
                         server_context=_ssl_context,
                     )
                 )
-            elif transportname == 'oscore':
+            elif transportname == "oscore":
                 from .transports.oscore import TransportOSCORE
 
                 oscoretransport = TransportOSCORE(self, self)
@@ -1200,7 +1200,7 @@ class ClientObservation:
         self._on_cancel.append(callback)
 
     def __repr__(self):
-        return '<%s %s at %#x>' % (
+        return "<%s %s at %#x>" % (
             type(self).__name__,
             "(cancelled)"
             if self.cancelled

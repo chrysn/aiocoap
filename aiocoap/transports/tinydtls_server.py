@@ -97,11 +97,11 @@ class _AddressDTLS(interfaces.EndpointAddress):
     is_multicast = False
     is_multicast_locally = False
     hostinfo = property(lambda self: self._underlying_address.hostinfo)
-    uri_base = property(lambda self: 'coaps://' + self.hostinfo)
+    uri_base = property(lambda self: "coaps://" + self.hostinfo)
     hostinfo_local = property(lambda self: self._underlying_address.hostinfo_local)
-    uri_base_local = property(lambda self: 'coaps://' + self.hostinfo_local)
+    uri_base_local = property(lambda self: "coaps://" + self.hostinfo_local)
 
-    scheme = 'coaps'
+    scheme = "coaps"
 
     authenticated_claims = property(lambda self: [self._psk_store._claims])
 

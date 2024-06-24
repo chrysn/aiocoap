@@ -201,8 +201,8 @@ class AeadAlgorithm(metaclass=abc.ABCMeta):
     @staticmethod
     def _build_encrypt0_structure(protected, external_aad):
         assert protected == {}, "Unexpected data in protected bucket"
-        protected_serialized = b''  # were it into an empty dict, it'd be the cbor dump
-        enc_structure = ['Encrypt0', protected_serialized, external_aad]
+        protected_serialized = b""  # were it into an empty dict, it'd be the cbor dump
+        enc_structure = ["Encrypt0", protected_serialized, external_aad]
 
         return cbor.dumps(enc_structure)
 
@@ -472,15 +472,15 @@ class ECDSA_SHA256_P256(AlgorithmCountersign, AlgorithmStaticStatic):
     def from_public_parts(self, x: bytes, y: bytes):
         """Create a public key from its COSE values"""
         return asymmetric.ec.EllipticCurvePublicNumbers(
-            int.from_bytes(x, 'big'),
-            int.from_bytes(y, 'big'),
+            int.from_bytes(x, "big"),
+            int.from_bytes(y, "big"),
             asymmetric.ec.SECP256R1(),
         ).public_key()
 
     def from_private_parts(self, x: bytes, y: bytes, d: bytes):
         public_numbers = self.from_public_parts(x, y).public_numbers()
         private_numbers = asymmetric.ec.EllipticCurvePrivateNumbers(
-            int.from_bytes(d, 'big'), public_numbers
+            int.from_bytes(d, "big"), public_numbers
         )
         return private_numbers.private_key()
 
@@ -524,41 +524,41 @@ class ECDSA_SHA256_P256(AlgorithmCountersign, AlgorithmStaticStatic):
 
 
 algorithms = {
-    'AES-CCM-16-64-128': AES_CCM_16_64_128(),
-    'AES-CCM-16-64-256': AES_CCM_16_64_256(),
-    'AES-CCM-64-64-128': AES_CCM_64_64_128(),
-    'AES-CCM-64-64-256': AES_CCM_64_64_256(),
-    'AES-CCM-16-128-128': AES_CCM_16_128_128(),
-    'AES-CCM-16-128-256': AES_CCM_16_128_256(),
-    'AES-CCM-64-128-128': AES_CCM_64_128_128(),
-    'AES-CCM-64-128-256': AES_CCM_64_128_256(),
-    'ChaCha20/Poly1305': ChaCha20Poly1305(),
-    'A128GCM': A128GCM(),
-    'A192GCM': A192GCM(),
-    'A256GCM': A256GCM(),
+    "AES-CCM-16-64-128": AES_CCM_16_64_128(),
+    "AES-CCM-16-64-256": AES_CCM_16_64_256(),
+    "AES-CCM-64-64-128": AES_CCM_64_64_128(),
+    "AES-CCM-64-64-256": AES_CCM_64_64_256(),
+    "AES-CCM-16-128-128": AES_CCM_16_128_128(),
+    "AES-CCM-16-128-256": AES_CCM_16_128_256(),
+    "AES-CCM-64-128-128": AES_CCM_64_128_128(),
+    "AES-CCM-64-128-256": AES_CCM_64_128_256(),
+    "ChaCha20/Poly1305": ChaCha20Poly1305(),
+    "A128GCM": A128GCM(),
+    "A192GCM": A192GCM(),
+    "A256GCM": A256GCM(),
 }
 
 # algorithms with full parameter set
 algorithms_countersign = {
     # maybe needs a different name...
-    'EdDSA on Ed25519': Ed25519(),
-    'ECDSA w/ SHA-256 on P-256': ECDSA_SHA256_P256(),
+    "EdDSA on Ed25519": Ed25519(),
+    "ECDSA w/ SHA-256 on P-256": ECDSA_SHA256_P256(),
 }
 
 algorithms_staticstatic = {
-    'ECDH-SS + HKDF-256': EcdhSsHkdf256(),
+    "ECDH-SS + HKDF-256": EcdhSsHkdf256(),
 }
 
-DEFAULT_ALGORITHM = 'AES-CCM-16-64-128'
+DEFAULT_ALGORITHM = "AES-CCM-16-64-128"
 
 _hash_backend = cryptography.hazmat.backends.default_backend()
 hashfunctions = {
-    'sha256': hashes.SHA256(),
-    'sha384': hashes.SHA384(),
-    'sha512': hashes.SHA512(),
+    "sha256": hashes.SHA256(),
+    "sha384": hashes.SHA384(),
+    "sha512": hashes.SHA512(),
 }
 
-DEFAULT_HASHFUNCTION = 'sha256'
+DEFAULT_HASHFUNCTION = "sha256"
 
 DEFAULT_WINDOWSIZE = 32
 
@@ -595,7 +595,7 @@ class BaseSecurityContext:
         pad_piv = b"\0" * (5 - len(partial_iv_short))
 
         s = bytes([len(piv_generator_id)])
-        pad_id = b'\0' * (self.alg_aead.iv_bytes - 6 - len(piv_generator_id))
+        pad_id = b"\0" * (self.alg_aead.iv_bytes - 6 - len(piv_generator_id))
 
         components = s + pad_id + piv_generator_id + pad_piv + partial_iv_short
 
@@ -931,11 +931,11 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         as well."""
         seqno = self.new_sequence_number()
 
-        partial_iv = seqno.to_bytes(5, 'big')
+        partial_iv = seqno.to_bytes(5, "big")
 
         return (
             self._construct_nonce(partial_iv, self.sender_id),
-            partial_iv.lstrip(b'\0') or b'\0',
+            partial_iv.lstrip(b"\0") or b"\0",
         )
 
     # sequence number handling
@@ -1017,7 +1017,7 @@ class CanUnprotect(BaseSecurityContext):
 
             nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
-            seqno = int.from_bytes(partial_iv_short, 'big')
+            seqno = int.from_bytes(partial_iv_short, "big")
 
             if not is_response:
                 if not self.recipient_replay_window.is_initialized():
@@ -1076,7 +1076,7 @@ class CanUnprotect(BaseSecurityContext):
         external_aad = self._extract_external_aad(
             protected_message, request_id, local_is_sender=False
         )
-        enc_structure = ['Encrypt0', protected_serialized, external_aad]
+        enc_structure = ["Encrypt0", protected_serialized, external_aad]
         aad = cbor.dumps(enc_structure)
 
         key = self._get_recipient_key(protected_message)
@@ -1235,9 +1235,9 @@ class SecurityContextUtils(BaseSecurityContext):
         """The HKDF as used to derive sender and recipient key and IV in
         RFC8613 Section 3.2.1, and analogously the Group Encryption Key of oscore-groupcomm.
         """
-        if out_type == 'Key':
+        if out_type == "Key":
             out_bytes = self.alg_aead.key_bytes
-        elif out_type == 'IV':
+        elif out_type == "IV":
             out_bytes = self.alg_aead.iv_bytes
         elif out_type == "Group Encryption Key":
             out_bytes = self.alg_signature_enc.key_bytes
@@ -1296,12 +1296,12 @@ class SecurityContextUtils(BaseSecurityContext):
         hash function and id_context already configured beforehand, and from
         the passed salt and secret."""
 
-        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, 'Key')
+        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, "Key")
         self.recipient_key = self._kdf(
-            master_salt, master_secret, self.recipient_id, 'Key'
+            master_salt, master_secret, self.recipient_id, "Key"
         )
 
-        self.common_iv = self._kdf(master_salt, master_secret, b"", 'IV')
+        self.common_iv = self._kdf(master_salt, master_secret, b"", "IV")
 
     # really more of the Credentials interface
 
@@ -1391,8 +1391,8 @@ class ReplayWindow:
         self._bitfield = 0
 
     def initialize_from_persisted(self, persisted):
-        self._index = persisted['index']
-        self._bitfield = persisted['bitfield']
+        self._index = persisted["index"]
+        self._bitfield = persisted["bitfield"]
 
     def initialize_from_freshlyseen(self, seen):
         """Initialize the replay window with a particular value that is just
@@ -1429,7 +1429,7 @@ class ReplayWindow:
         """Return a dict containing internal state which can be passed to init
         to recreated the replay window."""
 
-        return {'index': self._index, 'bitfield': self._bitfield}
+        return {"index": self._index, "bitfield": self._bitfield}
 
 
 class FilesystemSecurityContext(
@@ -1492,7 +1492,7 @@ class FilesystemSecurityContext(
         self.basedir = basedir
 
         self.lockfile: Optional[filelock.FileLock] = filelock.FileLock(
-            os.path.join(basedir, 'lock')
+            os.path.join(basedir, "lock")
         )
         # 0.001: Just fail if it can't be acquired
         # See https://github.com/benediktschmitt/py-filelock/issues/57
@@ -1532,12 +1532,12 @@ class FilesystemSecurityContext(
                 continue
 
             for key, value in filedata.items():
-                if key.endswith('_hex'):
+                if key.endswith("_hex"):
                     key = key[:-4]
                     value = binascii.unhexlify(value)
-                elif key.endswith('_ascii'):
+                elif key.endswith("_ascii"):
                     key = key[:-6]
-                    value = value.encode('ascii')
+                    value = value.encode("ascii")
 
                 if key in data:
                     raise self.LoadError(
@@ -1547,15 +1547,15 @@ class FilesystemSecurityContext(
 
                 data[key] = value
 
-        self.alg_aead = algorithms[data.get('algorithm', DEFAULT_ALGORITHM)]
-        self.hashfun = hashfunctions[data.get('kdf-hashfun', DEFAULT_HASHFUNCTION)]
+        self.alg_aead = algorithms[data.get("algorithm", DEFAULT_ALGORITHM)]
+        self.hashfun = hashfunctions[data.get("kdf-hashfun", DEFAULT_HASHFUNCTION)]
 
-        windowsize = data.get('window', DEFAULT_WINDOWSIZE)
+        windowsize = data.get("window", DEFAULT_WINDOWSIZE)
         if not isinstance(windowsize, int):
             raise self.LoadError("Non-integer replay window")
 
-        self.sender_id = data['sender-id']
-        self.recipient_id = data['recipient-id']
+        self.sender_id = data["sender-id"]
+        self.recipient_id = data["recipient-id"]
 
         if (
             max(len(self.sender_id), len(self.recipient_id))
@@ -1566,9 +1566,9 @@ class FilesystemSecurityContext(
                 % (self.alg_aead.iv_bytes - 6)
             )
 
-        master_secret = data['secret']
-        master_salt = data.get('salt', b'')
-        self.id_context = data.get('id-context', None)
+        master_secret = data["secret"]
+        master_salt = data.get("salt", b"")
+        self.id_context = data.get("id-context", None)
 
         self.derive_keys(master_salt, master_secret)
 
@@ -1576,15 +1576,15 @@ class FilesystemSecurityContext(
             windowsize, self._replay_window_changed
         )
         try:
-            with open(os.path.join(self.basedir, 'sequence.json')) as f:
+            with open(os.path.join(self.basedir, "sequence.json")) as f:
                 sequence = json.load(f)
         except FileNotFoundError:
             self.sender_sequence_number = 0
             self.recipient_replay_window.initialize_empty()
             self.replay_window_persisted = True
         else:
-            self.sender_sequence_number = int(sequence['next-to-send'])
-            received = sequence['received']
+            self.sender_sequence_number = int(sequence["next-to-send"])
+            received = sequence["received"]
             if received == "unknown":
                 # The replay window will stay uninitialized, which triggers
                 # Echo recovery
@@ -1614,14 +1614,14 @@ class FilesystemSecurityContext(
     # operation to conclude.
     def _store(self):
         tmphand, tmpnam = tempfile.mkstemp(
-            dir=self.basedir, prefix='.sequence-', suffix='.json', text=True
+            dir=self.basedir, prefix=".sequence-", suffix=".json", text=True
         )
 
         data = {"next-to-send": self.sequence_number_persisted}
         if not self.replay_window_persisted:
-            data['received'] = 'unknown'
+            data["received"] = "unknown"
         else:
-            data['received'] = self.recipient_replay_window.persist()
+            data["received"] = self.recipient_replay_window.persist()
 
         # Using io.open (instead os.fdopen) and binary / write with encode
         # rather than dumps as that works even while the interpreter is
@@ -1630,12 +1630,12 @@ class FilesystemSecurityContext(
         # This can be relaxed when there is a defined shutdown sequence for
         # security contexts that's triggered from the general context shutdown
         # -- but right now, there isn't.
-        with io.open(tmphand, 'wb') as tmpfile:
-            tmpfile.write(json.dumps(data).encode('utf8'))
+        with io.open(tmphand, "wb") as tmpfile:
+            tmpfile.write(json.dumps(data).encode("utf8"))
             tmpfile.flush()
             os.fsync(tmpfile.fileno())
 
-        os.replace(tmpnam, os.path.join(self.basedir, 'sequence.json'))
+        os.replace(tmpnam, os.path.join(self.basedir, "sequence.json"))
 
     def _replay_window_changed(self):
         if self.replay_window_persisted:
@@ -1901,13 +1901,13 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     def derive_keys(self, master_salt, master_secret):
         # FIXME unify with parent?
 
-        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, 'Key')
+        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, "Key")
         self.recipient_keys = {
-            recipient_id: self._kdf(master_salt, master_secret, recipient_id, 'Key')
+            recipient_id: self._kdf(master_salt, master_secret, recipient_id, "Key")
             for recipient_id in self.peers
         }
 
-        self.common_iv = self._kdf(master_salt, master_secret, b"", 'IV')
+        self.common_iv = self._kdf(master_salt, master_secret, b"", "IV")
 
         # but this one is new
 
@@ -2069,7 +2069,7 @@ class _PairwiseContextAspect(
                 + shared_secret
             ),
             self.groupcontext.sender_id,
-            'Key',
+            "Key",
         )
         self.recipient_key = self._kdf(
             self.groupcontext.recipient_keys[recipient_id],
@@ -2079,7 +2079,7 @@ class _PairwiseContextAspect(
                 + shared_secret
             ),
             self.recipient_id,
-            'Key',
+            "Key",
         )
 
     def __repr__(self):
@@ -2251,7 +2251,7 @@ class _DeterministicProtectProtoAspect(
         request_id.can_reuse_nonce = False
         # FIXME: we're still sending a h'00' PIV. Not wrong, just a wasted byte.
 
-        return self._kdf(basekey, request_hash, self.sender_id, 'Key')
+        return self._kdf(basekey, request_hash, self.sender_id, "Key")
 
     # details needed for various operations, especially eAAD generation
 
@@ -2334,7 +2334,7 @@ class _DeterministicUnprotectProtoAspect(
             self.groupcontext.recipient_keys[self.recipient_id],
             protected_message.opt.request_hash,
             self.recipient_id,
-            'Key',
+            "Key",
         )
 
     def _post_decrypt_checks(self, aad, plaintext, protected_message, request_id):
@@ -2404,8 +2404,8 @@ def verify_start(message):
 
 _getattr__ = deprecation_getattr(
     {
-        'COSE_COUNTERSINGATURE0': 'COSE_COUNTERSIGNATURE0',
-        'Algorithm': 'AeadAlgorithm',
+        "COSE_COUNTERSINGATURE0": "COSE_COUNTERSIGNATURE0",
+        "Algorithm": "AeadAlgorithm",
     },
     globals(),
 )

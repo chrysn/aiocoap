@@ -24,11 +24,11 @@ class Welcome(resource.Resource):
         ContentFormat.LINKFORMAT: b"</.well-known/core>,ct=40",
         # ad-hoc for application/xhtml+xml;charset=utf-8
         ContentFormat(65000): b'<html xmlns="http://www.w3.org/1999/xhtml">'
-        b'<head><title>aiocoap demo</title></head>'
-        b'<body><h1>Welcome to the aiocoap demo server!</h1>'
+        b"<head><title>aiocoap demo</title></head>"
+        b"<body><h1>Welcome to the aiocoap demo server!</h1>"
         b'<ul><li><a href="time">Current time</a></li>'
         b'<li><a href="whoami">Report my network address</a></li>'
-        b'</ul></body></html>',
+        b"</ul></body></html>",
     }
 
     default_representation = ContentFormat.TEXT
@@ -66,7 +66,7 @@ class BlockResource(resource.Resource):
         return aiocoap.Message(payload=self.content)
 
     async def render_put(self, request):
-        print('PUT payload: %s' % request.payload)
+        print("PUT payload: %s" % request.payload)
         self.set_content(request.payload)
         return aiocoap.Message(code=aiocoap.CHANGED, payload=self.content)
 
@@ -87,7 +87,7 @@ class SeparateLargeResource(resource.Resource):
             "Three rings for the elven kings under the sky, seven rings "
             "for dwarven lords in their halls of stone, nine rings for "
             "mortal men doomed to die, one ring for the dark lord on his "
-            "dark throne.".encode('ascii')
+            "dark throne.".encode("ascii")
         )
         return aiocoap.Message(payload=payload)
 
@@ -119,7 +119,7 @@ class TimeResource(resource.ObservableResource):
             self.handle = None
 
     async def render_get(self, request):
-        payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode('ascii')
+        payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode("ascii")
         return aiocoap.Message(payload=payload)
 
 
@@ -139,7 +139,7 @@ class WhoAmI(resource.Resource):
         else:
             text.append("No claims authenticated.")
 
-        return aiocoap.Message(content_format=0, payload="\n".join(text).encode('utf8'))
+        return aiocoap.Message(content_format=0, payload="\n".join(text).encode("utf8"))
 
 
 # logging setup
@@ -153,13 +153,13 @@ async def main():
     root = resource.Site()
 
     root.add_resource(
-        ['.well-known', 'core'], resource.WKCResource(root.get_resources_as_linkheader)
+        [".well-known", "core"], resource.WKCResource(root.get_resources_as_linkheader)
     )
     root.add_resource([], Welcome())
-    root.add_resource(['time'], TimeResource())
-    root.add_resource(['other', 'block'], BlockResource())
-    root.add_resource(['other', 'separate'], SeparateLargeResource())
-    root.add_resource(['whoami'], WhoAmI())
+    root.add_resource(["time"], TimeResource())
+    root.add_resource(["other", "block"], BlockResource())
+    root.add_resource(["other", "separate"], SeparateLargeResource())
+    root.add_resource(["whoami"], WhoAmI())
 
     await aiocoap.Context.create_server_context(root)
 

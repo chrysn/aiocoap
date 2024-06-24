@@ -29,12 +29,12 @@ import sys
 try:
     from socket import IPV6_PKTINFO, IPV6_RECVPKTINFO
 except ImportError:
-    if sys.platform == 'linux':
+    if sys.platform == "linux":
         # Not sure if here are any Linux builds at all where this is
         # unavailable
         IPV6_PKTINFO = 50
         IPv6_RECVPKTINFO = 49
-    elif sys.platform == 'darwin':
+    elif sys.platform == "darwin":
         # when __APPLE_USE_RFC_3542 is defined / as would be when
         # https://bugs.python.org/issue35569 is fixed
         IPV6_PKTINFO = 46
@@ -45,7 +45,7 @@ except ImportError:
 try:
     from IN import IPV6_RECVERR, IP_RECVERR  # type: ignore
 except ImportError:
-    if sys.platform == 'linux':
+    if sys.platform == "linux":
         IPV6_RECVERR = 25
         IP_RECVERR = 11
 
@@ -53,10 +53,10 @@ except ImportError:
 try:
     from socket import MSG_ERRQUEUE
 except ImportError:
-    if sys.platform == 'linux':
+    if sys.platform == "linux":
         MSG_ERRQUEUE = 8192  # type: ignore
 
-HAS_RECVERR = 'IP_RECVERR' in locals() and 'MSG_ERRQUEUE' in locals()
+HAS_RECVERR = "IP_RECVERR" in locals() and "MSG_ERRQUEUE" in locals()
 """Indicates whether the discovered constants indicate that the Linux
 `setsockopt(IPV6, RECVERR)` / `recvmsg(..., MSG_ERRQUEUE)` mechanism is
 available"""

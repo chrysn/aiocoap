@@ -55,7 +55,7 @@ class GenericMessageInterface(interfaces.MessageInterface):
         self._mman = None
 
     async def determine_remote(self, request):
-        if request.requested_scheme not in ('coap', None):
+        if request.requested_scheme not in ("coap", None):
             return None
 
         if request.unresolved_remote is not None:

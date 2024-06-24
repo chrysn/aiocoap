@@ -25,7 +25,7 @@ def load_cbor_or_edn(filename: Path):
     import cbor_diag
     import cbor2
 
-    with filename.open('rb') as binary:
+    with filename.open("rb") as binary:
         try:
             result = cbor2.load(binary)
         except cbor2.CBORDecodeError:
@@ -136,7 +136,7 @@ class CoseKeyForEdhoc:
 
         from cryptography.hazmat.primitives.asymmetric import ec
 
-        private = ec.derive_private_key(int.from_bytes(self.d, 'big'), ec.SECP256R1())
+        private = ec.derive_private_key(int.from_bytes(self.d, "big"), ec.SECP256R1())
         public = private.public_key()
 
         x = public.public_numbers().x.to_bytes(32, "big")
@@ -232,7 +232,7 @@ class EdhocCredentials(credentials._Objectish):
 
         msg1 = Message(
             code=POST,
-            uri_path=['.well-known', 'edhoc'],
+            uri_path=[".well-known", "edhoc"],
             payload=cbor2.dumps(True) + message_1,
         )
         msg1.remote = underlying_address

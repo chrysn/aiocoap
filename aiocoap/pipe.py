@@ -78,7 +78,7 @@ class Pipe:
         on_interest_end callbacks have already been called"""
 
     def __repr__(self):
-        return '<%s at %#x around %r with %r callbacks (thereof %r interests)>' % (
+        return "<%s at %#x around %r with %r callbacks (thereof %r interests)>" % (
             type(self).__name__,
             id(self),
             self.request,

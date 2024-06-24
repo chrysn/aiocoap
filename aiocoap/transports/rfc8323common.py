@@ -73,12 +73,12 @@ class RFC8323Remote:
                 "Client side of %s can not be expressed as a URI" % self._ctx._scheme
             )
         else:
-            return self._ctx._scheme + '://' + self.hostinfo
+            return self._ctx._scheme + "://" + self.hostinfo
 
     @property
     def uri_base_local(self):
         if self._local_is_server:
-            return self._ctx._scheme + '://' + self.hostinfo_local
+            return self._ctx._scheme + "://" + self.hostinfo_local
         else:
             raise error.AnonymousHost(
                 "Client side of %s can not be expressed as a URI" % self._ctx._scheme
@@ -96,8 +96,8 @@ class RFC8323Remote:
             # server says that szx=7 is not OK.
             return 7
 
-        max_message_size = (self._remote_settings or {}).get('max-message-size', 1152)
-        has_blockwise = (self._remote_settings or {}).get('block-wise-transfer', False)
+        max_message_size = (self._remote_settings or {}).get("max-message-size", 1152)
+        has_blockwise = (self._remote_settings or {}).get("block-wise-transfer", False)
         if max_message_size > 1152 and has_blockwise:
             return 7
         return 6  # FIXME: deal with smaller max-message-size
@@ -107,8 +107,8 @@ class RFC8323Remote:
         # see maximum_payload_size of interfaces comment
         slack = 100
 
-        max_message_size = (self._remote_settings or {}).get('max-message-size', 1152)
-        has_blockwise = (self._remote_settings or {}).get('block-wise-transfer', False)
+        max_message_size = (self._remote_settings or {}).get("max-message-size", 1152)
+        has_blockwise = (self._remote_settings or {}).get("block-wise-transfer", False)
         if max_message_size > 1152 and has_blockwise:
             return ((max_message_size - 128) // 1024) * 1024 + slack
         return 1024 + slack  # FIXME: deal with smaller max-message-size
@@ -139,11 +139,11 @@ class RFC8323Remote:
                 # opaque; message parsing should already use the appropriate
                 # option types, or re-think the way options are parsed
                 if opt.number == 2:
-                    self._remote_settings['max-message-size'] = int.from_bytes(
-                        opt.value, 'big'
+                    self._remote_settings["max-message-size"] = int.from_bytes(
+                        opt.value, "big"
                     )
                 elif opt.number == 4:
-                    self._remote_settings['block-wise-transfer'] = True
+                    self._remote_settings["block-wise-transfer"] = True
                 elif opt.number.is_critical():
                     self.abort("Option not supported", bad_csm_option=opt.number)
                 else:
@@ -183,7 +183,7 @@ class RFC8323Remote:
         self.log.warning("Aborting connection: %s", errormessage)
         abort_msg = Message(code=ABORT)
         if errormessage is not None:
-            abort_msg.payload = errormessage.encode('utf8')
+            abort_msg.payload = errormessage.encode("utf8")
         if bad_csm_option is not None:
             bad_csm_option_option = optiontypes.UintOption(2, bad_csm_option)
             abort_msg.opt.add_option(bad_csm_option_option)

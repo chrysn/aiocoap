@@ -35,9 +35,9 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         # self.token_interface = … -- needs to be set post-construction, because the token_interface in its constructor already needs to get its manager
 
     def __repr__(self):
-        return '<%s for %s>' % (
+        return "<%s for %s>" % (
             type(self).__name__,
-            getattr(self, 'token_interface', '(unbound)'),
+            getattr(self, "token_interface", "(unbound)"),
         )
 
     @property
@@ -68,7 +68,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         """Reserve and return a new Token for request."""
         # TODO: add proper Token handling
         self._token = (self._token + 1) % (2**64)
-        return self._token.to_bytes(8, 'big').lstrip(b'\0')
+        return self._token.to_bytes(8, "big").lstrip(b"\0")
 
     #
     # implement the tokenmanager interface

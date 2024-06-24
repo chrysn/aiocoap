@@ -88,7 +88,7 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
 
     is_multicast_locally = False
 
-    scheme = 'coap'
+    scheme = "coap"
 
     # Unlike for other remotes, this is settable per instance.
     maximum_block_size_exp = constants.MAX_REGULAR_BLOCK_SIZE_EXP
@@ -96,7 +96,7 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
     # statically initialized in init
     hostinfo = None
     uri_base = None
-    uri_base = property(lambda self: 'coap://' + self.hostinfo)
+    uri_base = property(lambda self: "coap://" + self.hostinfo)
 
     @property
     def hostinfo_local(self):
@@ -107,19 +107,19 @@ class _Connection(asyncio.DatagramProtocol, interfaces.EndpointAddress):
         # something that can not be determined. (Some more effort could go into
         # falling back to get_extra_info('socket').getsockname(), but that
         # should really be fixed in the transport provider).
-        if not hasattr(self, '_transport'):
+        if not hasattr(self, "_transport"):
             raise RuntimeError(
                 "Simple6 does not have defined local host info in current stage %s"
                 % self._stage
             )
-        sockname = self._transport.get_extra_info('sockname')
+        sockname = self._transport.get_extra_info("sockname")
         if sockname is None:
             raise RuntimeError(
                 "Simple6 can not determine local address from the underlying UDP implementation"
             )
         return hostportjoin(*sockname[:2])
 
-    uri_base_local = property(lambda self: 'coap://' + self.hostinfo_local)
+    uri_base_local = property(lambda self: "coap://" + self.hostinfo_local)
 
     @property
     def blockwise_key(self):

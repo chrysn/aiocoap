@@ -125,7 +125,7 @@ class Code(ExtensibleIntEnum):
     @property
     def name_printable(self):
         """The name of the code in human-readable form"""
-        return self.name.replace('_', ' ').title()
+        return self.name.replace("_", " ").title()
 
     def __str__(self):
         """
@@ -238,6 +238,6 @@ if __debug__:
             )
 
 
-__all__ = ['Code'] + [
+__all__ = ["Code"] + [
     k for (k, v) in locals().items() if isinstance(v, Code) and not k.startswith("_")
 ]

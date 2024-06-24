@@ -39,7 +39,7 @@ import inspect
 from typing import Optional, List, Tuple
 
 
-'''
+"""
 server: {
             'coaps://mysite/*': { 'dtls-psk' (or other granularity): { 'psk': 'abcd' }},
             'coap://mysite/*': { 'oscore': { 'basedir': 'my-basedir/' } },
@@ -77,7 +77,7 @@ server: {
         'coaps://myothersite/wellprotected': { 'all': [ ':mydtls', ':myotherkey' ]}
         'coaps://myothersite/*': { 'any': [ ':mydtls', ':myotherkey' ]}
 }
-'''
+"""
 
 
 class CredentialsLoadError(ValueError):
@@ -93,7 +93,7 @@ class CredentialsMissingError(RuntimeError):
 
 class CredentialReference:
     def __init__(self, target, map):
-        if not target.startswith(':'):
+        if not target.startswith(":"):
             raise CredentialsLoadError(
                 "Credential references must start with a colon (':')"
             )
@@ -127,7 +127,7 @@ def _call_from_structureddata(constructor, name, init_data):
     if not isinstance(init_data, dict):
         raise CredentialsLoadError("%s goes with an object" % name)
 
-    init_data = {k.replace('-', '_'): v for (k, v) in init_data.items()}
+    init_data = {k.replace("-", "_"): v for (k, v) in init_data.items()}
 
     sig = inspect.signature(constructor)
 
@@ -141,22 +141,22 @@ def _call_from_structureddata(constructor, name, init_data):
             checked_items[k] = object()
             annotation = "attribute does not exist"
 
-        if isinstance(v, dict) and 'ascii' in v:
+        if isinstance(v, dict) and "ascii" in v:
             if len(v) != 1:
                 raise CredentialsLoadError("ASCII objects can only have one elemnt.")
             try:
-                v = v['ascii'].encode('ascii')
+                v = v["ascii"].encode("ascii")
             except UnicodeEncodeError:
                 raise CredentialsLoadError(
                     "Elements of the ASCII object can not be represented in ASCII, please use binary or hex representation."
                 )
 
-        if isinstance(v, dict) and 'hex' in v:
+        if isinstance(v, dict) and "hex" in v:
             if len(v) != 1:
                 raise CredentialsLoadError("Hex objects can only have one elemnt.")
             try:
                 v = bytes.fromhex(
-                    v['hex'].replace('-', '').replace(' ', '').replace(':', '')
+                    v["hex"].replace("-", "").replace(" ", "").replace(":", "")
                 )
             except ValueError as e:
                 raise CredentialsLoadError(
@@ -291,18 +291,18 @@ class CredentialsMap(dict):
     # still present so that an entry that is not loadable raises an error
     # rather than possibly being ignored.
     _class_map = {
-        'dtls': lambda: DTLS,
-        'oscore': import_filesystem_security_context,
-        'tlscert': lambda: TLSCert,
-        'any-of': lambda: AnyOf,
-        'all-of': lambda: AllOf,
-        'edhoc-oscore': import_edhoc_credential_pair,
+        "dtls": lambda: DTLS,
+        "oscore": import_filesystem_security_context,
+        "tlscert": lambda: TLSCert,
+        "any-of": lambda: AnyOf,
+        "all-of": lambda: AllOf,
+        "edhoc-oscore": import_edhoc_credential_pair,
     }
 
     @staticmethod
     def _wildcard_match(searchterm, pattern):
         if pattern not in _re_cache:
-            _re_cache[pattern] = re.compile(re.escape(pattern).replace('\\*', '.*'))
+            _re_cache[pattern] = re.compile(re.escape(pattern).replace("\\*", ".*"))
         return _re_cache[pattern].fullmatch(searchterm) is not None
 
     # used by a client
@@ -337,9 +337,9 @@ class CredentialsMap(dict):
         a good indicator for the eventual consumer to use the default)."""
 
         ssl_params = {}
-        tlscert = self.get('%s://%s/*' % (scheme, hostinfo), None)
+        tlscert = self.get("%s://%s/*" % (scheme, hostinfo), None)
         if tlscert is None:
-            tlscert = self.get('%s://*' % scheme, None)
+            tlscert = self.get("%s://*" % scheme, None)
         if tlscert is not None:
             ssl_params = tlscert.as_ssl_params()
         if ssl_params:

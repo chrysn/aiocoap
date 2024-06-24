@@ -9,7 +9,7 @@ from .numbers.contentformat import ContentFormat
 
 
 def _to_minimum_bytes(value):
-    return value.to_bytes((value.bit_length() + 7) // 8, 'big')
+    return value.to_bytes((value.bit_length() + 7) // 8, "big")
 
 
 class OptionType(metaclass=abc.ABCMeta):
@@ -54,11 +54,11 @@ class StringOption(OptionType):
 
     def encode(self):
         # FIXME: actually, this should be utf8 of the net-unicode form (maybe it is)
-        rawdata = self.value.encode('utf-8')
+        rawdata = self.value.encode("utf-8")
         return rawdata
 
     def decode(self, rawdata):
-        self.value = rawdata.decode('utf-8')
+        self.value = rawdata.decode("utf-8")
 
     def __str__(self):
         return self.value
@@ -88,7 +88,7 @@ class OpaqueOption(OptionType):
         return repr(self.value)
 
     def _repr_html_(self):
-        return f'<tt>{self.value.hex()}</tt>'
+        return f"<tt>{self.value.hex()}</tt>"
 
 
 class UintOption(OptionType):
@@ -102,7 +102,7 @@ class UintOption(OptionType):
         return _to_minimum_bytes(int(self.value))
 
     def decode(self, rawdata):
-        self.value = int.from_bytes(rawdata, 'big')
+        self.value = int.from_bytes(rawdata, "big")
 
     def __str__(self):
         return str(self.value)
@@ -167,7 +167,7 @@ class BlockOption(TypedOption):
 
     class BlockwiseTuple(
         collections.namedtuple(
-            '_BlockwiseTuple', ['block_number', 'more', 'size_exponent']
+            "_BlockwiseTuple", ["block_number", "more", "size_exponent"]
         )
     ):
         @property
@@ -232,7 +232,7 @@ class BlockOption(TypedOption):
         return _to_minimum_bytes(as_integer)
 
     def decode(self, rawdata):
-        as_integer = int.from_bytes(rawdata, 'big')
+        as_integer = int.from_bytes(rawdata, "big")
         self.value = self.BlockwiseTuple(
             block_number=(as_integer >> 4),
             more=bool(as_integer & 0x08),
@@ -256,7 +256,7 @@ class ContentFormatOption(TypedOption):
         return _to_minimum_bytes(int(self.value))
 
     def decode(self, rawdata):
-        as_integer = int.from_bytes(rawdata, 'big')
+        as_integer = int.from_bytes(rawdata, "big")
         self._value = ContentFormat(as_integer)
 
     def _set_from_opt_value(self, value):

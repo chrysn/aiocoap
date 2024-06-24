@@ -18,14 +18,14 @@ class ProxyForwarder(interfaces.RequestProvider):
     one."""
 
     def __init__(self, proxy_address, context):
-        if '://' not in proxy_address:
+        if "://" not in proxy_address:
             warnings.warn(
                 "Proxy addresses without scheme are deprecated, "
                 "please specify like `coap://host`, `coap+tcp://ip:port` "
                 "etc.",
                 DeprecationWarning,
             )
-            proxy_address = 'coap://' + proxy_address
+            proxy_address = "coap://" + proxy_address
 
         self.proxy_address = UndecidedRemote.from_pathless_uri(proxy_address)
         self.context = context

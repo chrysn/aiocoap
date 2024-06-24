@@ -22,10 +22,10 @@ class ActionNoYes(argparse.Action):
     def __init__(self, option_strings, dest, default=True, required=False, help=None):
         assert len(option_strings) == 1, "ActionNoYes takes only one option name"
         assert option_strings[0].startswith(
-            '--'
+            "--"
         ), "ActionNoYes options must start with --"
         super().__init__(
-            ['--' + option_strings[0][2:], '--no-' + option_strings[0][2:]],
+            ["--" + option_strings[0][2:], "--no-" + option_strings[0][2:]],
             dest,
             nargs=0,
             const=None,
@@ -35,7 +35,7 @@ class ActionNoYes(argparse.Action):
         )
 
     def __call__(self, parser, namespace, values, option_string=None):
-        if option_string.startswith('--no-'):
+        if option_string.startswith("--no-"):
             setattr(namespace, self.dest, False)
         else:
             setattr(namespace, self.dest, True)
@@ -75,7 +75,7 @@ class AsyncCLIDaemon:
     """
 
     def __init__(self, *args, **kwargs):
-        loop = kwargs.pop('loop', None)
+        loop = kwargs.pop("loop", None)
         if loop is None:
             loop = asyncio.get_running_loop()
         self.__exitcode = loop.create_future()

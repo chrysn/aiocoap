@@ -94,7 +94,7 @@ class Proxy(interfaces.Resource):
         self._block2 = Block2Cache()
 
         self.outgoing_context = outgoing_context
-        self.log = logger or logging.getLogger('proxy')
+        self.log = logger or logging.getLogger("proxy")
 
         self._redirectors = []
 
@@ -215,7 +215,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
                     payload = b""
                     if isinstance(exception, error.RenderableError):
                         code = exception.code
-                        payload = exception.message.encode('ascii')
+                        payload = exception.message.encode("ascii")
                     self.log.debug(
                         "Received error %r, which did not lead to unregistration of the clients. Actively deregistering them with %s %r.",
                         exception,
@@ -302,7 +302,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
                 return message.Message(
                     code=numbers.codes.BAD_OPTION,
                     payload="Observe option can not be proxied without active observation.".encode(
-                        'utf8'
+                        "utf8"
                     ),
                 )
             self.log.debug(
@@ -364,7 +364,7 @@ class ForwardProxy(Proxy):
             pass
         else:
             request.opt.uri_host = None
-        if forward_host.startswith('['):
+        if forward_host.startswith("["):
             # IPv6 or future literals are not recognized by ipaddress which
             # does not look at host-encoded form
             request.opt.uri_host = None
@@ -435,7 +435,7 @@ class SubdomainVirtualHost(NameBasedVirtualHost):
             )
 
     def _matches(self, hostname):
-        return hostname.endswith('.' + self.match_name)
+        return hostname.endswith("." + self.match_name)
 
 
 class UnconditionalRedirector(Redirector):

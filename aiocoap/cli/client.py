@@ -32,96 +32,96 @@ from aiocoap.numbers import ContentFormat
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
-        '--non',
+        "--non",
         help="Send request as non-confirmable (NON) message",
-        action='store_true',
+        action="store_true",
     )
     p.add_argument(
-        '-m',
-        '--method',
+        "-m",
+        "--method",
         help="Name or number of request method to use (default: %(default)s)",
         default="GET",
     )
     p.add_argument(
-        '--observe', help="Register an observation on the resource", action='store_true'
+        "--observe", help="Register an observation on the resource", action="store_true"
     )
     p.add_argument(
-        '--observe-exec',
+        "--observe-exec",
         help="Run the specified program whenever the observed resource changes, feeding the response data to its stdin",
-        metavar='CMD',
+        metavar="CMD",
     )
     p.add_argument(
-        '--accept',
+        "--accept",
         help="Content format to request",
         metavar="MIME",
     )
     p.add_argument(
-        '--proxy', help="Relay the CoAP request to a proxy for execution", metavar="URI"
+        "--proxy", help="Relay the CoAP request to a proxy for execution", metavar="URI"
     )
     p.add_argument(
-        '--payload',
+        "--payload",
         help="Send X as request payload (eg. with a PUT). If X starts with an '@', its remainder is treated as a file name and read from; '@-' reads from the console. Non-file data may be recoded, see --content-format.",
         metavar="X",
     )
     p.add_argument(
-        '--payload-initial-szx',
+        "--payload-initial-szx",
         help="Size exponent to limit the initial block's size (0 ≙ 16 Byte, 6 ≙ 1024 Byte)",
         metavar="SZX",
         type=int,
     )
     p.add_argument(
-        '--content-format',
+        "--content-format",
         help="Content format of the --payload data. If a known format is given and --payload has a non-file argument, the payload is converted from CBOR Diagnostic Notation.",
         metavar="MIME",
     )
     p.add_argument(
-        '--no-set-hostname',
+        "--no-set-hostname",
         help="Suppress transmission of Uri-Host even if the host name is not an IP literal",
         dest="set_hostname",
-        action='store_false',
+        action="store_false",
         default=True,
     )
     p.add_argument(
-        '-v',
-        '--verbose',
+        "-v",
+        "--verbose",
         help="Increase the debug output",
         action="count",
     )
     p.add_argument(
-        '-q',
-        '--quiet',
+        "-q",
+        "--quiet",
         help="Decrease the debug output",
         action="count",
     )
     # careful: picked before parsing
     p.add_argument(
-        '--interactive',
+        "--interactive",
         help="Enter interactive mode",
         action="store_true",
     )
     p.add_argument(
-        '--credentials',
+        "--credentials",
         help="Load credentials to use from a given file",
         type=Path,
     )
     p.add_argument(
-        '--version', action="version", version='%(prog)s ' + aiocoap.meta.version
+        "--version", action="version", version="%(prog)s " + aiocoap.meta.version
     )
 
     p.add_argument(
-        '--color',
+        "--color",
         help="Color output (default on TTYs if all required modules are installed)",
         default=None,
         action=ActionNoYes,
     )
     p.add_argument(
-        '--pretty-print',
+        "--pretty-print",
         help="Pretty-print known content formats (default on TTYs if all required modules are installed)",
         default=None,
         action=ActionNoYes,
     )
     p.add_argument(
-        'url',
+        "url",
         help="CoAP address to fetch",
     )
 
@@ -132,15 +132,15 @@ def configure_logging(verbosity):
     logging.basicConfig()
 
     if verbosity <= -2:
-        logging.getLogger('coap').setLevel(logging.CRITICAL + 1)
+        logging.getLogger("coap").setLevel(logging.CRITICAL + 1)
     elif verbosity == -1:
-        logging.getLogger('coap').setLevel(logging.ERROR)
+        logging.getLogger("coap").setLevel(logging.ERROR)
     elif verbosity == 0:
-        logging.getLogger('coap').setLevel(logging.WARNING)
+        logging.getLogger("coap").setLevel(logging.WARNING)
     elif verbosity == 1:
-        logging.getLogger('coap').setLevel(logging.INFO)
+        logging.getLogger("coap").setLevel(logging.INFO)
     elif verbosity >= 2:
-        logging.getLogger('coap').setLevel(logging.DEBUG)
+        logging.getLogger("coap").setLevel(logging.DEBUG)
 
 
 def colored(text, options, tokenlambda):
@@ -166,7 +166,7 @@ def incoming_observation(options, response):
         # FIXME this blocks
         p.communicate(response.payload)
     else:
-        sys.stdout.write(colored('---', options, lambda token: token.Comment.Preproc))
+        sys.stdout.write(colored("---", options, lambda token: token.Comment.Preproc))
         if response.code.is_successful():
             present(response, options, file=sys.stderr)
         else:
@@ -182,11 +182,11 @@ def incoming_observation(options, response):
 
 
 def apply_credentials(context, credentials, errfn):
-    if credentials.suffix == '.json':
+    if credentials.suffix == ".json":
         import json
 
-        context.client_credentials.load_from_dict(json.load(credentials.open('rb')))
-    elif credentials.suffix == '.diag':
+        context.client_credentials.load_from_dict(json.load(credentials.open("rb")))
+    elif credentials.suffix == ".diag":
         try:
             import cbor_diag
             import cbor2
@@ -230,7 +230,7 @@ def present(message, options, file=sys.stdout):
     if cf is not None and cf.is_known():
         mime = cf.media_type
     else:
-        mime = 'application/octet-stream'
+        mime = "application/octet-stream"
     if options.pretty_print:
         from aiocoap.util.prettyprint import pretty_print
 
@@ -258,7 +258,7 @@ def present(message, options, file=sys.stdout):
         # Coloring requires a unicode-string style payload, either from the
         # mime type or from the pretty printer.
         try:
-            payload = message.payload.decode('utf8')
+            payload = message.payload.decode("utf8")
         except UnicodeDecodeError:
             color = False
 
@@ -278,11 +278,11 @@ def present(message, options, file=sys.stdout):
     else:
         if payload is None:
             file.buffer.write(message.payload)
-            if file.isatty() and message.payload[-1:] != b'\n':
+            if file.isatty() and message.payload[-1:] != b"\n":
                 file.write("\n")
         else:
             file.write(payload)
-            if file.isatty() and payload[-1] != '\n':
+            if file.isatty() and payload[-1] != "\n":
                 file.write("\n")
 
 
@@ -307,7 +307,7 @@ async def single_request(args, context):
     try:
         code = getattr(
             aiocoap.numbers.codes.Code,
-            options.method.upper().replace('IPATCH', 'iPATCH'),
+            options.method.upper().replace("IPATCH", "iPATCH"),
         )
     except AttributeError:
         try:
@@ -354,12 +354,12 @@ async def single_request(args, context):
                 raise parser.error("Unknown content format")
 
     if options.payload:
-        if options.payload.startswith('@'):
+        if options.payload.startswith("@"):
             filename = options.payload[1:]
             if filename == "-":
                 f = sys.stdin.buffer
             else:
-                f = open(filename, 'rb')
+                f = open(filename, "rb")
             try:
                 request.payload = f.read()
             except OSError as e:
@@ -371,7 +371,7 @@ async def single_request(args, context):
                 and request.opt.content_format.is_known()
                 else ""
             )
-            if request_classification in ('cbor', 'cbor-seq'):
+            if request_classification in ("cbor", "cbor-seq"):
                 try:
                     import cbor_diag
                 except ImportError as e:
@@ -384,7 +384,7 @@ async def single_request(args, context):
                         f"Parsing CBOR diagnostic notation failed. Make sure quotation marks are escaped from the shell. Error: {e}"
                     )
 
-                if request_classification == 'cbor-seq':
+                if request_classification == "cbor-seq":
                     try:
                         import cbor2
                     except ImportError as e:
@@ -400,7 +400,7 @@ async def single_request(args, context):
                 else:
                     request.payload = encoded
             else:
-                request.payload = options.payload.encode('utf8')
+                request.payload = options.payload.encode("utf8")
 
     if options.payload_initial_szx is not None:
         request.opt.block1 = aiocoap.optiontypes.BlockOption.BlockwiseTuple(
@@ -556,7 +556,7 @@ def sync_main(args=None):
     if args is None:
         args = sys.argv[1:]
 
-    if '--interactive' not in args:
+    if "--interactive" not in args:
         try:
             asyncio.run(single_request_with_context(args))
         except KeyboardInterrupt:

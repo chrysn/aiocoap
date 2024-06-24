@@ -99,16 +99,16 @@ class DTLSClientConnection(interfaces.EndpointAddress):
     is_multicast = False
     is_multicast_locally = False
     hostinfo = None  # stored at initualization time
-    uri_base = property(lambda self: 'coaps://' + self.hostinfo)
+    uri_base = property(lambda self: "coaps://" + self.hostinfo)
     # Not necessarily very usable given we don't implement responding to server
     # connection, but valid anyway
-    uri_base_local = property(lambda self: 'coaps://' + self.hostinfo_local)
-    scheme = 'coaps'
+    uri_base_local = property(lambda self: "coaps://" + self.hostinfo_local)
+    scheme = "coaps"
 
     @property
     def hostinfo_local(self):
         # See TCP's.hostinfo_local
-        host, port, *_ = self._transport.get_extra_info('socket').getsockname()
+        host, port, *_ = self._transport.get_extra_info("socket").getsockname()
         if port == COAPS_PORT:
             port = None
         return hostportjoin(host, port)
@@ -382,7 +382,7 @@ class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
         )
 
     async def determine_remote(self, request):
-        if request.requested_scheme != 'coaps':
+        if request.requested_scheme != "coaps":
             return None
 
         if request.unresolved_remote:

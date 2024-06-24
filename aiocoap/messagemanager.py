@@ -65,9 +65,9 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         # self.message_interface = … -- needs to be set post-construction, because the message_interface in its constructor already needs to get its manager
 
     def __repr__(self):
-        return '<%s for %s>' % (
+        return "<%s for %s>" % (
             type(self).__name__,
-            getattr(self, 'message_interface', '(unbound)'),
+            getattr(self, "message_interface", "(unbound)"),
         )
 
     @property
@@ -132,7 +132,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                 # peer does, we better not answer
                 if message.mtype == CON and not message.remote.is_multicast_locally:
                     self.log.info("Response not recognized - sending RST.")
-                    rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload='')
+                    rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload="")
                     rst.remote = message.remote.as_response_address()
                     self._send_initially(rst)
                 else:
@@ -196,17 +196,17 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         if key in self._recent_messages:
             if message.mtype is CON:
                 if self._recent_messages[key] is not None:
-                    self.log.info('Duplicate CON received, sending old response again')
+                    self.log.info("Duplicate CON received, sending old response again")
                     # not going via send_message because that would strip the
                     # mid and might do all other sorts of checks
                     self._send_initially(self._recent_messages[key])
                 else:
-                    self.log.info('Duplicate CON received, no response to send yet')
+                    self.log.info("Duplicate CON received, no response to send yet")
             else:
-                self.log.info('Duplicate NON, ACK or RST received')
+                self.log.info("Duplicate NON, ACK or RST received")
             return True
         else:
-            self.log.debug('New unique message received')
+            self.log.debug("New unique message received")
             self.loop.call_later(
                 message.transport_tuning.EXCHANGE_LIFETIME,
                 functools.partial(self._recent_messages.pop, key),
@@ -346,8 +346,8 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     #
 
     def _process_ping(self, message):
-        self.log.info('Received CoAP Ping from %s, replying with RST.', message.remote)
-        rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b'')
+        self.log.info("Received CoAP Ping from %s, replying with RST.", message.remote)
+        rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b"")
         rst.remote = message.remote.as_response_address()
         # not going via send_message because that would strip the mid, and we
         # already know that it can go straight to the wire

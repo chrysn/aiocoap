@@ -30,7 +30,7 @@ class ExtensibleEnumMeta(enum.EnumMeta):
     https://github.com/python/cpython/issues/118650 (_repr_html_ is not
     allowed on enum) for versions before that is fixed"""
 
-    if sys.version_info < (3, 13, 0, 'beta', 1):
+    if sys.version_info < (3, 13, 0, "beta", 1):
 
         @classmethod
         def __prepare__(metacls, cls, bases, **kwd):
@@ -56,7 +56,7 @@ class ExtensibleIntEnum(enum.IntEnum, metaclass=ExtensibleEnumMeta):
     numbers which are not comprehensively known, like CoAP option numbers."""
 
     def __repr__(self):
-        return '<%s %d%s>' % (
+        return "<%s %d%s>" % (
             type(self).__name__,
             self,
             ' "%s"' % self.name if hasattr(self, "name") else "",
@@ -117,8 +117,8 @@ def hostportjoin(host, port=None):
     >>> hostportjoin('[2001:db8::1]', 1234)
     '[2001:db8::1]:1234'
     """
-    if ':' in host and not (host.startswith('[') and host.endswith(']')):
-        host = '[%s]' % host
+    if ":" in host and not (host.startswith("[") and host.endswith("]")):
+        host = "[%s]" % host
 
     if port is None:
         hostinfo = host
@@ -143,7 +143,7 @@ def hostportsplit(hostport):
     try:
         return pseudoparsed.hostname, pseudoparsed.port
     except ValueError:
-        if '[' not in hostport and hostport.count(':') > 1:
+        if "[" not in hostport and hostport.count(":") > 1:
             raise ValueError(
                 "Could not parse network location. "
                 "Beware that when IPv6 literals are expressed in URIs, they "
@@ -162,7 +162,7 @@ def quote_nonascii(s):
     overhauled the next time.
     """
 
-    return "".join(chr(c) if c <= 127 else "%%%02X" % c for c in s.encode('utf8'))
+    return "".join(chr(c) if c <= 127 else "%%%02X" % c for c in s.encode("utf8"))
 
 
 class Sentinel:
@@ -174,7 +174,7 @@ class Sentinel:
         self._label = label
 
     def __repr__(self):
-        return '<%s>' % self._label
+        return "<%s>" % self._label
 
 
 def deprecation_getattr(_deprecated_aliases: dict, _globals: dict):

@@ -45,11 +45,11 @@ from .. import defaults
 
 
 class _Address(
-    namedtuple('_Address', ['serversocket', 'address']), interfaces.EndpointAddress
+    namedtuple("_Address", ["serversocket", "address"]), interfaces.EndpointAddress
 ):
     # hashability and equality follow from being a namedtuple
     def __repr__(self):
-        return '<%s.%s via %s to %s>' % (
+        return "<%s.%s via %s to %s>" % (
             __name__,
             type(self).__name__,
             self.serversocket,
@@ -78,7 +78,7 @@ class _Address(
 
     @property
     def uri_base(self):
-        return self.scheme + '://' + self.hostinfo
+        return self.scheme + "://" + self.hostinfo
 
     @property
     def hostinfo_local(self):
@@ -86,9 +86,9 @@ class _Address(
 
     @property
     def uri_base_local(self):
-        return self.scheme + '://' + self.hostinfo_local
+        return self.scheme + "://" + self.hostinfo_local
 
-    scheme = 'coap'
+    scheme = "coap"
 
     @property
     def blockwise_key(self):
@@ -103,7 +103,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
     async def create(
         cls, bind, log, loop, message_interface: "GenericMessageInterface"
     ):
-        if bind is None or bind[0] in ('::', '0.0.0.0', '', None):
+        if bind is None or bind[0] in ("::", "0.0.0.0", "", None):
             # If you feel tempted to remove this check, think about what
             # happens if two configured addresses can both route to a
             # requesting endpoint, how that endpoint is supposed to react to a
@@ -160,7 +160,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
         # port, zoneinfo, whatwasthefourth) tuple from what is passed in as a
         # (host, port) tuple.
         addresses = await self._loop.getaddrinfo(
-            *sockaddr, family=self._transport.get_extra_info('socket').family
+            *sockaddr, family=self._transport.get_extra_info("socket").family
         )
         if not addresses:
             raise error.NetworkError("No addresses found for %s" % sockaddr[0])
@@ -203,7 +203,7 @@ class MessageInterfaceSimpleServer(GenericMessageInterface):
         cls, bind, ctx: interfaces.MessageManager, log, loop, *args, **kwargs
     ):
         self = cls(ctx, log, loop)
-        bind = bind or ('::', None)
+        bind = bind or ("::", None)
         # Interpret None as 'default port', but still allow to bind to 0 for
         # servers that want a random port (eg. when the service URLs are
         # advertised out-of-band anyway). LwM2M clients should use simple6

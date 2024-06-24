@@ -26,10 +26,10 @@ def main(argv=None):
     p.add_argument(
         "--expect-all",
         help="Exit with an error unless all subsystems are available",
-        action='store_true',
-        default=os.environ.get('AIOCOAP_DEFAULTS_EXPECT_ALL') == '1',
+        action="store_true",
+        default=os.environ.get("AIOCOAP_DEFAULTS_EXPECT_ALL") == "1",
     )
-    p.add_argument('--version', action='version', version=version)
+    p.add_argument("--version", action="version", version=version)
     args = p.parse_args(sys.argv[1:] if argv is None else argv)
 
     error = 0

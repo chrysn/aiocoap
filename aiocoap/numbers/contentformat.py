@@ -116,7 +116,7 @@ def _normalize_media_type(s):
     """Strip out the white space between parameters; doesn't need to fully
     parse the types because it's applied to values of _raw (or to input that'll
     eventually be compared to them and fail)"""
-    return s.replace('; ', ';')
+    return s.replace("; ", ";")
 
 
 class ContentFormatMeta(ExtensibleEnumMeta):
@@ -173,7 +173,7 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
     """
 
     @classmethod
-    def define(cls, number, media_type: str, encoding: str = 'identity'):
+    def define(cls, number, media_type: str, encoding: str = "identity"):
         s = cls(number)
 
         if hasattr(s, "media_type"):
@@ -188,7 +188,7 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
 
     @classmethod
     def by_media_type(
-        cls, media_type: str, encoding: str = 'identity'
+        cls, media_type: str, encoding: str = "identity"
     ) -> ContentFormat:
         """Produce known entry for a known media type (and encoding, though
         'identity' is default due to its prevalence), or raise KeyError."""
@@ -245,7 +245,7 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
         return "<%s %d%s>" % (
             type(self).__name__,
             self,
-            ', media_type=%r, encoding=%r' % (self.media_type, self.encoding)
+            ", media_type=%r, encoding=%r" % (self.media_type, self.encoding)
             if self.is_known()
             else "",
         )
@@ -273,8 +273,8 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
 for _mt, _enc, _i, _source in _raw:
     if _mt in ["Reserved for Experimental Use", "Reserved, do not use", "Unassigned"]:
         continue
-    _mt, _, _ = _mt.partition(' (TEMPORARY')
-    ContentFormat.define(int(_i), _mt, _enc or 'identity')
+    _mt, _, _ = _mt.partition(" (TEMPORARY")
+    ContentFormat.define(int(_i), _mt, _enc or "identity")
 
 
 class _MediaTypes:
@@ -320,11 +320,11 @@ class _MediaTypesRev:
             DeprecationWarning,
             stacklevel=2,
         )
-        if name == 'text/plain':
+        if name == "text/plain":
             # deprecated alias. Kept alive for scripts like
             # https://gitlab.f-interop.eu/f-interop-contributors/ioppytest/blob/develop/automation/coap_client_aiocoap/automated_iut.py
             # that run aiocoap-client with text/plain as an argument.
-            name = 'text/plain;charset=utf-8'
+            name = "text/plain;charset=utf-8"
         return int(ContentFormat.by_media_type(name))
 
     def get(self, name, default=None):

@@ -38,7 +38,7 @@ from ..credentials import CredentialsMap
 
 class _HelpBind(argparse.Action):
     def __init__(self, *args, **kwargs):
-        kwargs['nargs'] = 0
+        kwargs["nargs"] = 0
         super().__init__(*args, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
@@ -72,36 +72,36 @@ def add_server_arguments(parser):
         except ValueError:
             raise parser.error(
                 f"Invalid argument to --bind. Did you mean --bind '[{arg}]'?"
-                if arg.count(':') >= 2 and '[' not in arg
+                if arg.count(":") >= 2 and "[" not in arg
                 else " See --help-bind for details."
             )
 
     parser.add_argument(
-        '--bind',
+        "--bind",
         help="Host and/or port to bind to (see --help-bind for details)",
         type=hostportsplit_helper,
         default=None,
     )
 
     parser.add_argument(
-        '--credentials',
+        "--credentials",
         help="JSON file pointing to credentials for the server's identity/ies.",
         type=Path,
     )
 
     # These are to be eventually migrated into credentials
     parser.add_argument(
-        '--tls-server-certificate',
+        "--tls-server-certificate",
         help="TLS certificate (chain) to present to connecting clients (in PEM format)",
         metavar="CRT",
     )
     parser.add_argument(
-        '--tls-server-key',
+        "--tls-server-key",
         help="TLS key to load that supports the server certificate",
         metavar="KEY",
     )
 
-    parser.add_argument('--help-bind', help=argparse.SUPPRESS, action=_HelpBind)
+    parser.add_argument("--help-bind", help=argparse.SUPPRESS, action=_HelpBind)
 
 
 def extract_server_arguments(namespace):
@@ -158,7 +158,7 @@ async def server_context_from_arguments(site, namespace, **kwargs):
             import json
 
             server_credentials.load_from_dict(
-                json.load(namespace.credentials.open('rb'))
+                json.load(namespace.credentials.open("rb"))
             )
 
         # FIXME: could be non-OSCORE as well -- can we build oscore_sitewrapper

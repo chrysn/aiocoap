@@ -67,7 +67,7 @@ class ConstructionRenderableError(RenderableError):
     def to_message(self):
         from .message import Message
 
-        return Message(code=self.code, payload=self.message.encode('utf8'))
+        return Message(code=self.code, payload=self.message.encode("utf8"))
 
     code = codes.INTERNAL_SERVER_ERROR  #: Code assigned to messages built from it
     message = ""  #: Text sent in the built message's payload

@@ -121,7 +121,7 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
 
     def request_to_localpath(self, request):
         path = request.opt.uri_path
-        if any('/' in p or p in ('.', '..') for p in path):
+        if any("/" in p or p in (".", "..") for p in path):
             raise InvalidPathError()
 
         return self.root / "/".join(path)
@@ -131,8 +131,8 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
             return True
         if (
             not request.opt.uri_path
-            or request.opt.uri_path[-1] == ''
-            or request.opt.uri_path == ('.well-known', 'core')
+            or request.opt.uri_path[-1] == ""
+            or request.opt.uri_path == (".well-known", "core")
         ):
             return True
         # Only GETs to non-directory access handle it explicitly
@@ -142,12 +142,12 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
     def hash_stat(stat):
         # The subset that the author expects to (possibly) change if the file changes
         data = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
-        return hashlib.sha256(repr(data).encode('ascii')).digest()[:8]
+        return hashlib.sha256(repr(data).encode("ascii")).digest()[:8]
 
     async def render_get(self, request):
-        if request.opt.uri_path == ('.well-known', 'core'):
+        if request.opt.uri_path == (".well-known", "core"):
             return aiocoap.Message(
-                payload=str(self.get_resources_as_linkheader()).encode('utf8'),
+                payload=str(self.get_resources_as_linkheader()).encode("utf8"),
                 content_format=40,
             )
 
@@ -250,7 +250,7 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         return aiocoap.Message(code=codes.DELETED)
 
     async def render_get_dir(self, request, path):
-        if request.opt.uri_path and request.opt.uri_path[-1] != '':
+        if request.opt.uri_path and request.opt.uri_path[-1] != "":
             raise TrailingSlashMissingError()
 
         self.log.info("Serving directory %s", path)
@@ -262,10 +262,10 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
                 response += "</%s/>;ct=40," % rel
             else:
                 response += "</%s>," % rel
-        return aiocoap.Message(payload=response[:-1].encode('utf8'), content_format=40)
+        return aiocoap.Message(payload=response[:-1].encode("utf8"), content_format=40)
 
     async def render_get_file(self, request, path):
-        if request.opt.uri_path and request.opt.uri_path[-1] == '':
+        if request.opt.uri_path and request.opt.uri_path[-1] == "":
             raise AbundantTrailingSlashError()
 
         self.log.info("Serving file %s", path)
@@ -274,7 +274,7 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
             0, 0, 6
         )
 
-        with path.open('rb') as f:
+        with path.open("rb") as f:
             f.seek(block_in.start)
             data = f.read(block_in.size + 1)
 
@@ -298,7 +298,7 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
                     guessed_type
                 )
             except KeyError:
-                if guessed_type and guessed_type.startswith('text/'):
+                if guessed_type and guessed_type.startswith("text/"):
                     content_format = aiocoap.numbers.ContentFormat.TEXT
         return aiocoap.Message(
             payload=data[: block_in.size],
@@ -342,18 +342,18 @@ class FileServerProgram(AsyncCLIDaemon):
             "-v",
             "--verbose",
             help="Be more verbose (repeat to debug)",
-            action='count',
+            action="count",
             dest="verbosity",
             default=0,
         )
         p.add_argument(
             "--register",
             help="Register with a Resource directory",
-            metavar='RD-URI',
-            nargs='?',
+            metavar="RD-URI",
+            nargs="?",
             default=False,
         )
-        p.add_argument("--write", help="Allow writes by any user", action='store_true')
+        p.add_argument("--write", help="Allow writes by any user", action="store_true")
         p.add_argument(
             "path",
             help="Root directory of the server",
@@ -369,8 +369,8 @@ class FileServerProgram(AsyncCLIDaemon):
     async def start_with_options(
         self, path, verbosity=0, register=False, server_opts=None, write=False
     ):
-        log = logging.getLogger('fileserver')
-        coaplog = logging.getLogger('coap-server')
+        log = logging.getLogger("fileserver")
+        coaplog = logging.getLogger("coap-server")
 
         if verbosity == 1:
             log.setLevel(logging.INFO)
@@ -393,7 +393,7 @@ class FileServerProgram(AsyncCLIDaemon):
         )
 
         if register is not False:
-            if register is not None and register.count('/') != 2:
+            if register is not None and register.count("/") != 2:
                 log.warn("Resource directory does not look like a host-only CoAP URI")
 
             self.registerer = Registerer(self.context, rd=register, lt=60)

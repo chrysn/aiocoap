@@ -15,7 +15,7 @@ from ...util.linkformat import link_header
 from ...message import Message
 from ...numbers import GET, POST, DELETE, SERVICE_UNAVAILABLE, NOT_FOUND
 
-__all__ = ['Registerer']
+__all__ = ["Registerer"]
 
 
 class Registerer:
@@ -45,7 +45,7 @@ class Registerer:
         name_from_hostname=None,
         link_source=None,
         registration_parameters={},
-        loggername='coap-rd-registerer',
+        loggername="coap-rd-registerer",
     ):
         """Use a ``context`` to create a registration at the Resource
         directiory at ``rd`` (defaulting to "find an RD yourself"; URIs should
@@ -78,12 +78,12 @@ class Registerer:
         self._registration_parameters = dict(registration_parameters)
 
         if name_from_hostname or (
-            name_from_hostname is None and 'ep' not in registration_parameters
+            name_from_hostname is None and "ep" not in registration_parameters
         ):
-            ep, _, d = getfqdn().partition('.')
-            self._registration_parameters['ep'] = ep
+            ep, _, d = getfqdn().partition(".")
+            self._registration_parameters["ep"] = ep
             if d:
-                self._registration_parameters['d'] = d
+                self._registration_parameters["d"] = d
 
         self.log = logging.getLogger(loggername)
 
@@ -117,7 +117,7 @@ class Registerer:
             # It seems to be a sane assumption that the best thing to do is to
             # assume we're on a big host and multicast is cheap here.
             self._directory_resource = await self._discovery_directory_uri(
-                'coap://[ff05::fd]]', blacklist=blacklist
+                "coap://[ff05::fd]]", blacklist=blacklist
             )
         else:
             components = urlparse(self._initial_rd)
@@ -137,14 +137,14 @@ class Registerer:
                 )
 
     async def _discovery_directory_uri(self, host, blacklist=set()):
-        lookup_uri = urljoin(host, '/.well-known/core?rt=core.rd')
+        lookup_uri = urljoin(host, "/.well-known/core?rt=core.rd")
 
         try:
             # FIXME: this should be able to deal with multicasts
             response = await self._context.request(
                 Message(code=GET, uri=lookup_uri, accept=40)
             ).response_raising
-            links = link_header.parse(response.payload.decode('utf8'))
+            links = link_header.parse(response.payload.decode("utf8"))
         except (UnicodeDecodeError, link_header.ParseException):
             self.log.error("Error parsing the RD's self description")
             raise
@@ -152,7 +152,7 @@ class Registerer:
         addresses = [
             link.get_target(response.get_request_uri())
             for link in links.links
-            if 'core.rd' in " ".join(link.rt).split(" ")
+            if "core.rd" in " ".join(link.rt).split(" ")
         ]
         unfiltered_addresses = len(addresses)
         addresses = [a for a in addresses if a not in blacklist]
@@ -187,12 +187,12 @@ class Registerer:
                 content_format=40,
                 payload=str(
                     self._context.serversite.get_resources_as_linkheader()
-                ).encode('utf8'),
+                ).encode("utf8"),
             )
 
         else:
             self._link_data = await self._context.request(
-                Message(code=GET, uri=urljoin(self._link_source, '/.well-known/core'))
+                Message(code=GET, uri=urljoin(self._link_source, "/.well-known/core"))
             ).response_raising
 
     class _RetryableError(RuntimeError):
@@ -225,9 +225,9 @@ class Registerer:
         initial_message = self._link_data.copy(code=POST, uri=self._directory_resource)
         base_query = {}
         if self._lt != 90000:
-            base_query['lt'] = str(self._lt)
+            base_query["lt"] = str(self._lt)
         if self._link_source is not None:
-            base_query['base'] = self._link_source
+            base_query["base"] = self._link_source
         query = dict(base_query, **self._registration_parameters)
 
         initial_message.opt.uri_query = initial_message.opt.uri_query + tuple(
@@ -270,13 +270,13 @@ class Registerer:
         try:
             await self._run_inner(obtain)
         except asyncio.CancelledError:
-            self._set_state('cancelled')
+            self._set_state("cancelled")
             pass
         except self._UnrecoverableError as e:
-            self._set_state('failed')
+            self._set_state("failed")
             self.log.error("Aborting RD discovery: %s", e.args[0])
         except Exception as e:
-            self._set_state('failed')
+            self._set_state("failed")
             self.log.error(
                 "An error occurred during RD registration, not pursuing registration any further:",
                 exc_info=e,
@@ -294,7 +294,7 @@ class Registerer:
             if try_reuse_discovery:
                 try_reuse_discovery = False
             else:
-                self._set_state('discovering')
+                self._set_state("discovering")
 
                 for i in range(4):
                     if i:

@@ -19,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 async def main():
     protocol = await Context.create_client_context()
 
-    request = Message(code=GET, uri='coap://vs0.inf.ethz.ch/obs', observe=0)
+    request = Message(code=GET, uri="coap://vs0.inf.ethz.ch/obs", observe=0)
 
     pr = protocol.request(request)
 

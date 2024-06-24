@@ -19,7 +19,7 @@ from pathlib import Path
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument(
-        '--version', action="version", version='%(prog)s ' + aiocoap.meta.version
+        "--version", action="version", version="%(prog)s " + aiocoap.meta.version
     )
 
     subparsers = p.add_subparsers(required=True, dest="subcommand")
@@ -30,11 +30,11 @@ def build_parser():
         " user, and prints the corresponding public key information in a way"
         " suitable for inclusion in credentials maps.",
     )
-    generate.add_argument('keyfile', help="File to store the secret key in", type=Path)
+    generate.add_argument("keyfile", help="File to store the secret key in", type=Path)
     generate.add_argument(
-        '--kid', help="Hexadecimal key identifier", type=bytes.fromhex
+        "--kid", help="Hexadecimal key identifier", type=bytes.fromhex
     )
-    generate.add_argument('--subject', help="Text placed in the CCS", type=str)
+    generate.add_argument("--subject", help="Text placed in the CCS", type=str)
 
     return p
 

@@ -69,8 +69,8 @@ from ..util import socknumbers
 """The `struct in6_pktinfo` from RFC3542"""
 _in6_pktinfo = struct.Struct("16sI")
 
-_ipv6_unspecified = socket.inet_pton(socket.AF_INET6, '::')
-_ipv4_unspecified = socket.inet_pton(socket.AF_INET6, '::ffff:0.0.0.0')
+_ipv6_unspecified = socket.inet_pton(socket.AF_INET6, "::")
+_ipv4_unspecified = socket.inet_pton(socket.AF_INET6, "::ffff:0.0.0.0")
 
 
 class InterfaceOnlyPktinfo(bytes):
@@ -117,7 +117,7 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         self.pktinfo = pktinfo
         self._interface = weakref.ref(interface)
 
-    scheme = 'coap'
+    scheme = "coap"
 
     interface = property(lambda self: self._interface())
 
@@ -162,7 +162,7 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
                 scopepart = "%" + str(self.sockaddr[3])
         else:
             scopepart = ""
-        if '%' in self.sockaddr[0]:
+        if "%" in self.sockaddr[0]:
             # Fix for Python 3.6 and earlier that reported the scope information
             # in the IP literal (3.7 consistently expresses it in the tuple slot 3)
             scopepart = ""
@@ -218,15 +218,15 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
 
     @property
     def uri_base(self):
-        return 'coap://' + self.hostinfo
+        return "coap://" + self.hostinfo
 
     @property
     def uri_base_local(self):
-        return 'coap://' + self.hostinfo_local
+        return "coap://" + self.hostinfo_local
 
     @property
     def is_multicast(self):
-        return ipaddress.ip_address(self._plainaddress().split('%', 1)[0]).is_multicast
+        return ipaddress.ip_address(self._plainaddress().split("%", 1)[0]).is_multicast
 
     @property
     def is_multicast_locally(self):
@@ -280,14 +280,14 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # used with multiple aiocoap contexts, and if not, raise an error early
         # rather than just-in-case doing extra stuff here.
         self._remote_being_sent_to = contextvars.ContextVar(
-            '_remote_being_sent_to', default=None
+            "_remote_being_sent_to", default=None
         )
 
     def _local_port(self):
         # FIXME: either raise an error if this is 0, or send a message to self
         # to force the OS to decide on a port. Right now, this reports wrong
         # results while the first message has not been sent yet.
-        return self.transport.get_extra_info('socket').getsockname()[1]
+        return self.transport.get_extra_info("socket").getsockname()[1]
 
     @classmethod
     async def _create_transport_endpoint(
@@ -324,7 +324,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
             if isinstance(address, ipaddress.IPv4Address):
                 s = struct.pack(
-                    '4s4si', address.packed, socket.inet_aton("0.0.0.0"), interface
+                    "4s4si", address.packed, socket.inet_aton("0.0.0.0"), interface
                 )
                 try:
                     sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s)
@@ -332,7 +332,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                     log.warning("Could not join IPv4 multicast group")
 
             elif isinstance(address, ipaddress.IPv6Address):
-                s = struct.pack('16si', address.packed, interface)
+                s = struct.pack("16si", address.packed, interface)
                 try:
                     sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, s)
                 except OSError:
@@ -362,7 +362,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
     async def create_server_transport_endpoint(
         cls, ctx: interfaces.MessageManager, log, loop, bind, multicast
     ):
-        bind = bind or ('::', None)
+        bind = bind or ("::", None)
         # Interpret None as 'default port', but still allow to bind to 0 for
         # servers that want a random port (eg. when the service URLs are
         # advertised out-of-band anyway, or in LwM2M clients)
@@ -447,7 +447,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         return isinstance(remote, UDP6EndpointAddress) and remote.interface == self
 
     async def determine_remote(self, request):
-        if request.requested_scheme not in ('coap', None):
+        if request.requested_scheme not in ("coap", None):
             return None
 
         if request.unresolved_remote is not None:
@@ -455,7 +455,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             port = port or COAP_PORT
         elif request.opt.uri_host:
             host = request.opt.uri_host
-            if host.startswith('[') and host.endswith(']'):
+            if host.startswith("[") and host.endswith("]"):
                 host = host[1:-1]
             port = request.opt.uri_port or COAP_PORT
         else:
@@ -468,8 +468,8 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         # scope eth0, and similar for ff02:: addresses), in others (eg. ff05::)
         # it gives 'Name or service not known'.
 
-        if '%' in host:
-            host, zone = host.split('%', 1)
+        if "%" in host:
+            host, zone = host.split("%", 1)
             try:
                 zone = socket.if_nametoindex(zone)
             except OSError:

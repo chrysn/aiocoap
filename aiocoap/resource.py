@@ -68,7 +68,7 @@ def hashing_etag(request: message.Message, response: message.Message):
     response.opt.etag = hashlib.sha1(response.payload).digest()[:8]
     if request.opt.etags is not None and response.opt.etag in request.opt.etags:
         response.code = Code.VALID
-        response.payload = b''
+        response.payload = b""
 
 
 class _ExposesWellknownAttributes:
@@ -76,12 +76,12 @@ class _ExposesWellknownAttributes:
         # FIXME which formats are acceptable, and how much escaping and
         # list-to-separated-string conversion needs to happen here
         ret = {}
-        if hasattr(self, 'ct'):
-            ret['ct'] = str(self.ct)
-        if hasattr(self, 'rt'):
-            ret['rt'] = self.rt
-        if hasattr(self, 'if_'):
-            ret['if'] = self.if_
+        if hasattr(self, "ct"):
+            ret["ct"] = str(self.ct)
+        if hasattr(self, "rt"):
+            ret["rt"] = self.rt
+        if hasattr(self, "if_"):
+            ret["if"] = self.if_
         return ret
 
 
@@ -112,7 +112,7 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
     async def render(self, request):
         if not request.code.is_request():
             raise error.UnsupportedMethod()
-        m = getattr(self, 'render_%s' % str(request.code).lower(), None)
+        m = getattr(self, "render_%s" % str(request.code).lower(), None)
         if not m:
             raise error.UnallowedMethod()
 
@@ -176,7 +176,7 @@ class ObservableResource(Resource, interfaces.ObservableResource):
 
     def get_link_description(self):
         link = super(ObservableResource, self).get_link_description()
-        link['obs'] = None
+        link["obs"] = None
         return link
 
     async def render_to_pipe(self, request: Pipe):
@@ -202,7 +202,7 @@ def link_format_to_message(
         ct = default_ct
 
     if ct == ContentFormat.LINKFORMAT:
-        payload = str(linkformat).encode('utf8')
+        payload = str(linkformat).encode("utf8")
     else:
         return message.Message(code=Code.NOT_ACCEPTABLE)
 
@@ -254,11 +254,11 @@ class WKCResource(Resource):
         filters = []
         for q in request.opt.uri_query:
             try:
-                k, v = q.split('=', 1)
+                k, v = q.split("=", 1)
             except ValueError:
                 continue  # no =, not a relevant filter
 
-            if v.endswith('*'):
+            if v.endswith("*"):
 
                 def matchexp(x, v=v):
                     return x.startswith(v[:-1])
@@ -267,14 +267,14 @@ class WKCResource(Resource):
                 def matchexp(x, v=v):
                     return x == v
 
-            if k in ('rt', 'if', 'ct'):
+            if k in ("rt", "if", "ct"):
                 filters.append(
                     lambda link: any(
                         matchexp(part)
                         for part in (" ".join(getattr(link, k, ()))).split(" ")
                     )
                 )
-            elif k in ('href',):  # x.href is single valued
+            elif k in ("href",):  # x.href is single valued
                 filters.append(lambda link: matchexp(getattr(link, k)))
             else:
                 filters.append(
@@ -376,7 +376,7 @@ class Site(interfaces.ObservableResource, PathCapable):
 
         original_request_uri = getattr(
             request,
-            '_original_request_uri',
+            "_original_request_uri",
             request.get_request_uri(local_is_server=True),
         )
 
@@ -446,7 +446,7 @@ class Site(interfaces.ObservableResource, PathCapable):
                 details = {}
             if details is None:
                 continue
-            lh = Link('/' + '/'.join(path), **details)
+            lh = Link("/" + "/".join(path), **details)
 
             links.append(lh)
 
@@ -454,7 +454,7 @@ class Site(interfaces.ObservableResource, PathCapable):
             if hasattr(resource, "get_resources_as_linkheader"):
                 for link in resource.get_resources_as_linkheader().links:
                     links.append(
-                        Link('/' + '/'.join(path) + link.href, link.attr_pairs)
+                        Link("/" + "/".join(path) + link.href, link.attr_pairs)
                     )
         return LinkFormat(links)
 

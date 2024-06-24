@@ -31,7 +31,7 @@ async def main():
 
     response = await context.request(request).response
 
-    print('Result: %s\n%r' % (response.code, response.payload))
+    print("Result: %s\n%r" % (response.code, response.payload))
 
 
 if __name__ == "__main__":

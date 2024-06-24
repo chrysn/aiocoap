@@ -5,8 +5,8 @@
 import asyncio
 from typing import Dict, Generic, TypeVar
 
-K = TypeVar('K')
-V = TypeVar('V')
+K = TypeVar("K")
+V = TypeVar("V")
 
 
 class TimeoutDict(Generic[K, V]):

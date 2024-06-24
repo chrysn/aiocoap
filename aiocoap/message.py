@@ -19,12 +19,12 @@ from .util import hostportjoin, hostportsplit, Sentinel, quote_nonascii
 from .util.uri import quote_factory, unreserved, sub_delims
 from . import interfaces
 
-__all__ = ['Message', 'NoResponse']
+__all__ = ["Message", "NoResponse"]
 
 # FIXME there should be a proper inteface for this that does all the urllib
 # patching possibly required and works with pluggable transports. urls qualify
 # if they can be parsed into the Proxy-Scheme / Uri-* structure.
-coap_schemes = ['coap', 'coaps', 'coap+tcp', 'coaps+tcp', 'coap+ws', 'coaps+ws']
+coap_schemes = ["coap", "coaps", "coap+tcp", "coaps+tcp", "coap+ws", "coaps+ws"]
 
 # Monkey patch urllib to make URL joining available in CoAP
 # This is a workaround for <http://bugs.python.org/issue23759>.
@@ -140,8 +140,8 @@ class Message(object):
         mtype=None,
         mid=None,
         code=None,
-        payload=b'',
-        token=b'',
+        payload=b"",
+        token=b"",
         uri=None,
         transport_tuning=None,
         **kwargs,
@@ -205,7 +205,7 @@ class Message(object):
         import html
 
         if not self.payload:
-            payload_rendered = '<p>No payload</p>'
+            payload_rendered = "<p>No payload</p>"
         else:
             from . import defaults
 
@@ -242,20 +242,20 @@ class Message(object):
         # necessarily hard immutable. Let's see where this goes.
 
         new = type(self)(
-            mtype=kwargs.pop('mtype', self.mtype),
-            mid=kwargs.pop('mid', self.mid),
-            code=kwargs.pop('code', self.code),
-            payload=kwargs.pop('payload', self.payload),
-            token=kwargs.pop('token', self.token),
+            mtype=kwargs.pop("mtype", self.mtype),
+            mid=kwargs.pop("mid", self.mid),
+            code=kwargs.pop("code", self.code),
+            payload=kwargs.pop("payload", self.payload),
+            token=kwargs.pop("token", self.token),
             # Assuming these are not readily mutated, but rather passed
             # around in a class-like fashion
-            transport_tuning=kwargs.pop('transport_tuning', self.transport_tuning),
+            transport_tuning=kwargs.pop("transport_tuning", self.transport_tuning),
         )
-        new.remote = kwargs.pop('remote', self.remote)
+        new.remote = kwargs.pop("remote", self.remote)
         new.opt = copy.deepcopy(self.opt)
 
-        if 'uri' in kwargs:
-            new.set_request_uri(kwargs.pop('uri'))
+        if "uri" in kwargs:
+            new.set_request_uri(kwargs.pop("uri"))
 
         for k, v in kwargs.items():
             setattr(new.opt, k, v)
@@ -266,7 +266,7 @@ class Message(object):
     def decode(cls, rawdata, remote=None):
         """Create Message object from binary representation of message."""
         try:
-            (vttkl, code, mid) = struct.unpack('!BBH', rawdata[:4])
+            (vttkl, code, mid) = struct.unpack("!BBH", rawdata[:4])
         except struct.error:
             raise error.UnparsableMessage("Incoming message too short for CoAP")
         version = (vttkl & 0xC0) >> 6
@@ -293,7 +293,7 @@ class Message(object):
                 + (len(self.token) & 0x0F)
             ]
         )
-        rawdata += struct.pack('!BH', self.code, self.mid)
+        rawdata += struct.pack("!BH", self.code, self.mid)
         rawdata += self.token
         rawdata += self.opt.encode()
         if len(self.payload) > 0:
@@ -499,7 +499,7 @@ class Message(object):
         # maybe this function does not belong exactly *here*, but it belongs to
         # the results of .request(message), which is currently a message itself.
 
-        if hasattr(self, '_original_request_uri'):
+        if hasattr(self, "_original_request_uri"):
             # During server-side processing, a message's options may be altered
             # to the point where its options don't accurately reflect its URI
             # any more. In that case, this is stored.
@@ -552,7 +552,7 @@ class Message(object):
 
         # FIXME this should follow coap section 6.5 more closely
         query = "&".join(_quote_for_query(q) for q in query)
-        path = ''.join("/" + _quote_for_path(p) for p in path) or '/'
+        path = "".join("/" + _quote_for_path(p) for p in path) or "/"
 
         fragment = None
         params = ""  # are they not there at all?
@@ -593,25 +593,25 @@ class Message(object):
         if parsed.username or parsed.password:
             raise ValueError("User name and password not supported.")
 
-        if parsed.path not in ('', '/'):
+        if parsed.path not in ("", "/"):
             self.opt.uri_path = [
-                urllib.parse.unquote(x) for x in parsed.path.split('/')[1:]
+                urllib.parse.unquote(x) for x in parsed.path.split("/")[1:]
             ]
         else:
             self.opt.uri_path = []
         if parsed.query:
             self.opt.uri_query = [
-                urllib.parse.unquote(x) for x in parsed.query.split('&')
+                urllib.parse.unquote(x) for x in parsed.query.split("&")
             ]
         else:
             self.opt.uri_query = []
 
         self.remote = UndecidedRemote(parsed.scheme, parsed.netloc)
 
-        is_ip_literal = parsed.netloc.startswith('[') or (
-            parsed.hostname.count('.') == 3
-            and all(c in '0123456789.' for c in parsed.hostname)
-            and all(int(x) <= 255 for x in parsed.hostname.split('.'))
+        is_ip_literal = parsed.netloc.startswith("[") or (
+            parsed.hostname.count(".") == 3
+            and all(c in "0123456789." for c in parsed.hostname)
+            and all(int(x) <= 255 for x in parsed.hostname.split("."))
         )
 
         if set_uri_host and not is_ip_literal:
@@ -629,9 +629,9 @@ class Message(object):
     def unresolved_remote(self, value):
         # should get a big fat deprecation warning
         if value is None:
-            self.remote = UndecidedRemote('coap', None)
+            self.remote = UndecidedRemote("coap", None)
         else:
-            self.remote = UndecidedRemote('coap', value)
+            self.remote = UndecidedRemote("coap", value)
 
     @property
     def requested_scheme(self):
@@ -692,7 +692,7 @@ class UndecidedRemote(
         if parsed.username or parsed.password:
             raise ValueError("User name and password not supported.")
 
-        if parsed.path not in ('', '/') or parsed.query or parsed.fragment:
+        if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
             raise ValueError(
                 "Paths and query and fragment can not be set on an UndecidedRemote"
             )
@@ -702,9 +702,9 @@ class UndecidedRemote(
 
 _ascii_lowercase = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 
-_quote_for_path = quote_factory(unreserved + sub_delims + ':@')
+_quote_for_path = quote_factory(unreserved + sub_delims + ":@")
 _quote_for_query = quote_factory(
-    unreserved + "".join(c for c in sub_delims if c != '&') + ':@/?'
+    unreserved + "".join(c for c in sub_delims if c != "&") + ":@/?"
 )
 
 #: Result that can be returned from a render method instead of a Message when
