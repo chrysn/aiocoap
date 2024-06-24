@@ -1153,7 +1153,7 @@ class SecurityContextUtils(BaseSecurityContext):
             ]
         return self._kdf_lowlevel(salt, ikm, info, out_bytes)
 
-    def _kdf_lowlevel(self, salt: bytes, ikm: bytes, info: list, l: int) -> bytes:
+    def _kdf_lowlevel(self, salt: bytes, ikm: bytes, info: list, l: int) -> bytes: # noqa: E741 (signature follows RFC definition)
         """The HKDF function as used in RFC8613 and oscore-groupcomm (notated
         there as ``something = HKDF(...)``
 

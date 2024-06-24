@@ -132,9 +132,9 @@ class Registerer:
             self.log.error("Error parsing the RD's self description")
             raise
 
-        addresses = [l.get_target(response.get_request_uri())
-                for l in links.links
-                if 'core.rd' in " ".join(l.rt).split(" ")]
+        addresses = [link.get_target(response.get_request_uri())
+                for link in links.links
+                if 'core.rd' in " ".join(link.rt).split(" ")]
         unfiltered_addresses = len(addresses)
         addresses = [a for a in addresses if a not in blacklist]
         if not addresses:

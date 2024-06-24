@@ -24,15 +24,15 @@ def _extract_message_size(data: bytes):
     if not data:
         return None
 
-    l = data[0] >> 4
+    length = data[0] >> 4
     tokenoffset = 2
     tkl = data[0] & 0x0f
 
-    if l >= 13:
-        if l == 13:
+    if length >= 13:
+        if length == 13:
             extlen = 1
             offset = 13
-        elif l == 14:
+        elif length == 14:
             extlen = 2
             offset = 269
         else:
@@ -41,8 +41,8 @@ def _extract_message_size(data: bytes):
         if len(data) < extlen + 1:
             return None
         tokenoffset = 2 + extlen
-        l = int.from_bytes(data[1:1 + extlen], "big") + offset
-    return tokenoffset, tkl, l
+        length = int.from_bytes(data[1:1 + extlen], "big") + offset
+    return tokenoffset, tkl, length
 
 def _decode_message(data: bytes) -> Message:
     tokenoffset, tkl, _ = _extract_message_size(data)
@@ -57,29 +57,29 @@ def _decode_message(data: bytes) -> Message:
 
     return msg
 
-def _encode_length(l: int):
-    if l < 13:
-        return (l, b"")
-    elif l < 269:
-        return (13, (l - 13).to_bytes(1, 'big'))
-    elif l < 65805:
-        return (14, (l - 269).to_bytes(2, 'big'))
+def _encode_length(length: int):
+    if length < 13:
+        return (length, b"")
+    elif length < 269:
+        return (13, (length - 13).to_bytes(1, 'big'))
+    elif length < 65805:
+        return (14, (length - 269).to_bytes(2, 'big'))
     else:
-        return (15, (l - 65805).to_bytes(4, 'big'))
+        return (15, (length - 65805).to_bytes(4, 'big'))
 
 def _serialize(msg: Message) -> bytes:
     data_list = [msg.opt.encode()]
     if msg.payload:
         data_list += [b'\xff', msg.payload]
     data = b"".join(data_list)
-    l, extlen = _encode_length(len(data))
+    length, extlen = _encode_length(len(data))
 
     tkl = len(msg.token)
     if tkl > 8:
         raise ValueError("Overly long token")
 
     return b"".join((
-            bytes(((l << 4) | tkl,)),
+            bytes(((length << 4) | tkl,)),
             extlen,
             bytes((msg.code,)),
             msg.token,

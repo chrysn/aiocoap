@@ -238,13 +238,13 @@ class CommonRD:
             the registration, resolved to the registration's base (and thus
             suitable for comparing anchors)."""
             result = []
-            for l in self.links.links:
-                href = urljoin(self.base, l.href)
-                if 'anchor' in l:
-                    absanchor = urljoin(self.base, l.anchor)
-                    data = [(k, v) for (k, v) in l.attr_pairs if k != 'anchor'] + [['anchor', absanchor]]
+            for link in self.links.links:
+                href = urljoin(self.base, link.href)
+                if 'anchor' in link:
+                    absanchor = urljoin(self.base, link.anchor)
+                    data = [(k, v) for (k, v) in link.attr_pairs if k != 'anchor'] + [['anchor', absanchor]]
                 else:
-                    data = l.attr_pairs + [['anchor', urljoin(href, '/')]]
+                    data = link.attr_pairs + [['anchor', urljoin(href, '/')]]
                 result.append(Link(href, data))
             return LinkFormat(result)
 
@@ -552,10 +552,10 @@ class ResourceLookupInterface(ThingWithCommonRD, ObservableResource):
 
         # strip needless anchors
         candidates = [
-                Link(l.href, [(k, v) for (k, v) in l.attr_pairs if k != 'anchor'])
-                if dict(l.attr_pairs)['anchor'] == urljoin(l.href, '/')
-                else l
-                for l in candidates]
+                Link(link.href, [(k, v) for (k, v) in link.attr_pairs if k != 'anchor'])
+                if dict(link.attr_pairs)['anchor'] == urljoin(link.href, '/')
+                else link
+                for link in candidates]
 
         return link_format_to_message(request, LinkFormat(candidates))
 

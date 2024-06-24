@@ -37,6 +37,6 @@ class Link(link_header.Link):
 def parse(linkformat):
     data = link_header.parse(linkformat)
     data.__class__ = LinkFormat
-    for l in data.links:
-        l.__class__ = Link
+    for link in data.links:
+        link.__class__ = Link
     return data

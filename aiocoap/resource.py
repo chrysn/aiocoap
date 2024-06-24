@@ -419,8 +419,8 @@ class Site(interfaces.ObservableResource, PathCapable):
 
         for path, resource in self._subsites.items():
             if hasattr(resource, "get_resources_as_linkheader"):
-                for l in resource.get_resources_as_linkheader().links:
-                    links.append(Link('/' + '/'.join(path) + l.href, l.attr_pairs))
+                for link in resource.get_resources_as_linkheader().links:
+                    links.append(Link('/' + '/'.join(path) + link.href, link.attr_pairs))
         return LinkFormat(links)
 
     async def render_to_pipe(self, request: Pipe):

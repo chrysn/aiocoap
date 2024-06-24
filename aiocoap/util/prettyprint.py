@@ -96,7 +96,7 @@ def pretty_print(message):
                 return (infos, 'application/link-format', decoded)
             else:
                 info("application/link-format content was re-formatted")
-                prettyprinted = ",\n".join(str(l) for l in parsed.links)
+                prettyprinted = ",\n".join(str(link) for link in parsed.links)
                 return (infos, 'application/link-format', prettyprinted)
         except ValueError:
             # Handled later
