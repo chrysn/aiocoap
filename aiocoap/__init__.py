@@ -22,6 +22,8 @@ constants from :mod:`.numbers`; see their respective documentation entries.
 
 The presence of :class:`.Message` and :class:`.Context` in the root module is
 stable.
+
+Submodules are described in the :doc:`the API overview <../api>`.
 """
 
 import numbers

@@ -89,6 +89,11 @@ def build_moduledocs(app):
 
                     {x}.*
                 """)
+        elif x in ('aiocoap',):
+            # They have explicit intros listing submodules
+            text = commonstart + textwrap.dedent(f"""
+                .. automodule:: {x}
+                """)
         elif x.startswith('aiocoap.cli.'):
             if x in ('aiocoap.cli.defaults', 'aiocoap.cli.common'):
                 # These neither have a man page, nor do they go into the documentation
