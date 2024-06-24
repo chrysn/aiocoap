@@ -67,11 +67,11 @@ def build_moduledocs(app):
     customizations."""
     srcdir = app.builder.srcdir
 
-    moddir = srcdir + '/module'
+    moddir = srcdir / 'module'
     os.makedirs(moddir, exist_ok=True)
 
-    basedir = os.path.dirname(srcdir)
-    docs = [x[len(basedir)+1:-3].replace('/', '.').replace('.__init__', '') for x in glob.glob(basedir + '/aiocoap/**/*.py', recursive=True)]
+    basedir = srcdir.parent
+    docs = [x.removesuffix(".py").replace('/', '.').replace('.__init__', '') for x in glob.glob('aiocoap/**/*.py', recursive=True, root_dir=basedir)]
 
     for x in docs:
         commonstart = textwrap.dedent(f"""\
@@ -117,7 +117,7 @@ def build_moduledocs(app):
         if os.path.exists(docname) and open(docname).read() == text:
             continue
         else:
-            with open(moddir + '/' + x + '.rst', 'w') as outfile:
+            with open(moddir / (x + '.rst'), 'w') as outfile:
                 outfile.write(text)
 
     for f in os.listdir(moddir):
