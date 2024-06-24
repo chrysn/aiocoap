@@ -9,13 +9,6 @@ import textwrap
 import glob
 import os.path
 
-def glob35(dir, recursive=True):
-    return glob.glob(dir.replace('**', '*')) + \
-            glob.glob(dir.replace('**', '*/*')) + \
-            glob.glob(dir.replace('**', '*/*/*')) + \
-            glob.glob(dir.replace('**', '*/*/*/*')) + \
-            glob.glob(dir.replace('/**', ''))
-
 from docutils.parsers.rst.directives.misc import Include
 
 rtd_re = re.compile("^\\.\\. _([^:]+): http://aiocoap.readthedocs.io/en/latest/(.*)\\.html$")
@@ -78,7 +71,7 @@ def build_moduledocs(app):
     os.makedirs(moddir, exist_ok=True)
 
     basedir = os.path.dirname(srcdir)
-    docs = [x[len(basedir)+1:-3].replace('/', '.').replace('.__init__', '') for x in glob35(basedir + '/aiocoap/**/*.py', recursive=True)]
+    docs = [x[len(basedir)+1:-3].replace('/', '.').replace('.__init__', '') for x in glob.glob(basedir + '/aiocoap/**/*.py', recursive=True)]
 
     for x in docs:
         commonstart = textwrap.dedent("""\
