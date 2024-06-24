@@ -2,7 +2,12 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""aiocoap-keygen is a tool for creating key pairs for use in credentials"""
+"""A tool for creating key pairs for use in credentials
+
+Note that this tool operates on secrets stored in unencrypted files, protectd
+by restrictively set file system permissions. While this is common practice
+with many tools in the UNIX world, it might be surprising to users coming from
+multi-factor environments."""
 
 import aiocoap.meta
 import aiocoap.defaults
@@ -10,18 +15,23 @@ import aiocoap.defaults
 import argparse
 from pathlib import Path
 
-def main():
-    p = argparse.ArgumentParser(description=__doc__, epilog="Please beware that ")
+def build_parser():
+    p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--version', action="version", version='%(prog)s ' + aiocoap.meta.version)
 
     subparsers = p.add_subparsers(required=True, dest="subcommand")
-    generate = subparsers.add_parser("generate", help="""This generates an
-        EDHOC key, stores it in a key file that is only readable by the user,
-        and prints the corresponding public key information in a way suitable
-        for inclusion in credentials maps.""")
+    generate = subparsers.add_parser("generate", help="This generates an"
+        " EDHOC key, stores it in a key file that is only readable by the"
+        " user, and prints the corresponding public key information in a way"
+        " suitable for inclusion in credentials maps.")
     generate.add_argument('keyfile', help="File to store the secret key in", type=Path)
     generate.add_argument('--kid', help="Hexadecimal key identifier", type=bytes.fromhex)
     generate.add_argument('--subject', help="Text placed in the CCS", type=str)
+
+    return p
+
+def main():
+    p = build_parser()
 
     args = p.parse_args()
 
