@@ -20,9 +20,6 @@ its items. When that happens, it should be split out of aiocoap.
 
 import asyncio
 
-import js
-from pyodide.ffi.wrappers import add_event_listener
-
 class WebSocketCommonProtocol:
     pass
 
@@ -57,7 +54,8 @@ class WebSocketClientProtocol(WebSocketCommonProtocol):
             raise RuntimeError("Unknown event in queue")
 
     async def send(self, msg):
-        blob = js.Blob.new([js.Uint8Array.new(msg)])
+        from js import Blob, Uint8Array
+        blob = Blob.new([Uint8Array.new(msg)])
         self._socket.send(blob)
 
     # FIXME: It'd be preferable if we could make this an unassigned property
@@ -80,10 +78,13 @@ class WebSocketClientProtocol(WebSocketCommonProtocol):
         self._queue.put_nowait(("close", event))
 
 async def connect(uri, subprotocols=None, ping_interval=20, ssl=None) -> WebSocketClientProtocol:
+    from pyodide.ffi.wrappers import add_event_listener
+    from js import WebSocket
+
     if ssl is not None:
         raise ValueError("SSL can not be configured within the browser WebSocket API")
 
-    socket = js.WebSocket.new(uri, subprotocols)
+    socket = WebSocket.new(uri, subprotocols)
 
     # Ignoring ping_interval: We can't tell what the browser does, and it may
     # be right nor not.
