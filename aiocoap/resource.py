@@ -214,11 +214,8 @@ def link_format_to_message(
 #
 # mypy doesn't like attributes on functions, requiring some `type: ignore` for
 # this, but the alternatives (a __call__able class) have worse docs.
-link_format_to_message.supported_ct = " ".join(
-    str(int(x))
-    for x in (  # type: ignore
-        ContentFormat.LINKFORMAT,
-    )
+link_format_to_message.supported_ct = " ".join(  # type: ignore
+    str(int(x)) for x in (ContentFormat.LINKFORMAT,)
 )
 
 
