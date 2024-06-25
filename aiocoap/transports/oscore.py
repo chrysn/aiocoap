@@ -204,6 +204,7 @@ class TransportOSCORE(interfaces.RequestProvider):
                     msg.remote.security_context.establish_context(
                         wire=self._wire,
                         underlying_address=msg.remote.underlying_address,
+                        underlying_uri_host=msg.opt.uri_host,
                         logger=self.log.getChild("edhoc"),
                     )
                 )
