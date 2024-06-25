@@ -235,7 +235,12 @@ class EdhocCredentials(credentials._Objectish):
         }
 
     async def establish_context(
-        self, wire, underlying_address, underlying_uri_host, logger
+        self,
+        wire,
+        underlying_address,
+        underlying_proxy_scheme,
+        underlying_uri_host,
+        logger,
     ):
         logger.info(
             "No OSCORE context found for EDHOC context %r, initiating one.", self
@@ -249,6 +254,7 @@ class EdhocCredentials(credentials._Objectish):
 
         msg1 = Message(
             code=POST,
+            proxy_scheme=underlying_proxy_scheme,
             uri_host=underlying_uri_host,
             uri_path=[".well-known", "edhoc"],
             payload=cbor2.dumps(True) + message_1,
