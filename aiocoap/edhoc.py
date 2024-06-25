@@ -130,7 +130,7 @@ class CoseKeyForEdhoc:
             descriptor = os.open(filename, flags, mode=0o600)
             try:
                 with open(descriptor, "wb") as keyfile:
-                    cbor2.dump(s.to_map(), keyfile)
+                    cbor2.dump(s.secret_to_map(), keyfile)
             except Exception:
                 filename.unlink()
                 raise
