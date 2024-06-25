@@ -338,6 +338,9 @@ class CredentialsMap(dict):
 
         ssl_params = {}
         tlscert = self.get("%s://%s/*" % (scheme, hostinfo), None)
+        # FIXME: handle Any or All if they include TLSCert, or deprecate them
+        if not isinstance(tlscert, TLSCert):
+            return
         if tlscert is None:
             tlscert = self.get("%s://*" % scheme, None)
         if tlscert is not None:
