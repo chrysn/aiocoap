@@ -95,14 +95,20 @@ class CoseKeyForEdhoc:
             )
 
         s = cls()
-        s.kty = 1
-        s.crv = 1
+        s.kty = 2  # EC
+        s.crv = 1  # P-256
         s.d = key[-4]
 
         return s
 
+    def secret_to_map(self) -> dict:
+        # kty: EC, crv: P-256, d: ...
+        return {1: self.kty, -1: self.crv, -4: self.d}
+
+    # Should we deprecate filename, add a generate_in_file method? (It's there
+    # because generate originally depended on a file system)
     @classmethod
-    def generate(cls, filename: Path) -> "CoseKeyForEdhoc":
+    def generate(cls, filename: Optional[Path] = None) -> "CoseKeyForEdhoc":
         """Generate a key inside a file
 
         This returns the generated private key.
@@ -112,22 +118,24 @@ class CoseKeyForEdhoc:
 
         key = ec.generate_private_key(curve=ec.SECP256R1())
 
-        d = key.private_numbers().private_value.to_bytes(32, "big")
-        # kty: EC, crv: P-256, d: ...
-        key_cose = {1: 2, -1: 1, -4: d}
+        s = cls()
+        s.kty = 2  # EC
+        s.crv = 1  # P-256
+        s.d = key.private_numbers().private_value.to_bytes(32, "big")
 
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-        if hasattr(os, "O_BINARY"):
-            flags |= os.O_BINARY
-        descriptor = os.open(filename, flags, mode=0o600)
-        try:
-            with open(descriptor, "wb") as keyfile:
-                cbor2.dump(key_cose, keyfile)
-        except Exception:
-            filename.unlink()
-            raise
+        if filename is not None:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            if hasattr(os, "O_BINARY"):
+                flags |= os.O_BINARY
+            descriptor = os.open(filename, flags, mode=0o600)
+            try:
+                with open(descriptor, "wb") as keyfile:
+                    cbor2.dump(s.secret_to_map(), keyfile)
+            except Exception:
+                filename.unlink()
+                raise
 
-        return cls.from_map(key_cose)
+        return s
 
     def as_ccs(
         self, kid: Optional[bytes], subject: Optional[str]
