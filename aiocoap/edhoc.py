@@ -171,6 +171,7 @@ class EdhocCredentials(credentials._Objectish):
         peer_cred: Optional[dict] = None,
         own_cred: Optional[dict] = None,
         private_key_file: Optional[str] = None,
+        private_key: Optional[dict] = None,
     ):
         from . import edhoc
 
@@ -179,26 +180,32 @@ class EdhocCredentials(credentials._Objectish):
         self.own_cred = own_cred
         self.peer_cred = peer_cred
 
+        if private_key_file is not None and private_key is not None:
+            raise credentials.CredentialsLoadError(
+                "private_key is mutually exclusive with private_key_file"
+            )
+        if private_key_file is not None:
+            # FIXME: We should carry around a base
+            private_key_path = Path(private_key_file)
+            # FIXME: We left loading the file to the user, and now we're once more
+            # in a position where we guess the file type
+            self.own_key = CoseKeyForEdhoc.from_file(private_key_path)
+        elif private_key is not None:
+            self.own_key = CoseKeyForEdhoc.from_map(private_key)
+        else:
+            self.own_key = None
+
         if (own_cred is None) != (own_cred_style is None) or (own_cred is None) != (
-            private_key_file is None
+            self.own_key is None
         ):
             raise credentials.CredentialsLoadError(
-                "If own credentials are given, all of own_cred, own_cred_style and private_key_path need to be given"
+                "If own credentials are given, all of own_cred, own_cred_style and private_key(_path) need to be given"
             )
 
         if own_cred_style is None:
             self.own_cred_style = None
         else:
             self.own_cred_style = edhoc.OwnCredStyle(own_cred_style)
-
-        if private_key_file is None:
-            self.own_key = None
-        else:
-            # FIXME: We should carry around a base
-            private_key_path = Path(private_key_file)
-            # FIXME: We left loading the file to the user, and now we're once more
-            # in a position where we guess the file type
-            self.own_key = CoseKeyForEdhoc.from_file(private_key_path)
 
         # FIXME: This is only used on the client side, and expects that all parts (own and peer) are present
         self._established_context = None
