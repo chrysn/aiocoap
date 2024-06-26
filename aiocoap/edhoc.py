@@ -163,6 +163,12 @@ class CoseKeyForEdhoc:
 
 
 class EdhocCredentials(credentials._Objectish):
+    own_key: Optional[CoseKeyForEdhoc]
+    suite: int
+    method: int
+    own_cred: Optional[dict]
+    peer_cred: Optional[dict]
+
     def __init__(
         self,
         suite: int,
