@@ -58,7 +58,7 @@ COSE_KCCS = 13131313
 COMPRESSION_BITS_N = 0b111
 COMPRESSION_BIT_K = 0b1000
 COMPRESSION_BIT_H = 0b10000
-COMPRESSION_BIT_G = 0b100000  # Group Flag from draft-ietf-core-oscore-groupcomm-10
+COMPRESSION_BIT_GROUP = 0b100000  # Group Flag from draft-ietf-core-oscore-groupcomm-21
 COMPRESSION_BITS_RESERVED = 0b11000000
 
 # While the original values were simple enough to be used in literals, starting
@@ -744,7 +744,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             s_kid_context = b""
 
         if COSE_COUNTERSIGNATURE0 in unprotected:
-            firstbyte |= COMPRESSION_BIT_G
+            firstbyte |= COMPRESSION_BIT_GROUP
 
             # In theory at least. In practice, that's an empty value to later
             # be squished in when the compressed option value is available for
@@ -1196,7 +1196,7 @@ class CanUnprotect(BaseSecurityContext):
             kid = tail
             unprotected[COSE_KID] = kid
 
-        if firstbyte & COMPRESSION_BIT_G:
+        if firstbyte & COMPRESSION_BIT_GROUP:
             # Not really; As this is (also) used early on (before the KID
             # context is even known, because it's just getting extracted), this
             # is returning an incomplete value here and leaves it to the later
