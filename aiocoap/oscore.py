@@ -24,7 +24,7 @@ import secrets
 import warnings
 
 from aiocoap.message import Message
-from aiocoap.util import cryptography_additions, deprecation_getattr
+from aiocoap.util import cryptography_additions, deprecation_getattr, Sentinel
 from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED, CONTENT
 from aiocoap import error
 from . import credentials
@@ -66,6 +66,8 @@ COMPRESSION_BITS_RESERVED = 0b11000000
 
 INFO_TYPE_KEYSTREAM_REQUEST = True
 INFO_TYPE_KEYSTREAM_RESPONSE = False
+
+PRESENT_BUT_NO_VALUE_YET = Sentinel("Value will be populated later")
 
 
 class CodeStyle(namedtuple("_CodeStyle", ("request", "response"))):
@@ -746,10 +748,10 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         if COSE_COUNTERSIGNATURE0 in unprotected:
             firstbyte |= COMPRESSION_BIT_GROUP
 
-            # In theory at least. In practice, that's an empty value to later
-            # be squished in when the compressed option value is available for
-            # signing.
-            ciphertext += unprotected.pop(COSE_COUNTERSIGNATURE0)
+            unprotected.pop(COSE_COUNTERSIGNATURE0)
+
+            # ciphertext will eventually also get the countersignature, but
+            # that happens later when the option is already processed.
 
         if unprotected:
             raise RuntimeError(
@@ -1201,7 +1203,7 @@ class CanUnprotect(BaseSecurityContext):
             # context is even known, because it's just getting extracted), this
             # is returning an incomplete value here and leaves it to the later
             # processing to strip the right number of bytes from the ciphertext
-            unprotected[COSE_COUNTERSIGNATURE0] = b""
+            unprotected[COSE_COUNTERSIGNATURE0] = PRESENT_BUT_NO_VALUE_YET
 
         return b"", {}, unprotected, payload
 

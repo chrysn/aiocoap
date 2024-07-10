@@ -604,9 +604,9 @@ class TestOSCORECompression(unittest.TestCase):
     def test_counterisgnature(self):
         # This is only as correct as it gets with the interactions between
         # determining the countersignature (or its length) and uncompression:
-        # The flag is registered, but its value is empty (deferring to a later
-        # step that'd actually know the algorithm) and relies on the later
-        # process to move data over from the plaintext
+        # The flag is registered, but its value is deferred to a later step
+        # (that'd actually know the algorithm) and relies on the later process
+        # to move data over from the plaintext
         self.compare_all(
             b"\x2bABC--",
             b"1234sigsigsig",
@@ -614,7 +614,7 @@ class TestOSCORECompression(unittest.TestCase):
             {
                 aiocoap.oscore.COSE_PIV: b"ABC",
                 aiocoap.oscore.COSE_KID: b"--",
-                aiocoap.oscore.COSE_COUNTERSIGNATURE0: b"",
+                aiocoap.oscore.COSE_COUNTERSIGNATURE0: aiocoap.oscore.PRESENT_BUT_NO_VALUE_YET,
             },
             b"1234sigsigsig",
         )
