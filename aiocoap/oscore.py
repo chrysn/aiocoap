@@ -185,7 +185,14 @@ def _xor_bytes(a, b):
     return bytes(_a ^ _b for (_a, _b) in zip(a, b))
 
 
-class AeadAlgorithm(metaclass=abc.ABCMeta):
+class SymmetricEncryptionAlgorithm(metaclass=abc.ABCMeta):
+    """A symmetric algorithm
+
+    The algorithm's API is the AEAD API with addtional authenticated data: The
+    algorihm may or may not verify that data. Algorithms that actually do
+    verify the data are recognized by also being AeadAlgorithm.
+    """
+
     value: int
     key_bytes: int
     tag_bytes: int
@@ -207,6 +214,11 @@ class AeadAlgorithm(metaclass=abc.ABCMeta):
         enc_structure = ["Encrypt0", protected_serialized, external_aad]
 
         return cbor.dumps(enc_structure)
+
+
+class AeadAlgorithm(SymmetricEncryptionAlgorithm, metaclass=abc.ABCMeta):
+    """A symmetric algorithm that provides authentication, including
+    authentication of additional data."""
 
 
 class AES_CCM(AeadAlgorithm, metaclass=abc.ABCMeta):
