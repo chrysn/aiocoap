@@ -636,3 +636,26 @@ class TestOSCORECompression(unittest.TestCase):
         self.assertRaises(
             RuntimeError, lambda: self.compare_compress(None, None, {}, {"x": "y"}, b"")
         )
+
+
+@_skip_unless_oscore
+class TestAlgorithms(unittest.TestCase):
+    def test_aescbc(self):
+        # Test vectors generated using PyCryptodome as described at
+        # https://codeigo.com/python/aes-encryption-and-decryption-in-python-64-128-256/
+        # ("Implementation of AES-CBC Encryption and Decryption in Python" with
+        # they key length set to 16)
+
+        from aiocoap.oscore import A128CBC
+
+        key = b"3\x8b\xd0\xf2\x18&\x15\nS\x14%\xec!\x16\n$"
+        iv = b"7\x07\xe3TA65~\x8d%'&\x8e\x1anE"
+        plain = b"This is the message to be encrypted"
+        expected_ciphertext = b"\x05\xbb\xd0\xea\xc2\x97pvF-P\x9a\x9e\xa4=\x94\xac\xad\x00\xc0/\x00&\x7f\x83\xca@c\xeew\xc3\x16\x14h\xca\x023\xb6Vq\xf4\x8d\xb7\xc2S3\xfa\xae"
+
+        aad = b""
+
+        encrypted = A128CBC.encrypt(plain, aad, key, iv)
+        self.assertEqual(encrypted, expected_ciphertext)
+        decrypted = A128CBC.decrypt(encrypted, aad, key, iv)
+        self.assertEqual(decrypted, plain)

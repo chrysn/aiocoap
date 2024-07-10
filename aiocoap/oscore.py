@@ -31,7 +31,7 @@ from . import credentials
 
 from cryptography.hazmat.primitives.ciphers import aead
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import ciphers, hashes
 import cryptography.hazmat.backends
 import cryptography.exceptions
 from cryptography.hazmat.primitives import asymmetric, serialization
@@ -219,6 +219,69 @@ class SymmetricEncryptionAlgorithm(metaclass=abc.ABCMeta):
 class AeadAlgorithm(SymmetricEncryptionAlgorithm, metaclass=abc.ABCMeta):
     """A symmetric algorithm that provides authentication, including
     authentication of additional data."""
+
+
+class AES_CBC(SymmetricEncryptionAlgorithm, metaclass=abc.ABCMeta):
+    """AES in CBC mode using tthe Python cryptography library"""
+
+    tag_bytes = 0
+    iv_bytes = 0
+    # This introduces padding -- this library doesn't need to care because
+    # Python does allocation for us, but others may need to rethink their
+    # buffer allocation strategies.
+
+    @classmethod
+    def _cipher(cls, key, iv):
+        return ciphers.base.Cipher(
+            ciphers.algorithms.AES(key),
+            ciphers.modes.CBC(iv),
+        )
+
+    @classmethod
+    def encrypt(cls, plaintext, _aad, key, iv):
+        # FIXME: Ignoring aad violates https://www.rfc-editor.org/rfc/rfc9459.html#name-implementation-consideratio but is required for Group OSCORE
+
+        # Padding according to https://www.rfc-editor.org/rfc/rfc5652#section-6.3
+        k = cls.key_bytes
+        assert (
+            k < 256
+        ), "Algorithm with this key size should not have been created in the first plae"
+        pad_byte = k - (len(plaintext) % k)
+        pad_bytes = bytes((pad_byte,)) * pad_byte
+        plaintext += pad_bytes
+
+        encryptor = cls._cipher(key, iv).encryptor()
+        result = encryptor.update(plaintext)
+        result += encryptor.finalize()
+        return result
+
+    @classmethod
+    def decrypt(cls, ciphertext_and_tag, _aad, key, iv):
+        # FIXME: Ignoring aad violates https://www.rfc-editor.org/rfc/rfc9459.html#name-implementation-consideratio but is required for Group OSCORE
+
+        k = cls.key_bytes
+        if ciphertext_and_tag == b"" or len(ciphertext_and_tag) % k != 0:
+            raise ProtectionInvalid("Message length does not match padding")
+
+        decryptor = cls._cipher(key, iv).decryptor()
+        result = decryptor.update(ciphertext_and_tag)
+        result += decryptor.finalize()
+
+        # Padding according to https://www.rfc-editor.org/rfc/rfc5652#section-6.3
+        claimed_padding = result[-1]
+        if claimed_padding == 0 or claimed_padding > k:
+            raise ProtectionInvalid("Padding does not match key")
+        if result[-claimed_padding:] != bytes((claimed_padding,)) * claimed_padding:
+            raise ProtectionInvalid("Padding is inconsistent")
+
+        return result[:-claimed_padding]
+
+
+class A128CBC(AES_CBC):
+    # from RFC9459
+    value = -65531
+    key_bytes = 16  # 128-bit key
+    iv_bytes = 16  # 16-octet nonce
 
 
 class AES_CCM(AeadAlgorithm, metaclass=abc.ABCMeta):
