@@ -67,7 +67,9 @@ test:3.13:
     - apt-get update
     - apt-get -y install iproute2
     # The image's Debian has Rust 1.63, which is too old for the `half` module
-    # required by cbor-diag (and maturin does not build wheels for 3.13 yet)
+    # required by cbor-diag; having Rust is required because neither cbor-diag
+    # nor lakers (https://github.com/openwsn-berkeley/lakers/pull/291) build
+    # 3.13 wheels yet
     - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y
     - source ~/.cargo/env
     - rm -f .coverage* collected-coverage
@@ -84,9 +86,6 @@ test:3.13:
   artifacts:
     paths:
       - collected-coverage/tox-3.13/
-  allow_failure:
-    # workaround for https://github.com/openwsn-berkeley/lakers/pull/291
-    true
 
 test:mypy:
   image: docker.io/python:3.12
