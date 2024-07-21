@@ -523,7 +523,7 @@ class EcdhSsHkdf256(AlgorithmStaticStatic):
     # not the converted ones. This will be problematic if pairwise-only
     # contexts are to be set up.
 
-    value = -27  # FIXME: or -28? (see shepherd review)
+    value = -27
 
     # FIXME these two will be different when using the Montgomery keys directly
 
@@ -649,7 +649,7 @@ class BaseSecurityContext:
     # externally by whatever creates the security context.
     authenticated_claims: List[str] = []
 
-    #: AEAD algorithm. This may only be None in group contexts that do not use pairwise mode.
+    #: AEAD algorithm. This may be None if it is not set in an OSCORE group context.
     alg_aead: Optional[AeadAlgorithm]
 
     @property
@@ -756,12 +756,8 @@ class ContextWhereExternalAadIsGroup(BaseSecurityContext):
 
     external_aad_is_group = True
 
-    # This is None iff the group does not support group mode
     alg_signature_enc: Optional[AeadAlgorithm]
-    # This is None iff the group does not support group mode
     alg_signature: Optional[AlgorithmCountersign]
-    # This is None iff the group does not support pairwise
-    #
     # This is also of type AlgorithmCountersign because the staticstatic
     # function is sitting on the same type.
     alg_pairwise_key_agreement: Optional[AlgorithmCountersign]
