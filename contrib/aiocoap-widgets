@@ -8,7 +8,7 @@
 # dependencies = [
 #   "aiocoap == 0.4.8",
 #   "cbor2",
-#   "pygobject @ git+https://gitlab.gnome.org/GNOME/pygobject.git@benzea/gio-asyncio",
+#   "pygobject @ git+https://gitlab.gnome.org/GNOME/pygobject.git",
 # ]
 # ///
 
