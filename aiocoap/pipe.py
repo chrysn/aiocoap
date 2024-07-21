@@ -5,7 +5,6 @@
 import asyncio
 from collections import namedtuple
 import functools
-import sys
 
 from . import error
 from .numbers import INTERNAL_SERVER_ERROR
@@ -221,19 +220,6 @@ def run_driving_pipe(pipe, coroutine, name=None):
         wrapped(),
         name=name,
     )
-    if sys.version_info < (3, 8):
-        # These Python versions used to complain about cancelled tasks, where
-        # really a cancelled task is perfectly natural (especially here where
-        # it's just not needed any more because nobody is listening to what it
-        # produces). As catching CancellationError doesn't help silencing them,
-        # this workaround ensures the cancellations don't raise.
-        def silence_cancellation(task):
-            try:
-                task.result()
-            except asyncio.CancelledError:
-                pass
-
-        task.add_done_callback(silence_cancellation)
     pipe.on_interest_end(task.cancel)
 
 

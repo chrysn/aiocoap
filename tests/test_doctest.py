@@ -49,13 +49,6 @@ def _load_tests():
                 and not aiocoap.defaults.is_pyodide
             ):
                 continue
-            if "udp6" in p and (
-                # due to https://foss.heptapod.net/pypy/pypy/issues/3249
-                "PyPy" in sys.version
-                # if_indextoname etc introduced only in 3.8
-                or (sys.platform == "win32" and sys.version_info < (3, 8))
-            ):
-                continue
             for t in doctest.DocTestSuite(p):
                 i += 1
 

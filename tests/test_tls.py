@@ -112,15 +112,6 @@ class TestTLS(WithTLSServer, WithTLSClient):
             "SNI name was not used by the server",
         )
 
-    if sys.version_info < (3, 7):
-        test_tls = unittest.expectedFailure(
-            test_tls
-        )  # SNI support was only added in Python 3.7
-    if "PyPy" in sys.version:
-        # For PyPy exclusion, see https://foss.heptapod.net/pypy/pypy/-/issues/3359
-        # Completely skipping a test that causes segfaults
-        test_tls = None
-
 
 if __name__ == "__main__":
     # due to the imports, you'll need to run this as `python3 -m tests.test_server`
