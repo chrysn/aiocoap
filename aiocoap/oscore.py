@@ -705,7 +705,7 @@ class BaseSecurityContext:
         ]
         if isinstance(self, ContextWhereExternalAadIsGroup):
             algorithms.append(
-                None if self.alg_signature_enc is None else self.alg_signature_enc.value
+                None if self.alg_group_enc is None else self.alg_group_enc.value
             )
             algorithms.append(
                 None if self.alg_signature is None else self.alg_signature.value
@@ -744,7 +744,7 @@ class BaseSecurityContext:
 class ContextWhereExternalAadIsGroup(BaseSecurityContext):
     """The protection and unprotection functions will use the Group OSCORE AADs
     rather than the regular OSCORE AADs iff a context uses this mixin. (Ie.
-    alg_signature_enc etc are added to the algorithms, and request_kid_context,
+    alg_group_enc etc are added to the algorithms, and request_kid_context,
     OSCORE_option, sender_auth_cred and gm_cred are added).
 
     This does not necessarily match the is_signing property (as pairwise
@@ -756,7 +756,7 @@ class ContextWhereExternalAadIsGroup(BaseSecurityContext):
 
     external_aad_is_group = True
 
-    alg_signature_enc: Optional[AeadAlgorithm]
+    alg_group_enc: Optional[AeadAlgorithm]
     alg_signature: Optional[AlgorithmCountersign]
     # This is also of type AlgorithmCountersign because the staticstatic
     # function is sitting on the same type.
@@ -1313,7 +1313,7 @@ class SecurityContextUtils(BaseSecurityContext):
         elif out_type == "IV":
             out_bytes = self.alg_aead.iv_bytes
         elif out_type == "Group Encryption Key":
-            out_bytes = self.alg_signature_enc.key_bytes
+            out_bytes = self.alg_group_enc.key_bytes
         else:
             raise ValueError("Output type not recognized")
 
@@ -1831,7 +1831,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     alg_aead = None
     hashfun = None  # type: ignore
     alg_signature = None
-    alg_signature_enc = None
+    alg_group_enc = None
     alg_pairwise_key_agreement = None
     sender_auth_cred = None
     group_manager_cred = None
@@ -1842,7 +1842,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         alg_aead,
         hashfun,
         alg_signature,
-        alg_signature_enc,
+        alg_group_enc,
         alg_pairwise_key_agreement,
         group_id,
         master_secret,
@@ -1860,7 +1860,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         self.alg_aead = alg_aead
         self.hashfun = hashfun
         self.alg_signature = alg_signature
-        self.alg_signature_enc = alg_signature_enc
+        self.alg_group_enc = alg_group_enc
         self.alg_pairwise_key_agreement = alg_pairwise_key_agreement
         self.sender_auth_cred = sender_auth_cred
         self.group_manager_cred = group_manager_cred
@@ -2071,8 +2071,8 @@ class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
         return self.groupcontext.alg_signature
 
     @property
-    def alg_signature_enc(self):
-        return self.groupcontext.alg_signature_enc
+    def alg_group_enc(self):
+        return self.groupcontext.alg_group_enc
 
     @property
     def alg_pairwise_key_agreement(self):
@@ -2183,8 +2183,8 @@ class _PairwiseContextAspect(
         return self.groupcontext.alg_signature
 
     @property
-    def alg_signature_enc(self):
-        return self.groupcontext.alg_signature_enc
+    def alg_group_enc(self):
+        return self.groupcontext.alg_group_enc
 
     @property
     def alg_pairwise_key_agreement(self):
