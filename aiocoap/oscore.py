@@ -762,11 +762,9 @@ class ContextWhereExternalAadIsGroup(BaseSecurityContext):
     # function is sitting on the same type.
     alg_pairwise_key_agreement: Optional[AlgorithmCountersign]
 
-    # FIXME: These probably should be `bytes` only; the condition for them
-    # being None needs to be refined.
-    sender_auth_cred: Optional[bytes]
-    recipient_auth_cred: Optional[bytes]
-    group_manager_cred: Optional[bytes]
+    sender_auth_cred: bytes
+    recipient_auth_cred: bytes
+    group_manager_cred: bytes
 
 
 # FIXME pull interface components from SecurityContext up here
@@ -1833,8 +1831,8 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     alg_signature = None
     alg_group_enc = None
     alg_pairwise_key_agreement = None
-    sender_auth_cred = None
-    group_manager_cred = None
+    sender_auth_cred = None  # type: ignore
+    group_manager_cred = None  # type: ignore
     cred_fmt = None
 
     def __init__(
