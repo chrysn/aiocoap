@@ -403,11 +403,7 @@ async def single_request(args, context):
                 request.payload = options.payload.encode("utf8")
 
     if options.payload_initial_szx is not None:
-        request.opt.block1 = aiocoap.optiontypes.BlockOption.BlockwiseTuple(
-            0,
-            False,
-            options.payload_initial_szx,
-        )
+        request.remote.maximum_block_size_exp = options.payload_initial_szx
 
     if options.proxy is None:
         interface = context
