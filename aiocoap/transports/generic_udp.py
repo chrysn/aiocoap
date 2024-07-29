@@ -69,4 +69,7 @@ class GenericMessageInterface(interfaces.MessageInterface):
                 "No location found to send message to (neither in .opt.uri_host nor in .remote)"
             )
 
-        return await self._pool.connect((host, port))
+        result = await self._pool.connect((host, port))
+        if request.remote.maximum_block_size_exp < result.maximum_block_size_exp:
+            result.maximum_block_size_exp = request.remote.maximum_block_size_exp
+        return result
