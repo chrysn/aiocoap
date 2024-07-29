@@ -66,7 +66,7 @@ class EndpointAddress(metaclass=abc.ABCMeta):
     participant 0x01 of the OSCAP key 0x..., routed over <another
     EndpointAddress>".
 
-    EndpointAddresses are only concstructed by MessageInterface objects,
+    EndpointAddresses are only constructed by MessageInterface objects,
     either for incoming messages or when populating a message's .remote in
     :meth:`MessageInterface.determine_remote`.
 
@@ -285,7 +285,7 @@ class RequestProvider(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def request(self, request_message):
-        """Create and act on a a :class:`Request` object that will be handled
+        """Create and act on a :class:`Request` object that will be handled
         according to the provider's implementation.
 
         Note that the request is not necessarily sent on the wire immediately;
