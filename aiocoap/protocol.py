@@ -834,7 +834,14 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
 
             # store for future blocks to ensure that the next blocks will be
             # sent from the same source address (in the UDP case; for many
-            # other transports it won't matter).
+            # other transports it won't matter). carrying along locally set block size limitation
+            if (
+                app_request.remote.maximum_block_size_exp
+                < blockresponse.remote.maximum_block_size_exp
+            ):
+                blockresponse.remote.maximum_block_size_exp = (
+                    app_request.remote.maximum_block_size_exp
+                )
             app_request.remote = blockresponse.remote
 
             if blockresponse.opt.block1 is None:
