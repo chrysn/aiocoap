@@ -124,6 +124,29 @@ class TestBlockwise(WithChunkyTestServer, WithClient):
             "Response not chunked into 128 bytes",
         )
 
+    @no_warnings
+    @asynctest
+    async def test_client_hints_block1(self):
+        """Test whether a client can successfully indicate per-remote sizes
+        even for the block1 phase."""
+
+        # same as BigResource's content
+        payload = b"0123456789----------" * 512
+        reqmsg = aiocoap.Message(
+            uri="coap://" + self.servernetloc + "/replacing/one",
+            code=aiocoap.PUT,
+            payload=payload,
+        )
+        reqmsg.remote.maximum_block_size_exp = 3
+        resp = await self.client.request(reqmsg).response
+
+        self.assertEqual(resp.code, aiocoap.CHANGED, "Request was unsuccessful")
+        self.assertEqual(
+            self._count_received_messages(),
+            (len(payload) + 127) // 128,
+            "Response not chunked into 128 bytes",
+        )
+
     _received_logmsg = "Incoming message <aiocoap.Message at"
 
     def _count_received_messages(self):
