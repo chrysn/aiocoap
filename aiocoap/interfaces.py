@@ -284,13 +284,22 @@ class RequestProvider(metaclass=abc.ABCMeta):
     """
 
     @abc.abstractmethod
-    def request(self, request_message):
+    def request(self, request_message, handle_blockwise=True):
         """Create and act on a :class:`Request` object that will be handled
         according to the provider's implementation.
 
         Note that the request is not necessarily sent on the wire immediately;
         it may (but, depend on the transport does not necessarily) rely on the
         response to be waited for.
+
+        If handle_blockwise is True (the default), the request provider will
+        split the request and/or collect the response parts automatically. The
+        block size indicated by the remote is used, and can be decreased by
+        setting the message's :attr:`.remote.maximum_block_size_exp
+        <aiocoap.interfaces.EndpointAddress.maximum_block_size_exp>` property.
+        Note that by being a property of the remote, this may affect other
+        block-wise operations on the same remote -- this should be desirable
+        behavior.
 
         :meta private:
             (not actually private, just hiding from automodule due to being
