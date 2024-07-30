@@ -14,7 +14,7 @@ from collections import namedtuple
 from . import error, optiontypes
 from .numbers.codes import Code, CHANGED
 from .numbers.types import Type
-from .numbers.constants import TransportTuning
+from .numbers.constants import TransportTuning, MAX_REGULAR_BLOCK_SIZE_EXP
 from .options import Options
 from .util import hostportjoin, hostportsplit, Sentinel, quote_nonascii
 from .util.uri import quote_factory, unreserved, sub_delims
@@ -682,6 +682,9 @@ class UndecidedRemote(
     >>> UndecidedRemote("coap+tcp", "[::0001]:1234")
     UndecidedRemote(scheme='coap+tcp', hostinfo='[::1]:1234')
     """
+
+    # This is settable per instance, for other transports to pick it up.
+    maximum_block_size_exp = MAX_REGULAR_BLOCK_SIZE_EXP
 
     def __new__(cls, scheme, hostinfo):
         if "[" in hostinfo:

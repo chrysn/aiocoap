@@ -526,7 +526,10 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             local = None
 
         sockaddr = ip, port, flowinfo, scopeid
-        return UDP6EndpointAddress(sockaddr, self, pktinfo=local)
+        result = UDP6EndpointAddress(sockaddr, self, pktinfo=local)
+        if request.remote.maximum_block_size_exp < result.maximum_block_size_exp:
+            result.maximum_block_size_exp = request.remote.maximum_block_size_exp
+        return result
 
     #
     # implementing the typical DatagramProtocol interfaces.

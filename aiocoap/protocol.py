@@ -789,6 +789,11 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
         size_exp = app_request.remote.maximum_block_size_exp
 
         if app_request.opt.block1 is not None:
+            warnings.warn(
+                "Setting a block1 option in a managed block-wise transfer is deprecated. Instead, set request.remote.maximum_block_size_exp to the desired value",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             assert (
                 app_request.opt.block1.block_number == 0
             ), "Unexpected block number in app_request"
@@ -829,7 +834,14 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
 
             # store for future blocks to ensure that the next blocks will be
             # sent from the same source address (in the UDP case; for many
-            # other transports it won't matter).
+            # other transports it won't matter). carrying along locally set block size limitation
+            if (
+                app_request.remote.maximum_block_size_exp
+                < blockresponse.remote.maximum_block_size_exp
+            ):
+                blockresponse.remote.maximum_block_size_exp = (
+                    app_request.remote.maximum_block_size_exp
+                )
             app_request.remote = blockresponse.remote
 
             if blockresponse.opt.block1 is None:
