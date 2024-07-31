@@ -29,22 +29,9 @@ class WithGroupKeys(unittest.TestCase):
 
         group_id = b"G"
         participants = [b"", b"\x01", b"longname"]
-        private_keys = [alg_countersign.generate() for _ in participants]
-        creds = [
-            cbor2.dumps(
-                {
-                    8: {
-                        1: {
-                            1: 1,
-                            3: -8,
-                            -1: 6,
-                            -2: alg_countersign.public_from_private(k),
-                        }
-                    }
-                }
-            )
-            for k in private_keys
-        ]
+        private_keys, creds = zip(
+            *(alg_countersign.generate_with_ccs() for _ in participants)
+        )
         master_secret = secrets.token_bytes(64)
         master_salt = b"PoCl4"
 

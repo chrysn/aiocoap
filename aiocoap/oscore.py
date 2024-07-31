@@ -19,7 +19,7 @@ import os
 import os.path
 import tempfile
 import abc
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Tuple
 import secrets
 import warnings
 
@@ -455,6 +455,10 @@ class AlgorithmCountersign(metaclass=abc.ABCMeta):
         """Return a usable private key"""
 
     @abc.abstractmethod
+    def generate_with_ccs(self) -> Tuple[Any, bytes]:
+        """Return a usable private key along with a CCS describing it"""
+
+    @abc.abstractmethod
     def public_from_private(self, private_key):
         """Given a private key, derive the publishable key"""
 
@@ -541,6 +545,25 @@ class Ed25519(AlgorithmCountersign):
             format=serialization.PrivateFormat.Raw,
             encryption_algorithm=serialization.NoEncryption(),
         )
+
+    def generate_with_ccs(self) -> Tuple[Any, bytes]:
+        private = self.generate()
+        public = self.public_from_private(private)
+
+        ccs = cbor.dumps(
+            {
+                CWT_CLAIM_CNF: {
+                    CWT_CNF_COSE_KEY: {
+                        COSE_KEY_COMMON_KTY: COSE_KTY_OKP,
+                        COSE_KEY_COMMON_ALG: self.value,
+                        COSE_KEY_OKP_CRV: self.curve_number,
+                        COSE_KEY_OKP_X: public,
+                    }
+                }
+            }
+        )
+
+        return (private, ccs)
 
     def public_from_private(self, private_key):
         private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(
@@ -657,6 +680,28 @@ class ECDSA_SHA256_P256(AlgorithmCountersign, AlgorithmStaticStatic):
 
     def generate(self):
         return asymmetric.ec.generate_private_key(asymmetric.ec.SECP256R1())
+
+    def generate_with_ccs(self) -> Tuple[Any, bytes]:
+        private = self.generate()
+        public = self.public_from_private(private)
+        # FIXME: Deduplicate with edhoc.py
+        x = public.public_numbers().x.to_bytes(32, "big")
+        y = public.public_numbers().y.to_bytes(32, "big")
+
+        ccs = cbor.dumps(
+            {
+                CWT_CLAIM_CNF: {
+                    CWT_CNF_COSE_KEY: {
+                        COSE_KEY_COMMON_KTY: COSE_KTY_EC2,
+                        COSE_KEY_COMMON_ALG: self.value,
+                        COSE_KEY_EC2_X: x,
+                        COSE_KEY_EC2_Y: y,
+                    }
+                }
+            }
+        )
+
+        return (private, ccs)
 
     def public_from_private(self, private_key):
         return private_key.public_key()
