@@ -19,7 +19,7 @@ import os
 import os.path
 import tempfile
 import abc
-from typing import Optional, List
+from typing import Optional, List, Any
 import secrets
 import warnings
 
@@ -60,6 +60,17 @@ COMPRESSION_BIT_K = 0b1000
 COMPRESSION_BIT_H = 0b10000
 COMPRESSION_BIT_GROUP = 0b100000  # Group Flag from draft-ietf-core-oscore-groupcomm-21
 COMPRESSION_BITS_RESERVED = 0b11000000
+
+CWT_CLAIM_CNF = 8
+CWT_CNF_COSE_KEY = 1
+COSE_KEY_COMMON_KTY = 1
+COSE_KTY_OKP = 1
+COSE_KTY_EC2 = 2
+COSE_KEY_COMMON_ALG = 3
+COSE_KEY_OKP_CRV = -1
+COSE_KEY_OKP_X = -2
+COSE_KEY_EC2_X = -2
+COSE_KEY_EC2_Y = -3
 
 # While the original values were simple enough to be used in literals, starting
 # with oscore-groupcomm we're using more compact values
@@ -447,6 +458,14 @@ class AlgorithmCountersign(metaclass=abc.ABCMeta):
     def public_from_private(self, private_key):
         """Given a private key, derive the publishable key"""
 
+    @abc.abstractmethod
+    def from_kccs(self, ccs: bytes) -> Any:
+        """Given a CCS, extract the public key, or raise a ValueError if the
+        credential format does not align with the type.
+
+        The type is not exactly Any, but whichever type is used by this
+        algorithm class."""
+
     @staticmethod
     def _build_countersign_structure(body, external_aad):
         countersign_structure = [
@@ -474,6 +493,27 @@ class AlgorithmStaticStatic(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def staticstatic(self, private_key, public_key):
         """Derive a shared static-static secret from a private and a public key"""
+
+
+def _from_kccs_common(ccs: bytes) -> dict:
+    """Check that the CCS contains a CNF claim that is a COSE Key, and return
+    that key"""
+
+    try:
+        parsed = cbor.loads(ccs)
+    except cbor.CBORDecodeError as e:
+        raise ValueError("CCS not in CBOR format") from e
+
+    if (
+        not isinstance(parsed, dict)
+        or CWT_CLAIM_CNF not in parsed
+        or not isinstance(parsed[CWT_CLAIM_CNF], dict)
+        or CWT_CNF_COSE_KEY not in parsed[CWT_CLAIM_CNF]
+        or not isinstance(parsed[CWT_CLAIM_CNF][CWT_CNF_COSE_KEY], dict)
+    ):
+        raise ValueError("CCS must contain a COSE Key dict in a CNF")
+
+    return parsed[CWT_CLAIM_CNF][CWT_CNF_COSE_KEY]
 
 
 class Ed25519(AlgorithmCountersign):
@@ -511,6 +551,20 @@ class Ed25519(AlgorithmCountersign):
             encoding=serialization.Encoding.Raw,
             format=serialization.PublicFormat.Raw,
         )
+
+    def from_kccs(self, ccs: bytes) -> Any:
+        # eg. {1: 1, 3: -8, -1: 6, -2: h'77 ... 88'}
+        cose_key = _from_kccs_common(ccs)
+
+        if (
+            cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_OKP
+            and cose_key.get(COSE_KEY_COMMON_ALG) == self.value
+            and cose_key.get(COSE_KEY_OKP_CRV) == self.curve_number
+            and COSE_KEY_OKP_X in cose_key
+        ):
+            return cose_key[COSE_KEY_OKP_X]
+        else:
+            raise ValueError("Key type not recognized from CCS key %r" % cose_key)
 
     value = -8
     curve_number = 6
@@ -553,6 +607,22 @@ class ECDSA_SHA256_P256(AlgorithmCountersign, AlgorithmStaticStatic):
             int.from_bytes(y, "big"),
             asymmetric.ec.SECP256R1(),
         ).public_key()
+
+    def from_kccs(self, ccs: bytes) -> Any:
+        cose_key = _from_kccs_common(ccs)
+
+        if (
+            cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_EC2
+            and cose_key.get(COSE_KEY_COMMON_ALG) == self.value
+            and COSE_KEY_EC2_X in cose_key
+            and COSE_KEY_EC2_Y in cose_key
+        ):
+            return self.from_public_parts(
+                x=cose_key[COSE_KEY_EC2_X],
+                y=cose_key[COSE_KEY_EC2_Y],
+            )
+        else:
+            raise ValueError("Key type not recognized from CCS key %r" % cose_key)
 
     def from_private_parts(self, x: bytes, y: bytes, d: bytes):
         public_numbers = self.from_public_parts(x, y).public_numbers()
@@ -1905,55 +1975,9 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
                 "Credential parsing is currently only implemented for CCSs"
             )
 
-        try:
-            parsed = cbor.loads(credential)
-        except cbor.CBORDecodeError as e:
-            raise ValueError("CCS not in CBOR format") from e
+        assert self.alg_signature is not None
 
-        CWT_CLAIM_CNF = 8
-        CWT_CNF_COSE_KEY = 1
-        if (
-            not isinstance(parsed, dict)
-            or CWT_CLAIM_CNF not in parsed
-            or not isinstance(parsed[CWT_CLAIM_CNF], dict)
-            or CWT_CNF_COSE_KEY not in parsed[CWT_CLAIM_CNF]
-        ):
-            raise ValueError("CCS must contain a COSE Key in a CNF")
-
-        COSE_KEY_COMMON_KTY = 1
-        COSE_KTY_OKP = 1
-        COSE_KTY_EC2 = 2
-        COSE_KEY_COMMON_ALG = 3
-        COSE_KEY_OKP_CRV = -1
-        COSE_KEY_OKP_X = -2
-        COSE_KEY_EC2_X = -2
-        COSE_KEY_EC2_Y = -3
-        # eg. {1: 1, 3: -8, -1: 6, -2: h'77 / ... / 88'}
-        cose_key = parsed[CWT_CLAIM_CNF][CWT_CNF_COSE_KEY]
-        if not isinstance(cose_key, dict):
-            raise ValueError("COSE Key in CCS must be a map")
-
-        if (
-            cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_OKP
-            and cose_key.get(COSE_KEY_COMMON_ALG) == Ed25519.value
-            and cose_key.get(COSE_KEY_OKP_CRV) == Ed25519.curve_number
-            and COSE_KEY_OKP_X in cose_key
-        ):
-            return cose_key[COSE_KEY_OKP_X]
-        elif (
-            cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_EC2
-            and cose_key.get(COSE_KEY_COMMON_ALG) == ECDSA_SHA256_P256.value
-            and COSE_KEY_EC2_X in cose_key
-            and COSE_KEY_EC2_Y in cose_key
-        ):
-            return ECDSA_SHA256_P256().from_public_parts(
-                x=cose_key[COSE_KEY_EC2_X],
-                y=cose_key[COSE_KEY_EC2_Y],
-            )
-        else:
-            raise ValueError("Key type not recognized from CCS key %r" % cose_key)
-
-        return cbor.loads(credential)[8][1][-2]
+        return self.alg_signature.from_kccs(credential)
 
     def __repr__(self):
         return "<%s with group %r sender_id %r and %d peers>" % (
