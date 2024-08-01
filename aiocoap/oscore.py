@@ -19,19 +19,19 @@ import os
 import os.path
 import tempfile
 import abc
-from typing import Optional, List
+from typing import Optional, List, Any, Tuple
 import secrets
 import warnings
 
 from aiocoap.message import Message
-from aiocoap.util import cryptography_additions, deprecation_getattr
+from aiocoap.util import cryptography_additions, deprecation_getattr, Sentinel
 from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED, CONTENT
 from aiocoap import error
 from . import credentials
 
 from cryptography.hazmat.primitives.ciphers import aead
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import ciphers, hashes
 import cryptography.hazmat.backends
 import cryptography.exceptions
 from cryptography.hazmat.primitives import asymmetric, serialization
@@ -52,20 +52,33 @@ COSE_PIV = 6
 COSE_KID_CONTEXT = 10
 # from RFC9338
 COSE_COUNTERSIGNATURE0 = 12
-# from draft-ietf-lake-edhoc-19, guessing the value
-COSE_KCCS = 13131313
+# from RFC9528
+COSE_KCCS = 14
 
 COMPRESSION_BITS_N = 0b111
 COMPRESSION_BIT_K = 0b1000
 COMPRESSION_BIT_H = 0b10000
-COMPRESSION_BIT_G = 0b100000  # Group Flag from draft-ietf-core-oscore-groupcomm-10
+COMPRESSION_BIT_GROUP = 0b100000  # Group Flag from draft-ietf-core-oscore-groupcomm-21
 COMPRESSION_BITS_RESERVED = 0b11000000
+
+CWT_CLAIM_CNF = 8
+CWT_CNF_COSE_KEY = 1
+COSE_KEY_COMMON_KTY = 1
+COSE_KTY_OKP = 1
+COSE_KTY_EC2 = 2
+COSE_KEY_COMMON_ALG = 3
+COSE_KEY_OKP_CRV = -1
+COSE_KEY_OKP_X = -2
+COSE_KEY_EC2_X = -2
+COSE_KEY_EC2_Y = -3
 
 # While the original values were simple enough to be used in literals, starting
 # with oscore-groupcomm we're using more compact values
 
 INFO_TYPE_KEYSTREAM_REQUEST = True
 INFO_TYPE_KEYSTREAM_RESPONSE = False
+
+PRESENT_BUT_NO_VALUE_YET = Sentinel("Value will be populated later")
 
 
 class CodeStyle(namedtuple("_CodeStyle", ("request", "response"))):
@@ -183,7 +196,14 @@ def _xor_bytes(a, b):
     return bytes(_a ^ _b for (_a, _b) in zip(a, b))
 
 
-class AeadAlgorithm(metaclass=abc.ABCMeta):
+class SymmetricEncryptionAlgorithm(metaclass=abc.ABCMeta):
+    """A symmetric algorithm
+
+    The algorithm's API is the AEAD API with addtional authenticated data: The
+    algorihm may or may not verify that data. Algorithms that actually do
+    verify the data are recognized by also being AeadAlgorithm.
+    """
+
     value: int
     key_bytes: int
     tag_bytes: int
@@ -205,6 +225,74 @@ class AeadAlgorithm(metaclass=abc.ABCMeta):
         enc_structure = ["Encrypt0", protected_serialized, external_aad]
 
         return cbor.dumps(enc_structure)
+
+
+class AeadAlgorithm(SymmetricEncryptionAlgorithm, metaclass=abc.ABCMeta):
+    """A symmetric algorithm that provides authentication, including
+    authentication of additional data."""
+
+
+class AES_CBC(SymmetricEncryptionAlgorithm, metaclass=abc.ABCMeta):
+    """AES in CBC mode using tthe Python cryptography library"""
+
+    tag_bytes = 0
+    iv_bytes = 0
+    # This introduces padding -- this library doesn't need to care because
+    # Python does allocation for us, but others may need to rethink their
+    # buffer allocation strategies.
+
+    @classmethod
+    def _cipher(cls, key, iv):
+        return ciphers.base.Cipher(
+            ciphers.algorithms.AES(key),
+            ciphers.modes.CBC(iv),
+        )
+
+    @classmethod
+    def encrypt(cls, plaintext, _aad, key, iv):
+        # FIXME: Ignoring aad violates https://www.rfc-editor.org/rfc/rfc9459.html#name-implementation-consideratio but is required for Group OSCORE
+
+        # Padding according to https://www.rfc-editor.org/rfc/rfc5652#section-6.3
+        k = cls.key_bytes
+        assert (
+            k < 256
+        ), "Algorithm with this key size should not have been created in the first plae"
+        pad_byte = k - (len(plaintext) % k)
+        pad_bytes = bytes((pad_byte,)) * pad_byte
+        plaintext += pad_bytes
+
+        encryptor = cls._cipher(key, iv).encryptor()
+        result = encryptor.update(plaintext)
+        result += encryptor.finalize()
+        return result
+
+    @classmethod
+    def decrypt(cls, ciphertext_and_tag, _aad, key, iv):
+        # FIXME: Ignoring aad violates https://www.rfc-editor.org/rfc/rfc9459.html#name-implementation-consideratio but is required for Group OSCORE
+
+        k = cls.key_bytes
+        if ciphertext_and_tag == b"" or len(ciphertext_and_tag) % k != 0:
+            raise ProtectionInvalid("Message length does not match padding")
+
+        decryptor = cls._cipher(key, iv).decryptor()
+        result = decryptor.update(ciphertext_and_tag)
+        result += decryptor.finalize()
+
+        # Padding according to https://www.rfc-editor.org/rfc/rfc5652#section-6.3
+        claimed_padding = result[-1]
+        if claimed_padding == 0 or claimed_padding > k:
+            raise ProtectionInvalid("Padding does not match key")
+        if result[-claimed_padding:] != bytes((claimed_padding,)) * claimed_padding:
+            raise ProtectionInvalid("Padding is inconsistent")
+
+        return result[:-claimed_padding]
+
+
+class A128CBC(AES_CBC):
+    # from RFC9459
+    value = -65531
+    key_bytes = 16  # 128-bit key
+    iv_bytes = 16  # 16-octet nonce
 
 
 class AES_CCM(AeadAlgorithm, metaclass=abc.ABCMeta):
@@ -363,12 +451,20 @@ class AlgorithmCountersign(metaclass=abc.ABCMeta):
         """Verify a signature in analogy to sign"""
 
     @abc.abstractmethod
-    def generate(self):
-        """Return a usable private key"""
+    def generate_with_ccs(self) -> Tuple[Any, bytes]:
+        """Return a usable private key along with a CCS describing it"""
 
     @abc.abstractmethod
     def public_from_private(self, private_key):
         """Given a private key, derive the publishable key"""
+
+    @abc.abstractmethod
+    def from_kccs(self, ccs: bytes) -> Any:
+        """Given a CCS, extract the public key, or raise a ValueError if the
+        credential format does not align with the type.
+
+        The type is not exactly Any, but whichever type is used by this
+        algorithm class."""
 
     @staticmethod
     def _build_countersign_structure(body, external_aad):
@@ -399,6 +495,27 @@ class AlgorithmStaticStatic(metaclass=abc.ABCMeta):
         """Derive a shared static-static secret from a private and a public key"""
 
 
+def _from_kccs_common(ccs: bytes) -> dict:
+    """Check that the CCS contains a CNF claim that is a COSE Key, and return
+    that key"""
+
+    try:
+        parsed = cbor.loads(ccs)
+    except cbor.CBORDecodeError as e:
+        raise ValueError("CCS not in CBOR format") from e
+
+    if (
+        not isinstance(parsed, dict)
+        or CWT_CLAIM_CNF not in parsed
+        or not isinstance(parsed[CWT_CLAIM_CNF], dict)
+        or CWT_CNF_COSE_KEY not in parsed[CWT_CLAIM_CNF]
+        or not isinstance(parsed[CWT_CLAIM_CNF][CWT_CNF_COSE_KEY], dict)
+    ):
+        raise ValueError("CCS must contain a COSE Key dict in a CNF")
+
+    return parsed[CWT_CLAIM_CNF][CWT_CNF_COSE_KEY]
+
+
 class Ed25519(AlgorithmCountersign):
     def sign(self, body, aad, private_key):
         private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(
@@ -413,7 +530,7 @@ class Ed25519(AlgorithmCountersign):
         except cryptography.exceptions.InvalidSignature:
             raise ProtectionInvalid("Signature mismatch")
 
-    def generate(self):
+    def _generate(self):
         key = asymmetric.ed25519.Ed25519PrivateKey.generate()
         # FIXME: We could avoid handing the easy-to-misuse bytes around if the
         # current algorithm interfaces did not insist on passing the
@@ -425,6 +542,25 @@ class Ed25519(AlgorithmCountersign):
             encryption_algorithm=serialization.NoEncryption(),
         )
 
+    def generate_with_ccs(self) -> Tuple[Any, bytes]:
+        private = self._generate()
+        public = self.public_from_private(private)
+
+        ccs = cbor.dumps(
+            {
+                CWT_CLAIM_CNF: {
+                    CWT_CNF_COSE_KEY: {
+                        COSE_KEY_COMMON_KTY: COSE_KTY_OKP,
+                        COSE_KEY_COMMON_ALG: self.value,
+                        COSE_KEY_OKP_CRV: self.curve_number,
+                        COSE_KEY_OKP_X: public,
+                    }
+                }
+            }
+        )
+
+        return (private, ccs)
+
     def public_from_private(self, private_key):
         private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(
             private_key
@@ -434,6 +570,20 @@ class Ed25519(AlgorithmCountersign):
             encoding=serialization.Encoding.Raw,
             format=serialization.PublicFormat.Raw,
         )
+
+    def from_kccs(self, ccs: bytes) -> Any:
+        # eg. {1: 1, 3: -8, -1: 6, -2: h'77 ... 88'}
+        cose_key = _from_kccs_common(ccs)
+
+        if (
+            cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_OKP
+            and cose_key.get(COSE_KEY_COMMON_ALG) == self.value
+            and cose_key.get(COSE_KEY_OKP_CRV) == self.curve_number
+            and COSE_KEY_OKP_X in cose_key
+        ):
+            return cose_key[COSE_KEY_OKP_X]
+        else:
+            raise ValueError("Key type not recognized from CCS key %r" % cose_key)
 
     value = -8
     curve_number = 6
@@ -446,12 +596,11 @@ class EcdhSsHkdf256(AlgorithmStaticStatic):
     # not the converted ones. This will be problematic if pairwise-only
     # contexts are to be set up.
 
-    value = -27  # FIXME: or -28? (see shepherd review)
+    value = -27
 
     # FIXME these two will be different when using the Montgomery keys directly
 
     # This one will only be used when establishing and distributing pairwise-only keys
-    generate = Ed25519.generate
     public_from_private = Ed25519.public_from_private
 
     def staticstatic(self, private_key, public_key):
@@ -476,6 +625,22 @@ class ECDSA_SHA256_P256(AlgorithmCountersign, AlgorithmStaticStatic):
             int.from_bytes(y, "big"),
             asymmetric.ec.SECP256R1(),
         ).public_key()
+
+    def from_kccs(self, ccs: bytes) -> Any:
+        cose_key = _from_kccs_common(ccs)
+
+        if (
+            cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_EC2
+            and cose_key.get(COSE_KEY_COMMON_ALG) == self.value
+            and COSE_KEY_EC2_X in cose_key
+            and COSE_KEY_EC2_Y in cose_key
+        ):
+            return self.from_public_parts(
+                x=cose_key[COSE_KEY_EC2_X],
+                y=cose_key[COSE_KEY_EC2_Y],
+            )
+        else:
+            raise ValueError("Key type not recognized from CCS key %r" % cose_key)
 
     def from_private_parts(self, x: bytes, y: bytes, d: bytes):
         public_numbers = self.from_public_parts(x, y).public_numbers()
@@ -508,8 +673,30 @@ class ECDSA_SHA256_P256(AlgorithmCountersign, AlgorithmStaticStatic):
         except cryptography.exceptions.InvalidSignature:
             raise ProtectionInvalid("Signature mismatch")
 
-    def generate(self):
+    def _generate(self):
         return asymmetric.ec.generate_private_key(asymmetric.ec.SECP256R1())
+
+    def generate_with_ccs(self) -> Tuple[Any, bytes]:
+        private = self._generate()
+        public = self.public_from_private(private)
+        # FIXME: Deduplicate with edhoc.py
+        x = public.public_numbers().x.to_bytes(32, "big")
+        y = public.public_numbers().y.to_bytes(32, "big")
+
+        ccs = cbor.dumps(
+            {
+                CWT_CLAIM_CNF: {
+                    CWT_CNF_COSE_KEY: {
+                        COSE_KEY_COMMON_KTY: COSE_KTY_EC2,
+                        COSE_KEY_COMMON_ALG: self.value,
+                        COSE_KEY_EC2_X: x,
+                        COSE_KEY_EC2_Y: y,
+                    }
+                }
+            }
+        )
+
+        return (private, ccs)
 
     def public_from_private(self, private_key):
         return private_key.public_key()
@@ -572,7 +759,7 @@ class BaseSecurityContext:
     # externally by whatever creates the security context.
     authenticated_claims: List[str] = []
 
-    #: AEAD algorithm. This may only be None in group contexts that do not use pairwise mode.
+    #: AEAD algorithm. This may be None if it is not set in an OSCORE group context.
     alg_aead: Optional[AeadAlgorithm]
 
     @property
@@ -599,7 +786,9 @@ class BaseSecurityContext:
 
         components = s + pad_id + piv_generator_id + pad_piv + partial_iv_short
 
-        nonce = _xor_bytes(self.common_iv, components)
+        # "least significant bits of the Common IV"
+        used_common_iv = self.common_iv[len(self.common_iv) - len(components) :]
+        nonce = _xor_bytes(used_common_iv, components)
 
         return nonce
 
@@ -624,11 +813,11 @@ class BaseSecurityContext:
             class_i_options = Message(request_hash=request_id.request_hash).opt.encode()
 
         algorithms: List[int | str | None] = [
-            self.alg_aead.value if self.alg_aead is not None else None
+            None if self.alg_aead is None else self.alg_aead.value
         ]
         if isinstance(self, ContextWhereExternalAadIsGroup):
             algorithms.append(
-                None if self.alg_signature_enc is None else self.alg_signature_enc.value
+                None if self.alg_group_enc is None else self.alg_group_enc.value
             )
             algorithms.append(
                 None if self.alg_signature is None else self.alg_signature.value
@@ -667,7 +856,7 @@ class BaseSecurityContext:
 class ContextWhereExternalAadIsGroup(BaseSecurityContext):
     """The protection and unprotection functions will use the Group OSCORE AADs
     rather than the regular OSCORE AADs iff a context uses this mixin. (Ie.
-    alg_signature_enc etc are added to the algorithms, and request_kid_context,
+    alg_group_enc etc are added to the algorithms, and request_kid_context,
     OSCORE_option, sender_auth_cred and gm_cred are added).
 
     This does not necessarily match the is_signing property (as pairwise
@@ -679,21 +868,15 @@ class ContextWhereExternalAadIsGroup(BaseSecurityContext):
 
     external_aad_is_group = True
 
-    # This is None iff the group does not support group mode
-    alg_signature_enc: Optional[AeadAlgorithm]
-    # This is None iff the group does not support group mode
+    alg_group_enc: Optional[AeadAlgorithm]
     alg_signature: Optional[AlgorithmCountersign]
-    # This is None iff the group does not support pairwise
-    #
     # This is also of type AlgorithmCountersign because the staticstatic
     # function is sitting on the same type.
     alg_pairwise_key_agreement: Optional[AlgorithmCountersign]
 
-    # FIXME: These probably should be `bytes` only; the condition for them
-    # being None needs to be refined.
-    sender_auth_cred: Optional[bytes]
-    recipient_auth_cred: Optional[bytes]
-    group_manager_cred: Optional[bytes]
+    sender_auth_cred: bytes
+    recipient_auth_cred: bytes
+    group_manager_cred: bytes
 
 
 # FIXME pull interface components from SecurityContext up here
@@ -744,12 +927,12 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             s_kid_context = b""
 
         if COSE_COUNTERSIGNATURE0 in unprotected:
-            firstbyte |= COMPRESSION_BIT_G
+            firstbyte |= COMPRESSION_BIT_GROUP
 
-            # In theory at least. In practice, that's an empty value to later
-            # be squished in when the compressed option value is available for
-            # signing.
-            ciphertext += unprotected.pop(COSE_COUNTERSIGNATURE0)
+            unprotected.pop(COSE_COUNTERSIGNATURE0)
+
+            # ciphertext will eventually also get the countersignature, but
+            # that happens later when the option is already processed.
 
         if unprotected:
             raise RuntimeError(
@@ -841,7 +1024,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             keystream = self._kdf_for_keystreams(
                 partial_iv_generated_by,
                 partial_iv_short,
-                self.group_encryption_key,
+                self.signature_encryption_key,
                 self.sender_id,
                 INFO_TYPE_KEYSTREAM_REQUEST
                 if message.code.is_request()
@@ -1053,7 +1236,7 @@ class CanUnprotect(BaseSecurityContext):
             keystream = self._kdf_for_keystreams(
                 partial_iv_generated_by,
                 partial_iv_short,
-                self.group_encryption_key,
+                self.signature_encryption_key,
                 self.recipient_id,
                 INFO_TYPE_KEYSTREAM_REQUEST
                 if protected_message.code.is_request()
@@ -1196,12 +1379,12 @@ class CanUnprotect(BaseSecurityContext):
             kid = tail
             unprotected[COSE_KID] = kid
 
-        if firstbyte & COMPRESSION_BIT_G:
+        if firstbyte & COMPRESSION_BIT_GROUP:
             # Not really; As this is (also) used early on (before the KID
             # context is even known, because it's just getting extracted), this
             # is returning an incomplete value here and leaves it to the later
             # processing to strip the right number of bytes from the ciphertext
-            unprotected[COSE_COUNTERSIGNATURE0] = b""
+            unprotected[COSE_COUNTERSIGNATURE0] = PRESENT_BUT_NO_VALUE_YET
 
         return b"", {}, unprotected, payload
 
@@ -1238,9 +1421,18 @@ class SecurityContextUtils(BaseSecurityContext):
         if out_type == "Key":
             out_bytes = self.alg_aead.key_bytes
         elif out_type == "IV":
-            out_bytes = self.alg_aead.iv_bytes
-        elif out_type == "Group Encryption Key":
-            out_bytes = self.alg_signature_enc.key_bytes
+            out_bytes = max(
+                (
+                    a.iv_bytes
+                    for a in [self.alg_aead, getattr(self, "alg_group_enc", None)]
+                    if a is not None
+                )
+            )
+        elif out_type == "SEKey":
+            # "While the obtained Signature Encryption Key is never used with
+            # the Group Encryption Algorithm, its length was chosen to obtain a
+            # matching level of security."
+            out_bytes = self.alg_group_enc.key_bytes
         else:
             raise ValueError("Output type not recognized")
 
@@ -1758,18 +1950,20 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     alg_aead = None
     hashfun = None  # type: ignore
     alg_signature = None
-    alg_signature_enc = None
+    alg_group_enc = None
     alg_pairwise_key_agreement = None
-    sender_auth_cred = None
-    group_manager_cred = None
+    sender_auth_cred = None  # type: ignore
+    group_manager_cred = None  # type: ignore
     cred_fmt = None
+    # This is currently not evaluated, but any GM interaction will need to have this information available.
+    group_manager_cred_fmt = None
 
     def __init__(
         self,
         alg_aead,
         hashfun,
         alg_signature,
-        alg_signature_enc,
+        alg_group_enc,
         alg_pairwise_key_agreement,
         group_id,
         master_secret,
@@ -1778,8 +1972,9 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         private_key,
         sender_auth_cred,
         peers,
-        group_manager_cred=None,
+        group_manager_cred,
         cred_fmt=COSE_KCCS,
+        group_manager_cred_fmt=COSE_KCCS,
     ):
         self.sender_id = sender_id
         self.id_context = group_id
@@ -1787,11 +1982,12 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         self.alg_aead = alg_aead
         self.hashfun = hashfun
         self.alg_signature = alg_signature
-        self.alg_signature_enc = alg_signature_enc
+        self.alg_group_enc = alg_group_enc
         self.alg_pairwise_key_agreement = alg_pairwise_key_agreement
         self.sender_auth_cred = sender_auth_cred
         self.group_manager_cred = group_manager_cred
         self.cred_fmt = cred_fmt
+        self.group_manager_cred_fmt = group_manager_cred_fmt
 
         self.peers = peers.keys()
         self.recipient_public_keys = {
@@ -1834,55 +2030,9 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
                 "Credential parsing is currently only implemented for CCSs"
             )
 
-        try:
-            parsed = cbor.loads(credential)
-        except cbor.CBORDecodeError as e:
-            raise ValueError("CCS not in CBOR format") from e
+        assert self.alg_signature is not None
 
-        CWT_CLAIM_CNF = 8
-        CWT_CNF_COSE_KEY = 1
-        if (
-            not isinstance(parsed, dict)
-            or CWT_CLAIM_CNF not in parsed
-            or not isinstance(parsed[CWT_CLAIM_CNF], dict)
-            or CWT_CNF_COSE_KEY not in parsed[CWT_CLAIM_CNF]
-        ):
-            raise ValueError("CCS must contain a COSE Key in a CNF")
-
-        COSE_KEY_COMMON_KTY = 1
-        COSE_KTY_OKP = 1
-        COSE_KTY_EC2 = 2
-        COSE_KEY_COMMON_ALG = 3
-        COSE_KEY_OKP_CRV = -1
-        COSE_KEY_OKP_X = -2
-        COSE_KEY_EC2_X = -2
-        COSE_KEY_EC2_Y = -3
-        # eg. {1: 1, 3: -8, -1: 6, -2: h'77 / ... / 88'}
-        cose_key = parsed[CWT_CLAIM_CNF][CWT_CNF_COSE_KEY]
-        if not isinstance(cose_key, dict):
-            raise ValueError("COSE Key in CCS must be a map")
-
-        if (
-            cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_OKP
-            and cose_key.get(COSE_KEY_COMMON_ALG) == Ed25519.value
-            and cose_key.get(COSE_KEY_OKP_CRV) == Ed25519.curve_number
-            and COSE_KEY_OKP_X in cose_key
-        ):
-            return cose_key[COSE_KEY_OKP_X]
-        elif (
-            cose_key.get(COSE_KEY_COMMON_KTY) == COSE_KTY_EC2
-            and cose_key.get(COSE_KEY_COMMON_ALG) == ECDSA_SHA256_P256.value
-            and COSE_KEY_EC2_X in cose_key
-            and COSE_KEY_EC2_Y in cose_key
-        ):
-            return ECDSA_SHA256_P256().from_public_parts(
-                x=cose_key[COSE_KEY_EC2_X],
-                y=cose_key[COSE_KEY_EC2_Y],
-            )
-        else:
-            raise ValueError("Key type not recognized from CCS key %r" % cose_key)
-
-        return cbor.loads(credential)[8][1][-2]
+        return self.alg_signature.from_kccs(credential)
 
     def __repr__(self):
         return "<%s with group %r sender_id %r and %d peers>" % (
@@ -1911,8 +2061,8 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
 
         # but this one is new
 
-        self.group_encryption_key = self._kdf(
-            master_salt, master_secret, b"", "Group Encryption Key"
+        self.signature_encryption_key = self._kdf(
+            master_salt, master_secret, b"", "SEKey"
         )
 
     def post_seqnoincrease(self):
@@ -1998,8 +2148,8 @@ class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
         return self.groupcontext.alg_signature
 
     @property
-    def alg_signature_enc(self):
-        return self.groupcontext.alg_signature_enc
+    def alg_group_enc(self):
+        return self.groupcontext.alg_group_enc
 
     @property
     def alg_pairwise_key_agreement(self):
@@ -2018,8 +2168,8 @@ class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
         return self.groupcontext.hashfun
 
     @property
-    def group_encryption_key(self):
-        return self.groupcontext.group_encryption_key
+    def signature_encryption_key(self):
+        return self.groupcontext.signature_encryption_key
 
     @property
     def recipient_key(self):
@@ -2110,8 +2260,8 @@ class _PairwiseContextAspect(
         return self.groupcontext.alg_signature
 
     @property
-    def alg_signature_enc(self):
-        return self.groupcontext.alg_signature_enc
+    def alg_group_enc(self):
+        return self.groupcontext.alg_group_enc
 
     @property
     def alg_pairwise_key_agreement(self):

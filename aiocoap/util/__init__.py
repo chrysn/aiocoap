@@ -168,7 +168,16 @@ def quote_nonascii(s):
 class Sentinel:
     """Class for sentinel that can only be compared for identity. No efforts
     are taken to make these singletons; it is up to the users to always refer
-    to the same instance, which is typically defined on module level."""
+    to the same instance, which is typically defined on module level.
+
+    This value can intentionally not be serialized im CBOR or JSON:
+
+    >>> import json     # Not using CBOR as that may not be present for tests
+    >>> FIXME = Sentinel("FIXME")
+    >>> json.dumps([1, FIXME, 3])
+    Traceback (most recent call last):
+    TypeError: Object of type Sentinel is not JSON serializable
+    """
 
     def __init__(self, label):
         self._label = label

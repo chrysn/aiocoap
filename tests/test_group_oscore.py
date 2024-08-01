@@ -21,40 +21,33 @@ _skip_unless_oscore = unittest.skipIf(
 
 
 class WithGroupKeys(unittest.TestCase):
+    def _set_up_algorithms(self):
+        self.alg_aead = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
+        self.alg_group_enc = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
+        self.hashfun = aiocoap.oscore.hashfunctions[aiocoap.oscore.DEFAULT_HASHFUNCTION]
+        self.alg_countersign = aiocoap.oscore.Ed25519()
+        self.alg_pairwise_key_agreement = aiocoap.oscore.EcdhSsHkdf256()
+
     def setUp(self):
-        algorithm = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
-        hashfun = aiocoap.oscore.hashfunctions[aiocoap.oscore.DEFAULT_HASHFUNCTION]
-        alg_countersign = aiocoap.oscore.Ed25519()
-        alg_pairwise_key_agreement = aiocoap.oscore.EcdhSsHkdf256()
+        self._set_up_algorithms()
 
         group_id = b"G"
         participants = [b"", b"\x01", b"longname"]
-        private_keys = [alg_countersign.generate() for _ in participants]
-        creds = [
-            cbor2.dumps(
-                {
-                    8: {
-                        1: {
-                            1: 1,
-                            3: -8,
-                            -1: 6,
-                            -2: alg_countersign.public_from_private(k),
-                        }
-                    }
-                }
-            )
-            for k in private_keys
-        ]
+        private_keys, creds = zip(
+            *(self.alg_countersign.generate_with_ccs() for _ in participants)
+        )
         master_secret = secrets.token_bytes(64)
         master_salt = b"PoCl4"
+        # This would only be processed when there is actual contact with the GM
+        gm_cred = b"dummy credential"
 
         self.groups = [
             aiocoap.oscore.SimpleGroupContext(
-                algorithm,
-                hashfun,
-                alg_countersign,
-                algorithm,
-                alg_pairwise_key_agreement,
+                self.alg_aead,
+                self.hashfun,
+                self.alg_countersign,
+                self.alg_group_enc,
+                self.alg_pairwise_key_agreement,
                 group_id,
                 master_secret,
                 master_salt,
@@ -66,6 +59,8 @@ class WithGroupKeys(unittest.TestCase):
                     for j, _ in enumerate(participants)
                     if i != j
                 },
+                gm_cred,
+                group_manager_cred_fmt="dummy",
             )
             for i, _ in enumerate(participants)
         ]
@@ -105,6 +100,34 @@ class TestGroupOscoreWithPairwise(TestGroupOscore):
 
         for k, v in self.client.client_credentials.items():
             self.client.client_credentials[k] = v.pairwise_for(self.groups[0].sender_id)
+
+
+@_skip_unless_oscore
+class TestDifferentLengths(TestGroupOscore):
+    def _set_up_algorithms(self):
+        super()._set_up_algorithms()
+        # Override Group Encryption Algorithm to have 16 bytes nonce rather than the 13 of alg_aead
+        self.alg_group_enc = aiocoap.oscore.A128CBC
+
+
+# For the different length tests, it completely suffices to just run one.
+for _testname in dir(TestDifferentLengths):
+    if not _testname.startswith("test_"):
+        continue
+    if _testname != "test_big_resource":
+        setattr(TestDifferentLengths, _testname, None)
+assert any(
+    getattr(TestDifferentLengths, _t) is not None
+    for _t in dir(TestDifferentLengths)
+    if _t.startswith("test_")
+), "Removing tests left none"
+
+
+@_skip_unless_oscore
+class TestDifferentLengthsWithPairwise(
+    TestDifferentLengths, TestGroupOscoreWithPairwise
+):
+    pass
 
 
 del TestServer
