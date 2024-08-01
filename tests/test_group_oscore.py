@@ -21,13 +21,16 @@ _skip_unless_oscore = unittest.skipIf(
 
 
 class WithGroupKeys(unittest.TestCase):
-    alg_aead = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
-    alg_group_enc = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
-    hashfun = aiocoap.oscore.hashfunctions[aiocoap.oscore.DEFAULT_HASHFUNCTION]
-    alg_countersign = aiocoap.oscore.Ed25519()
-    alg_pairwise_key_agreement = aiocoap.oscore.EcdhSsHkdf256()
+    def _set_up_algorithms(self):
+        self.alg_aead = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
+        self.alg_group_enc = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
+        self.hashfun = aiocoap.oscore.hashfunctions[aiocoap.oscore.DEFAULT_HASHFUNCTION]
+        self.alg_countersign = aiocoap.oscore.Ed25519()
+        self.alg_pairwise_key_agreement = aiocoap.oscore.EcdhSsHkdf256()
 
     def setUp(self):
+        self._set_up_algorithms()
+
         group_id = b"G"
         participants = [b"", b"\x01", b"longname"]
         private_keys, creds = zip(
@@ -101,7 +104,10 @@ class TestGroupOscoreWithPairwise(TestGroupOscore):
 
 @_skip_unless_oscore
 class TestDifferentLengths(TestGroupOscore):
-    alg_group_enc = aiocoap.oscore.A128CBC
+    def _set_up_algorithms(self):
+        super()._set_up_algorithms()
+        # Override Group Encryption Algorithm to have 16 bytes nonce rather than the 13 of alg_aead
+        self.alg_group_enc = aiocoap.oscore.A128CBC
 
 
 # For the different length tests, it completely suffices to just run one.
