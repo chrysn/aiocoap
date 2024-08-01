@@ -451,10 +451,6 @@ class AlgorithmCountersign(metaclass=abc.ABCMeta):
         """Verify a signature in analogy to sign"""
 
     @abc.abstractmethod
-    def generate(self):
-        """Return a usable private key"""
-
-    @abc.abstractmethod
     def generate_with_ccs(self) -> Tuple[Any, bytes]:
         """Return a usable private key along with a CCS describing it"""
 
@@ -534,7 +530,7 @@ class Ed25519(AlgorithmCountersign):
         except cryptography.exceptions.InvalidSignature:
             raise ProtectionInvalid("Signature mismatch")
 
-    def generate(self):
+    def _generate(self):
         key = asymmetric.ed25519.Ed25519PrivateKey.generate()
         # FIXME: We could avoid handing the easy-to-misuse bytes around if the
         # current algorithm interfaces did not insist on passing the
@@ -547,7 +543,7 @@ class Ed25519(AlgorithmCountersign):
         )
 
     def generate_with_ccs(self) -> Tuple[Any, bytes]:
-        private = self.generate()
+        private = self._generate()
         public = self.public_from_private(private)
 
         ccs = cbor.dumps(
@@ -605,7 +601,6 @@ class EcdhSsHkdf256(AlgorithmStaticStatic):
     # FIXME these two will be different when using the Montgomery keys directly
 
     # This one will only be used when establishing and distributing pairwise-only keys
-    generate = Ed25519.generate
     public_from_private = Ed25519.public_from_private
 
     def staticstatic(self, private_key, public_key):
@@ -678,11 +673,11 @@ class ECDSA_SHA256_P256(AlgorithmCountersign, AlgorithmStaticStatic):
         except cryptography.exceptions.InvalidSignature:
             raise ProtectionInvalid("Signature mismatch")
 
-    def generate(self):
+    def _generate(self):
         return asymmetric.ec.generate_private_key(asymmetric.ec.SECP256R1())
 
     def generate_with_ccs(self) -> Tuple[Any, bytes]:
-        private = self.generate()
+        private = self._generate()
         public = self.public_from_private(private)
         # FIXME: Deduplicate with edhoc.py
         x = public.public_numbers().x.to_bytes(32, "big")
