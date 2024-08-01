@@ -791,7 +791,9 @@ class BaseSecurityContext:
 
         components = s + pad_id + piv_generator_id + pad_piv + partial_iv_short
 
-        nonce = _xor_bytes(self.common_iv, components)
+        # "least significant bits of the Common IV"
+        used_common_iv = self.common_iv[len(self.common_iv) - len(components) :]
+        nonce = _xor_bytes(used_common_iv, components)
 
         return nonce
 
@@ -1424,7 +1426,13 @@ class SecurityContextUtils(BaseSecurityContext):
         if out_type == "Key":
             out_bytes = self.alg_aead.key_bytes
         elif out_type == "IV":
-            out_bytes = self.alg_aead.iv_bytes
+            out_bytes = max(
+                (
+                    a.iv_bytes
+                    for a in [self.alg_aead, getattr(self, "alg_group_enc", None)]
+                    if a is not None
+                )
+            )
         elif out_type == "SEKey":
             # "While the obtained Signature Encryption Key is never used with
             # the Group Encryption Algorithm, its length was chosen to obtain a
