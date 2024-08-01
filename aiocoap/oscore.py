@@ -1975,7 +1975,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         private_key,
         sender_auth_cred,
         peers,
-        group_manager_cred=None,
+        group_manager_cred,
         cred_fmt=COSE_KCCS,
     ):
         self.sender_id = sender_id

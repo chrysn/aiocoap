@@ -35,6 +35,8 @@ class WithGroupKeys(unittest.TestCase):
         )
         master_secret = secrets.token_bytes(64)
         master_salt = b"PoCl4"
+        # This would only be processed when there is actual contact with the GM
+        gm_cred = b"dummy credential"
 
         self.groups = [
             aiocoap.oscore.SimpleGroupContext(
@@ -54,6 +56,7 @@ class WithGroupKeys(unittest.TestCase):
                     for j, _ in enumerate(participants)
                     if i != j
                 },
+                gm_cred,
             )
             for i, _ in enumerate(participants)
         ]
