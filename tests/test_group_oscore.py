@@ -21,27 +21,28 @@ _skip_unless_oscore = unittest.skipIf(
 
 
 class WithGroupKeys(unittest.TestCase):
-    def setUp(self):
-        algorithm = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
-        hashfun = aiocoap.oscore.hashfunctions[aiocoap.oscore.DEFAULT_HASHFUNCTION]
-        alg_countersign = aiocoap.oscore.Ed25519()
-        alg_pairwise_key_agreement = aiocoap.oscore.EcdhSsHkdf256()
+    alg_aead = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
+    alg_group_enc = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
+    hashfun = aiocoap.oscore.hashfunctions[aiocoap.oscore.DEFAULT_HASHFUNCTION]
+    alg_countersign = aiocoap.oscore.Ed25519()
+    alg_pairwise_key_agreement = aiocoap.oscore.EcdhSsHkdf256()
 
+    def setUp(self):
         group_id = b"G"
         participants = [b"", b"\x01", b"longname"]
         private_keys, creds = zip(
-            *(alg_countersign.generate_with_ccs() for _ in participants)
+            *(self.alg_countersign.generate_with_ccs() for _ in participants)
         )
         master_secret = secrets.token_bytes(64)
         master_salt = b"PoCl4"
 
         self.groups = [
             aiocoap.oscore.SimpleGroupContext(
-                algorithm,
-                hashfun,
-                alg_countersign,
-                algorithm,
-                alg_pairwise_key_agreement,
+                self.alg_aead,
+                self.hashfun,
+                self.alg_countersign,
+                self.alg_group_enc,
+                self.alg_pairwise_key_agreement,
                 group_id,
                 master_secret,
                 master_salt,
@@ -92,6 +93,31 @@ class TestGroupOscoreWithPairwise(TestGroupOscore):
 
         for k, v in self.client.client_credentials.items():
             self.client.client_credentials[k] = v.pairwise_for(self.groups[0].sender_id)
+
+
+@_skip_unless_oscore
+class TestDifferentLengths(TestGroupOscore):
+    alg_group_enc = aiocoap.oscore.A128CBC
+
+
+# For the different length tests, it completely suffices to just run one.
+for _testname in dir(TestDifferentLengths):
+    if not _testname.startswith("test_"):
+        continue
+    if _testname != "test_big_resource":
+        setattr(TestDifferentLengths, _testname, None)
+assert any(
+    getattr(TestDifferentLengths, _t) is not None
+    for _t in dir(TestDifferentLengths)
+    if _t.startswith("test_")
+), "Removing tests left none"
+
+
+@_skip_unless_oscore
+class TestDifferentLengthsWithPairwise(
+    TestDifferentLengths, TestGroupOscoreWithPairwise
+):
+    pass
 
 
 del TestServer
