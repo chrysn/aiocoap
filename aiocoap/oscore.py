@@ -816,7 +816,7 @@ class BaseSecurityContext:
             class_i_options = Message(request_hash=request_id.request_hash).opt.encode()
 
         algorithms: List[int | str | None] = [
-            self.alg_aead.value if self.alg_aead is not None else None
+            None if self.alg_aead is None else self.alg_aead.value
         ]
         if isinstance(self, ContextWhereExternalAadIsGroup):
             algorithms.append(
