@@ -57,6 +57,7 @@ class WithGroupKeys(unittest.TestCase):
                     if i != j
                 },
                 gm_cred,
+                group_manager_cred_fmt="dummy",
             )
             for i, _ in enumerate(participants)
         ]

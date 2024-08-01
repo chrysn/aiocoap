@@ -1960,6 +1960,8 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
     sender_auth_cred = None  # type: ignore
     group_manager_cred = None  # type: ignore
     cred_fmt = None
+    # This is currently not evaluated, but any GM interaction will need to have this information available.
+    group_manager_cred_fmt = None
 
     def __init__(
         self,
@@ -1977,6 +1979,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         peers,
         group_manager_cred,
         cred_fmt=COSE_KCCS,
+        group_manager_cred_fmt=COSE_KCCS,
     ):
         self.sender_id = sender_id
         self.id_context = group_id
@@ -1989,6 +1992,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         self.sender_auth_cred = sender_auth_cred
         self.group_manager_cred = group_manager_cred
         self.cred_fmt = cred_fmt
+        self.group_manager_cred_fmt = group_manager_cred_fmt
 
         self.peers = peers.keys()
         self.recipient_public_keys = {
