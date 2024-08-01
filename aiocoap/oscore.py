@@ -1027,7 +1027,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             keystream = self._kdf_for_keystreams(
                 partial_iv_generated_by,
                 partial_iv_short,
-                self.group_encryption_key,
+                self.signature_encryption_key,
                 self.sender_id,
                 INFO_TYPE_KEYSTREAM_REQUEST
                 if message.code.is_request()
@@ -1239,7 +1239,7 @@ class CanUnprotect(BaseSecurityContext):
             keystream = self._kdf_for_keystreams(
                 partial_iv_generated_by,
                 partial_iv_short,
-                self.group_encryption_key,
+                self.signature_encryption_key,
                 self.recipient_id,
                 INFO_TYPE_KEYSTREAM_REQUEST
                 if protected_message.code.is_request()
@@ -1425,7 +1425,10 @@ class SecurityContextUtils(BaseSecurityContext):
             out_bytes = self.alg_aead.key_bytes
         elif out_type == "IV":
             out_bytes = self.alg_aead.iv_bytes
-        elif out_type == "Group Encryption Key":
+        elif out_type == "SEKey":
+            # "While the obtained Signature Encryption Key is never used with
+            # the Group Encryption Algorithm, its length was chosen to obtain a
+            # matching level of security."
             out_bytes = self.alg_group_enc.key_bytes
         else:
             raise ValueError("Output type not recognized")
@@ -2051,8 +2054,8 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
 
         # but this one is new
 
-        self.group_encryption_key = self._kdf(
-            master_salt, master_secret, b"", "Group Encryption Key"
+        self.signature_encryption_key = self._kdf(
+            master_salt, master_secret, b"", "SEKey"
         )
 
     def post_seqnoincrease(self):
@@ -2158,8 +2161,8 @@ class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
         return self.groupcontext.hashfun
 
     @property
-    def group_encryption_key(self):
-        return self.groupcontext.group_encryption_key
+    def signature_encryption_key(self):
+        return self.groupcontext.signature_encryption_key
 
     @property
     def recipient_key(self):
