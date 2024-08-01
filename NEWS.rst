@@ -1,3 +1,26 @@
+Version 0.4.11
+--------------
+
+New features
+~~~~~~~~~~~~
+
+* Group OSCORE is updated to draft version -21.
+* max_regular_block_size_exp can now be set on remotes by the client.
+  This allows influencing both the Block1 and the Block2 size.
+* EDHOC: Allow private keys to be generated in RAM, and specified directly in the credentials file.
+
+Examples
+~~~~~~~~
+
+* Add EDHOC demo for Jupyter.
+
+Minor fixes
+~~~~~~~~~~~
+
+* IP addresses are subjected to URI syntax normalization.
+* Avoid mixups between TLS and non-TLS contexts.
+* Send Uri-Host and Uri-Scheme in manually constructed EDHOC message.
+
 Version 0.4.10
 --------------
 
