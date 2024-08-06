@@ -15,11 +15,17 @@ from aiocoap import GET, PUT, POST, Message, CONTENT, CHANGED
 from aiocoap.error import BadRequest, UnsupportedContentFormat, UnallowedMethod
 
 
-_ContenttypeRenderedHandler = namedtuple("_ContenttypeRenderedHandler", ("method", "accept", "contentformat", "implementation", "responseformat"))
+_ContenttypeRenderedHandler = namedtuple(
+    "_ContenttypeRenderedHandler",
+    ("method", "accept", "contentformat", "implementation", "responseformat"),
+)
 
 # this could become an alternative to the resource.Resource currently implemented in aiocoap.resource
 
-class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resource, metaclass=abc.ABCMeta):
+
+class ContenttypeRendered(
+    resource._ExposesWellknownAttributes, interfaces.Resource, metaclass=abc.ABCMeta
+):
     def __init_subclass__(cls):
         # __new__ code moved in here to use __ properties
         cls.__handlers = defaultdict(lambda: {})
@@ -27,7 +33,10 @@ class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resou
             if isinstance(member, _ContenttypeRenderedHandler):
                 for accept in member.accept:
                     for contentformat in member.contentformat:
-                        cls.__handlers[member.method][(accept, contentformat)] = (member.implementation, member.responseformat)
+                        cls.__handlers[member.method][(accept, contentformat)] = (
+                            member.implementation,
+                            member.responseformat,
+                        )
 
     @staticmethod
     def get_handler(accept, *, default=False):
@@ -49,9 +58,13 @@ class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resou
         as an empty payload, strings are encoded in UTF-8). It is unclear yet
         whether more complex conversions (eg. JSON, CBOR) will be supported by
         this or need additonal decorators."""
+
         def wrapper(func):
             cf = numbers.media_types_rev[accept]
-            return _ContenttypeRenderedHandler(GET, (cf, None) if default else (cf,), (None,), func, cf)
+            return _ContenttypeRenderedHandler(
+                GET, (cf, None) if default else (cf,), (None,), func, cf
+            )
+
         return wrapper
 
     @staticmethod
@@ -61,7 +74,10 @@ class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resou
                 cf = numbers.media_types_rev[contentformat]
             else:
                 cf = contentformat
-            return _ContenttypeRenderedHandler(PUT, (None,), (cf, None) if default else (cf,), func, None)
+            return _ContenttypeRenderedHandler(
+                PUT, (None,), (cf, None) if default else (cf,), func, None
+            )
+
         return wrapper
 
     @staticmethod
@@ -69,6 +85,7 @@ class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resou
         # i suppose this'll be replaced with something more generic when i add something that needs request or response payloads
         def wrapper(func):
             return _ContenttypeRenderedHandler(POST, (None,), (None,), func, None)
+
         return wrapper
 
     async def needs_blockwise_assembly(self, request):
@@ -107,7 +124,7 @@ class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resou
 
         for p in parameters:
             if p == "payload":
-                kwargs['payload'] = request.payload
+                kwargs["payload"] = request.payload
             elif p == "request_uri":
                 # BIG FIXME: This does not give the expected results due to the
                 # URI path stripping in Site, and because Message gets the
@@ -120,14 +137,15 @@ class ContenttypeRendered(resource._ExposesWellknownAttributes, interfaces.Resou
         if payload is None:
             payload = b""
         elif isinstance(payload, str):
-            payload = payload.encode('utf8')
+            payload = payload.encode("utf8")
 
         return Message(
-                code={GET: CONTENT, PUT: CHANGED}[request.code],
-                payload=payload,
-                content_format=responseformat,
-                no_response=request.opt.no_response,
-                )
+            code={GET: CONTENT, PUT: CHANGED}[request.code],
+            payload=payload,
+            content_format=responseformat,
+            no_response=request.opt.no_response,
+        )
+
 
 class ObservableContenttypeRendered(ContenttypeRendered, interfaces.ObservableResource):
     def __init__(self):
@@ -165,29 +183,32 @@ class SenmlResource(ObservableContenttypeRendered):
     is used both for converting any text/plain'ly PUT string as well as for
     filtering (typically copy-constructing) data from SenML."""
 
-    @ContenttypeRendered.get_handler('application/senml+json')
+    @ContenttypeRendered.get_handler("application/senml+json")
     def __jsonsenml_get(self, request_uri):
         return json.dumps([{"n": request_uri, self.jsonsenml_key: self.value}])
 
-    @ContenttypeRendered.get_handler('application/senml+cbor')
+    @ContenttypeRendered.get_handler("application/senml+cbor")
     def __cborsenml_get(self, request_uri):
         return cbor.dumps([{0: request_uri, self.cborsenml_key: self.value}])
 
-    @ContenttypeRendered.get_handler('text/plain;charset=utf-8', default=True)
+    @ContenttypeRendered.get_handler("text/plain;charset=utf-8", default=True)
     def __textplain_get(self):
         return str(self.value)
 
-    @ContenttypeRendered.put_handler('application/senml+json')
+    @ContenttypeRendered.put_handler("application/senml+json")
     def __jsonsenml_set(self, payload, request_uri):
         try:
-            new = json.loads(payload.decode('utf8'))
-            if len(new) != 1 or new[0].get("bn", "") + new[0].get("n", "") != request_uri:
+            new = json.loads(payload.decode("utf8"))
+            if (
+                len(new) != 1
+                or new[0].get("bn", "") + new[0].get("n", "") != request_uri
+            ):
                 raise BadRequest("Not a single record pertaining to this resource")
             self.value = self.valuetype(new[0][self.jsonsenml_key])
         except (KeyError, ValueError):
             raise BadRequest()
 
-    @ContenttypeRendered.put_handler('application/senml+cbor')
+    @ContenttypeRendered.put_handler("application/senml+cbor")
     def __cborsenml_set(self, payload, request_uri):
         try:
             new = cbor.loads(payload)
@@ -197,38 +218,42 @@ class SenmlResource(ObservableContenttypeRendered):
         except (KeyError, ValueError):
             raise BadRequest()
 
-    @ContenttypeRendered.put_handler('text/plain;charset=utf-8', default=True)
+    @ContenttypeRendered.put_handler("text/plain;charset=utf-8", default=True)
     def __textplain_set(self, payload):
         try:
-            self.value = self.valuetype(payload.decode('utf8').strip())
+            self.value = self.valuetype(payload.decode("utf8").strip())
         except ValueError:
             raise BadRequest()
+
 
 class BooleanResource(SenmlResource):
     jsonsenml_key = "vb"
     cborsenml_key = 4
     valuetype = bool
 
-    @ContenttypeRendered.get_handler('text/plain;charset=utf-8', default=True)
+    @ContenttypeRendered.get_handler("text/plain;charset=utf-8", default=True)
     def __textplain_get(self):
         return "01"[self.value]
 
-    @ContenttypeRendered.put_handler('text/plain;charset=utf-8', default=True)
+    @ContenttypeRendered.put_handler("text/plain;charset=utf-8", default=True)
     def __textplain_set(self, payload):
         try:
-            self.value = {"0": False, "1": True}[payload.decode('utf8').strip()]
+            self.value = {"0": False, "1": True}[payload.decode("utf8").strip()]
         except (KeyError, ValueError):
             raise BadRequest()
+
 
 class FloatResource(SenmlResource):
     jsonsenml_key = "v"
     cborsenml_key = 2
     valuetype = float
 
+
 class StringResource(SenmlResource):
     jsonsenml_key = "vs"
     cborsenml_key = 3
     valuetype = str
+
 
 class SubsiteBatch(ObservableContenttypeRendered):
     """An implementation of a CoRE interfaces batch that is the root resource
@@ -238,7 +263,7 @@ class SubsiteBatch(ObservableContenttypeRendered):
     resources; it could enumerate them later, but it installs its own
     value_changed callbacks of other members at initialization time."""
 
-    if_ = 'core.b'
+    if_ = "core.b"
 
     def __init__(self, site):
         self.site = site
@@ -253,9 +278,9 @@ class SubsiteBatch(ObservableContenttypeRendered):
                 subres.add_valuechange_callback(self.value_changed)
         for subsite in self.site._subsites.values():
             if not isinstance(subsite, resource.Site):
-                continue # can't access privates
+                continue  # can't access privates
             if () not in subsite._resources:
-                continue # no root, better not try
+                continue  # no root, better not try
             rootres = subsite._resources[()]
             if not isinstance(rootres, SubsiteBatch):
                 continue
@@ -265,26 +290,30 @@ class SubsiteBatch(ObservableContenttypeRendered):
         records = []
         # FIXME this ties in directly into resource.Site's privates
         for path, subres in self.site._resources.items():
-            if isinstance(subres, SenmlResource): # this conveniently filters out self as well
-                records.append({'n': '/'.join(path), subres.jsonsenml_key: subres.value})
+            if isinstance(
+                subres, SenmlResource
+            ):  # this conveniently filters out self as well
+                records.append(
+                    {"n": "/".join(path), subres.jsonsenml_key: subres.value}
+                )
         print(self.site, vars(self.site))
         for path, subsite in self.site._subsites.items():
             if not isinstance(subsite, resource.Site):
-                continue # can't access privates
+                continue  # can't access privates
             if () not in subsite._resources:
-                continue # no root, better not try
+                continue  # no root, better not try
             rootres = subsite._resources[()]
             if not isinstance(rootres, SubsiteBatch):
                 continue
             for r in rootres.__get_records(request_uri):
                 r = dict(**r)
-                r.pop('bn', None)
-                r['n'] = "/".join(path) + "/" + r['n']
+                r.pop("bn", None)
+                r["n"] = "/".join(path) + "/" + r["n"]
                 records.append(r)
-        records[0]['bn'] = request_uri
+        records[0]["bn"] = request_uri
         return records
 
-    @ContenttypeRendered.get_handler('application/senml+json', default=True)
+    @ContenttypeRendered.get_handler("application/senml+json", default=True)
     def __regular_get(self, request_uri):
         return json.dumps(self.__get_records(request_uri))
 
@@ -294,7 +323,7 @@ class PythonBacked(SenmlResource):
     .value_changed() trigger on every change"""
 
     def _set_value(self, value):
-        changed = not hasattr(self, '_value') or self._value != value
+        changed = not hasattr(self, "_value") or self._value != value
         self._value = value
         if changed:
             self.value_changed()

@@ -2,8 +2,10 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""Client components for draft-ietf-core-resource-directory
+"""Client components for RFC9176_
 
 Currently, this only contains the :mod:`register` module, which helps utilizing
 the registration interface of a resource directory.
+
+.. _RFC9176: https://datatracker.ietf.org/doc/html/rfc9176
 """

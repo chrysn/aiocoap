@@ -6,11 +6,14 @@
 
 from __future__ import annotations
 
-from ..util import ExtensibleIntEnum
+from typing import Dict, Tuple
+
+from ..util import ExtensibleIntEnum, ExtensibleEnumMeta
 import warnings
 
 # _raw can be updated from: `curl https://www.iana.org/assignments/core-parameters/content-formats.csv | python3 -c 'import csv, sys; print(list(csv.reader(sys.stdin))[1:])'`
 
+# fmt: off
 _raw = [
         ['text/plain; charset=utf-8', '', '0', '[RFC2046][RFC3676][RFC5147]'],
         ['Unassigned', '', '1-15', ''],
@@ -106,14 +109,27 @@ _raw = [
         ['Unassigned', '', '30001-64999', ''],
         ['Reserved for Experimental Use', '', '65000-65535', '[RFC7252]'],
         ]
+# fmt: on
+
 
 def _normalize_media_type(s):
     """Strip out the white space between parameters; doesn't need to fully
     parse the types because it's applied to values of _raw (or to input that'll
     eventually be compared to them and fail)"""
-    return s.replace('; ', ';')
+    return s.replace("; ", ";")
 
-class ContentFormat(ExtensibleIntEnum):
+
+class ContentFormatMeta(ExtensibleEnumMeta):
+    def __init__(self, name, bases, dict) -> None:
+        super().__init__(name, bases, dict)
+
+        # If this were part of the class definition, it would be taken up as an
+        # enum instance; hoisting it to the metaclass avoids that special
+        # treatment.
+        self._by_mt_encoding: Dict[Tuple[str, str], "ContentFormat"] = {}
+
+
+class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
     """Entry in the `CoAP Content-Formats registry`__ of the IANA Constrained
     RESTful Environments (Core) Parameters group
 
@@ -145,7 +161,7 @@ class ContentFormat(ExtensibleIntEnum):
     >>> ContentFormat.TEXT
     <ContentFormat 0, media_type='text/plain; charset=utf-8', encoding='identity'>
 
-    A convenient property of ContentFormat is that any known content format is
+    A convenient property of ContentFormat is that any content format is
     true in a boolean context, and thus when used in alternation with None, can
     be assigned defaults easily:
 
@@ -157,7 +173,23 @@ class ContentFormat(ExtensibleIntEnum):
     """
 
     @classmethod
-    def by_media_type(cls, media_type: str, encoding: str = 'identity') -> ContentFormat:
+    def define(cls, number, media_type: str, encoding: str = "identity"):
+        s = cls(number)
+
+        if hasattr(s, "media_type"):
+            warnings.warn(
+                "Redefining media type is a compatibility hazard, but allowed for experimental purposes"
+            )
+
+        s._media_type = media_type
+        s._encoding = encoding
+
+        cls._by_mt_encoding[(_normalize_media_type(media_type), encoding)] = s
+
+    @classmethod
+    def by_media_type(
+        cls, media_type: str, encoding: str = "identity"
+    ) -> ContentFormat:
         """Produce known entry for a known media type (and encoding, though
         'identity' is default due to its prevalence), or raise KeyError."""
         return cls._by_mt_encoding[(_normalize_media_type(media_type), encoding)]
@@ -165,16 +197,58 @@ class ContentFormat(ExtensibleIntEnum):
     def is_known(self):
         return hasattr(self, "media_type")
 
+    @property
+    def media_type(self) -> str:
+        return self._media_type
+
+    @media_type.setter
+    def media_type(self, media_type: str) -> None:
+        warnings.warn(
+            "Setting media_type or encoding is deprecated, use ContentFormat.define(media_type, encoding) instead.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        self._media_type = media_type
+
+    @property
+    def encoding(self) -> str:
+        return self._encoding
+
+    @encoding.setter
+    def encoding(self, encoding: str) -> None:
+        warnings.warn(
+            "Setting media_type or encoding is deprecated, use ContentFormat(number, media_type, encoding) instead.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        self._encoding = encoding
+
     @classmethod
     def _rehash(cls):
         """Update the class's cache of known media types
 
         Run this after having created entries with media type and encoding that
         should be found later on."""
-        cls._by_mt_encoding = {(_normalize_media_type(c.media_type), c.encoding): c for c in cls._value2member_map_.values()}
+        # showing as a deprecation even though it is a private function because
+        # altering media_type/encoding required users to call this.
+        warnings.warn(
+            "This function is not needed when defining a content type through `.define()` rather than by setting media_type and encoding.",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        cls._by_mt_encoding = {
+            (_normalize_media_type(c.media_type), c.encoding): c
+            for c in cls._value2member_map_.values()
+        }
 
     def __repr__(self):
-        return "<%s %d%s>" % (type(self).__name__, self, ', media_type=%r, encoding=%r' % (self.media_type, self.encoding) if self.is_known() else "")
+        return "<%s %d%s>" % (
+            type(self).__name__,
+            self,
+            ", media_type=%r, encoding=%r" % (self.media_type, self.encoding)
+            if self.is_known()
+            else "",
+        )
 
     def __bool__(self):
         return True
@@ -183,6 +257,7 @@ class ContentFormat(ExtensibleIntEnum):
         # The name with title thing isn't too pretty for these ones
         if self.is_known():
             import html
+
             return f"""<abbr title="Content format {int(self)}{', named ContentFormat.' + html.escape(self.name) if hasattr(self, 'name') else ''}">{html.escape(self.media_type)}{'@' + self.encoding if self.encoding != 'identity' else ''}</abbr>"""
         else:
             return f"""<abbr title="Unknown content format">{int(self)}</abbr>"""
@@ -194,21 +269,24 @@ class ContentFormat(ExtensibleIntEnum):
     CBOR = 60
     SENML = 112
 
-for (_mt, _enc, _i, _source) in _raw:
+
+for _mt, _enc, _i, _source in _raw:
     if _mt in ["Reserved for Experimental Use", "Reserved, do not use", "Unassigned"]:
         continue
-    _mt, _, _ = _mt.partition(' (TEMPORARY')
-    _cf = ContentFormat(int(_i))
-    _cf.media_type = _mt
-    _cf.encoding = _enc or "identity"
-ContentFormat._rehash()
+    _mt, _, _ = _mt.partition(" (TEMPORARY")
+    ContentFormat.define(int(_i), _mt, _enc or "identity")
 
 
 class _MediaTypes:
     """Wrapper to provide a media_types indexable object as was present up to
     0.4.2"""
+
     def __getitem__(self, content_format):
-        warnings.warn("media_types is deprecated, please use aiocoap.numbers.ContentFormat", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "media_types is deprecated, please use aiocoap.numbers.ContentFormat",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if content_format is None:
             # That was a convenient idiom to short-circuit through, but would
             # fail through the constructor
@@ -221,26 +299,40 @@ class _MediaTypes:
             raise KeyError(content_format)
 
     def get(self, content_format, default=None):
-        warnings.warn("media_types is deprecated, please use aiocoap.numbers.ContentFormat", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "media_types is deprecated, please use aiocoap.numbers.ContentFormat",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         try:
             return self[content_format]
         except KeyError:
             return default
 
+
 class _MediaTypesRev:
     """Wrapper to provide a media_types_rev indexable object as was present up
     to 0.4.2"""
+
     def __getitem__(self, name):
-        warnings.warn("media_types_rev is deprecated, please use aiocoap.numbers.ContentFormat", DeprecationWarning, stacklevel=2)
-        if name == 'text/plain':
+        warnings.warn(
+            "media_types_rev is deprecated, please use aiocoap.numbers.ContentFormat",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if name == "text/plain":
             # deprecated alias. Kept alive for scripts like
             # https://gitlab.f-interop.eu/f-interop-contributors/ioppytest/blob/develop/automation/coap_client_aiocoap/automated_iut.py
             # that run aiocoap-client with text/plain as an argument.
-            name = 'text/plain;charset=utf-8'
+            name = "text/plain;charset=utf-8"
         return int(ContentFormat.by_media_type(name))
 
     def get(self, name, default=None):
-        warnings.warn("media_types_rev is deprecated, please use aiocoap.numbers.ContentFormat", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            "media_types_rev is deprecated, please use aiocoap.numbers.ContentFormat",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         try:
             return self[name]
         except KeyError:

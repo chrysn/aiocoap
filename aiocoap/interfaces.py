@@ -21,6 +21,7 @@ from aiocoap.numbers.constants import MAX_REGULAR_BLOCK_SIZE_EXP
 
 from typing import Optional, Callable
 
+
 class MessageInterface(metaclass=abc.ABCMeta):
     """A MessageInterface is an object that can exchange addressed messages over
     unreliable transports. Implementations send and receive messages with
@@ -52,6 +53,7 @@ class MessageInterface(metaclass=abc.ABCMeta):
         May return None, which indicates that the MessageInterface can not
         transport the message (typically because it is of the wrong scheme)."""
 
+
 class EndpointAddress(metaclass=abc.ABCMeta):
     """An address that is suitable for routing through the application to a
     remote endpoint.
@@ -64,7 +66,7 @@ class EndpointAddress(metaclass=abc.ABCMeta):
     participant 0x01 of the OSCAP key 0x..., routed over <another
     EndpointAddress>".
 
-    EndpointAddresses are only concstructed by MessageInterface objects,
+    EndpointAddresses are only constructed by MessageInterface objects,
     either for incoming messages or when populating a message's .remote in
     :meth:`MessageInterface.determine_remote`.
 
@@ -143,18 +145,22 @@ class EndpointAddress(metaclass=abc.ABCMeta):
         communication. (Should there ever be a scheme that addresses the
         participants differently, a scheme_local will be added.)"""
 
-    maximum_block_size_exp = MAX_REGULAR_BLOCK_SIZE_EXP
-    """The maximum negotiated block size that can be sent to this remote."""
+    @property
+    def maximum_block_size_exp(self) -> int:
+        """The maximum negotiated block size that can be sent to this remote."""
+        return MAX_REGULAR_BLOCK_SIZE_EXP
 
     # Giving some slack so that barely-larger messages (like OSCORE typically
     # are) don't get fragmented -- but still for migration to maximum message
     # size so we don't have to guess any more how much may be option and how
     # much payload
-    maximum_payload_size = 1124
-    """The maximum payload size that can be sent to this remote. Only relevant
-    if maximum_block_size_exp is 7. This will be removed in favor of a maximum
-    message size when the block handlers can get serialization length
-    predictions from the remote."""
+    @property
+    def maximum_payload_size(self) -> int:
+        """The maximum payload size that can be sent to this remote. Only relevant
+        if maximum_block_size_exp is 7. This will be removed in favor of a maximum
+        message size when the block handlers can get serialization length
+        predictions from the remote."""
+        return 1124
 
     def as_response_address(self):
         """Address to be assigned to a response to messages that arrived with
@@ -205,6 +211,7 @@ class EndpointAddress(metaclass=abc.ABCMeta):
         # it's available and if the claims set matches it can't be that wrong
         # either can it?)
 
+
 class MessageManager(metaclass=abc.ABCMeta):
     """The interface an entity that drives a MessageInterface provides towards
     the MessageInterface for callbacks and object acquisition."""
@@ -224,9 +231,12 @@ class MessageManager(metaclass=abc.ABCMeta):
         """A CredentialsMap that transports should consult when trying to
         establish a security context"""
 
+
 class TokenInterface(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def send_message(self, message, messageerror_monitor) -> Optional[Callable[[], None]]:
+    def send_message(
+        self, message, messageerror_monitor
+    ) -> Optional[Callable[[], None]]:
         """Send a message. If it returns a a callable, the caller is asked to
         call in case it no longer needs the message sent, and to dispose of if
         it doesn't intend to any more.
@@ -250,9 +260,11 @@ class TokenInterface(metaclass=abc.ABCMeta):
         message if it should (by its unresolved remote or Uri-* options) be
         routed through this TokenInterface, or return False otherwise."""
 
+
 class TokenManager(metaclass=abc.ABCMeta):
     # to be described in full; at least there is a dispatch_error in analogy to MessageManager's
     pass
+
 
 class RequestInterface(metaclass=abc.ABCMeta):
     @abc.abstractmethod
@@ -263,15 +275,37 @@ class RequestInterface(metaclass=abc.ABCMeta):
     def request(self, request: Pipe):
         pass
 
+
 class RequestProvider(metaclass=abc.ABCMeta):
+    """
+    .. automethod:: request
+    .. (which we have to list here manually because the private override in the
+       method is needed for the repeated signature in Context)
+    """
+
     @abc.abstractmethod
-    def request(self, request_message):
-        """Create and act on a a :class:`Request` object that will be handled
+    def request(self, request_message, handle_blockwise=True):
+        """Create and act on a :class:`Request` object that will be handled
         according to the provider's implementation.
 
         Note that the request is not necessarily sent on the wire immediately;
         it may (but, depend on the transport does not necessarily) rely on the
-        response to be waited for."""
+        response to be waited for.
+
+        If handle_blockwise is True (the default), the request provider will
+        split the request and/or collect the response parts automatically. The
+        block size indicated by the remote is used, and can be decreased by
+        setting the message's :attr:`.remote.maximum_block_size_exp
+        <aiocoap.interfaces.EndpointAddress.maximum_block_size_exp>` property.
+        Note that by being a property of the remote, this may affect other
+        block-wise operations on the same remote -- this should be desirable
+        behavior.
+
+        :meta private:
+            (not actually private, just hiding from automodule due to being
+            grouped with the important functions)
+        """
+
 
 class Request(metaclass=abc.ABCMeta):
     """A CoAP request, initiated by sending a message. Typically, this is not
@@ -287,6 +321,7 @@ class Request(metaclass=abc.ABCMeta):
         aiocoap, and should better stop the whole application.
         """
 
+
 class Resource(metaclass=abc.ABCMeta):
     """Interface that is expected by a :class:`.protocol.Context` to be present
     on the serversite, which renders all requests to that context."""
@@ -301,6 +336,7 @@ class Resource(metaclass=abc.ABCMeta):
         # them, or to make them weak.
 
         from .blockwise import Block1Spool, Block2Cache
+
         self._block1 = Block1Spool()
         self._block2 = Block2Cache()
 
@@ -318,22 +354,26 @@ class Resource(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     async def needs_blockwise_assembly(self, request):
-        """Indicator to the :class:`.protocol.Responder` about whether it
-        should assemble request blocks to a single request and extract the
-        requested blocks from a complete-resource answer (True), or whether
-        the resource will do that by itself (False)."""
+        """Indicator whether aiocoap should assemble request blocks to a single
+        request and extract the requested blocks from a complete-resource
+        answer (True), or whether the resource will do that by itself
+        (False)."""
 
-    async def _render_to_pipe(self, request: Pipe):
+    async def _render_to_pipe(self, pipe: Pipe) -> None:
         if not hasattr(self, "_block1"):
-            warnings.warn("No attribute _block1 found on instance of "
-                    f"{type(self).__name__}, make sure its __init__ code "
-                    "properly calls super()!", DeprecationWarning)
+            warnings.warn(
+                "No attribute _block1 found on instance of "
+                f"{type(self).__name__}, make sure its __init__ code "
+                "properly calls super()!",
+                DeprecationWarning,
+            )
 
             from .blockwise import Block1Spool, Block2Cache
+
             self._block1 = Block1Spool()
             self._block2 = Block2Cache()
 
-        req = request.request
+        req = pipe.request
 
         if await self.needs_blockwise_assembly(req):
             req = self._block1.feed_and_take(req)
@@ -347,29 +387,33 @@ class Resource(metaclass=abc.ABCMeta):
         else:
             res = await self.render(req)
 
-        request.add_response(res, is_last=True)
+        pipe.add_response(res, is_last=True)
 
-    async def render_to_pipe(self, request: Pipe):
+    async def render_to_pipe(self, pipe: Pipe) -> None:
         """Create any number of responses (as indicated by the request) into
         the request stream.
 
         This method is provided by the base Resource classes; if it is
-        overridden, then :meth:`~.Resource.render`, :meth:`needs_blockwise_assembly` and
-        :meth:`~.ObservableResource.add_observation` are not used any more.
+        overridden, then :meth:`~interfaces.Resource.render`, :meth:`needs_blockwise_assembly` and
+        :meth:`~.interfaces.ObservableResource.add_observation` are not used any more.
         (They still need to be implemented to comply with the interface
         definition, which is yet to be updated)."""
-        warnings.warn("Request interface is changing: Resources should "
-                "implement render_to_pipe or inherit from "
-                "resource.Resource which implements that based on any "
-                "provided render methods", DeprecationWarning)
+        warnings.warn(
+            "Request interface is changing: Resources should "
+            "implement render_to_pipe or inherit from "
+            "resource.Resource which implements that based on any "
+            "provided render methods",
+            DeprecationWarning,
+        )
         if isinstance(self, ObservableResource):
             # While the above deprecation is used, a resource previously
             # inheriting from (X, ObservableResource) with X inheriting from
             # Resource might find itself using this method. When migrating over
             # to inheriting from resource.Resource, this error will become
             # apparent and this can die with the rest of this workaround.
-            return await ObservableResource._render_to_pipe(self, request)
-        return await self._render_to_pipe(request)
+            return await ObservableResource._render_to_pipe(self, pipe)
+        await self._render_to_pipe(pipe)
+
 
 class ObservableResource(Resource, metaclass=abc.ABCMeta):
     """Interface the :class:`.protocol.ServerObservation` uses to negotiate
@@ -379,6 +423,7 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
     the notification contents will be retrieved from the resource using the
     regular :meth:`~.Resource.render` method from crafted (fake) requests.
     """
+
     @abc.abstractmethod
     async def add_observation(self, request, serverobservation):
         """Before the incoming request is sent to :meth:`~.Resource.render`, the
@@ -390,8 +435,7 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
         ServerObservation will then initiate notifications by having the
         request rendered again."""
 
-
-    async def _render_to_pipe(self, pipe):
+    async def _render_to_pipe(self, pipe: Pipe) -> None:
         from .protocol import ServerObservation
 
         # If block2:>0 comes along, we'd just ignore the observe
@@ -408,8 +452,11 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
         try:
             first_response = await self.render(pipe.request)
 
-            if not servobs._accepted or servobs._early_deregister or \
-                    not first_response.code.is_successful():
+            if (
+                not servobs._accepted
+                or servobs._early_deregister
+                or not first_response.code.is_successful()
+            ):
                 pipe.add_response(first_response, is_last=True)
                 return
 
@@ -451,9 +498,12 @@ class ObservableResource(Resource, metaclass=abc.ABCMeta):
         finally:
             servobs._cancellation_callback()
 
-    async def render_to_pipe(self, request: Pipe):
-        warnings.warn("Request interface is changing: Resources should "
-                "implement render_to_pipe or inherit from "
-                "resource.Resource which implements that based on any "
-                "provided render methods", DeprecationWarning)
-        return await self._render_to_pipe(request)
+    async def render_to_pipe(self, request: Pipe) -> None:
+        warnings.warn(
+            "Request interface is changing: Resources should "
+            "implement render_to_pipe or inherit from "
+            "resource.Resource which implements that based on any "
+            "provided render methods",
+            DeprecationWarning,
+        )
+        await self._render_to_pipe(request)

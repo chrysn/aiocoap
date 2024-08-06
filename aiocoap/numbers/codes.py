@@ -17,6 +17,7 @@ import warnings
 
 from ..util import ExtensibleIntEnum
 
+
 class Code(ExtensibleIntEnum):
     """Value for the CoAP "Code" field.
 
@@ -50,10 +51,14 @@ class Code(ExtensibleIntEnum):
     PRECONDITION_FAILED = 140
     REQUEST_ENTITY_TOO_LARGE = 141
     UNSUPPORTED_CONTENT_FORMAT = 143
+
     @property
     def UNSUPPORTED_MEDIA_TYPE(self):
-        warnings.warn("UNSUPPORTED_MEDIA_TYPE is a deprecated alias for UNSUPPORTED_CONTENT_FORMAT")
+        warnings.warn(
+            "UNSUPPORTED_MEDIA_TYPE is a deprecated alias for UNSUPPORTED_CONTENT_FORMAT"
+        )
         return self.UNSUPPORTED_CONTENT_FORMAT
+
     UNPROCESSABLE_ENTITY = (4 << 5) + 22
     TOO_MANY_REQUESTS = (4 << 5) + 29
     INTERNAL_SERVER_ERROR = 160
@@ -74,14 +79,12 @@ class Code(ExtensibleIntEnum):
         """True if the code is in the request code range"""
         return True if (self >= 1 and self < 32) else False
 
-
     def is_response(self):
         """True if the code is in the response code range"""
         return True if (self >= 64 and self < 192) else False
 
     def is_signalling(self):
         return True if self >= 224 else False
-
 
     def is_successful(self):
         """True if the code is in the successful subrange of the response code range"""
@@ -90,7 +93,13 @@ class Code(ExtensibleIntEnum):
     def can_have_payload(self):
         """True if a message with that code can carry a payload. This is not
         checked for strictly, but used as an indicator."""
-        return self.is_response() or self in (self.POST, self.PUT, self.FETCH, self.PATCH, self.iPATCH)
+        return self.is_response() or self in (
+            self.POST,
+            self.PUT,
+            self.FETCH,
+            self.PATCH,
+            self.iPATCH,
+        )
 
     @property
     def class_(self):
@@ -116,7 +125,7 @@ class Code(ExtensibleIntEnum):
     @property
     def name_printable(self):
         """The name of the code in human-readable form"""
-        return self.name.replace('_', ' ').title()
+        return self.name.replace("_", " ").title()
 
     def __str__(self):
         """
@@ -137,7 +146,13 @@ class Code(ExtensibleIntEnum):
             return "%d" % self
 
     def _classification(self):
-        return ("Successful " if self.is_successful() else "") + ("Request " if self.is_request() else "Response " if self.is_response() else "")
+        return ("Successful " if self.is_successful() else "") + (
+            "Request "
+            if self.is_request()
+            else "Response "
+            if self.is_response()
+            else ""
+        )
 
     def __repr__(self):
         """
@@ -152,17 +167,77 @@ class Code(ExtensibleIntEnum):
         """
         return '<%sCode %d "%s">' % (self._classification(), self, self)
 
-    name = property(lambda self: self._name if hasattr(self, "_name") else "(unknown)", lambda self, value: setattr(self, "_name", value), doc="The constant name of the code (equals name_printable readable in all-caps and with underscores)")
-
     def _repr_html_(self):
+        """
+        >>> Code.GET._repr_html_()
+        '<abbr title="Request Code 0.01">GET</abbr>'
+        >>> Code(31)._repr_html_()
+        '<abbr title="Unknown Request Code">0.31</abbr>'
+        """
         import html
-        if hasattr(self, "_name"):
-            return f'<abbr title="{self._classification()}Code {self.dotted}">{html.escape(self.name)}</abbr>'
-        else:
+
+        if self.name == "(unknown)":
             return f'<abbr title="Unknown {self._classification()}Code">{self.dotted}</abbr>'
+        else:
+            return f'<abbr title="{self._classification()}Code {self.dotted}">{html.escape(self.name)}</abbr>'
 
-for k in vars(Code):
-    if isinstance(getattr(Code, k), Code):
-        locals()[k] = getattr(Code, k)
+    @classmethod
+    def _missing_(cls, value):
+        constructed = super()._missing_(value)
+        constructed._name_ = "(unknown)"
+        return constructed
 
-__all__ = ['Code'] + [k for (k, v) in locals().items() if isinstance(v, Code)]
+
+# List is copied down to help mypy and other typing dependent tools to
+# understand the types.
+EMPTY = Code.EMPTY
+GET = Code.GET
+POST = Code.POST
+PUT = Code.PUT
+DELETE = Code.DELETE
+FETCH = Code.FETCH
+PATCH = Code.PATCH
+iPATCH = Code.iPATCH
+CREATED = Code.CREATED
+DELETED = Code.DELETED
+VALID = Code.VALID
+CHANGED = Code.CHANGED
+CONTENT = Code.CONTENT
+CONTINUE = Code.CONTINUE
+BAD_REQUEST = Code.BAD_REQUEST
+UNAUTHORIZED = Code.UNAUTHORIZED
+BAD_OPTION = Code.BAD_OPTION
+FORBIDDEN = Code.FORBIDDEN
+NOT_FOUND = Code.NOT_FOUND
+METHOD_NOT_ALLOWED = Code.METHOD_NOT_ALLOWED
+NOT_ACCEPTABLE = Code.NOT_ACCEPTABLE
+REQUEST_ENTITY_INCOMPLETE = Code.REQUEST_ENTITY_INCOMPLETE
+CONFLICT = Code.CONFLICT
+PRECONDITION_FAILED = Code.PRECONDITION_FAILED
+REQUEST_ENTITY_TOO_LARGE = Code.REQUEST_ENTITY_TOO_LARGE
+UNSUPPORTED_CONTENT_FORMAT = Code.UNSUPPORTED_CONTENT_FORMAT
+UNPROCESSABLE_ENTITY = Code.UNPROCESSABLE_ENTITY
+TOO_MANY_REQUESTS = Code.TOO_MANY_REQUESTS
+INTERNAL_SERVER_ERROR = Code.INTERNAL_SERVER_ERROR
+NOT_IMPLEMENTED = Code.NOT_IMPLEMENTED
+BAD_GATEWAY = Code.BAD_GATEWAY
+SERVICE_UNAVAILABLE = Code.SERVICE_UNAVAILABLE
+GATEWAY_TIMEOUT = Code.GATEWAY_TIMEOUT
+PROXYING_NOT_SUPPORTED = Code.PROXYING_NOT_SUPPORTED
+HOP_LIMIT_REACHED = Code.HOP_LIMIT_REACHED
+CSM = Code.CSM
+PING = Code.PING
+PONG = Code.PONG
+RELEASE = Code.RELEASE
+ABORT = Code.ABORT
+if __debug__:
+    for _code in Code:
+        if locals().get(_code.name) is not _code:
+            warnings.warn(
+                f"Locals list is out of sync; entry `{_code.name} = Code.{_code.name}` is missing"
+            )
+
+
+__all__ = ["Code"] + [
+    k for (k, v) in locals().items() if isinstance(v, Code) and not k.startswith("_")
+]

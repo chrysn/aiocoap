@@ -6,6 +6,7 @@
    installation
    guidedtour
    stateofoscore
+   stateofedhoc
 
    api
    design

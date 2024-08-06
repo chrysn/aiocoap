@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: MIT
 
 import asyncio
-import unittest
 
 from aiocoap.util.asyncio.timeoutdict import TimeoutDict
 
 from .fixtures import WithAsyncLoop, asynctest
+
 
 class TestTimeoutDict(WithAsyncLoop):
     @asynctest

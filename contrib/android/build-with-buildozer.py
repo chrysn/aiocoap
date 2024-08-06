@@ -10,15 +10,15 @@ import subprocess
 
 import venv
 
-out = Path(__file__).parent / 'for-buildozer'
+out = Path(__file__).parent / "for-buildozer"
 out.mkdir(exist_ok=True)
 
-buildozer_venv = Path(__file__).parent / 'venv-buildozer'
+buildozer_venv = Path(__file__).parent / "venv-buildozer"
 
 contrib = Path(__file__).parent.parent
 
 with (out / "buildozer.spec").open("w") as buildozerspec:
-    buildozerspec.write(f"""\
+    buildozerspec.write("""\
 [app]
 title = aiocoap widget demo
 package.name = aiocoap_widget_demo
@@ -42,16 +42,25 @@ android.permissions = INTERNET
 android.arch = armeabi-v7a
 """)
 
-shutil.copy(contrib / 'aiocoap-kivy-widget', out / 'main.py')
+shutil.copy(contrib / "aiocoap-kivy-widget", out / "main.py")
 # We could use aiocoap from PyPI, but so far things only work with this
 # branch's version.
 shutil.copytree(contrib / "widgets_common", out / "widgets_common", dirs_exist_ok=True)
 shutil.copytree(contrib.parent / "aiocoap", out / "aiocoap", dirs_exist_ok=True)
 
 venv.create(buildozer_venv, with_pip=True)
-subprocess.check_call(['bash', '-e', '-c', """\
+subprocess.check_call(
+    [
+        "bash",
+        "-e",
+        "-c",
+        """\
         source ../venv-buildozer/bin/activate
         pip install cython buildozer
         buildozer $@
-""", 'buildozer'] + sys.argv[1:],
-        cwd=out)
+""",
+        "buildozer",
+    ]
+    + sys.argv[1:],
+    cwd=out,
+)

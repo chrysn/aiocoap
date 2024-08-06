@@ -79,7 +79,8 @@ installation.
 
 The extras currently supported are:
 
-* ``oscore``: Required for the :mod:`aiocoap.transports.oscore` transport.
+* ``oscore``: Required for the :mod:`aiocoap.transports.oscore` transport,
+  as well as for using EDHOC.
 
 * ``tinydtls``: Required for using CoAP over DTLS.
 

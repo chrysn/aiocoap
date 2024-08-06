@@ -22,12 +22,15 @@ constants from :mod:`.numbers`; see their respective documentation entries.
 
 The presence of :class:`.Message` and :class:`.Context` in the root module is
 stable.
+
+Submodules are described in the :doc:`the API overview <../api>`.
 """
 
 import numbers
+
 # flake8 doesn't see through the global re-export
-from .numbers import * # noqa: F401, F403
+from .numbers import *  # noqa: F401, F403
 from .message import Message, NoResponse
 from .protocol import Context
 
-__all__ = numbers.__all__ + ['Message', 'NoResponse', 'Context']
+__all__ = numbers.__all__ + ["Message", "NoResponse", "Context"]

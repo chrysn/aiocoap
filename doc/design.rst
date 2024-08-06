@@ -63,3 +63,12 @@ rather, it highlights some points of how CoAP is expressed in aiocoap.
   Some properties are also transported in options even though they are not exactly fitting here;
   for example, the No-Response option is used in responses to indicate to the stack that no response should be set.
   The latter should be cleaned up.
+
+* URIs and remotes:
+
+  In generall, aiocoap will aim for good user experience when the user passes in a URI per request,
+  eg. by keeping TCP connections open for a bit.
+  As the library can not keep track of URI strings,
+  it is sometimes preferrable to keep the :attr:`aiocoap.Message.remote` around and build requests based on that.
+  This will ensure that aiocoap makes all efforts to keep established security contexts and connections around
+  for as long as possible.

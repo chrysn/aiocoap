@@ -15,6 +15,7 @@ from aiocoap import *
 
 logging.basicConfig(level=logging.INFO)
 
+
 async def main():
     """Perform a single PUT request to localhost on the default port, URI
     "/other/block". The request is sent 2 seconds after initialization.
@@ -30,7 +31,8 @@ async def main():
 
     response = await context.request(request).response
 
-    print('Result: %s\n%r'%(response.code, response.payload))
+    print("Result: %s\n%r" % (response.code, response.payload))
+
 
 if __name__ == "__main__":
     asyncio.run(main())

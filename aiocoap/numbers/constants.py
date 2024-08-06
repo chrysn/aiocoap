@@ -21,14 +21,15 @@ MCAST_IPV6_LINKLOCAL_ALLCOAPNODES = "ff02::fd"
 MCAST_IPV6_SITELOCAL_ALLNODES = "ff05::1"
 MCAST_IPV6_SITELOCAL_ALLCOAPNODES = "ff05::fd"
 MCAST_ALL = (
-      MCAST_IPV4_ALLCOAPNODES,
-      MCAST_IPV6_LINKLOCAL_ALLNODES,
-      MCAST_IPV6_LINKLOCAL_ALLCOAPNODES,
-      MCAST_IPV6_SITELOCAL_ALLNODES,
-      MCAST_IPV6_SITELOCAL_ALLCOAPNODES,
-      )
+    MCAST_IPV4_ALLCOAPNODES,
+    MCAST_IPV6_LINKLOCAL_ALLNODES,
+    MCAST_IPV6_LINKLOCAL_ALLCOAPNODES,
+    MCAST_IPV6_SITELOCAL_ALLNODES,
+    MCAST_IPV6_SITELOCAL_ALLCOAPNODES,
+)
 
 MAX_REGULAR_BLOCK_SIZE_EXP = 6
+
 
 class TransportTuning:
     """Base parameters that guide CoAP transport behaviors
@@ -84,14 +85,18 @@ class TransportTuning:
     def MAX_TRANSMIT_SPAN(self):
         """Maximum time from the first transmission
         of a confirmable message to its last retransmission."""
-        return self.ACK_TIMEOUT * (2 ** self.MAX_RETRANSMIT - 1) * self.ACK_RANDOM_FACTOR
+        return self.ACK_TIMEOUT * (2**self.MAX_RETRANSMIT - 1) * self.ACK_RANDOM_FACTOR
 
     @property
     def MAX_TRANSMIT_WAIT(self):
         """Maximum time from the first transmission
         of a confirmable message to the time when the sender gives up on
         receiving an acknowledgement or reset."""
-        return self.ACK_TIMEOUT * (2 ** (self.MAX_RETRANSMIT + 1) - 1) * self.ACK_RANDOM_FACTOR
+        return (
+            self.ACK_TIMEOUT
+            * (2 ** (self.MAX_RETRANSMIT + 1) - 1)
+            * self.ACK_RANDOM_FACTOR
+        )
 
     MAX_LATENCY = 100.0
     """Maximum time a datagram is expected to take from the start
@@ -99,7 +104,7 @@ class TransportTuning:
 
     @property
     def PROCESSING_DELAY(self):
-        """"Time a node takes to turn around a
+        """ "Time a node takes to turn around a
         confirmable message into an acknowledgement."""
         return self.ACK_TIMEOUT
 
@@ -140,14 +145,24 @@ class TransportTuning:
     This number is not explicitly named in RFC7641.
     """
 
+
 _default_transport_tuning = TransportTuning()
+
+
 def __getattr__(name):
     if name[0] in string.ascii_uppercase and hasattr(_default_transport_tuning, name):
-        warnings.warn(f"{name} is deprecated, use through the message's transport_tuning instead", DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            f"{name} is deprecated, use through the message's transport_tuning instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return getattr(_default_transport_tuning, name)
     raise AttributeError(f"module {__name__} has no attribute {name}")
+
 
 SHUTDOWN_TIMEOUT = 3
 """Maximum time, in seconds, for which the process is kept around during shutdown"""
 
-__all__ = [k for k in dir() if not k.startswith('_') and k not in ('warnings', 'strings')]
+__all__ = [
+    k for k in dir() if not k.startswith("_") and k not in ("warnings", "string")
+]

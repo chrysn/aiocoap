@@ -5,11 +5,10 @@
 import asyncio
 from collections import namedtuple
 import functools
-import sys
 
 from . import error
 from .numbers import INTERNAL_SERVER_ERROR
-from .util.asyncio import py38args
+
 
 class Pipe:
     """Low-level meeting point between a request and a any responses that come
@@ -78,13 +77,17 @@ class Pipe:
         on_interest_end callbacks have already been called"""
 
     def __repr__(self):
-        return '<%s at %#x around %r with %r callbacks (thereof %r interests)>' % (
-                type(self).__name__,
-                id(self),
-                self.request,
-                len(self._event_callbacks) if self._event_callbacks else self._event_callbacks,
-                sum(1 for (e, is_interest) in self._event_callbacks if is_interest) if self._event_callbacks else self._event_callbacks,
-                )
+        return "<%s at %#x around %r with %r callbacks (thereof %r interests)>" % (
+            type(self).__name__,
+            id(self),
+            self.request,
+            len(self._event_callbacks)
+            if self._event_callbacks
+            else self._event_callbacks,
+            sum(1 for (e, is_interest) in self._event_callbacks if is_interest)
+            if self._event_callbacks
+            else self._event_callbacks,
+        )
 
     def _any_interest(self):
         return any(is_interest for (cb, is_interest) in self._event_callbacks)
@@ -125,7 +128,9 @@ class Pipe:
             # when it's shutting down or not.
             return
 
-        self._event_callbacks = [(cb, i) for (cb, i) in self._event_callbacks if callback is not cb]
+        self._event_callbacks = [
+            (cb, i) for (cb, i) in self._event_callbacks if callback is not cb
+        ]
         if not self._any_interest():
             self._end()
 
@@ -136,15 +141,21 @@ class Pipe:
 
         if self._event_callbacks is False:
             # Happens, for example, when a proxy receives multiple requests on a single token
-            self.log.warning("on_interest_end callback %r added after %r has already ended", callback, self)
+            self.log.warning(
+                "on_interest_end callback %r added after %r has already ended",
+                callback,
+                self,
+            )
             callback()
             return
 
         if self._any_interest():
-            self._event_callbacks.append((
-                lambda e: ((callback(), False) if e.is_last else (None, True))[1],
-                False
-                ))
+            self._event_callbacks.append(
+                (
+                    lambda e: ((callback(), False) if e.is_last else (None, True))[1],
+                    False,
+                )
+            )
         else:
             callback()
 
@@ -159,10 +170,12 @@ class Pipe:
     def _add_event(self, event):
         if self._event_callbacks is False:
             # Happens, for example, when a proxy receives multiple requests on a single token
-            self.log.warning("Response %r added after %r has already ended", event, self)
+            self.log.warning(
+                "Response %r added after %r has already ended", event, self
+            )
             return
 
-        for (cb, is_interest) in self._event_callbacks[:]:
+        for cb, is_interest in self._event_callbacks[:]:
             keep_calling = cb(event)
             if not keep_calling:
                 if self._event_callbacks is False:
@@ -179,6 +192,7 @@ class Pipe:
 
     def add_exception(self, exception):
         self._add_event(self.Event(None, exception, True))
+
 
 def run_driving_pipe(pipe, coroutine, name=None):
     """Create a task from a coroutine where the end of the coroutine produces a
@@ -201,29 +215,13 @@ def run_driving_pipe(pipe, coroutine, name=None):
         # Not doing anything special about cancellation: it indicates the
         # peer's loss of interest, so there's no use in sending anythign out to
         # someone not listening any more
-        #
-        # (We'd *like* to do something on the Python 3.7 versions whose
-        # cancelled threads show errors, but there we can't stop it in here
-        # because catching the CancelledError doesn't remove the taint from the
-        # task).
 
     task = asyncio.create_task(
-            wrapped(),
-            **py38args(name=name),
-            )
-    if sys.version_info < (3, 8):
-        # These Python versions used to complain about cancelled tasks, where
-        # really a cancelled task is perfectly natural (especially here where
-        # it's just not needed any more because nobody is listening to what it
-        # produces). As catching CancellationError doesn't help silencing them,
-        # this workaround ensures the cancellations don't raise.
-        def silence_cancellation(task):
-            try:
-                task.result()
-            except asyncio.CancelledError:
-                pass
-        task.add_done_callback(silence_cancellation)
+        wrapped(),
+        name=name,
+    )
     pipe.on_interest_end(task.cancel)
+
 
 def error_to_message(old_pr, log):
     """Given a pipe set up by the requester, create a new pipe to pass on to a
@@ -245,7 +243,10 @@ def error_to_message(old_pr, log):
 
         if isinstance(e, error.RenderableError):
             # the repr() here is quite imporant for garbage collection
-            log.info("Render request raised a renderable error (%s), responding accordingly.", repr(e))
+            log.info(
+                "Render request raised a renderable error (%s), responding accordingly.",
+                repr(e),
+            )
             try:
                 msg = e.to_message()
                 if msg is None:
@@ -253,13 +254,19 @@ def error_to_message(old_pr, log):
                     # that should ensure that the default to_message method is
                     # never used in concrete classes fails due to the metaclass
                     # conflict between ABC and Exceptions
-                    raise ValueError("Exception to_message failed to produce a message on %r" % e)
+                    raise ValueError(
+                        "Exception to_message failed to produce a message on %r" % e
+                    )
             except Exception as e2:
-                log.error("Rendering the renderable exception failed: %r", e2, exc_info=e2)
+                log.error(
+                    "Rendering the renderable exception failed: %r", e2, exc_info=e2
+                )
                 msg = Message(code=INTERNAL_SERVER_ERROR)
             old_pr.add_response(msg, is_last=True)
         else:
-            log.error("An exception occurred while rendering a resource: %r", e, exc_info=e)
+            log.error(
+                "An exception occurred while rendering a resource: %r", e, exc_info=e
+            )
             old_pr.add_response(Message(code=INTERNAL_SERVER_ERROR), is_last=True)
 
         return False
@@ -267,6 +274,7 @@ def error_to_message(old_pr, log):
     remove_interest = next_pr.on_event(on_event)
     old_pr.on_interest_end(remove_interest)
     return next_pr
+
 
 class IterablePipe:
     """A stand-in for a Pipe that the requesting party can use
@@ -292,7 +300,9 @@ class IterablePipe:
         try:
             self.__on_interest_end.append(callback)
         except AttributeError:
-            raise RuntimeError("Attempted to declare interest in the end of a IterablePipe on which iteration already started") from None
+            raise RuntimeError(
+                "Attempted to declare interest in the end of a IterablePipe on which iteration already started"
+            ) from None
 
     def __aiter__(self):
         i = self.Iterator(self.__queue, self.__on_interest_end)

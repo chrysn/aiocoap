@@ -18,6 +18,9 @@ establidsh keys (there is ongoing work on a lightweight key exchange named
 EDHOC, and the ACE-OSCORE_ profile goes some way). Until those are implemented
 and wide-spread, OSCORE contexts can be provisioned manually to devices.
 
+An implementation of EDHOC is :doc:`available in aiocoap <stateofedhoc>`, but
+is still rather experimental.
+
 OSCORE state
 ------------
 
@@ -110,13 +113,13 @@ With each of those goes a credentials map:
 ``client1.json``::
 
   {
-    "coap://localhost/*": { "oscore": { "contextfile": "client1/for-fileserver/" } }
+    "coap://localhost/*": { "oscore": { "basedir": "client1/for-fileserver/" } }
   }
 
 ``server.json``::
 
   {
-    ":client1": { "oscore": { "contextfile": "server/from-client1/" } }
+    ":client1": { "oscore": { "basedir": "server/from-client1/" } }
   }
 
 Then, the server can be started::

@@ -11,8 +11,11 @@ The option numbers come with methods that can be used to evaluate their
 properties, see the `OptionNumber` class for details.
 """
 
+import warnings
+
 from ..util import ExtensibleIntEnum
 from .. import optiontypes
+
 
 class OptionNumber(ExtensibleIntEnum):
     """A CoAP option number.
@@ -24,6 +27,7 @@ class OptionNumber(ExtensibleIntEnum):
     Note that whether an option may be repeated or not does not only depend on
     the option, but also on the context, and is thus handled in the `Options`
     object instead."""
+
     IF_MATCH = 1
     URI_HOST = 3
     ETAG = 4
@@ -31,9 +35,7 @@ class OptionNumber(ExtensibleIntEnum):
     OBSERVE = 6
     URI_PORT = 7
     LOCATION_PATH = 8
-    # The OBJECT_SECURITY name is to be deprecated when Python 3.8 support is
-    # dropped, and we can do that easily using a class property.
-    OSCORE = OBJECT_SECURITY = 9
+    OSCORE = 9
     URI_PATH = 11
     CONTENT_FORMAT = 12
     MAX_AGE = 14
@@ -60,6 +62,11 @@ class OptionNumber(ExtensibleIntEnum):
     # going to be used in overhead comparisons.
     REQUEST_HASH = 548
 
+    @property
+    def OBJECT_SECURITY(self):
+        warnings.warn("OBJECT_SECURITY is a deprecated alias for OSCORE")
+        return self.OSCORE
+
     def __add__(self, delta):
         """Addition makes sense on these due to the delta encoding in CoAP
         serialization"""
@@ -80,7 +87,7 @@ class OptionNumber(ExtensibleIntEnum):
     def is_nocachekey(self):
         if self.is_unsafe():
             raise ValueError("NoCacheKey is only meaningful for safe options")
-        return self & 0x1e == 0x1c
+        return self & 0x1E == 0x1C
 
     def is_cachekey(self):
         return not self.is_nocachekey()
@@ -91,10 +98,29 @@ class OptionNumber(ExtensibleIntEnum):
         else:
             return optiontypes.OpaqueOption
 
-    def _set_format(self, value):
+    def set_format(self, value):
+        """Set the serialization format.
+
+        This affects any use of the option throughout the program; existing
+        options should not be altered incompatibly. Use this on custom or
+        experimental options.
+
+        This is available as a setter function in addition to write access
+        through the `format` property to satisfy requirements imposed by mypy's
+        special handling of enums.
+        """
+        if hasattr(self, "_format"):
+            if self._format != value:
+                warnings.warn(
+                    "Altering the serialization format of {self}. This is a severe interoperability hazard with other modules, and should only be used during experimentation. This warning may be converted into an error at any time."
+                )
         self._format = value
 
-    format = property(_get_format, _set_format)
+    format = property(
+        _get_format,
+        set_format,
+        doc="Serialization format; see :func:`~aiocoap.numbers.optionnumbers.OptionNumber.set_format`",
+    )
 
     def create_option(self, decode=None, value=None):
         """Return an Option element of the appropriate class from this option
@@ -112,13 +138,19 @@ class OptionNumber(ExtensibleIntEnum):
 
     def _repr_html_(self):
         import html
+
         properties = f"{'critical' if self.is_critical() else 'elective'}, {'safe-to-forward' if self.is_safetoforward() else 'proxy unsafe'}"
         if self.is_safetoforward():
-            properties += ", part of the cache key" if self.is_cachekey() else ", not part of the cache key"
+            properties += (
+                ", part of the cache key"
+                if self.is_cachekey()
+                else ", not part of the cache key"
+            )
         if hasattr(self, "name"):
             return f'<abbr title="option {int(self)}: {properties}">{html.escape(self.name)}</abbr>'
         else:
             return f'<abbr title="{properties}">Option {int(self)}</abbr>'
+
 
 # OpaqueOption is set on formats where it is known to be used even though it is
 # the default. This allows developers to rely on those interfaces to be stable
@@ -126,48 +158,48 @@ class OptionNumber(ExtensibleIntEnum):
 
 # RFC 7252
 
-OptionNumber.IF_MATCH.format = optiontypes.OpaqueOption
-OptionNumber.URI_HOST.format = optiontypes.StringOption
-OptionNumber.ETAG.format = optiontypes.OpaqueOption
-OptionNumber.URI_PORT.format = optiontypes.UintOption
-OptionNumber.LOCATION_PATH.format = optiontypes.StringOption
-OptionNumber.URI_PATH.format = optiontypes.StringOption
-OptionNumber.CONTENT_FORMAT.format = optiontypes.ContentFormatOption
-OptionNumber.MAX_AGE.format = optiontypes.UintOption
-OptionNumber.URI_QUERY.format = optiontypes.StringOption
-OptionNumber.ACCEPT.format = optiontypes.ContentFormatOption
-OptionNumber.LOCATION_QUERY.format = optiontypes.StringOption
-OptionNumber.PROXY_URI.format = optiontypes.StringOption
-OptionNumber.PROXY_SCHEME.format = optiontypes.StringOption
-OptionNumber.SIZE1.format = optiontypes.UintOption
+OptionNumber.IF_MATCH.set_format(optiontypes.OpaqueOption)
+OptionNumber.URI_HOST.set_format(optiontypes.StringOption)
+OptionNumber.ETAG.set_format(optiontypes.OpaqueOption)
+OptionNumber.URI_PORT.set_format(optiontypes.UintOption)
+OptionNumber.LOCATION_PATH.set_format(optiontypes.StringOption)
+OptionNumber.URI_PATH.set_format(optiontypes.StringOption)
+OptionNumber.CONTENT_FORMAT.set_format(optiontypes.ContentFormatOption)
+OptionNumber.MAX_AGE.set_format(optiontypes.UintOption)
+OptionNumber.URI_QUERY.set_format(optiontypes.StringOption)
+OptionNumber.ACCEPT.set_format(optiontypes.ContentFormatOption)
+OptionNumber.LOCATION_QUERY.set_format(optiontypes.StringOption)
+OptionNumber.PROXY_URI.set_format(optiontypes.StringOption)
+OptionNumber.PROXY_SCHEME.set_format(optiontypes.StringOption)
+OptionNumber.SIZE1.set_format(optiontypes.UintOption)
 
 # RFC 7959
 
-OptionNumber.BLOCK2.format = optiontypes.BlockOption
-OptionNumber.BLOCK1.format = optiontypes.BlockOption
-OptionNumber.SIZE2.format = optiontypes.UintOption
+OptionNumber.BLOCK2.set_format(optiontypes.BlockOption)
+OptionNumber.BLOCK1.set_format(optiontypes.BlockOption)
+OptionNumber.SIZE2.set_format(optiontypes.UintOption)
 
 # RFC 7641
 
-OptionNumber.OBSERVE.format = optiontypes.UintOption
+OptionNumber.OBSERVE.set_format(optiontypes.UintOption)
 
 # RFC 7967
 
-OptionNumber.NO_RESPONSE.format = optiontypes.UintOption
+OptionNumber.NO_RESPONSE.set_format(optiontypes.UintOption)
 
 # RFC 8613
 
-OptionNumber.OSCORE.format = optiontypes.OpaqueOption
+OptionNumber.OSCORE.set_format(optiontypes.OpaqueOption)
 
 # RFC 9175
 
-OptionNumber.ECHO.format = optiontypes.OpaqueOption
-OptionNumber.REQUEST_TAG.format = optiontypes.OpaqueOption
+OptionNumber.ECHO.set_format(optiontypes.OpaqueOption)
+OptionNumber.REQUEST_TAG.set_format(optiontypes.OpaqueOption)
 
 # RFC 8768
 
-OptionNumber.HOP_LIMIT.format = optiontypes.UintOption
+OptionNumber.HOP_LIMIT.set_format(optiontypes.UintOption)
 
 # experimental for draft-amsuess-core-cachable-oscore
 
-OptionNumber.REQUEST_HASH.format = optiontypes.OpaqueOption
+OptionNumber.REQUEST_HASH.set_format(optiontypes.OpaqueOption)

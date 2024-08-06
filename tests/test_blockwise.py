@@ -11,12 +11,21 @@ import unittest
 import aiocoap
 import aiocoap.defaults
 
-from .test_server import WithTestServer, WithClient, no_warnings, asynctest, BigResource, BasicTestingSite
+from .test_server import (
+    WithTestServer,
+    WithClient,
+    no_warnings,
+    asynctest,
+    BigResource,
+    BasicTestingSite,
+)
+
 
 class BigChunkyResource(BigResource):
     async def render_get(self, request):
         request.remote.maximum_block_size_exp = 3
         return await super().render_get(request)
+
 
 class ChunkyTestingSite(BasicTestingSite):
     def __init__(self):
@@ -24,8 +33,10 @@ class ChunkyTestingSite(BasicTestingSite):
 
         self.add_resource(["big", "chunky"], BigChunkyResource())
 
+
 class WithChunkyTestServer(WithTestServer):
     TestingSite = ChunkyTestingSite
+
 
 class TestBlockwise(WithChunkyTestServer, WithClient):
     # tracked as https://github.com/chrysn/aiocoap/issues/58; behavior can be successful more or less by chance
@@ -39,23 +50,30 @@ class TestBlockwise(WithChunkyTestServer, WithClient):
         pattern2 = b"01234 second pattern" + b"02" * 1024
 
         request1 = aiocoap.Message(
-                uri='coap://' + self.servernetloc + '/replacing/one',
-                code=aiocoap.POST,
-                payload=pattern1,
-                )
+            uri="coap://" + self.servernetloc + "/replacing/one",
+            code=aiocoap.POST,
+            payload=pattern1,
+        )
         request2 = aiocoap.Message(
-                uri='coap://' + self.servernetloc + '/replacing/one',
-                code=aiocoap.POST,
-                payload=pattern2,
-                )
+            uri="coap://" + self.servernetloc + "/replacing/one",
+            code=aiocoap.POST,
+            payload=pattern2,
+        )
 
         responses = []
-        for response in asyncio.as_completed([self.client.request(r).response for r in [request1, request2]]):
+        for response in asyncio.as_completed(
+            [self.client.request(r).response for r in [request1, request2]]
+        ):
             response = await response
-            self.assertTrue(response.code.is_successful(), "Simultaneous blockwise requests caused error.")
+            self.assertTrue(
+                response.code.is_successful(),
+                "Simultaneous blockwise requests caused error.",
+            )
             responses.append(response.payload)
 
-        self.assertSetEqual(set(responses), set(x.replace(b'0', b'O') for x in (pattern1, pattern2)))
+        self.assertSetEqual(
+            set(responses), set(x.replace(b"0", b"O") for x in (pattern1, pattern2))
+        )
 
     @no_warnings
     @asynctest
@@ -68,14 +86,19 @@ class TestBlockwise(WithChunkyTestServer, WithClient):
         the server has with initially low block sizes."""
 
         resp = await self.client.request(
-                aiocoap.Message(
-                    uri='coap://' + self.servernetloc + '/big',
-                    block2=(0, 0, 3),
-                    code=aiocoap.GET,
-                )).response
+            aiocoap.Message(
+                uri="coap://" + self.servernetloc + "/big",
+                block2=(0, 0, 3),
+                code=aiocoap.GET,
+            )
+        ).response
 
         self.assertEqual(resp.code, aiocoap.CONTENT, "Request was unsuccessful")
-        self.assertEqual(self._count_received_messages(), (len(resp.payload) + 127) // 128, "Response not chunked into 128 bytes")
+        self.assertEqual(
+            self._count_received_messages(),
+            (len(resp.payload) + 127) // 128,
+            "Response not chunked into 128 bytes",
+        )
 
     @no_warnings
     @asynctest
@@ -88,17 +111,48 @@ class TestBlockwise(WithChunkyTestServer, WithClient):
         maximum_block_size_exp is generally used."""
 
         resp = await self.client.request(
-                aiocoap.Message(
-                    uri='coap://' + self.servernetloc + '/big/chunky',
-                    code=aiocoap.GET,
-                )).response
+            aiocoap.Message(
+                uri="coap://" + self.servernetloc + "/big/chunky",
+                code=aiocoap.GET,
+            )
+        ).response
 
         self.assertEqual(resp.code, aiocoap.CONTENT, "Request was unsuccessful")
-        self.assertEqual(self._count_received_messages(), (len(resp.payload) + 127) // 128, "Response not chunked into 128 bytes")
+        self.assertEqual(
+            self._count_received_messages(),
+            (len(resp.payload) + 127) // 128,
+            "Response not chunked into 128 bytes",
+        )
+
+    @no_warnings
+    @asynctest
+    async def test_client_hints_block1(self):
+        """Test whether a client can successfully indicate per-remote sizes
+        even for the block1 phase."""
+
+        # same as BigResource's content
+        payload = b"0123456789----------" * 512
+        reqmsg = aiocoap.Message(
+            uri="coap://" + self.servernetloc + "/replacing/one",
+            code=aiocoap.PUT,
+            payload=payload,
+        )
+        reqmsg.remote.maximum_block_size_exp = 3
+        resp = await self.client.request(reqmsg).response
+
+        self.assertEqual(resp.code, aiocoap.CHANGED, "Request was unsuccessful")
+        self.assertEqual(
+            self._count_received_messages(),
+            (len(payload) + 127) // 128,
+            "Response not chunked into 128 bytes",
+        )
 
     _received_logmsg = "Incoming message <aiocoap.Message at"
+
     def _count_received_messages(self):
         # only client-side received empty-acks are counted
-        return sum(self._received_logmsg in x.msg
-                for x in self.handler
-                if x.name != 'coap-server')
+        return sum(
+            self._received_logmsg in x.msg
+            for x in self.handler
+            if x.name != "coap-server"
+        )

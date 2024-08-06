@@ -25,10 +25,20 @@ from aiocoap.util import hostportjoin
 from .common import PYTHON_PREFIX, CapturingSubprocess
 from .test_server import WithAsyncLoop, WithClient, asynctest
 
-SERVER_NETLOC = hostportjoin('::1', None)
-AIOCOAP_FILESERVER = PYTHON_PREFIX + ['./aiocoap-fileserver', '--write', '--bind', SERVER_NETLOC]
+SERVER_NETLOC = hostportjoin("::1", None)
+AIOCOAP_FILESERVER = PYTHON_PREFIX + [
+    "./aiocoap-fileserver",
+    "--write",
+    "--bind",
+    SERVER_NETLOC,
+]
 
-@unittest.skipIf(aiocoap.defaults.linkheader_missing_modules(), "Module missing for running fileserver tests: %s"%(aiocoap.defaults.linkheader_missing_modules(),))
+
+@unittest.skipIf(
+    aiocoap.defaults.linkheader_missing_modules(),
+    "Module missing for running fileserver tests: %s"
+    % (aiocoap.defaults.linkheader_missing_modules(),),
+)
 class WithFileServer(WithAsyncLoop):
     def setUp(self):
         super().setUp()
@@ -43,20 +53,25 @@ class WithFileServer(WithAsyncLoop):
     # This might be overly complex; it was stripped down from the more intricate OSCORE plug tests
     async def run_server(self, readiness, done):
         self.process, process_outputs = await self.loop.subprocess_exec(
-                CapturingSubprocess,
-                *(AIOCOAP_FILESERVER + ["-vvvvvvvv"]),
-                self.filedir,
-                stdin=None
-                )
+            CapturingSubprocess,
+            *(AIOCOAP_FILESERVER + ["-vvvvvvvv"]),
+            self.filedir,
+            stdin=None,
+        )
 
         while True:
             if b"Server ready to receive requests" in process_outputs.stderr:
                 break
             if self.process.get_returncode() is not None:
-                readiness.set_exception(RuntimeError(
-                    "File server process terminated during startup:\n%s\n%s" % (
-                        process_outputs.stdout.decode('utf8'),
-                        process_outputs.stderr.decode('utf8'))))
+                readiness.set_exception(
+                    RuntimeError(
+                        "File server process terminated during startup:\n%s\n%s"
+                        % (
+                            process_outputs.stdout.decode("utf8"),
+                            process_outputs.stderr.decode("utf8"),
+                        )
+                    )
+                )
                 return
             await process_outputs.read_more
         readiness.set_result(True)
@@ -67,7 +82,12 @@ class WithFileServer(WithAsyncLoop):
             await process_outputs.read_more
 
         done.set_result(
-                (self.process.get_returncode(), process_outputs.stdout, process_outputs.stderr))
+            (
+                self.process.get_returncode(),
+                process_outputs.stdout,
+                process_outputs.stderr,
+            )
+        )
 
         self.process.close()
 
@@ -82,16 +102,22 @@ class WithFileServer(WithAsyncLoop):
 
         code, out, err = self.loop.run_until_complete(self.__done)
 
+
 class TestFileServer(WithFileServer, WithClient):
     @asynctest
     async def test_fullcycle(self):
-        await work_fileserver(self.client, "coap://%s/" % SERVER_NETLOC, self.assertTrue)
+        await work_fileserver(
+            self.client, "coap://%s/" % SERVER_NETLOC, self.assertTrue
+        )
+
 
 # Implemented as a single function to ease use from the command line
 async def work_fileserver(ctx, base_uri, assert_):
-    assert_(base_uri.endswith('/') and base_uri.count('/') == 3,
-            "Base URI needs to be of shape coapsomething://hostname/ "
-            "(with precisely these slashes)")
+    assert_(
+        base_uri.endswith("/") and base_uri.count("/") == 3,
+        "Base URI needs to be of shape coapsomething://hostname/ "
+        "(with precisely these slashes)",
+    )
 
     req = Message(code=GET, uri=base_uri)
     res = await ctx.request(req).response_raising
@@ -124,13 +150,23 @@ async def work_fileserver(ctx, base_uri, assert_):
     assert_(res.opt.etag == etag1)
 
     file2_body = b"It is diffrent now."
-    req = Message(code=PUT, uri=base_uri + "file", payload=file2_body, if_none_match=True)
+    req = Message(
+        code=PUT, uri=base_uri + "file", payload=file2_body, if_none_match=True
+    )
     res = await ctx.request(req).response
-    assert_(res.code == PRECONDITION_FAILED, "Overwrite succeeded even though expected empty")
+    assert_(
+        res.code == PRECONDITION_FAILED,
+        "Overwrite succeeded even though expected empty",
+    )
 
-    req = Message(code=PUT, uri=base_uri + "file", payload=file2_body, if_match=[b"synthetic"])
+    req = Message(
+        code=PUT, uri=base_uri + "file", payload=file2_body, if_match=[b"synthetic"]
+    )
     res = await ctx.request(req).response
-    assert_(res.code == PRECONDITION_FAILED, "Overwrite succeeded even though expected to conflict")
+    assert_(
+        res.code == PRECONDITION_FAILED,
+        "Overwrite succeeded even though expected to conflict",
+    )
 
     req = Message(code=PUT, uri=base_uri + "file", payload=file2_body, if_match=[etag1])
     res = await ctx.request(req).response_raising
@@ -145,7 +181,10 @@ async def work_fileserver(ctx, base_uri, assert_):
 
     req = Message(code=DELETE, uri=base_uri + "file", if_match=[b"not the one"])
     res = await ctx.request(req).response
-    assert_(res.code == PRECONDITION_FAILED, "Deletion should not pass with a non-matching ETag")
+    assert_(
+        res.code == PRECONDITION_FAILED,
+        "Deletion should not pass with a non-matching ETag",
+    )
 
     # Actual cleanup
     req = Message(code=DELETE, uri=base_uri + "file", if_match=[etag2])
@@ -155,7 +194,8 @@ async def work_fileserver(ctx, base_uri, assert_):
     # Just to be sure
     req = Message(code=DELETE, uri=base_uri + "file")
     res = await ctx.request(req).response
-    assert_(res.code == NOT_FOUND) # DELETED might be OK too under idempotency rules?
+    assert_(res.code == NOT_FOUND)  # DELETED might be OK too under idempotency rules?
+
 
 async def run_standalone():
     p = argparse.ArgumentParser(description=__doc__)
@@ -163,11 +203,14 @@ async def run_standalone():
     args = p.parse_args()
 
     ctx = await aiocoap.Context.create_client_context()
+
     def assert_(truth, error=""):
         if not truth:
             print("Assertion failed:", error)
             sys.exit(1)
+
     await work_fileserver(ctx, args.base_uri, assert_)
+
 
 if __name__ == "__main__":
     # due to the imports, you'll need to run this as `python3 -m tests.test_fileserver`

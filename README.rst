@@ -45,10 +45,12 @@ This library supports the following standards in full or partially:
   simplistic.
 * RFC8613_ (OSCORE): Full support client-side; protected servers can be
   implemented based on it but are not automatic yet.
-* draft-ietf-core-oscore-groupcomm-17_ (Group OSCORE): Supported for both group
+* draft-ietf-core-oscore-groupcomm-21_ (Group OSCORE): Supported for both group
   and pairwise mode in groups that are fully known. (The lack of an implemented
   joining or persistence mechanism makes this impractical for anything but
   experimentation.)
+* RFC9528_ (EDHOC): Experimental and rudimentary support for configured peers
+  using the lakers_ implementation.
 
 If something described by one of the standards but not implemented, it is
 considered a bug; please file at the `github issue tracker`_. (If it's not on
@@ -62,12 +64,14 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC8323: https://tools.ietf.org/html/rfc8323
 .. _RFC8613: https://tools.ietf.org/html/rfc8613
 .. _RFC9176: https://tools.ietf.org/html/rfc9176
-.. _draft-ietf-core-oscore-groupcomm-17: https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-17
+.. _RFC9528: https://tools.ietf.org/html/rfc9528
+.. _draft-ietf-core-oscore-groupcomm-21: https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-21
+.. _lakers: https://pypi.org/project/lakers-python/
 
 Dependencies
 ------------
 
-Basic aiocoap works out of the box on Python_ 3.7 or newer (also works on
+Basic aiocoap works out of the box on Python_ 3.10 or newer (also works on
 PyPy3_). For full support (DTLS, OSCORE and link-format handling) follow the
 installation_ instructions as these require additional libraries.
 
@@ -92,8 +96,8 @@ Bugs (ranging from "design goal" and "wishlist" to typos) are currently tracked
 in the `github issue tracker`_. Pull requests are welcome there; if you start
 working on larger changes, please coordinate on the issue tracker.
 
-Documentation is built using sphinx_ with ``./setup.py build_sphinx``; hacks
-used there are described in ``./doc/README.doc``.
+Documentation is built using sphinx_ with ``python3 -m sphinx doc/ ${TARGET}``;
+hacks used there are described in ``./doc/README.doc``.
 
 Unit tests are implemented in the ``./tests/`` directory and easiest run using
 tox_ (but also available through ``python3 -m unittest`` to test the local environment);

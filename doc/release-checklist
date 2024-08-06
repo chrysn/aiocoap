@@ -9,7 +9,7 @@ Notes to the maintainer on what to do during a release
 * Build it: python3 -m build
   (This builds, by default, both tar ball and wheel)
 * Upload it: twine upload ./dist/aiocoap-"$VERSION"{.tar.gz,-py3-none-any.whl}
-* Push it: git push github master --tags; git push gitlab master --tags
+* Push it: git push github master --tags; git push gitlab master --tags; git push codeberg master:main --tags
 * log in to readthedocs, add new tag as new version
 * Bump versions to add a ".post0"
   * Commit that: git commit -m "Bump version to .post0 to indicate development"

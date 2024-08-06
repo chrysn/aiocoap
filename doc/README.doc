@@ -24,8 +24,6 @@ of generated files are appreciated.
 man pages
 =========
 
-the build_sphinx command sphinx hooks into distutils is only capable of
-building one output format (and html is a sane default). if you want man pages,
-run the following:
+html is the default output format, but man pages can also be generated:
 
     $ python3 -m sphinx -b man doc/ build/sphinx/man

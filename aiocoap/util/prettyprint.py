@@ -17,7 +17,8 @@ from aiocoap.util.linkformat_pygments import _register
 
 _register()
 
-MEDIATYPE_HEXDUMP = 'text/vnd.aiocoap.hexdump'
+MEDIATYPE_HEXDUMP = "text/vnd.aiocoap.hexdump"
+
 
 def lexer_for_mime(mime):
     """A wrapper around pygments.lexers.get_lexer_for_mimetype that takes
@@ -26,7 +27,7 @@ def lexer_for_mime(mime):
     if mime == MEDIATYPE_HEXDUMP:
         return pygments.lexers.HexdumpLexer()
 
-    if mime == 'text/plain;charset=utf8':
+    if mime == "text/plain;charset=utf8":
         # We have fall-throughs in place anwyay, no need to go through a no-op
         # TextLexer
         raise pygments.util.ClassNotFound
@@ -34,9 +35,11 @@ def lexer_for_mime(mime):
     try:
         return pygments.lexers.get_lexer_for_mimetype(mime)
     except pygments.util.ClassNotFound:
-        mime = re.sub('^([^/]+)/.*\\+([^;]+)(;.*)?$',
-                lambda args: args[1] + '/' + args[2], mime)
+        mime = re.sub(
+            "^([^/]+)/.*\\+([^;]+)(;.*)?$", lambda args: args[1] + "/" + args[2], mime
+        )
         return pygments.lexers.get_lexer_for_mimetype(mime)
+
 
 def pretty_print(message):
     """Given a CoAP message, reshape its payload into something human-readable.
@@ -76,39 +79,41 @@ def pretty_print(message):
         content_type = "type unknown"
     elif cf.is_known():
         content_type = cf.media_type
-        if cf.encoding != 'identity':
-            info("Content format is %s in %s encoding; treating as "
-                 "application/octet-stream because decompression is not "
-                 "supported yet" % (cf.media_type, cf.encoding))
+        if cf.encoding != "identity":
+            info(
+                "Content format is %s in %s encoding; treating as "
+                "application/octet-stream because decompression is not "
+                "supported yet" % (cf.media_type, cf.encoding)
+            )
     else:
         content_type = "type %d" % cf
     category = contenttype.categorize(content_type)
 
     show_hex = None
 
-    if linkformat is not None and category == 'link-format':
+    if linkformat is not None and category == "link-format":
         try:
-            decoded = message.payload.decode('utf8')
+            decoded = message.payload.decode("utf8")
             try:
                 parsed = linkformat.link_header.parse(decoded)
             except linkformat.link_header.ParseException:
                 info("Invalid application/link-format content was not re-formatted")
-                return (infos, 'application/link-format', decoded)
+                return (infos, "application/link-format", decoded)
             else:
                 info("application/link-format content was re-formatted")
-                prettyprinted = ",\n".join(str(l) for l in parsed.links)
-                return (infos, 'application/link-format', prettyprinted)
+                prettyprinted = ",\n".join(str(link) for link in parsed.links)
+                return (infos, "application/link-format", prettyprinted)
         except ValueError:
             # Handled later
             pass
 
-    elif category in ('cbor', 'cbor-seq'):
-        if category == 'cbor-seq':
+    elif category in ("cbor", "cbor-seq"):
+        if category == "cbor-seq":
             # Faking an indefinite length CBOR array is the easiest way to
             # parse an array into a list-like data structure, especially as
             # long as we don't indicate precise locations of invalid CBOR
             # anyway
-            payload = b'\x9f' + message.payload + b'\xff'
+            payload = b"\x9f" + message.payload + b"\xff"
         else:
             payload = message.payload
 
@@ -117,7 +122,7 @@ def pretty_print(message):
 
             formatted = cbor_diag.cbor2diag(payload)
 
-            if category == 'cbor-seq':
+            if category == "cbor-seq":
                 info("CBOR sequence message shown as array in Diagnostic Notation")
             else:
                 info("CBOR message shown in Diagnostic Notation")
@@ -125,15 +130,15 @@ def pretty_print(message):
             # It's not exactly CDDL, but it's close enough that the syntax
             # highlighting looks OK, and tolerant enough to not complain about
             # missing leading barewords and "=" signs
-            return (infos, 'text/x-cddl', formatted)
+            return (infos, "text/x-cddl", formatted)
         except ImportError:
             show_hex = "No CBOR pretty-printer available"
         except ValueError:
             show_hex = "CBOR value is invalid"
 
-    elif category == 'json':
+    elif category == "json":
         try:
-            decoded = message.payload.decode('utf8')
+            decoded = message.payload.decode("utf8")
         except ValueError:
             pass
         else:
@@ -141,25 +146,29 @@ def pretty_print(message):
                 parsed = json.loads(decoded)
             except ValueError:
                 info("Invalid JSON not re-formated")
-                return (infos, 'application/json', decoded)
+                return (infos, "application/json", decoded)
             else:
                 info("JSON re-formated and indented")
                 formatted = json.dumps(parsed, indent=4)
-                return (infos, 'application/json', formatted)
+                return (infos, "application/json", formatted)
 
     # That's about the formats we do for now.
 
     if show_hex is None:
         try:
-            text = message.payload.decode('utf8')
+            text = message.payload.decode("utf8")
         except UnicodeDecodeError:
             show_hex = "Message can not be parsed as UTF-8"
         else:
-            return (infos, 'text/plain;charset=utf8', text)
+            return (infos, "text/plain;charset=utf8", text)
 
-    info("Showing hex dump of %s payload%s" % (
-        content_type if cf is not None else "untyped",
-        ": " + show_hex if show_hex is not None else ""))
+    info(
+        "Showing hex dump of %s payload%s"
+        % (
+            content_type if cf is not None else "untyped",
+            ": " + show_hex if show_hex is not None else "",
+        )
+    )
     data = message.payload
     # Not the most efficient hex dumper, but we won't stream video over
     # this anyway
@@ -168,11 +177,17 @@ def pretty_print(message):
     while data:
         line, data = data[:16], data[16:]
 
-        formatted.append("%08x  " % offset +
-                " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8)) + "  " +
-                " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8, 16)) + "  |" +
-                "".join(chr(x) if 32 <= x < 127 else '.' for x in line) +
-                "|\n")
+        formatted.append(
+            "%08x  " % offset
+            + " ".join("%02x" % line[i] if i < len(line) else "  " for i in range(8))
+            + "  "
+            + " ".join(
+                "%02x" % line[i] if i < len(line) else "  " for i in range(8, 16)
+            )
+            + "  |"
+            + "".join(chr(x) if 32 <= x < 127 else "." for x in line)
+            + "|\n"
+        )
 
         offset += len(line)
     if offset % 16 != 0:

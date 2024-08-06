@@ -1,3 +1,123 @@
+Version 0.4.11
+--------------
+
+New features
+~~~~~~~~~~~~
+
+* Group OSCORE is updated to draft version -21.
+* max_regular_block_size_exp can now be set on remotes by the client.
+  This allows influencing both the Block1 and the Block2 size.
+* EDHOC: Allow private keys to be generated in RAM, and specified directly in the credentials file.
+
+Examples
+~~~~~~~~
+
+* Add EDHOC demo for Jupyter.
+
+Minor fixes
+~~~~~~~~~~~
+
+* IP addresses are subjected to URI syntax normalization.
+* Avoid mixups between TLS and non-TLS contexts.
+* Send Uri-Host and Uri-Scheme in manually constructed EDHOC message.
+
+Version 0.4.10
+--------------
+
+New features
+~~~~~~~~~~~~
+
+* Initial experimental support for EDHOC key establishment was added.
+* CLI: New aiocoap-keygen command was added.
+* Credentials can be processed as CBOR Diagnostic Notation (EDN).
+* aiocoap.cli.defaults can be run as a module.
+
+Deprecations
+~~~~~~~~~~~~
+
+* OSCORE: The context argument "contextfile" was renamed to "basedir".
+
+Minor fixes
+~~~~~~~~~~~
+
+* Many indenting and quoting changes due to the switch to enforced ruff lints and formatting.
+* Various broken, missing and duplicate references fixed in the documentation.
+* Doctest failure in 0.4.9 _repr_html_ was fixed.
+
+Version 0.4.9
+-------------
+
+This is a bugfix release to restore functionality when used through Jupyter and in Python's optimized mode.
+
+Bug fixes
+~~~~~~~~~
+
+* enum: Fix visibility of _repr_html_ on Python versions < 3.13.
+* numbers: Don't export _code, which is only present with __debug__.
+
+
+Version 0.4.8
+-------------
+
+Compatibility
+~~~~~~~~~~~~~
+
+* Block-wise requests now send Size1
+
+Error handling
+~~~~~~~~~~~~~~
+
+* Errors raised through the udp6 interface now report name and description in
+  addition to their error number.
+* Many errors now have an ``.extra_help()`` method, which is shown in
+  aiocoap-client to guide the user's debugging.
+* Some non-aiocoap errors being raised as a result of network errors were
+  turned into error.NetworkError.
+* All CoAP error response codes now have a corresponding
+  ``ConstructionRenderableError`` and can thus be raised easily from handers.
+
+Platform support
+~~~~~~~~~~~~~~~~
+
+* Support for Python versions below 3.10 was dropped.
+* Inconsistent platform implementations of AI_V4MAPPED and AI_ADDRCONFIG are
+  now worked around by custom implementations of the lookup process.
+* Android is now supported.
+* Python 3.13 is now supported.
+* Kivy examples were updated to current mainline Kivy.
+* gbulb support is being phased out in favor of pygobject's upcoming native async support.
+
+Infrastructure
+~~~~~~~~~~~~~~
+
+* Build system was modernized and migrated to pyproject.toml.
+  Tests are now run using tox or ``python3 -m unittest``
+* Type annotations are now tested using mypy.
+* The ``ExtensibleIntEnum`` type underlying ``ContentFormat`` and
+  ``OptionNumber`` was altered to now use ``enum.IntEnum`` as its base.
+
+Deprecations
+~~~~~~~~~~~~
+
+* The request.observation.register_callback / register_errback interface is
+  deprecated in favor of the asynchronous iteration interface (aiter).
+* Setting media type and encoding on a ContentFormat is deprecated, use
+  ``.define(...)`` instead.
+* ``OptionNumber.OBJECT_SECURITY`` is deprecated; it is an alias for ``.OSCORE``.
+  (Same goes for the ``message.opt.object_security`` attribute).
+
+Minor fixes
+~~~~~~~~~~~
+
+* aiocoap-client can now use the iPATCH method.
+* aiocoap-client output colors were improved.
+* cbor-diag is recognized as a prerequisite for pretty printing.
+* Corner cases for SSL configuration for WebSockets were fixed.
+* Documentation updates, including references to pyodide.
+* Corner cases of implicit observation cancellation were fixed.
+* Access to cryptography internals now uses the proper public interfaces.
+
+
 Version 0.4.7
 -------------
 

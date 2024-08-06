@@ -15,7 +15,8 @@ from ...util.linkformat import link_header
 from ...message import Message
 from ...numbers import GET, POST, DELETE, SERVICE_UNAVAILABLE, NOT_FOUND
 
-__all__ = ['Registerer']
+__all__ = ["Registerer"]
+
 
 class Registerer:
     """Implementation of the client side of the registration of a resource
@@ -36,9 +37,16 @@ class Registerer:
     The registration does not observe the resource list of the registered host
     (yet?), so registrations are only kept alive and never updated."""
 
-    def __init__(self, context, rd=None, lt=90000, name_from_hostname=None,
-            link_source=None, registration_parameters={},
-            loggername='coap-rd-registerer'):
+    def __init__(
+        self,
+        context,
+        rd=None,
+        lt=90000,
+        name_from_hostname=None,
+        link_source=None,
+        registration_parameters={},
+        loggername="coap-rd-registerer",
+    ):
         """Use a ``context`` to create a registration at the Resource
         directiory at ``rd`` (defaulting to "find an RD yourself"; URIs should
         have no path component, unless the user wishes to sidestep the URI
@@ -60,7 +68,7 @@ class Registerer:
         self._context = context
 
         self._link_source = None
-        self._link_data = None #: Message
+        self._link_data = None  #: Message
         self._lt = lt
         self._initial_rd = rd
 
@@ -69,12 +77,13 @@ class Registerer:
 
         self._registration_parameters = dict(registration_parameters)
 
-        if name_from_hostname or (name_from_hostname is None and
-                'ep' not in registration_parameters):
-            ep, _, d = getfqdn().partition('.')
-            self._registration_parameters['ep'] = ep
+        if name_from_hostname or (
+            name_from_hostname is None and "ep" not in registration_parameters
+        ):
+            ep, _, d = getfqdn().partition(".")
+            self._registration_parameters["ep"] = ep
             if d:
-                self._registration_parameters['d'] = d
+                self._registration_parameters["d"] = d
 
         self.log = logging.getLogger(loggername)
 
@@ -83,9 +92,12 @@ class Registerer:
 
     def __repr__(self):
         return "<%s at %#x: registering at %s as %s (currently %s)>" % (
-                type(self).__name__, id(self), self._registration_resource or
-                self._directory_resource or self._initial_rd,
-                self._registration_parameters, self.state)
+            type(self).__name__,
+            id(self),
+            self._registration_resource or self._directory_resource or self._initial_rd,
+            self._registration_parameters,
+            self.state,
+        )
 
     def _set_state(self, newstate):
         self.log.debug("Entering state %s", newstate)
@@ -104,7 +116,9 @@ class Registerer:
             # FIXME: can't access DHCP options generically, dunno about SLAAC.
             # It seems to be a sane assumption that the best thing to do is to
             # assume we're on a big host and multicast is cheap here.
-            self._directory_resource = await self._discovery_directory_uri('coap://[ff05::fd]]', blacklist=blacklist)
+            self._directory_resource = await self._discovery_directory_uri(
+                "coap://[ff05::fd]]", blacklist=blacklist
+            )
         else:
             components = urlparse(self._initial_rd)
             if not components.scheme or not components.netloc:
@@ -112,40 +126,50 @@ class Registerer:
 
             if components.path:
                 if self._initial_rd in blacklist:
-                    raise self._UnrecoverableError("Explicitly configured RD was blacklisted")
+                    raise self._UnrecoverableError(
+                        "Explicitly configured RD was blacklisted"
+                    )
                 else:
                     self._directory_resource = self._initial_rd
             else:
-                self._directory_resource = await self._discovery_directory_uri(self._initial_rd, blacklist=blacklist)
+                self._directory_resource = await self._discovery_directory_uri(
+                    self._initial_rd, blacklist=blacklist
+                )
 
     async def _discovery_directory_uri(self, host, blacklist=set()):
-        lookup_uri = urljoin(host,
-                '/.well-known/core?rt=core.rd')
+        lookup_uri = urljoin(host, "/.well-known/core?rt=core.rd")
 
         try:
             # FIXME: this should be able to deal with multicasts
             response = await self._context.request(
-                    Message(code=GET, uri=lookup_uri, accept=40)
-                ).response_raising
-            links = link_header.parse(response.payload.decode('utf8'))
+                Message(code=GET, uri=lookup_uri, accept=40)
+            ).response_raising
+            links = link_header.parse(response.payload.decode("utf8"))
         except (UnicodeDecodeError, link_header.ParseException):
             self.log.error("Error parsing the RD's self description")
             raise
 
-        addresses = [l.get_target(response.get_request_uri())
-                for l in links.links
-                if 'core.rd' in " ".join(l.rt).split(" ")]
+        addresses = [
+            link.get_target(response.get_request_uri())
+            for link in links.links
+            if "core.rd" in " ".join(link.rt).split(" ")
+        ]
         unfiltered_addresses = len(addresses)
         addresses = [a for a in addresses if a not in blacklist]
         if not addresses:
             if len(addresses) != unfiltered_addresses:
-                raise self._UnrecoverableError("All discovered Directory Resources are blacklisted")
+                raise self._UnrecoverableError(
+                    "All discovered Directory Resources are blacklisted"
+                )
             else:
-                raise self._UnrecoverableError("No registration interface found in RD's response")
+                raise self._UnrecoverableError(
+                    "No registration interface found in RD's response"
+                )
 
         if len(addresses) > 1:
-            self.log.warn("More than one registration interface found,"
-                    " picking the first")
+            self.log.warn(
+                "More than one registration interface found," " picking the first"
+            )
 
         return addresses[0]
 
@@ -160,14 +184,16 @@ class Registerer:
 
         if self._link_source is None:
             self._link_data = Message(
-                    content_format=40,
-                    payload=str(self._context.serversite.get_resources_as_linkheader()).encode('utf8')
-                    )
+                content_format=40,
+                payload=str(
+                    self._context.serversite.get_resources_as_linkheader()
+                ).encode("utf8"),
+            )
 
         else:
             self._link_data = await self._context.request(
-                    Message(code=GET, uri=urljoin(self._link_source, '/.well-known/core'))
-                    ).response_raising
+                Message(code=GET, uri=urljoin(self._link_source, "/.well-known/core"))
+            ).response_raising
 
     class _RetryableError(RuntimeError):
         """Raised when an initial registration or update rails in a way that
@@ -186,9 +212,11 @@ class Registerer:
         unavailable_retries = 0
         while response.code == SERVICE_UNAVAILABLE and response.opt.max_age is not None:
             if unavailable_retries > 6:
-                raise self._RetryableError("RD responded with Service Unavailable too often")
+                raise self._RetryableError(
+                    "RD responded with Service Unavailable too often"
+                )
             self.log.info("RD asked to retry the operation later")
-            await asyncio.sleep(max(response.opt.max_age, 2**(unavailable_retries)))
+            await asyncio.sleep(max(response.opt.max_age, 2 ** (unavailable_retries)))
             response = await self._context.request(message).response_nonraising
 
         return response
@@ -197,24 +225,30 @@ class Registerer:
         initial_message = self._link_data.copy(code=POST, uri=self._directory_resource)
         base_query = {}
         if self._lt != 90000:
-            base_query['lt'] = str(self._lt)
+            base_query["lt"] = str(self._lt)
         if self._link_source is not None:
-            base_query['base'] = self._link_source
+            base_query["base"] = self._link_source
         query = dict(base_query, **self._registration_parameters)
 
-        initial_message.opt.uri_query = initial_message.opt.uri_query + \
-                tuple("%s=%s" % (k, v) for (k, v) in query.items())
+        initial_message.opt.uri_query = initial_message.opt.uri_query + tuple(
+            "%s=%s" % (k, v) for (k, v) in query.items()
+        )
 
         response = await self._request_with_retries(initial_message)
 
         if not response.code.is_successful():
-            raise self._RetryableError("RD responded with odd error: %s / %r" % (response.code, response.payload))
+            raise self._RetryableError(
+                "RD responded with odd error: %s / %r"
+                % (response.code, response.payload)
+            )
 
         if not response.opt.location_path:
             raise self._RetryableError("RD responded without a location")
 
         # FIXME this should probably be available from the API, and consider location_query etc
-        self._registration_resource = urljoin(response.get_request_uri(), "/" + "/".join(response.opt.location_path))
+        self._registration_resource = urljoin(
+            response.get_request_uri(), "/" + "/".join(response.opt.location_path)
+        )
 
     async def _renew_registration(self):
         update_message = Message(code=POST, uri=self._registration_resource)
@@ -225,7 +259,10 @@ class Registerer:
             raise self._RetryableError("RD forgot about the registration")
 
         if not response.code.is_successful():
-            raise self._RetryableError("RD responded with odd error: %s / %r" % (response.code, response.payload))
+            raise self._RetryableError(
+                "RD responded with odd error: %s / %r"
+                % (response.code, response.payload)
+            )
 
     async def _run(self):
         obtain = asyncio.create_task(self._obtain_link_data())
@@ -233,14 +270,17 @@ class Registerer:
         try:
             await self._run_inner(obtain)
         except asyncio.CancelledError:
-            self._set_state('cancelled')
+            self._set_state("cancelled")
             pass
         except self._UnrecoverableError as e:
-            self._set_state('failed')
+            self._set_state("failed")
             self.log.error("Aborting RD discovery: %s", e.args[0])
         except Exception as e:
-            self._set_state('failed')
-            self.log.error("An error occurred during RD registration, not pursuing registration any further:", exc_info=e)
+            self._set_state("failed")
+            self.log.error(
+                "An error occurred during RD registration, not pursuing registration any further:",
+                exc_info=e,
+            )
         finally:
             obtain.cancel()
 
@@ -254,12 +294,12 @@ class Registerer:
             if try_reuse_discovery:
                 try_reuse_discovery = False
             else:
-                self._set_state('discovering')
+                self._set_state("discovering")
 
                 for i in range(4):
                     if i:
                         self.log.info("Waiting to retry RD discovery")
-                        await asyncio.sleep(2 * 3 ** (i - 1)) # arbitrary fall-off
+                        await asyncio.sleep(2 * 3 ** (i - 1))  # arbitrary fall-off
                     await self._fill_directory_resource(blacklist=failed_initialization)
                     break
                 else:
@@ -275,12 +315,17 @@ class Registerer:
             except self._RetryableError as e:
                 errors += 1
                 if errors < errors_max:
-                    self.log.warning("Initial registration failed (%s), blacklisting RD URI and retrying discovery", e)
+                    self.log.warning(
+                        "Initial registration failed (%s), blacklisting RD URI and retrying discovery",
+                        e,
+                    )
                     failed_initialization.add(self._directory_resource)
                     self._directory_resource = None
                     continue
                 else:
-                    self.log.error("Giving up after too many failed initial registrations")
+                    self.log.error(
+                        "Giving up after too many failed initial registrations"
+                    )
                     break
 
             # registration is active, keep it that way.
@@ -297,14 +342,19 @@ class Registerer:
                 self._set_state("registered")
 
                 # renew 60 seconds before timeout, unless that's before the 75% mark (then wait for that)
-                await asyncio.sleep(self._lt - 60 if self._lt > 240 else self._lt * 3 // 4)
+                await asyncio.sleep(
+                    self._lt - 60 if self._lt > 240 else self._lt * 3 // 4
+                )
 
                 self._set_state("renewing")
 
                 try:
                     await self._renew_registration()
                 except self._RetryableError as e:
-                    self.log.warning("Registration update failed (%s), retrying with new registration", e)
+                    self.log.warning(
+                        "Registration update failed (%s), retrying with new registration",
+                        e,
+                    )
                     break
 
     async def shutdown(self):
@@ -318,7 +368,7 @@ class Registerer:
 
         try:
             await self._context.request(
-                    Message(code=DELETE, uri=self._registration_resource)
-                    ).response_raising
+                Message(code=DELETE, uri=self._registration_resource)
+            ).response_raising
         except Exception as e:
             self.log.error("Error deregistering from the RD", exc_info=e)

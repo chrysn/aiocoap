@@ -27,6 +27,7 @@ Files:
   contrib/aiocoap-server.ipynb
   contrib/android/.gitignore
   contrib/android/README.rst
+  contrib/edhoc-demo-server.ipynb
   contrib/deterministic-demo/README.rst
   contrib/oscore-plugtest/.gitignore
   contrib/oscore-plugtest/common-context/a/secret.json
@@ -50,6 +51,7 @@ Files:
   doc/news.rst
   doc/pyodide.rst
   doc/release-checklist
+  doc/stateofedhoc.rst
   doc/stateofoscore.rst
   doc/tools.rst
   pyproject.toml

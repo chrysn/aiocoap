@@ -9,6 +9,7 @@ from . import common
 
 from aiocoap import Context
 
+
 class TestProtocolSetup(WithLogMonitoring, WithAsyncLoop):
     """Tests that are only concerned with the setup of contexts, and the way
     they can be set up."""
@@ -21,18 +22,21 @@ class TestProtocolSetup(WithLogMonitoring, WithAsyncLoop):
 
     # There is not yet a way to set things up in an async context manager.
 
-#     @no_warnings
-#     @asynctest
-#     async def test_empty_contextmgr(self):
-#         async with Context.create_client_context():
-#             pass
+    #     @no_warnings
+    #     @asynctest
+    #     async def test_empty_contextmgr(self):
+    #         async with Context.create_client_context():
+    #             pass
 
     # The following tests should be converted to context managers once usable.
 
     @no_warnings
     @asynctest
     # Workaround for https://github.com/chrysn/aiocoap/issues/321
-    @unittest.skipIf(hasattr(common, 'gbulb'), reason="uvloop has unresolved issues with unused contexts")
+    @unittest.skipIf(
+        hasattr(common, "gbulb"),
+        reason="uvloop has unresolved issues with unused contexts",
+    )
     async def test_multiple_contexts(self):
         # Not that that'd be a regular thing to do, just checking it *can* be
         # done
@@ -41,7 +45,9 @@ class TestProtocolSetup(WithLogMonitoring, WithAsyncLoop):
         # None is an acceptable site; binding to a concrete port
         # removes the worries of situations where the default
         # transports can't bind to "any".
-        s1 = await Context.create_server_context(None, bind=("::1", None), loggername="coap-server")
+        s1 = await Context.create_server_context(
+            None, bind=("::1", None), loggername="coap-server"
+        )
 
         await c1.shutdown()
         await s1.shutdown()

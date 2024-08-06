@@ -7,6 +7,7 @@ from .. import socknumbers
 from asyncio import BaseProtocol
 from asyncio.transports import BaseTransport
 
+
 class RecvmsgDatagramProtocol(BaseProtocol):
     """Callback interface similar to asyncio.DatagramProtocol, but dealing with
     recvmsg data."""
@@ -20,11 +21,13 @@ class RecvmsgDatagramProtocol(BaseProtocol):
     def error_received(self, exc):
         """Called when a send or receive operation raises an OSError."""
 
+
 def _set_result_unless_cancelled(fut, result):
     """Helper setting the result only if the future was not cancelled."""
     if fut.cancelled():
         return
     fut.set_result(result)
+
 
 class RecvmsgSelectorDatagramTransport(BaseTransport):
     """A simple loop-independent transport that largely mimicks
@@ -36,7 +39,7 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
     max_size = 4096  # Buffer size passed to recvmsg() -- should suffice for a full MTU package and ample ancdata
 
     def __init__(self, loop, sock, protocol, waiter):
-        super().__init__(extra={'socket': sock})
+        super().__init__(extra={"socket": sock})
         self.__sock = sock
         # Persisted outside of sock because when GC breaks a reference cycle,
         # it can happen that the sock gets closed before this; we have to hope
@@ -48,6 +51,7 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
         loop.call_soon(protocol.connection_made, self)
         # only start reading when connection_made() has been called
         import weakref
+
         # We could add error handling in here like this:
         # ```
         # self = s()
@@ -73,6 +77,7 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
         # needed here).
         def rr(s=weakref.ref(self)):
             s()._read_ready()
+
         loop.call_soon(loop.add_reader, self.__sock_fileno, rr)
         loop.call_soon(_set_result_unless_cancelled, waiter, None)
 
@@ -96,28 +101,35 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
     def _read_ready(self):
         if socknumbers.HAS_RECVERR:
             try:
-                data, ancdata, flags, addr = self.__sock.recvmsg(self.max_size, 1024, socknumbers.MSG_ERRQUEUE)
+                data, ancdata, flags, addr = self.__sock.recvmsg(
+                    self.max_size, 1024, socknumbers.MSG_ERRQUEUE
+                )
             except (BlockingIOError, InterruptedError):
                 pass
             except OSError as exc:
-                if repr(exc) == "OSError('received malformed or improperly truncated ancillary data',)":
-                    pass # workaround for https://bitbucket.org/pypy/pypy/issues/2649/recvmsg-with-empty-err-queue-raises-odd
+                if (
+                    repr(exc)
+                    == "OSError('received malformed or improperly truncated ancillary data',)"
+                ):
+                    pass  # workaround for https://bitbucket.org/pypy/pypy/issues/2649/recvmsg-with-empty-err-queue-raises-odd
                 else:
                     self._protocol.error_received(exc)
             except Exception as exc:
-                self._fatal_error(exc, 'Fatal read error on datagram transport')
+                self._fatal_error(exc, "Fatal read error on datagram transport")
             else:
                 self._protocol.datagram_errqueue_received(data, ancdata, flags, addr)
 
         # copied and modified from _SelectorDatagramTransport
         try:
-            data, ancdata, flags, addr = self.__sock.recvmsg(self.max_size, 1024) # TODO: find a way for the application to tell the trensport how much data is expected
+            data, ancdata, flags, addr = self.__sock.recvmsg(
+                self.max_size, 1024
+            )  # TODO: find a way for the application to tell the trensport how much data is expected
         except (BlockingIOError, InterruptedError):
             pass
         except OSError as exc:
             self._protocol.error_received(exc)
         except Exception as exc:
-            self._fatal_error(exc, 'Fatal read error on datagram transport')
+            self._fatal_error(exc, "Fatal read error on datagram transport")
         else:
             self._protocol.datagram_msg_received(data, ancdata, flags, addr)
 
@@ -129,9 +141,9 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
             self._protocol.error_received(exc)
             return
         except Exception as exc:
-            self._fatal_error(exc,
-                              'Fatal write error on datagram transport')
+            self._fatal_error(exc, "Fatal write error on datagram transport")
             return
+
 
 async def create_recvmsg_datagram_endpoint(loop, factory, sock):
     """Create a datagram connection that uses recvmsg rather than recvfrom, and
@@ -149,13 +161,12 @@ async def create_recvmsg_datagram_endpoint(loop, factory, sock):
 
     protocol = factory()
     waiter = loop.create_future()
-    transport = RecvmsgSelectorDatagramTransport(
-            loop, sock, protocol, waiter)
+    transport = RecvmsgSelectorDatagramTransport(loop, sock, protocol, waiter)
 
     try:
         await waiter
     # see https://github.com/PyCQA/pycodestyle/issues/703
-    except: # noqa: E722
+    except:  # noqa: E722
         transport.close()
         raise
 

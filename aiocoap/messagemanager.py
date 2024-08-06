@@ -12,7 +12,7 @@ be split into dedicated classes.
 import asyncio
 import functools
 import random
-from typing import Dict, Tuple, Optional
+from typing import Callable, Dict, List, Tuple, Optional
 
 from . import error
 from . import interfaces
@@ -35,27 +35,40 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     tokens *only* where required by its sub-layer).
     """
 
-    def __init__(self, token_manager):
+    def __init__(self, token_manager) -> None:
         self.token_manager = token_manager
 
         self.message_id = random.randint(0, 65535)
         #: Tracker of recently received messages (by remote and message ID).
         #: Maps them to a response message when one is already known.
         self._recent_messages: Dict[Tuple[EndpointAddress, int], Optional[Message]] = {}
-        self._active_exchanges = {}  #: active exchanges i.e. sent CON messages (remote, message-id): (messageerror_monitor monitor, cancellable timeout)
-        self._backlogs = {} #: per-remote list of (backlogged package, messageerror_monitor) tupless (keys exist iff there is an active_exchange with that node)
+        #: Active exchanges i.e. sent CON messages (remote, message-id):
+        #: (messageerror_monitor monitor, cancellable timeout)
+        self._active_exchanges: Dict[
+            Tuple[EndpointAddress, int], Tuple[Callable[[], None], asyncio.Handle]
+        ] = {}
+        #: Per-remote list of (backlogged package, messageerror_monitor)
+        #: tuples (keys exist iff there is an active_exchange with that node)
+        self._backlogs: Dict[
+            EndpointAddress, List[Tuple[Message, Callable[[], None]]]
+        ] = {}
 
         #: Maps pending remote/token combinations to the MID a response can be
         #: piggybacked on, and the timeout that should be cancelled if it is.
-        self._piggyback_opportunities: Dict[Tuple[EndpointAddress, bytes], (int, asyncio.TimerHandle)] = {}
+        self._piggyback_opportunities: Dict[
+            Tuple[EndpointAddress, bytes], Tuple[int, asyncio.TimerHandle]
+        ] = {}
 
         self.log = token_manager.log
         self.loop = token_manager.loop
 
-        #self.message_interface = … -- needs to be set post-construction, because the message_interface in its constructor already needs to get its manager
+        # self.message_interface = … -- needs to be set post-construction, because the message_interface in its constructor already needs to get its manager
 
     def __repr__(self):
-        return '<%s for %s>' % (type(self).__name__, getattr(self, 'message_interface', '(unbound)'))
+        return "<%s for %s>" % (
+            type(self).__name__,
+            getattr(self, "message_interface", "(unbound)"),
+        )
 
     @property
     def client_credentials(self):
@@ -100,7 +113,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         if message.code is EMPTY and message.mtype is CON:
             self._process_ping(message)
         elif message.code is EMPTY and message.mtype in (ACK, RST):
-            pass # empty ack has already been handled above
+            pass  # empty ack has already been handled above
         elif message.code.is_request() and message.mtype in (CON, NON):
             # the request handler will have to deal with sending ACK itself, as
             # it might be timeout-related
@@ -109,26 +122,39 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             success = self._process_response(message)
             if success:
                 if message.mtype is CON:
-                    self._send_empty_ack(message.remote, message.mid, reason="acknowledging incoming response")
+                    self._send_empty_ack(
+                        message.remote,
+                        message.mid,
+                        reason="acknowledging incoming response",
+                    )
             else:
                 # A peer mustn't send a CON to multicast, but if a malicious
                 # peer does, we better not answer
                 if message.mtype == CON and not message.remote.is_multicast_locally:
                     self.log.info("Response not recognized - sending RST.")
-                    rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload='')
+                    rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload="")
                     rst.remote = message.remote.as_response_address()
                     self._send_initially(rst)
                 else:
-                    self.log.info("Ignoring unknown response (which is not a unicast CON)")
+                    self.log.info(
+                        "Ignoring unknown response (which is not a unicast CON)"
+                    )
         else:
-            self.log.warning("Received a message with code %s and type %s (those don't fit) from %s, ignoring it.", message.code, message.mtype, message.remote)
+            self.log.warning(
+                "Received a message with code %s and type %s (those don't fit) from %s, ignoring it.",
+                message.code,
+                message.mtype,
+                message.remote,
+            )
 
     def dispatch_error(self, error, remote):
         if self._active_exchanges is None:
             # Not entirely sure where it is so far; better just raise a warning
             # than an exception later, nothing terminally bad should come of
             # this error.
-            self.log.warning("Internal shutdown sequence msismatch: error dispatched through messagemanager after shutown")
+            self.log.warning(
+                "Internal shutdown sequence msismatch: error dispatched through messagemanager after shutown"
+            )
             return
 
         self.log.debug("Incoming error %s from %r", error, remote)
@@ -138,7 +164,10 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         self.token_manager.dispatch_error(error, remote)
 
         keys_for_removal = []
-        for key, (messageerror_monitor, cancellable_timeout) in self._active_exchanges.items():
+        for key, (
+            messageerror_monitor,
+            cancellable_timeout,
+        ) in self._active_exchanges.items():
             (exchange_remote, message_id) = key
             if remote == exchange_remote:
                 keys_for_removal.append(key)
@@ -167,18 +196,21 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         if key in self._recent_messages:
             if message.mtype is CON:
                 if self._recent_messages[key] is not None:
-                    self.log.info('Duplicate CON received, sending old response again')
+                    self.log.info("Duplicate CON received, sending old response again")
                     # not going via send_message because that would strip the
                     # mid and might do all other sorts of checks
                     self._send_initially(self._recent_messages[key])
                 else:
-                    self.log.info('Duplicate CON received, no response to send yet')
+                    self.log.info("Duplicate CON received, no response to send yet")
             else:
-                self.log.info('Duplicate NON, ACK or RST received')
+                self.log.info("Duplicate NON, ACK or RST received")
             return True
         else:
-            self.log.debug('New unique message received')
-            self.loop.call_later(message.transport_tuning.EXCHANGE_LIFETIME, functools.partial(self._recent_messages.pop, key))
+            self.log.debug("New unique message received")
+            self.loop.call_later(
+                message.transport_tuning.EXCHANGE_LIFETIME,
+                functools.partial(self._recent_messages.pop, key),
+            )
             self._recent_messages[key] = None
             return False
 
@@ -206,7 +238,11 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         if message.remote not in self._backlogs:
             self._backlogs[message.remote] = []
 
-        timeout = random.uniform(message.transport_tuning.ACK_TIMEOUT, message.transport_tuning.ACK_TIMEOUT * message.transport_tuning.ACK_RANDOM_FACTOR)
+        timeout = random.uniform(
+            message.transport_tuning.ACK_TIMEOUT,
+            message.transport_tuning.ACK_TIMEOUT
+            * message.transport_tuning.ACK_RANDOM_FACTOR,
+        )
 
         next_retransmission = self._schedule_retransmit(message, timeout, 0)
         self._active_exchanges[key] = (messageerror_monitor, next_retransmission)
@@ -220,7 +256,11 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
 
         if key not in self._active_exchanges:
             # Before turning this up to a warning, consider https://github.com/chrysn/aiocoap/issues/288
-            self.log.info("Received %s from %s, but could not match it to a running exchange.", message.mtype, message.remote)
+            self.log.info(
+                "Received %s from %s, but could not match it to a running exchange.",
+                message.mtype,
+                message.remote,
+            )
             return
 
         messageerror_monitor, next_retransmission = self._active_exchanges.pop(key)
@@ -240,7 +280,9 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             # .register_finally() on, we could chain them like that; if we
             # implemented anything but NSTART=1, we'll need a more elaborate
             # system anyway
-            raise AssertionError("backlogs/active_exchange relation violated (implementation error)")
+            raise AssertionError(
+                "backlogs/active_exchange relation violated (implementation error)"
+            )
 
         # first iteration is sure to happen, others happen only if the enqueued
         # messages were NONs
@@ -262,13 +304,16 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         # are kept around; contexts should be able to shut down in an orderly
         # way without littering references in the loop)
 
-        def retr(self=self,
-                message=message,
-                timeout=timeout,
-                retransmission_counter=retransmission_counter,
-                doc="If you read this, have a look at _schedule_retransmit",
-                id=object()):
+        def retr(
+            self=self,
+            message=message,
+            timeout=timeout,
+            retransmission_counter=retransmission_counter,
+            doc="If you read this, have a look at _schedule_retransmit",
+            id=object(),
+        ):
             self._retransmit(message, timeout, retransmission_counter)
+
         return self.loop.call_later(timeout, retr)
 
     def _retransmit(self, message, timeout, retransmission_counter):
@@ -285,43 +330,56 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             retransmission_counter += 1
             timeout *= 2
 
-            next_retransmission = self._schedule_retransmit(message, timeout, retransmission_counter)
+            next_retransmission = self._schedule_retransmit(
+                message, timeout, retransmission_counter
+            )
             self._active_exchanges[key] = (messageerror_monitor, next_retransmission)
         else:
             self.log.info("Exchange timed out trying to transmit %s", message)
             del self._backlogs[message.remote]
-            self.token_manager.dispatch_error(error.ConRetransmitsExceeded("Retransmissions exceeded"), message.remote)
+            self.token_manager.dispatch_error(
+                error.ConRetransmitsExceeded("Retransmissions exceeded"), message.remote
+            )
 
     #
     # coap dispatch, message-code sublayer: triggering custom actions based on incoming messages
     #
 
     def _process_ping(self, message):
-        self.log.info('Received CoAP Ping from %s, replying with RST.', message.remote)
-        rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b'')
+        self.log.info("Received CoAP Ping from %s, replying with RST.", message.remote)
+        rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b"")
         rst.remote = message.remote.as_response_address()
         # not going via send_message because that would strip the mid, and we
         # already know that it can go straight to the wire
         self._send_initially(rst)
 
     def _process_request(self, request):
-        """Spawn a Responder for an incoming request, or feed a long-running
+        """Spawn a responder for an incoming request, or feed a long-running
         responder if one exists."""
 
         if request.mtype == CON:
+
             def on_timeout(self, remote, token):
-                mid, own_timeout = self._piggyback_opportunities.pop(
-                        (remote, token))
-                self._send_empty_ack(request.remote, mid,
-                    "Response took too long to prepare")
-            handle = self.loop.call_later(request.transport_tuning.EMPTY_ACK_DELAY,
-                    on_timeout, self, request.remote, request.token)
+                mid, own_timeout = self._piggyback_opportunities.pop((remote, token))
+                self._send_empty_ack(
+                    request.remote, mid, "Response took too long to prepare"
+                )
+
+            handle = self.loop.call_later(
+                request.transport_tuning.EMPTY_ACK_DELAY,
+                on_timeout,
+                self,
+                request.remote,
+                request.token,
+            )
             key = (request.remote, request.token)
             if key in self._piggyback_opportunities:
-                self.log.warning("New request came in while old request not"
-                      " ACKed yet. Possible mismatch between EMPTY_ACK_DELAY"
-                      " and EXCHANGE_LIFETIME. Cancelling ACK to ward off any"
-                      " further confusion.")
+                self.log.warning(
+                    "New request came in while old request not"
+                    " ACKed yet. Possible mismatch between EMPTY_ACK_DELAY"
+                    " and EXCHANGE_LIFETIME. Cancelling ACK to ward off any"
+                    " further confusion."
+                )
                 mid, old_handle = self._piggyback_opportunities.pop(key)
                 old_handle.cancel()
             self._piggyback_opportunities[key] = (request.mid, handle)
@@ -367,12 +425,16 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             # if you can give any reason why the application should provide a
             # fixed mid, lower the log level on demand and provide the reason
             # in a comment.
-            self.log.warning("Message ID set on to-be-sent message, this is"
-                  " probably unintended; clearing it.")
+            self.log.warning(
+                "Message ID set on to-be-sent message, this is"
+                " probably unintended; clearing it."
+            )
             message.mid = None
 
         if message.code.is_response():
-            no_response = (message.opt.no_response or 0) & (1 << message.code.class_ - 1) != 0
+            no_response = (message.opt.no_response or 0) & (
+                1 << message.code.class_ - 1
+            ) != 0
 
             piggyback_key = (message.remote, message.token)
             if piggyback_key in self._piggyback_opportunities:
@@ -383,13 +445,17 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                     new_message = Message(code=EMPTY, mid=mid, mtype=ACK)
                     new_message.remote = message.remote.as_response_address()
                     message = new_message
-                    self.log.debug("Turning to-be-sent message into an empty ACK due to no_response option.")
+                    self.log.debug(
+                        "Turning to-be-sent message into an empty ACK due to no_response option."
+                    )
                 else:
                     message.mtype = ACK
                     message.mid = mid
             else:
                 if no_response:
-                    self.log.debug("Stopping message in message manager as it is no_response and no ACK is pending.")
+                    self.log.debug(
+                        "Stopping message in message manager as it is no_response and no ACK is pending."
+                    )
                     return
 
             message.opt.no_response = None
@@ -408,7 +474,9 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                     message.mtype = CON
         else:
             if self._active_exchanges is None:
-                self.log.warning("Forcing message to be sent as NON even though specified because transport is shutting down")
+                self.log.warning(
+                    "Forcing message to be sent as NON even though specified because transport is shutting down"
+                )
                 message.mtype = NON
 
         if message.mtype == CON and message.remote.is_multicast:
@@ -418,7 +486,9 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             message.mid = self._next_message_id()
 
         if message.mtype == CON and message.remote in self._backlogs:
-            assert any(remote == message.remote for (remote, _) in self._active_exchanges)
+            assert any(
+                remote == message.remote for (remote, _) in self._active_exchanges
+            )
             self.log.debug("Message to %s put into backlog", message.remote)
             self._backlogs[message.remote].append((message, messageerror_monitor))
         else:
@@ -430,7 +500,9 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         self.log.debug("Sending message %r", message)
 
         if message.mtype is CON:
-            assert messageerror_monitor is not None, "messageerror_monitor needs to be set for CONs"
+            assert (
+                messageerror_monitor is not None
+            ), "messageerror_monitor needs to be set for CONs"
             self._add_exchange(message, messageerror_monitor)
 
         self._store_response_for_duplicates(message)
@@ -451,16 +523,16 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     def _send_empty_ack(self, remote, mid, reason):
         """Send separate empty ACK for any reason.
 
-        Currently, this can happen only once per Responder, that is, when the
+        Currently, this can happen only once per responder, that is, when the
         last block1 has been transferred and the first block2 is not ready
         yet."""
 
         self.log.debug("Sending empty ACK: %s", reason)
         ack = Message(
-                mtype=ACK,
-                code=EMPTY,
-                payload=b"",
-                )
+            mtype=ACK,
+            code=EMPTY,
+            payload=b"",
+        )
         ack.remote = remote.as_response_address()
         ack.mid = mid
         # not going via send_message because that would strip the mid, and we

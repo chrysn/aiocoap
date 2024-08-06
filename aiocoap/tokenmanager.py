@@ -7,14 +7,15 @@ import random
 
 from . import error
 from . import interfaces
+
 # To be used sparingly here: This deals with request / responses on the token
 # layer. But the layer below won't even know that messages are responses, so it
 # can't make the informed decisions we make here.
 from .numbers.types import NON
 from .pipe import Pipe
 
-class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
 
+class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
     def __init__(self, context):
         self.context = context
 
@@ -31,10 +32,13 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         self.log = self.context.log
         self.loop = self.context.loop
 
-        #self.token_interface = … -- needs to be set post-construction, because the token_interface in its constructor already needs to get its manager
+        # self.token_interface = … -- needs to be set post-construction, because the token_interface in its constructor already needs to get its manager
 
     def __repr__(self):
-        return '<%s for %s>' % (type(self).__name__, getattr(self, 'token_interface', '(unbound)'))
+        return "<%s for %s>" % (
+            type(self).__name__,
+            getattr(self, "token_interface", "(unbound)"),
+        )
 
     @property
     def client_credentials(self):
@@ -62,9 +66,9 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
 
     def next_token(self):
         """Reserve and return a new Token for request."""
-        #TODO: add proper Token handling
-        self._token = (self._token + 1) % (2 ** 64)
-        return self._token.to_bytes(8, 'big').lstrip(b'\0')
+        # TODO: add proper Token handling
+        self._token = (self._token + 1) % (2**64)
+        return self._token.to_bytes(8, "big").lstrip(b"\0")
 
     #
     # implement the tokenmanager interface
@@ -75,7 +79,9 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # Not entirely sure where it is so far; better just raise a warning
             # than an exception later, nothing terminally bad should come of
             # this error.
-            self.log.warning("Internal shutdown sequence msismatch: error dispatched through tokenmanager after shutdown")
+            self.log.warning(
+                "Internal shutdown sequence msismatch: error dispatched through tokenmanager after shutdown"
+            )
             return
 
         # NetworkError is what we promise users to raise from request etc; if
@@ -94,9 +100,13 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         for key, request in self.outgoing_requests.items():
             (token, request_remote) = key
             if request_remote == remote:
-                stoppers.append(lambda request=request, exception=exception: request.add_exception(exception))
+                stoppers.append(
+                    lambda request=request, exception=exception: request.add_exception(
+                        exception
+                    )
+                )
 
-        for ((_, _r), (_, stopper)) in self.incoming_requests.items():
+        for (_, _r), (_, stopper) in self.incoming_requests.items():
             if remote == _r:
                 stoppers.append(stopper)
         for stopper in stoppers:
@@ -130,22 +140,26 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                     # default (CON if stand-alone else ACK) otherwise.
                     m.mtype = NON
                 self.token_interface.send_message(
-                        m,
-                        # No more interest from *that* remote; as it's the only
-                        # thing keeping the PR alive, it'll go its course of
-                        # vanishing for lack of interest (as it would if
-                        # stop were called from its other possible caller,
-                        # the start of process_request when a new request comes
-                        # in on the same token)
-                        stop,
-                        )
+                    m,
+                    # No more interest from *that* remote; as it's the only
+                    # thing keeping the PR alive, it'll go its course of
+                    # vanishing for lack of interest (as it would if
+                    # stop were called from its other possible caller,
+                    # the start of process_request when a new request comes
+                    # in on the same token)
+                    stop,
+                )
             else:
                 # It'd be tempting to raise here, but typically being called
                 # from a task, it wouldn't propagate any further either, and at
                 # least here we have a logger.
-                self.log.error("Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s", ev)
+                self.log.error(
+                    "Requests shouldn't receive errors at the level of a TokenManager any more, but this did: %s",
+                    ev,
+                )
             if not ev.is_last:
                 return True
+
         def on_end():
             if key in self.incoming_requests:
                 # It may not be, especially if it was popped in `(pipe, stop) = self.incoming_requests.pop(keyu)` above
@@ -155,6 +169,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # out by the first response, and if there was not even a
             # NoResponse, something went wrong above (and we can't tell easily
             # here).
+
         stop = pipe.on_event(on_event)
         pipe.on_interest_end(on_end)
 
@@ -185,7 +200,9 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         # Still, it would be an option not to send an is_last here and *always*
         # have the higher-level code indicate loss of interest in that exchange
         # when it detects that no more observations will follow.
-        final = not (request.request.opt.observe == 0 and response.opt.observe is not None)
+        final = not (
+            request.request.opt.observe == 0 and response.opt.observe is not None
+        )
 
         if final:
             self.outgoing_requests.pop(key)
@@ -213,7 +230,9 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         # for observations if many short ones are already in-flight
         msg.token = self.next_token()
 
-        self.log.debug("Sending request - Token: %s, Remote: %s", msg.token.hex(), msg.remote)
+        self.log.debug(
+            "Sending request - Token: %s, Remote: %s", msg.token.hex(), msg.remote
+        )
 
         # A request sent over the multicast interface will only return a single
         # response and otherwise behave quite like an anycast request (which is
@@ -225,10 +244,14 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             key = (msg.token, msg.remote)
 
         self.outgoing_requests[key] = request
-        request.on_interest_end(functools.partial(self.outgoing_requests.pop, key, None))
+        request.on_interest_end(
+            functools.partial(self.outgoing_requests.pop, key, None)
+        )
 
         try:
-            send_canceller = self.token_interface.send_message(msg, lambda: request.add_exception(error.MessageError))
+            send_canceller = self.token_interface.send_message(
+                msg, lambda: request.add_exception(error.MessageError)
+            )
         except Exception as e:
             request.add_exception(e)
             return
@@ -250,5 +273,4 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # some information to the token_interface about whether it should
             # keep an eye out for responses on that token and cancel
             # transmission accordingly.
-            request.on_event(lambda ev: (send_canceller(), False)[1],
-                    is_interest=False)
+            request.on_event(lambda ev: (send_canceller(), False)[1], is_interest=False)
