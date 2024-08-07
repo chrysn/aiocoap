@@ -89,7 +89,7 @@ steps:
       - mkdir collected-coverage/tox-3.13/ -p
       - mv .coverage* collected-coverage/tox-3.13/
 
-  test:mypy:
+  mypy:
     image: docker.io/python:3.12
     depends_on: []
     commands:
@@ -97,7 +97,7 @@ steps:
       - pip install '.[all]'
       - mypy --install-types --non-interactive aiocoap
 
-  test:ruff:
+  ruff:
     image: python:3
     depends_on: []
     commands:
