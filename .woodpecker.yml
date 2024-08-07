@@ -113,3 +113,26 @@ steps:
     commands:
       - pip install reuse
       - reuse lint
+
+  build-pages:
+    image: docker.io/python:3
+    depends_on:
+      - test:tox-bookworm
+      - test:py312
+      - test:3.13
+    commands:
+      - python3 -m pip install coverage
+      - rm -f .coverage* public
+      - mv collected-coverage/*/.coverage* .
+      - python3 -m coverage combine
+      - python3 -m coverage report --include=aiocoap/\*
+      - python3 -m coverage html --include=aiocoap/\*
+
+  publish-pages:
+    image: codeberg.org/xfix/plugin-codeberg-pages-deploy:1
+    depends_on:
+      - build-pages
+    settings:
+      folder: htmlcov
+      ssh_key:
+        from_secret: ssh_key
