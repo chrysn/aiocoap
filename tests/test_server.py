@@ -79,7 +79,10 @@ class BigResource(aiocoap.resource.Resource):
 
 class SlowBigResource(aiocoap.resource.Resource):
     async def render_get(self, request):
-        await asyncio.sleep(0.2)
+        # Should be 0.2s usually, but while running in slow_empty_ack mode, we
+        # have to slow it down. Adds 2s to the tests, but that makes the test
+        # more reliable.
+        await asyncio.sleep(aiocoap.numbers.TransportTuning.EMPTY_ACK_DELAY * 1.1)
         # 1.6kb
         payload = b"0123456789----------" * 80
         return aiocoap.Message(payload=payload)
@@ -425,6 +428,7 @@ class TestServer(TestServerBase):
         )
 
     @no_warnings
+    @slow_empty_ack()
     def test_slowbig_resource(self):
         request = self.build_request()
         request.opt.uri_path = ["slowbig"]
