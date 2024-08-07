@@ -21,7 +21,6 @@ steps:
     image: debian:bookworm
     depends_on: [test:py312]
     commands:
-      - rm -f .coverage* collected-coverage
       - apt-get update
       - apt-get -y install tox build-essential python3.11-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev libgirepository1.0-dev libcairo2-dev
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
@@ -34,7 +33,6 @@ steps:
     image: docker.io/pypy:3
     depends_on: [test:py312]
     commands:
-      - rm -f .coverage* collected-coverage
       - apt-get update
       - apt-get -y install build-essential libssl-dev autoconf iproute2 libffi-dev
       # lakers-python is not yet built for pypy; tracked at <https://github.com/openwsn-berkeley/lakers/issues/288>
@@ -53,7 +51,6 @@ steps:
       - apt-get update
       # cmake, libgirepository1.0-dev: required for building pygobject
       - apt-get -y install iproute2 cmake libgirepository1.0-dev
-      - rm -f .coverage* collected-coverage
       - pip install tox
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest --skip-env '^py31[^2]'
@@ -77,7 +74,6 @@ steps:
       # 3.13 wheels yet
       - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y
       - source ~/.cargo/env
-      - rm -f .coverage* collected-coverage
       - pip install tox
       # Workaround for https://github.com/python-cffi/cffi/issues/71
       - tox -e py313-allextras exec --skip-pkg-install -- pip install 'cffi >=1.17.0rc1'
@@ -123,7 +119,6 @@ steps:
       - test:pypy
     commands:
       - python3 -m pip install coverage
-      - rm -f .coverage* public
       - mv collected-coverage/*/.coverage* .
       - python3 -m coverage combine
       - python3 -m coverage report --include=aiocoap/\*
