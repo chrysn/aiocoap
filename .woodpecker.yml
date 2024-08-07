@@ -110,6 +110,14 @@ steps:
       - pip install reuse
       - reuse lint
 
+  doc:
+    image: python:3
+    depends_on: []
+    commands:
+      # synced with .readthedocs.yaml and pyproject.toml
+      - pip install '.[docs,oscore,prettyprint]'
+      - python3 -m sphinx doc public/doc/
+
   build-pages:
     image: docker.io/python:3
     depends_on:
@@ -123,6 +131,9 @@ steps:
       - python3 -m coverage combine
       - python3 -m coverage report --include=aiocoap/\*
       - python3 -m coverage html --include=aiocoap/\*
+      - mkdir -p pubic
+      - mv htmlcov public/coverage/
+      - echo '<title>aiocoap build artifacts</title><h1>aiocoap build artifacts<ul><li><a href="coverage/">Coverage report</a><li><a href="doc/">Documentation</a>' > public/index.html
 
   publish-pages:
     image: codeberg.org/xfix/plugin-codeberg-pages-deploy:1
