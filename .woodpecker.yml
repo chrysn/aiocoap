@@ -42,9 +42,8 @@ steps:
       - pip install tox
       - tox --notest --skip-env '^py[^p]'
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py[^p]'"
-      # Not generating any coverage: This would slow things down to the point
-      # where slow_callback_duration from -Xdev bites, and is thus not enabled
-      # for pypy in tox. It's not like pypy should contribute to coverage anyway.
+      - mkdir collected-coverage/pypy/ -p
+      - mv .coverage* collected-coverage/pypy/
 
   test:py312:
     image: docker.io/python:3.12
@@ -120,6 +119,7 @@ steps:
       - test:tox-bookworm
       - test:py312
       - test:3.13
+      - test:pypy
     commands:
       - python3 -m pip install coverage
       - rm -f .coverage* public
