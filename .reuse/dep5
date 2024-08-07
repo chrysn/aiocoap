@@ -18,6 +18,7 @@ Files:
   .gitignore
   .gitlab-ci.yml
   .readthedocs.yaml
+  .woodpecker.yml
   MANIFEST.in
   NEWS.rst
   README.rst
