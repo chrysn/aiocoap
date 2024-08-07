@@ -1,7 +1,8 @@
 when:
   - event: push
-    branch: [main, woodpecker]
-  - event: pull_request
+  # While we're still on the GitHub issue tracker, the pull_request event stays off, and we evaluate every single branch.
+  #   branch: [main, woodpecker]
+  # - event: pull_request
 
 
 # running tests twice, so if something breaks when optional dependencies are
