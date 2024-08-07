@@ -354,7 +354,20 @@ class TestServer(TestServerBase):
         request = self.build_request()
         request.opt.uri_path = ["empty"]
 
-        response = self.fetch_response(request)
+        try:
+            # FIXME: Pushing the times here so that even on a loaded system
+            # with pypy and coverage, this can complete realistically.
+            #
+            # This will break as soon as transport tuning becomes more
+            # per-transport or even per-remote; the proper fix would be to use
+            # mock time anyway.
+            original_empty_ack_delay = aiocoap.numbers.TransportTuning.EMPTY_ACK_DELAY
+            aiocoap.numbers.TransportTuning.EMPTY_ACK_DELAY = (
+                0.9 * aiocoap.numbers.TransportTuning.ACK_TIMEOUT
+            )
+            response = self.fetch_response(request)
+        finally:
+            aiocoap.numbers.TransportTuning.EMPTY_ACK_DELAY = original_empty_ack_delay
 
         self.assertEqual(response.code, aiocoap.CONTENT, "Fast request did not succede")
         self.assertEqual(self._count_empty_acks(), 0, "Fast resource had an empty ack")
