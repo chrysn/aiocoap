@@ -37,7 +37,7 @@ steps:
       - apt-get -y install build-essential libssl-dev autoconf iproute2 libffi-dev
       # lakers-python is not yet built for pypy; tracked at <https://github.com/openwsn-berkeley/lakers/issues/288>
       - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y
-      - source ~/.cargo/env
+      - . ~/.cargo/env
       - pip install tox
       - tox --notest --skip-env '^py[^p]'
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py[^p]'"
@@ -73,7 +73,7 @@ steps:
       # nor lakers (https://github.com/openwsn-berkeley/lakers/pull/291) build
       # 3.13 wheels yet
       - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y
-      - source ~/.cargo/env
+      - . ~/.cargo/env
       - pip install tox
       # Workaround for https://github.com/python-cffi/cffi/issues/71
       - tox -e py313-allextras exec --skip-pkg-install -- pip install 'cffi >=1.17.0rc1'
