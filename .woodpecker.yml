@@ -19,7 +19,7 @@ when:
 steps:
   test:tox-bookworm:
     image: debian:bookworm
-    depends_on: [test:py312]
+    depends_on: [test:3.13]
     commands:
       - apt-get update
       - apt-get -y install tox build-essential python3.11-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev libgirepository1.0-dev libcairo2-dev
@@ -31,7 +31,7 @@ steps:
 
   test:pypy:
     image: docker.io/pypy:3
-    depends_on: [test:py312]
+    depends_on: [test:3.13]
     commands:
       - apt-get update
       - apt-get -y install build-essential libssl-dev autoconf iproute2 libffi-dev
@@ -46,7 +46,7 @@ steps:
 
   test:py312:
     image: docker.io/python:3.12
-    depends_on: []
+    depends_on: [test:3.13]
     commands:
       - apt-get update
       # cmake, libgirepository1.0-dev: required for building pygobject
@@ -61,7 +61,7 @@ steps:
 
   test:3.13:
     image: docker.io/python:3.13-rc
-    depends_on: [test:py312]
+    depends_on: []
     environment:
       # Possibly necessary because the image uses some Debian as a base might have another Python installed
       TOXENV: "py313-noextras,py313-allextras"
