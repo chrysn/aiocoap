@@ -33,9 +33,9 @@ requires-python = ">=3.10"
 
 [project.urls]
 homepage = "https://christian.amsuess.com/tools/aiocoap/"
-repository = "https://github.com/chrysn/aiocoap/"
+repository = "https://codeberg.org/aiocoap/aiocoap"
 documentation = "https://aiocoap.readthedocs.org/"
-changelog = "https://github.com/chrysn/aiocoap/blob/master/NEWS"
+changelog = "https://codeberg.org/aiocoap/aiocoap/src/branch/main/NEWS.rst"
 
 [project.scripts]
 aiocoap-client = "aiocoap.cli.client:sync_main"
