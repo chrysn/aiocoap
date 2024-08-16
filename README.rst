@@ -116,9 +116,9 @@ suite at codeberg`_, from where `coverage reports`_ are available.
 Relevant URLs
 -------------
 
-* https://github.com/chrysn/aiocoap
+* https://codeberg.org/aiocoap/aiocoap
 
-  This is where the latest source code can be found, and bugs can be reported.
+  This is where the latest source code can be found.
   Generally, this serves as the project web site.
 
 * http://aiocoap.readthedocs.org/
