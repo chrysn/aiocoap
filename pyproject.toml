@@ -61,7 +61,7 @@ docs = [ "sphinx >= 5", "sphinx-argparse" ]
 
 # manually kept up to date to include everything except docs
 #
-# when updating this, also check what is needed to build in .readthedocs.yaml
+# when updating this, also check what is needed to build in .readthedocs.yaml and .woodpecker.yml
 all = [
     "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-python == 0.3.3",
     "DTLSSocket >= 0.1.18",

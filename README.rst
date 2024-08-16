@@ -104,13 +104,13 @@ tox_ (but also available through ``python3 -m unittest`` to test the local envir
 complete test coverage is aimed for, but not yet complete (and might never be,
 as the error handling for pathological network partners is hard to trigger with
 a library designed not to misbehave). The tests are regularly run at the `CI
-suite at gitlab`_, from where `coverage reports`_ are available.
+suite at codeberg`_, from where `coverage reports`_ are available.
 
 .. _PEP8: http://legacy.python.org/dev/peps/pep-0008/
 .. _sphinx: http://sphinx-doc.org/
 .. _`github issue tracker`: https://github.com/chrysn/aiocoap/issues
-.. _`CI suite at gitlab`: https://gitlab.com/aiocoap/aiocoap/commits/master
-.. _`coverage reports`: https://aiocoap.gitlab.io/aiocoap/
+.. _`CI suite at codeberg`: https://ci.codeberg.org/repos/12879
+.. _`coverage reports`: https://aiocoap.codeberg.page/aiocoap/coverage/
 .. _tox: https://tox.readthedocs.io/
 
 Relevant URLs

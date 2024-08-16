@@ -79,6 +79,10 @@ def no_warnings(function, expected_warnings=None):
             for m in self.handler.list[startcount:]
             if m.levelno >= logging.WARNING
             and "There is no current event loop" not in m.getMessage()
+            # Tests are not generally run with precisely known load conditions,
+            # and unless in normal operations where this would be an occasional
+            # warning, this would trip up our whole test.
+            and m.orig_msg != "Executing %s took %.3f seconds"
         ]
         if len(expected_warnings) != len(messages) or not all(
             e == m or (e.endswith("...") and m.startswith(e[:-3]))
@@ -165,6 +169,10 @@ class WithLogMonitoring(unittest.TestCase):
                 # either as it effectively means parsing by the above colon
                 # format (yes, sub-string matching is probably good enough, but
                 # why take chances).
+                #
+                # The original message is retained for use with cases when it
+                # is easier that way.
+                record.orig_msg = record.msg
                 record.msg = record.msg % record.args
 
             record.args = None

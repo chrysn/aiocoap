@@ -1,0 +1,163 @@
+when:
+  - event: push
+  # While we're still on the GitHub issue tracker, the pull_request event stays off, and we evaluate every single branch.
+  #   branch: [main, woodpecker]
+  # - event: pull_request
+
+
+# running tests twice, so if something breaks when optional dependencies are
+# missing, it still shows up. (full coverage would mean running each
+# combination, but let's not blow the test matrix out of proportion).
+
+# --skip-env is often used to mask out Python versions that are installed on
+# the system but are not what we want to test here (for example, the Pythoh
+# 3.13-rc image is based on a Debian that ships its own older Python).
+
+# Generally, all can run in parallel; setting depends_on to one hero test so
+# that we don't waste resources if one already fails.
+
+steps:
+  test:tox-bookworm:
+    image: debian:bookworm
+    depends_on: [test:3.13]
+    environment:
+      FORCE_COLOR: "1"
+    commands:
+      - apt-get update
+      - apt-get -y install tox build-essential python3.11-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev libgirepository1.0-dev libcairo2-dev
+      # Separate run so I don't waste time telling errors in setup apart from errors at runtime
+      - tox --notest
+      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+      - mkdir collected-coverage/tox-bookworm/ -p
+      - mv .coverage* collected-coverage/tox-bookworm/
+
+  test:pypy:
+    image: docker.io/pypy:3
+    depends_on: [test:3.13]
+    environment:
+      FORCE_COLOR: "1"
+    commands:
+      - apt-get update
+      - apt-get -y install build-essential libssl-dev autoconf iproute2 libffi-dev
+      # lakers-python is not yet built for pypy; tracked at <https://github.com/openwsn-berkeley/lakers/issues/288>
+      - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y
+      - . ~/.cargo/env
+      - pip install tox
+      - tox --notest --skip-env '^py[^p]'
+      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py[^p]'"
+      - mkdir collected-coverage/pypy/ -p
+      - mv .coverage* collected-coverage/pypy/
+
+  test:py312:
+    image: docker.io/python:3.12
+    depends_on: [test:3.13]
+    environment:
+      FORCE_COLOR: "1"
+    commands:
+      - apt-get update
+      # cmake, libgirepository1.0-dev: required for building pygobject
+      - apt-get -y install iproute2 cmake libgirepository1.0-dev
+      - pip install tox
+      # Separate run so I don't waste time telling errors in setup apart from errors at runtime
+      - tox --notest --skip-env '^py31[^2]'
+      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^2]'"
+      - mkdir collected-coverage/tox-3.12/ -p
+      - mv .coverage* collected-coverage/tox-3.12/
+
+
+  test:3.13:
+    image: docker.io/python:3.13-rc
+    depends_on: []
+    environment:
+      # Possibly necessary because the image uses some Debian as a base might have another Python installed
+      TOXENV: "py313-noextras,py313-allextras"
+      FORCE_COLOR: "1"
+    commands:
+      - apt-get update
+      - apt-get -y install iproute2
+      # The image's Debian has Rust 1.63, which is too old for the `half` module
+      # required by cbor-diag; having Rust is required because neither cbor-diag
+      # nor lakers (https://github.com/openwsn-berkeley/lakers/pull/291) build
+      # 3.13 wheels yet
+      - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y
+      - . ~/.cargo/env
+      - pip install tox
+      # Workaround for https://github.com/python-cffi/cffi/issues/71
+      - tox -e py313-allextras exec --skip-pkg-install -- pip install 'cffi >=1.17.0rc1'
+      # Until something > 0.3.3 is out (https://github.com/openwsn-berkeley/lakers/pull/293 is already merged)
+      # The version is pinned to where 293 was merged but before https://github.com/openwsn-berkeley/lakers/issues/303 happened.
+      - tox -e py313-allextras exec --skip-pkg-install -- pip install 'git+https://github.com/openwsn-berkeley/lakers/@26eab7d5cf08b67f6cabe4debcbd9cf0dcaca81c#egg=lakers-python&subdirectory=lakers-python'
+      # Separate run so I don't waste time telling errors in setup apart from errors at runtime
+      - tox --notest --skip-env '^py31[^3]'
+      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^3]'"
+      - mkdir collected-coverage/tox-3.13/ -p
+      - mv .coverage* collected-coverage/tox-3.13/
+
+  mypy:
+    image: docker.io/python:3.12
+    depends_on: []
+    environment:
+      FORCE_COLOR: "1"
+    commands:
+      - pip install mypy
+      - pip install '.[all]'
+      - mypy --install-types --non-interactive aiocoap
+
+  ruff:
+    image: python:3
+    depends_on: []
+    environment:
+      FORCE_COLOR: "1"
+    commands:
+      - pip install ruff
+      - ruff format --check
+      # Excluding the client scripts as their heavy reliance on `from aiocoap
+      # import *` would decrease their usefullness as easy quick-start script
+      - ruff check aiocoap
+
+  reuse:
+    image: python:3
+    depends_on: []
+    environment:
+      FORCE_COLOR: "1"
+    commands:
+      - pip install reuse
+      - reuse lint
+
+  doc:
+    image: python:3
+    depends_on: []
+    environment:
+      FORCE_COLOR: "1"
+    commands:
+      # synced with .readthedocs.yaml and pyproject.toml
+      - pip install '.[docs,oscore,prettyprint]'
+      - python3 -m sphinx doc public/doc/
+
+  build-pages:
+    image: docker.io/python:3
+    depends_on:
+      - test:tox-bookworm
+      - test:py312
+      - test:3.13
+      - test:pypy
+    environment:
+      FORCE_COLOR: "1"
+    commands:
+      - python3 -m pip install coverage
+      - mv collected-coverage/*/.coverage* .
+      - python3 -m coverage combine
+      - python3 -m coverage report --include=aiocoap/\*
+      - python3 -m coverage html --include=aiocoap/\*
+      - mkdir -p pubic
+      - mv htmlcov public/coverage/
+      - echo '<title>aiocoap build artifacts</title><h1>aiocoap build artifacts<ul><li><a href="coverage/">Coverage report</a><li><a href="doc/">Documentation</a>' > public/index.html
+
+  publish-pages:
+    image: codeberg.org/xfix/plugin-codeberg-pages-deploy:1
+    depends_on:
+      - build-pages
+    settings:
+      folder: public
+      ssh_key:
+        from_secret: ssh_key

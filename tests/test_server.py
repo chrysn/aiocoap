@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 import asyncio
+import contextlib
 import re
 import aiocoap
 import aiocoap.resource
@@ -14,6 +15,25 @@ import json
 
 from . import common
 from .fixtures import no_warnings, WithAsyncLoop, Destructing, CLEANUPTIME, asynctest
+
+
+class slow_empty_ack(contextlib.ContextDecorator):
+    def __enter__(self):
+        # FIXME: Pushing the times here so that even on a loaded system
+        # with pypy and coverage, this can complete realistically.
+        #
+        # This will break as soon as transport tuning becomes more
+        # per-transport or even per-remote; the proper fix would be to use
+        # mock time anyway.
+        self.original_empty_ack_delay = aiocoap.numbers.TransportTuning.EMPTY_ACK_DELAY
+        aiocoap.numbers.TransportTuning.EMPTY_ACK_DELAY = (
+            0.9 * aiocoap.numbers.TransportTuning.ACK_TIMEOUT
+        )
+        return self
+
+    def __exit__(self, *exc):
+        aiocoap.numbers.TransportTuning.EMPTY_ACK_DELAY = self.original_empty_ack_delay
+        return False
 
 
 class MultiRepresentationResource(aiocoap.resource.Resource):
@@ -59,7 +79,10 @@ class BigResource(aiocoap.resource.Resource):
 
 class SlowBigResource(aiocoap.resource.Resource):
     async def render_get(self, request):
-        await asyncio.sleep(0.2)
+        # Should be 0.2s usually, but while running in slow_empty_ack mode, we
+        # have to slow it down. Adds 2s to the tests, but that makes the test
+        # more reliable.
+        await asyncio.sleep(aiocoap.numbers.TransportTuning.EMPTY_ACK_DELAY * 1.1)
         # 1.6kb
         payload = b"0123456789----------" * 80
         return aiocoap.Message(payload=payload)
@@ -350,6 +373,7 @@ class TestServer(TestServerBase):
         )
 
     @no_warnings
+    @slow_empty_ack()
     def test_fast_resource(self):
         request = self.build_request()
         request.opt.uri_path = ["empty"]
@@ -404,6 +428,7 @@ class TestServer(TestServerBase):
         )
 
     @no_warnings
+    @slow_empty_ack()
     def test_slowbig_resource(self):
         request = self.build_request()
         request.opt.uri_path = ["slowbig"]

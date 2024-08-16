@@ -18,6 +18,8 @@ python:
       # all except dtls (because DTLSSocket doesn't have wheels, and
       # readthedocs shouldn't be bothered with compiling C code, but then,
       # that module can be imported even when DTLSSocket is not available)
+      #
+      # also synced with .woodpecker.yml
       - oscore
       - ws
       - prettyprint
