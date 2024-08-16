@@ -20,6 +20,8 @@ steps:
   test:tox-bookworm:
     image: debian:bookworm
     depends_on: [test:3.13]
+    environment:
+      FORCE_COLOR: "1"
     commands:
       - apt-get update
       - apt-get -y install tox build-essential python3.11-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev libgirepository1.0-dev libcairo2-dev
@@ -32,6 +34,8 @@ steps:
   test:pypy:
     image: docker.io/pypy:3
     depends_on: [test:3.13]
+    environment:
+      FORCE_COLOR: "1"
     commands:
       - apt-get update
       - apt-get -y install build-essential libssl-dev autoconf iproute2 libffi-dev
@@ -47,6 +51,8 @@ steps:
   test:py312:
     image: docker.io/python:3.12
     depends_on: [test:3.13]
+    environment:
+      FORCE_COLOR: "1"
     commands:
       - apt-get update
       # cmake, libgirepository1.0-dev: required for building pygobject
@@ -65,6 +71,7 @@ steps:
     environment:
       # Possibly necessary because the image uses some Debian as a base might have another Python installed
       TOXENV: "py313-noextras,py313-allextras"
+      FORCE_COLOR: "1"
     commands:
       - apt-get update
       - apt-get -y install iproute2
@@ -88,6 +95,8 @@ steps:
   mypy:
     image: docker.io/python:3.12
     depends_on: []
+    environment:
+      FORCE_COLOR: "1"
     commands:
       - pip install mypy
       - pip install '.[all]'
@@ -96,6 +105,8 @@ steps:
   ruff:
     image: python:3
     depends_on: []
+    environment:
+      FORCE_COLOR: "1"
     commands:
       - pip install ruff
       - ruff format --check
@@ -106,6 +117,8 @@ steps:
   reuse:
     image: python:3
     depends_on: []
+    environment:
+      FORCE_COLOR: "1"
     commands:
       - pip install reuse
       - reuse lint
@@ -113,6 +126,8 @@ steps:
   doc:
     image: python:3
     depends_on: []
+    environment:
+      FORCE_COLOR: "1"
     commands:
       # synced with .readthedocs.yaml and pyproject.toml
       - pip install '.[docs,oscore,prettyprint]'
@@ -125,6 +140,8 @@ steps:
       - test:py312
       - test:3.13
       - test:pypy
+    environment:
+      FORCE_COLOR: "1"
     commands:
       - python3 -m pip install coverage
       - mv collected-coverage/*/.coverage* .
