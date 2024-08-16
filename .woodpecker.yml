@@ -85,7 +85,8 @@ steps:
       # Workaround for https://github.com/python-cffi/cffi/issues/71
       - tox -e py313-allextras exec --skip-pkg-install -- pip install 'cffi >=1.17.0rc1'
       # Until something > 0.3.3 is out (https://github.com/openwsn-berkeley/lakers/pull/293 is already merged)
-      - tox -e py313-allextras exec --skip-pkg-install -- pip install 'git+https://github.com/openwsn-berkeley/lakers/#egg=lakers-python&subdirectory=lakers-python'
+      # The version is pinned to where 293 was merged but before https://github.com/openwsn-berkeley/lakers/issues/303 happened.
+      - tox -e py313-allextras exec --skip-pkg-install -- pip install 'git+https://github.com/openwsn-berkeley/lakers/@26eab7d5cf08b67f6cabe4debcbd9cf0dcaca81c#egg=lakers-python&subdirectory=lakers-python'
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest --skip-env '^py31[^3]'
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^3]'"
