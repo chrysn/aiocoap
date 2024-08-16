@@ -158,6 +158,6 @@ steps:
     depends_on:
       - build-pages
     settings:
-      folder: htmlcov
+      folder: public
       ssh_key:
         from_secret: ssh_key
