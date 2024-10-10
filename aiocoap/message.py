@@ -583,6 +583,8 @@ class Message(object):
         """
 
         parsed = urllib.parse.urlparse(uri)
+        if parsed.scheme == '' and parsed.netloc == '':
+            parsed = urllib.parse.urlparse("coap://" + uri)
 
         if parsed.fragment:
             raise ValueError("Fragment identifiers can not be set on a request URI")
