@@ -46,3 +46,28 @@ class TestMessage(unittest.TestCase):
                 "Encoding normal URI to a message did not"
                 " round-trip the URI (original: %r)" % src,
             )
+
+    erring_uris = {
+        "/hello": aiocoap.error.IncompleteUrlError,
+        "coap://[": aiocoap.error.MalformedUrlError,
+        "coap://example.com/%ff": aiocoap.error.MalformedUrlError,
+        "coap://example.com:fivesixeightthree/": aiocoap.error.MalformedUrlError,
+        # not broken per URI specs, but CoAP uses the hostname component,
+        # and urllib uses information about which schemes use it.
+        "coap:like:urn": aiocoap.error.MalformedUrlError,
+    }
+
+    def test_errors(self):
+        for uri, expected in self.erring_uris.items():
+            with self.assertRaises(expected):
+                aiocoap.Message(code=aiocoap.GET, uri=uri)
+
+    uris_using_proxy = {
+        "http://example.com/test",
+        "urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66",
+    }
+
+    def test_turned_into_proxy(self):
+        for uri in self.uris_using_proxy:
+            msg = aiocoap.Message(code=aiocoap.GET, uri=uri)
+            self.assertEqual(msg.opt.proxy_uri, uri)
