@@ -322,10 +322,7 @@ async def single_request(args, context):
         request = aiocoap.Message(
             code=code, mtype=aiocoap.NON if options.non else aiocoap.CON
         )
-        try:
-            request.set_request_uri(options.url, set_uri_host=options.set_hostname)
-        except ValueError as e:
-            raise parser.error(e)
+        request.set_request_uri(options.url, set_uri_host=options.set_hostname)
 
         if options.accept:
             try:

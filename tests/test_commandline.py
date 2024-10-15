@@ -223,7 +223,8 @@ class TestCommandlineClient(WithTestServer):
             )
         except subprocess.CalledProcessError as e:
             self.assertTrue(
-                "The request URI needs to be absolute." in e.output.decode("utf8")
+                "Most URLs in aiocoap need to be given with a scheme"
+                in e.output.decode("utf8")
             )
         else:
             raise AssertionError(

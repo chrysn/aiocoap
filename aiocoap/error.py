@@ -397,6 +397,22 @@ class AnonymousHost(Error):
     more once it is closed or even by another system."""
 
 
+class MalformedUrlError(ValueError, HelpfulError):
+    def __str__(self):
+        if self.args:
+            return f"Malformed URL: {self.args[0]}"
+        else:
+            return f"Malformed URL: {self.__cause__}"
+
+
+class IncompleteUrlError(ValueError, HelpfulError):
+    def __str__(self):
+        return "URL incomplete: Must start with a scheme."
+
+    def extra_help(self, hints={}):
+        return "Most URLs in aiocoap need to be given with a scheme, eg. the 'coap' in 'coap://example.com/path'."
+
+
 class MissingRemoteError(HelpfulError):
     """A request is sent without a .remote attribute"""
 
@@ -409,12 +425,14 @@ class MissingRemoteError(HelpfulError):
         if requested_message and (
             requested_message.opt.proxy_uri or requested_message.opt.proxy_scheme
         ):
-            if original_uri.startswith("//"):
-                return f"The message was set up for use with a proxy (because the requested URI {original_uri!r} indicated a host but no scheme), but no proxy was set."
-            else:
+            if original_uri:
                 return f"The message is set up for use with a proxy (because the scheme of {original_uri!r} is not supported), but no proxy was set."
-        # Is this reachable?
-        return "Entering relative URIs such as /sensor/1 is only supported when there is already an established peer. Otherwise, URIs need to include a scheme and a hostname, eg. coap://example.com/sensor/1."
+            else:
+                return (
+                    "The message is set up for use with a proxy, but no proxy was set."
+                )
+        # Nothing helpful otherwise: The message was probably constructed in a
+        # rather manual way.
 
 
 __getattr__ = util.deprecation_getattr(
