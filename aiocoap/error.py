@@ -9,6 +9,7 @@ Common errors for the aiocoap library
 import warnings
 import abc
 import errno
+from typing import Optional
 
 from .numbers import codes
 from . import util
@@ -18,6 +19,20 @@ class Error(Exception):
     """
     Base exception for all exceptions that indicate a failed request
     """
+
+
+class HelpfulError(Error):
+    def __str__(self):
+        """User presentable string. This should start with "Error:", or with
+        "Something Error:", because the context will not show that this was an
+        error."""
+        return type(self).__name__
+
+    def extra_help(self) -> Optional[str]:
+        """Information printed at aiocoap-client or similar occasions when the
+        error message itself may be insufficient to point the user in the right
+        direction"""
+        return None
 
 
 class RenderableError(Error, metaclass=abc.ABCMeta):
@@ -219,7 +234,7 @@ class UnsupportedMethod(MethodNotAllowed):
     message = "Error: Method not recognized!"
 
 
-class NetworkError(Error):
+class NetworkError(HelpfulError):
     """Base class for all "something went wrong with name resolution, sending
     or receiving packages".
 
@@ -228,10 +243,10 @@ class NetworkError(Error):
     socket.gaierror or similar classes, but these are wrapped in order to make
     catching them possible independently of the underlying transport."""
 
+    def __str__(self):
+        return f"Network error: {type(self).__name__}"
+
     def extra_help(self):
-        """Information printed at aiocoap-client or similar occasions when the
-        error message itself may be insufficient to point the user in the right
-        direction"""
         if isinstance(self.__cause__, OSError):
             if self.__cause__.errno == errno.ECONNREFUSED:
                 # seen trying to reach any used address with the port closed
@@ -250,6 +265,9 @@ class NetworkError(Error):
 class ResolutionError(NetworkError):
     """Resolving the host component of a URI to a usable transport address was
     not possible"""
+
+    def __str__(self):
+        return f"Name resolution error: {self.args[0]}"
 
 
 class MessageError(NetworkError):

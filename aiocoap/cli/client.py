@@ -423,11 +423,8 @@ async def single_request(args, context):
 
         try:
             response_data = await requester.response
-        except aiocoap.error.ResolutionError as e:
-            print("Name resolution error:", e, file=sys.stderr)
-            sys.exit(1)
-        except aiocoap.error.NetworkError as e:
-            print("Network error:", e, file=sys.stderr)
+        except aiocoap.error.HelpfulError as e:
+            print(str(e), file=sys.stderr)
             extra_help = e.extra_help()
             if extra_help:
                 print("Debugging hint:", extra_help, file=sys.stderr)
