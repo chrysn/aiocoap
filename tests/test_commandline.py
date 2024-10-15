@@ -215,6 +215,21 @@ class TestCommandlineClient(WithTestServer):
                 stderr=subprocess.STDOUT,
             )
 
+        try:
+            # No full URI given
+            subprocess.check_output(
+                AIOCOAP_CLIENT + [self.servernetloc + "/empty"],
+                stderr=subprocess.STDOUT,
+            )
+        except subprocess.CalledProcessError as e:
+            self.assertTrue(
+                "The request URI needs to be absolute." in e.output.decode("utf8")
+            )
+        else:
+            raise AssertionError(
+                "Calling aiocoap-client without a full URI should fail."
+            )
+
     @no_warnings
     @asynctest
     async def test_noproxy(self):
