@@ -580,34 +580,64 @@ class Message(object):
         breaks virtual hosts but makes message sizes smaller.
 
         This implements Section 6.4 of RFC7252.
+
+        This raises IncompleteUrlError if URI references are passed in (instead
+        of a full URI), and MalformedUrlError if the URI specification or the
+        library's expectations of URI shapes (eg. 'coap+tcp:no-slashes') are
+        violated.
         """
 
-        parsed = urllib.parse.urlparse(uri)
+        try:
+            parsed = urllib.parse.urlparse(uri)
+        except ValueError as e:
+            raise error.MalformedUrlError from e
 
         if parsed.fragment:
-            raise ValueError("Fragment identifiers can not be set on a request URI")
+            raise error.MalformedUrlError(
+                "Fragment identifiers can not be set on a request URI"
+            )
+
+        if not parsed.scheme:
+            raise error.IncompleteUrlError()
 
         if parsed.scheme not in coap_schemes:
             self.opt.proxy_uri = uri
             return
 
-        if parsed.username or parsed.password:
-            raise ValueError("User name and password not supported.")
+        if not parsed.hostname:
+            raise error.MalformedUrlError("CoAP URIs need a hostname")
 
-        if parsed.path not in ("", "/"):
-            self.opt.uri_path = [
-                urllib.parse.unquote(x) for x in parsed.path.split("/")[1:]
-            ]
-        else:
-            self.opt.uri_path = []
-        if parsed.query:
-            self.opt.uri_query = [
-                urllib.parse.unquote(x) for x in parsed.query.split("&")
-            ]
-        else:
-            self.opt.uri_query = []
+        if parsed.username or parsed.password:
+            raise error.MalformedUrlError("User name and password not supported.")
+
+        try:
+            if parsed.path not in ("", "/"):
+                # FIXME: This tolerates incomplete % sequences.
+                self.opt.uri_path = [
+                    urllib.parse.unquote(x, errors="strict")
+                    for x in parsed.path.split("/")[1:]
+                ]
+            else:
+                self.opt.uri_path = []
+            if parsed.query:
+                # FIXME: This tolerates incomplete % sequences.
+                self.opt.uri_query = [
+                    urllib.parse.unquote(x, errors="strict")
+                    for x in parsed.query.split("&")
+                ]
+            else:
+                self.opt.uri_query = []
+        except UnicodeError as e:
+            raise error.MalformedUrlError(
+                "Percent encoded strings in CoAP URIs need to be UTF-8 encoded"
+            ) from e
 
         self.remote = UndecidedRemote(parsed.scheme, parsed.netloc)
+
+        try:
+            _ = parsed.port
+        except ValueError as e:
+            raise error.MalformedUrlError("Port must be numeric") from e
 
         is_ip_literal = parsed.netloc.startswith("[") or (
             parsed.hostname.count(".") == 3
@@ -616,9 +646,14 @@ class Message(object):
         )
 
         if set_uri_host and not is_ip_literal:
-            self.opt.uri_host = urllib.parse.unquote(parsed.hostname).translate(
-                _ascii_lowercase
-            )
+            try:
+                self.opt.uri_host = urllib.parse.unquote(
+                    parsed.hostname, errors="strict"
+                ).translate(_ascii_lowercase)
+            except UnicodeError as e:
+                raise error.MalformedUrlError(
+                    "Percent encoded strings in CoAP URI hosts need to be UTF-8 encoded"
+                ) from e
 
     # Deprecated accessors to moved functionality
 

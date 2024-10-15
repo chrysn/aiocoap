@@ -9,6 +9,7 @@ Common errors for the aiocoap library
 import warnings
 import abc
 import errno
+from typing import Optional
 
 from .numbers import codes
 from . import util
@@ -18,6 +19,28 @@ class Error(Exception):
     """
     Base exception for all exceptions that indicate a failed request
     """
+
+
+class HelpfulError(Error):
+    def __str__(self):
+        """User presentable string. This should start with "Error:", or with
+        "Something Error:", because the context will not show that this was an
+        error."""
+        return type(self).__name__
+
+    def extra_help(self, hints={}) -> Optional[str]:
+        """Information printed at aiocoap-client or similar occasions when the
+        error message itself may be insufficient to point the user in the right
+        direction
+
+        The `hints` dictonary may be populated with context that the caller
+        has; the implementation must tolerate their absence. Currently
+        established keys:
+
+        * original_uri (str): URI that was attemted to access
+        * request (Message): Request that was assembled to be sent
+        """
+        return None
 
 
 class RenderableError(Error, metaclass=abc.ABCMeta):
@@ -219,7 +242,7 @@ class UnsupportedMethod(MethodNotAllowed):
     message = "Error: Method not recognized!"
 
 
-class NetworkError(Error):
+class NetworkError(HelpfulError):
     """Base class for all "something went wrong with name resolution, sending
     or receiving packages".
 
@@ -228,10 +251,10 @@ class NetworkError(Error):
     socket.gaierror or similar classes, but these are wrapped in order to make
     catching them possible independently of the underlying transport."""
 
-    def extra_help(self):
-        """Information printed at aiocoap-client or similar occasions when the
-        error message itself may be insufficient to point the user in the right
-        direction"""
+    def __str__(self):
+        return f"Network error: {type(self).__name__}"
+
+    def extra_help(self, hints={}):
         if isinstance(self.__cause__, OSError):
             if self.__cause__.errno == errno.ECONNREFUSED:
                 # seen trying to reach any used address with the port closed
@@ -251,6 +274,9 @@ class ResolutionError(NetworkError):
     """Resolving the host component of a URI to a usable transport address was
     not possible"""
 
+    def __str__(self):
+        return f"Name resolution error: {self.args[0]}"
+
 
 class MessageError(NetworkError):
     """Received an error from the remote on the CoAP message level (typically a
@@ -269,7 +295,7 @@ class TimeoutError(NetworkError):
     request may have reached the server or not.
     """
 
-    def extra_help(self):
+    def extra_help(self, hints={}):
         return "Neither a response nor an error was received. This can have a wide range of causes, from the address being wrong to the server being stuck."
 
 
@@ -369,6 +395,44 @@ class AnonymousHost(Error):
     is hosted on a CoAP-over-TCP or -WebSockets client: Such resources can be
     accessed for as long as the connection is active, but can not be used any
     more once it is closed or even by another system."""
+
+
+class MalformedUrlError(ValueError, HelpfulError):
+    def __str__(self):
+        if self.args:
+            return f"Malformed URL: {self.args[0]}"
+        else:
+            return f"Malformed URL: {self.__cause__}"
+
+
+class IncompleteUrlError(ValueError, HelpfulError):
+    def __str__(self):
+        return "URL incomplete: Must start with a scheme."
+
+    def extra_help(self, hints={}):
+        return "Most URLs in aiocoap need to be given with a scheme, eg. the 'coap' in 'coap://example.com/path'."
+
+
+class MissingRemoteError(HelpfulError):
+    """A request is sent without a .remote attribute"""
+
+    def __str__(self):
+        return "Error: No remote endpoint set for request."
+
+    def extra_help(self, hints={}):
+        original_uri = hints.get("original_uri", None)
+        requested_message = hints.get("request", None)
+        if requested_message and (
+            requested_message.opt.proxy_uri or requested_message.opt.proxy_scheme
+        ):
+            if original_uri:
+                return f"The message is set up for use with a proxy (because the scheme of {original_uri!r} is not supported), but no proxy was set."
+            else:
+                return (
+                    "The message is set up for use with a proxy, but no proxy was set."
+                )
+        # Nothing helpful otherwise: The message was probably constructed in a
+        # rather manual way.
 
 
 __getattr__ = util.deprecation_getattr(

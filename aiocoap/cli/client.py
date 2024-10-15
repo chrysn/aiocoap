@@ -305,112 +305,106 @@ async def single_request(args, context):
     configure_logging((options.verbose or 0) - (options.quiet or 0))
 
     try:
-        code = getattr(
-            aiocoap.numbers.codes.Code,
-            options.method.upper().replace("IPATCH", "iPATCH"),
-        )
-    except AttributeError:
         try:
-            code = aiocoap.numbers.codes.Code(int(options.method))
-        except ValueError:
-            raise parser.error("Unknown method")
-
-    if options.credentials is not None:
-        apply_credentials(context, options.credentials, parser.error)
-
-    request = aiocoap.Message(
-        code=code, mtype=aiocoap.NON if options.non else aiocoap.CON
-    )
-    try:
-        request.set_request_uri(options.url, set_uri_host=options.set_hostname)
-    except ValueError as e:
-        raise parser.error(e)
-
-    if not request.opt.uri_host and not request.unresolved_remote:
-        raise parser.error("Request URLs need to be absolute.")
-
-    if options.accept:
-        try:
-            request.opt.accept = ContentFormat(int(options.accept))
-        except ValueError:
-            try:
-                request.opt.accept = ContentFormat.by_media_type(options.accept)
-            except KeyError:
-                raise parser.error("Unknown accept type")
-
-    if options.observe:
-        request.opt.observe = 0
-        observation_is_over = asyncio.get_event_loop().create_future()
-
-    if options.content_format:
-        try:
-            request.opt.content_format = ContentFormat(int(options.content_format))
-        except ValueError:
-            try:
-                request.opt.content_format = ContentFormat.by_media_type(
-                    options.content_format
-                )
-            except KeyError:
-                raise parser.error("Unknown content format")
-
-    if options.payload:
-        if options.payload.startswith("@"):
-            filename = options.payload[1:]
-            if filename == "-":
-                f = sys.stdin.buffer
-            else:
-                f = open(filename, "rb")
-            try:
-                request.payload = f.read()
-            except OSError as e:
-                raise parser.error("File could not be opened: %s" % e)
-        else:
-            request_classification = contenttype.categorize(
-                request.opt.content_format.media_type
-                if request.opt.content_format is not None
-                and request.opt.content_format.is_known()
-                else ""
+            code = getattr(
+                aiocoap.numbers.codes.Code,
+                options.method.upper().replace("IPATCH", "iPATCH"),
             )
-            if request_classification in ("cbor", "cbor-seq"):
-                try:
-                    import cbor_diag
-                except ImportError as e:
-                    raise parser.error(f"CBOR recoding not available ({e})")
+        except AttributeError:
+            try:
+                code = aiocoap.numbers.codes.Code(int(options.method))
+            except ValueError:
+                raise parser.error("Unknown method")
 
+        if options.credentials is not None:
+            apply_credentials(context, options.credentials, parser.error)
+
+        request = aiocoap.Message(
+            code=code, mtype=aiocoap.NON if options.non else aiocoap.CON
+        )
+        request.set_request_uri(options.url, set_uri_host=options.set_hostname)
+
+        if options.accept:
+            try:
+                request.opt.accept = ContentFormat(int(options.accept))
+            except ValueError:
                 try:
-                    encoded = cbor_diag.diag2cbor(options.payload)
-                except ValueError as e:
-                    raise parser.error(
-                        f"Parsing CBOR diagnostic notation failed. Make sure quotation marks are escaped from the shell. Error: {e}"
+                    request.opt.accept = ContentFormat.by_media_type(options.accept)
+                except KeyError:
+                    raise parser.error("Unknown accept type")
+
+        if options.observe:
+            request.opt.observe = 0
+            observation_is_over = asyncio.get_event_loop().create_future()
+
+        if options.content_format:
+            try:
+                request.opt.content_format = ContentFormat(int(options.content_format))
+            except ValueError:
+                try:
+                    request.opt.content_format = ContentFormat.by_media_type(
+                        options.content_format
                     )
+                except KeyError:
+                    raise parser.error("Unknown content format")
 
-                if request_classification == "cbor-seq":
-                    try:
-                        import cbor2
-                    except ImportError as e:
-                        raise parser.error(
-                            f"CBOR sequence recoding not available ({e})"
-                        )
-                    decoded = cbor2.loads(encoded)
-                    if not isinstance(decoded, list):
-                        raise parser.error(
-                            "CBOR sequence recoding requires an array as the top-level element."
-                        )
-                    request.payload = b"".join(cbor2.dumps(d) for d in decoded)
+        if options.payload:
+            if options.payload.startswith("@"):
+                filename = options.payload[1:]
+                if filename == "-":
+                    f = sys.stdin.buffer
                 else:
-                    request.payload = encoded
+                    f = open(filename, "rb")
+                try:
+                    request.payload = f.read()
+                except OSError as e:
+                    raise parser.error("File could not be opened: %s" % e)
             else:
-                request.payload = options.payload.encode("utf8")
+                request_classification = contenttype.categorize(
+                    request.opt.content_format.media_type
+                    if request.opt.content_format is not None
+                    and request.opt.content_format.is_known()
+                    else ""
+                )
+                if request_classification in ("cbor", "cbor-seq"):
+                    try:
+                        import cbor_diag
+                    except ImportError as e:
+                        raise parser.error(f"CBOR recoding not available ({e})")
 
-    if options.payload_initial_szx is not None:
-        request.remote.maximum_block_size_exp = options.payload_initial_szx
+                    try:
+                        encoded = cbor_diag.diag2cbor(options.payload)
+                    except ValueError as e:
+                        raise parser.error(
+                            f"Parsing CBOR diagnostic notation failed. Make sure quotation marks are escaped from the shell. Error: {e}"
+                        )
 
-    if options.proxy is None:
-        interface = context
-    else:
-        interface = aiocoap.proxy.client.ProxyForwarder(options.proxy, context)
+                    if request_classification == "cbor-seq":
+                        try:
+                            import cbor2
+                        except ImportError as e:
+                            raise parser.error(
+                                f"CBOR sequence recoding not available ({e})"
+                            )
+                        decoded = cbor2.loads(encoded)
+                        if not isinstance(decoded, list):
+                            raise parser.error(
+                                "CBOR sequence recoding requires an array as the top-level element."
+                            )
+                        request.payload = b"".join(cbor2.dumps(d) for d in decoded)
+                    else:
+                        request.payload = encoded
+                else:
+                    request.payload = options.payload.encode("utf8")
 
-    try:
+        if options.payload_initial_szx is not None:
+            request.remote.maximum_block_size_exp = options.payload_initial_szx
+
+        if options.proxy is None:
+            interface = context
+        else:
+            interface = aiocoap.proxy.client.ProxyForwarder(options.proxy, context)
+
         requested_uri = request.get_request_uri()
 
         requester = interface.request(request)
@@ -423,36 +417,11 @@ async def single_request(args, context):
 
         try:
             response_data = await requester.response
-        except aiocoap.error.ResolutionError as e:
-            print("Name resolution error:", e, file=sys.stderr)
-            sys.exit(1)
-        except aiocoap.error.NetworkError as e:
-            print("Network error:", e, file=sys.stderr)
-            extra_help = e.extra_help()
-            if extra_help:
-                print("Debugging hint:", extra_help, file=sys.stderr)
-            sys.exit(1)
-        # Fallback while not all backends raise NetworkErrors
-        except OSError as e:
-            text = str(e)
-            if not text:
-                text = repr(e)
-            if not text:
-                # eg ConnectionResetError flying out of a misconfigured SSL server
-                text = type(e)
-            print(
-                "Warning: OS errors should not be raised this way any more.",
-                file=sys.stderr,
-            )
-            # not telling what to do precisely: the form already tells users to
-            # include `aiocoap.cli.defaults` output, which is exactly what we
-            # need.
-            print(
-                f"Even if the cause of the error itself is clear, please file an issue at {aiocoap.meta.bugreport_uri}.",
-                file=sys.stderr,
-            )
-            print("Error:", text, file=sys.stderr)
-            sys.exit(1)
+        finally:
+            if not requester.response.done():
+                requester.response.cancel()
+            if options.observe and not requester.observation.cancelled:
+                requester.observation.cancel()
 
         response_uri = response_data.get_request_uri()
         if requested_uri != response_uri:
@@ -477,11 +446,38 @@ async def single_request(args, context):
         if options.observe:
             exit_reason = await observation_is_over
             print("Observation is over: %r" % (exit_reason,), file=sys.stderr)
-    finally:
-        if not requester.response.done():
-            requester.response.cancel()
-        if options.observe and not requester.observation.cancelled:
-            requester.observation.cancel()
+    except aiocoap.error.HelpfulError as e:
+        print(str(e), file=sys.stderr)
+        extra_help = e.extra_help(
+            hints=dict(
+                original_uri=options.url,
+                request=request,
+            )
+        )
+        if extra_help:
+            print("Debugging hint:", extra_help, file=sys.stderr)
+        sys.exit(1)
+    # Fallback while not all backends raise NetworkErrors
+    except OSError as e:
+        text = str(e)
+        if not text:
+            text = repr(e)
+        if not text:
+            # eg ConnectionResetError flying out of a misconfigured SSL server
+            text = type(e)
+        print(
+            "Warning: OS errors should not be raised this way any more.",
+            file=sys.stderr,
+        )
+        # not telling what to do precisely: the form already tells users to
+        # include `aiocoap.cli.defaults` output, which is exactly what we
+        # need.
+        print(
+            f"Even if the cause of the error itself is clear, please file an issue at {aiocoap.meta.bugreport_uri}.",
+            file=sys.stderr,
+        )
+        print("Error:", text, file=sys.stderr)
+        sys.exit(1)
 
 
 async def single_request_with_context(args):

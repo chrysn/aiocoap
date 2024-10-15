@@ -125,7 +125,8 @@ steps:
       - reuse lint
 
   doc:
-    image: python:3
+    # FIXME: Use python:3 once lakers and cbor-diag have 3.13 wheels again.
+    image: python:3.12
     depends_on: []
     environment:
       FORCE_COLOR: "1"
