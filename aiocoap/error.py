@@ -389,6 +389,16 @@ class AnonymousHost(Error):
     more once it is closed or even by another system."""
 
 
+class MissingRemoteError(HelpfulError):
+    """A request is sent without a .remote attribute"""
+
+    def __str__(self):
+        return "Error: The request URI needs to be absolute."
+
+    def extra_help(self):
+        return "Entering relative URIs such as /sensor/1 is only supported when there is already an established peer. Otherwise, URIs need to include a scheme and a hostname, eg. coap://example.com/sensor/1."
+
+
 __getattr__ = util.deprecation_getattr(
     {
         "UnsupportedMediaType": "UnsupportedContentFormat",

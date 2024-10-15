@@ -326,9 +326,6 @@ async def single_request(args, context):
     except ValueError as e:
         raise parser.error(e)
 
-    if not request.opt.uri_host and not request.unresolved_remote:
-        raise parser.error("Request URLs need to be absolute.")
-
     if options.accept:
         try:
             request.opt.accept = ContentFormat(int(options.accept))

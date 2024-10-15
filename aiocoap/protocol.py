@@ -452,6 +452,8 @@ class Context(interfaces.RequestProvider):
     # change about messages and what can't after the remote has been thusly
     # populated).
     async def find_remote_and_interface(self, message):
+        if message.remote is None:
+            raise error.MissingRemoteError()
         for ri in self.request_interfaces:
             if await ri.fill_or_recognize_remote(message):
                 return ri
