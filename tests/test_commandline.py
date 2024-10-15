@@ -223,12 +223,35 @@ class TestCommandlineClient(WithTestServer):
             )
         except subprocess.CalledProcessError as e:
             self.assertTrue(
+                "URL incomplete: Must start with a scheme." in e.output.decode("utf8")
+            )
+            # It must also show the extra_help
+            self.assertTrue(
                 "Most URLs in aiocoap need to be given with a scheme"
                 in e.output.decode("utf8")
             )
         else:
             raise AssertionError(
                 "Calling aiocoap-client without a full URI should fail."
+            )
+
+        try:
+            subprocess.check_output(
+                AIOCOAP_CLIENT + ["http://" + self.servernetloc + "/empty"],
+                stderr=subprocess.STDOUT,
+            )
+        except subprocess.CalledProcessError as e:
+            self.assertTrue(
+                "No remote endpoint set for request" in e.output.decode("utf8")
+            )
+            # Extra help even gives concrete output
+            self.assertTrue(
+                f"The message is set up for use with a proxy (because the scheme of 'http://{self.servernetloc}/empty' is not supported)"
+                in e.output.decode("utf8")
+            )
+        else:
+            raise AssertionError(
+                "Calling aiocoap-client without a HTTP URI should fail."
             )
 
     @no_warnings
