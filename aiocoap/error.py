@@ -28,10 +28,18 @@ class HelpfulError(Error):
         error."""
         return type(self).__name__
 
-    def extra_help(self) -> Optional[str]:
+    def extra_help(self, hints={}) -> Optional[str]:
         """Information printed at aiocoap-client or similar occasions when the
         error message itself may be insufficient to point the user in the right
-        direction"""
+        direction
+
+        The `hints` dictonary may be populated with context that the caller
+        has; the implementation must tolerate their absence. Currently
+        established keys:
+
+        * original_uri (str): URI that was attemted to access
+        * request (Message): Request that was assembled to be sent
+        """
         return None
 
 
@@ -246,7 +254,7 @@ class NetworkError(HelpfulError):
     def __str__(self):
         return f"Network error: {type(self).__name__}"
 
-    def extra_help(self):
+    def extra_help(self, hints={}):
         if isinstance(self.__cause__, OSError):
             if self.__cause__.errno == errno.ECONNREFUSED:
                 # seen trying to reach any used address with the port closed
@@ -287,7 +295,7 @@ class TimeoutError(NetworkError):
     request may have reached the server or not.
     """
 
-    def extra_help(self):
+    def extra_help(self, hints={}):
         return "Neither a response nor an error was received. This can have a wide range of causes, from the address being wrong to the server being stuck."
 
 
@@ -393,9 +401,19 @@ class MissingRemoteError(HelpfulError):
     """A request is sent without a .remote attribute"""
 
     def __str__(self):
-        return "Error: The request URI needs to be absolute."
+        return "Error: No remote endpoint set for request."
 
-    def extra_help(self):
+    def extra_help(self, hints={}):
+        original_uri = hints.get("original_uri", None)
+        requested_message = hints.get("request", None)
+        if requested_message and (
+            requested_message.opt.proxy_uri or requested_message.opt.proxy_scheme
+        ):
+            if original_uri.startswith("//"):
+                return f"The message was set up for use with a proxy (because the requested URI {original_uri!r} indicated a host but no scheme), but no proxy was set."
+            else:
+                return f"The message is set up for use with a proxy (because the scheme of {original_uri!r} is not supported), but no proxy was set."
+        # Is this reachable?
         return "Entering relative URIs such as /sensor/1 is only supported when there is already an established peer. Otherwise, URIs need to include a scheme and a hostname, eg. coap://example.com/sensor/1."
 
 

@@ -422,7 +422,12 @@ async def single_request(args, context):
             response_data = await requester.response
         except aiocoap.error.HelpfulError as e:
             print(str(e), file=sys.stderr)
-            extra_help = e.extra_help()
+            extra_help = e.extra_help(
+                hints=dict(
+                    original_uri=options.url,
+                    request=request,
+                )
+            )
             if extra_help:
                 print("Debugging hint:", extra_help, file=sys.stderr)
             sys.exit(1)
