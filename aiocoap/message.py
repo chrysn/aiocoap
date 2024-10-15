@@ -634,6 +634,11 @@ class Message(object):
 
         self.remote = UndecidedRemote(parsed.scheme, parsed.netloc)
 
+        try:
+            _ = parsed.port
+        except ValueError as e:
+            raise error.MalformedUrlError("Port must be numeric") from e
+
         is_ip_literal = parsed.netloc.startswith("[") or (
             parsed.hostname.count(".") == 3
             and all(c in "0123456789." for c in parsed.hostname)
