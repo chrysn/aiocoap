@@ -600,12 +600,12 @@ class Message(object):
         if not parsed.scheme:
             raise error.IncompleteUrlError()
 
-        if not parsed.hostname:
-            raise error.MalformedUrlError("CoAP URIs need a hostname")
-
         if parsed.scheme not in coap_schemes:
             self.opt.proxy_uri = uri
             return
+
+        if not parsed.hostname:
+            raise error.MalformedUrlError("CoAP URIs need a hostname")
 
         if parsed.username or parsed.password:
             raise error.MalformedUrlError("User name and password not supported.")
