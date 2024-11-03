@@ -223,13 +223,13 @@ class EdhocCredentials(credentials._Objectish):
             # Only recognizing CCS so far
             return None
 
-        if id_cred_peer == cbor2.dumps(self.peer_cred[14], canonical=True):
+        if id_cred_peer == cbor2.dumps(self.peer_cred, canonical=True):
             # credential by value
             return cbor2.dumps(self.peer_cred[14], canonical=True)
 
         # cnf / COS_Key / kid, should be present in all CCS
         kid = self.peer_cred[14][8][1].get(2)
-        if kid is not None and id_cred_peer == kid:
+        if kid is not None and id_cred_peer == cbor2.dumps({4: kid}, canonical=True):
             # credential by kid
             return cbor2.dumps(self.peer_cred[14], canonical=True)
 
@@ -283,12 +283,14 @@ class EdhocCredentials(credentials._Objectish):
             # was already checked by lakers
             parsed = cbor2.loads(id_cred_r)
 
-            if not isinstance(parsed, dict):
+            if 14 not in parsed:
                 raise credentials.CredentialsMissingError(
-                    "Peer presented credential-by-reference when no credential was pre-agreed"
+                    "Peer presented credential-by-reference (or anything else that's not a KCCS) when no credential was pre-agreed"
                 )
 
-            cred_r = id_cred_r
+            # We could also pick the [14] out of the serialized stream and
+            # treat it as an opaque item, but cbor2 doesn't really do serialized items.
+            cred_r = cbor2.dumps(parsed[14], canonical=True)
         else:
             # We could look into id_cred_r, which is a CBOR encoded
             # byte string, and could start comparing ... but actually
