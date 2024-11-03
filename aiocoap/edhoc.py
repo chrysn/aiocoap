@@ -278,7 +278,7 @@ class EdhocCredentials(credentials._Objectish):
         key_i = self.own_key.d
 
         logger.debug("EDHOC responder sent message_2 with ID_CRED_R = %r", id_cred_r)
-        if self.peer_cred == {"unauthenticated": True}:
+        if self.peer_cred_is_unauthenticated():
             # Not doing further checks (eg. for trailing bytes) or re-raising: This
             # was already checked by lakers
             parsed = cbor2.loads(id_cred_r)
