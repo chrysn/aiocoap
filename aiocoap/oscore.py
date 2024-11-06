@@ -786,8 +786,7 @@ class BaseSecurityContext:
 
         components = s + pad_id + piv_generator_id + pad_piv + partial_iv_short
 
-        # "least significant bits of the Common IV"
-        used_common_iv = self.common_iv[len(self.common_iv) - len(components) :]
+        used_common_iv = self.common_iv[: len(components)]
         nonce = _xor_bytes(used_common_iv, components)
 
         return nonce
