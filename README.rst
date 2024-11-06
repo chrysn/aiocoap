@@ -150,6 +150,5 @@ The full list of aiocoap contributors can be obtained from the version control h
 .. _examples: http://aiocoap.readthedocs.io/en/latest/examples.html
 .. _tools: http://aiocoap.readthedocs.io/en/latest/tools.html
 .. _installation: http://aiocoap.readthedocs.io/en/latest/installation.html
-.. _`aiocoap module`: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.html
 .. _reuse.software: https://reuse.software/
 .. _txThings: https://github.com/siskin/txThings
