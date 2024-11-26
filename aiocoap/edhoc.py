@@ -337,6 +337,10 @@ class _EdhocContextBase(
         return outer_message, request_id
 
     def _make_ready(self, edhoc_context, c_ours, c_theirs):
+        # only in lakers >= 0.5 that is present
+        if hasattr(edhoc_context, "completed_without_message_4"):
+            edhoc_context.completed_without_message_4()
+
         # FIXME: both should offer this
         if (
             isinstance(edhoc_context, lakers.EdhocResponder)
