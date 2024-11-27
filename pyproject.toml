@@ -55,7 +55,7 @@ oscore = [ "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-pyth
 tinydtls = [ "DTLSSocket >= 0.1.18" ]
 # technically websockets is not needed when running on pyodide, but that's hard
 # to express here
-ws = [ "websockets" ]
+ws = [ "websockets >= 13, < 14" ]
 prettyprint = [ "cbor2", "pygments >= 2.1", "cbor-diag" ]
 docs = [ "sphinx >= 5", "sphinx-argparse" ]
 
@@ -65,7 +65,7 @@ docs = [ "sphinx >= 5", "sphinx-argparse" ]
 all = [
     "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-python == 0.4.0",
     "DTLSSocket >= 0.1.18",
-    "websockets",
+    "websockets >= 13, < 14",
     "cbor2", "pygments", "cbor-diag",
 ]
 
