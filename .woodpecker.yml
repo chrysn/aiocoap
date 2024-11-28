@@ -10,8 +10,8 @@ when:
 # combination, but let's not blow the test matrix out of proportion).
 
 # --skip-env is often used to mask out Python versions that are installed on
-# the system but are not what we want to test here (for example, the Pythoh
-# 3.13-rc image is based on a Debian that ships its own older Python).
+# the system but are not what we want to test here (for example, the Python
+# 3.13 image is based on a Debian that ships its own older Python).
 
 # Generally, all can run in parallel; setting depends_on to one hero test so
 # that we don't waste resources if one already fails.
@@ -66,7 +66,7 @@ steps:
 
 
   test:3.13:
-    image: docker.io/python:3.13-rc
+    image: docker.io/python:3.13
     depends_on: []
     environment:
       # Possibly necessary because the image uses some Debian as a base might have another Python installed
