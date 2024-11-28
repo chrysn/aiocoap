@@ -6,7 +6,7 @@
 # /// script
 # requires-python = ">= 3.10"
 # dependencies = [
-#   "aiocoap == 0.4.8",
+#   "aiocoap >= 0.4.8, < 0.5",
 #   "cbor2",
 #   "pygobject >= 3.49"
 # ]
