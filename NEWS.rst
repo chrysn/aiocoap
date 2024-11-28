@@ -1,3 +1,31 @@
+Version 0.4.12
+--------------
+
+Enhancements
+~~~~~~~~~~~~
+
+* Better errors are shown when using malformed (esp. incomplete) URIs, eg. on ``aiocoap-client hostname:port``.
+* Support for ephemeral identities (``{"unauthenticated: true}``) is extended to the local side.
+* OSCORE groupcomm is updated to the latest draft version.
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+* By updating to lakers 0.4.1, the EDHOC implementation now complies with the specification regarding credentials-by-value;
+  due to bugs in prior versions, this breaks EDHOC establishment with credentials-by-value with later versions.
+  The common case of credentials by KID is unaffected.
+
+Bug fixes
+~~~~~~~~~
+
+* Cases of invalid URIs are reported more reliably, rather than producing incorrect requests.
+
+Internal refactoring
+~~~~~~~~~~~~~~~~~~~~
+
+* CI and main source hosting now run on codeberg.
+* Tests are made resilient to high system load.
+
 Version 0.4.11
 --------------
 
