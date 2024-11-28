@@ -786,8 +786,7 @@ class BaseSecurityContext:
 
         components = s + pad_id + piv_generator_id + pad_piv + partial_iv_short
 
-        # "least significant bits of the Common IV"
-        used_common_iv = self.common_iv[len(self.common_iv) - len(components) :]
+        used_common_iv = self.common_iv[: len(components)]
         nonce = _xor_bytes(used_common_iv, components)
 
         return nonce
@@ -1418,6 +1417,12 @@ class SecurityContextUtils(BaseSecurityContext):
         """The HKDF as used to derive sender and recipient key and IV in
         RFC8613 Section 3.2.1, and analogously the Group Encryption Key of oscore-groupcomm.
         """
+
+        # The field in info is called `alg_aead` defined in RFC8613, but in
+        # group OSCORE something that's very clearly *not* alg_aead is put in
+        # there.
+        the_field_called_alg_aead = self.alg_aead.value
+
         if out_type == "Key":
             out_bytes = self.alg_aead.key_bytes
         elif out_type == "IV":
@@ -1433,13 +1438,15 @@ class SecurityContextUtils(BaseSecurityContext):
             # the Group Encryption Algorithm, its length was chosen to obtain a
             # matching level of security."
             out_bytes = self.alg_group_enc.key_bytes
+
+            the_field_called_alg_aead = self.alg_group_enc.value
         else:
             raise ValueError("Output type not recognized")
 
         info = [
             role_id,
             self.id_context,
-            self.alg_aead.value,
+            the_field_called_alg_aead,
             out_type,
             out_bytes,
         ]

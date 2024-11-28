@@ -134,6 +134,7 @@ steps:
       # synced with .readthedocs.yaml and pyproject.toml
       - pip install '.[docs,oscore,prettyprint]'
       - python3 -m sphinx doc public/doc/
+      - python3 -m docutils README.rst --strict > /dev/null
 
   build-pages:
     image: docker.io/python:3

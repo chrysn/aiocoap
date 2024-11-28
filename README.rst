@@ -45,7 +45,7 @@ This library supports the following standards in full or partially:
   simplistic.
 * RFC8613_ (OSCORE): Full support client-side; protected servers can be
   implemented based on it but are not automatic yet.
-* draft-ietf-core-oscore-groupcomm-21_ (Group OSCORE): Supported for both group
+* draft-ietf-core-oscore-groupcomm-23_ (Group OSCORE): Supported for both group
   and pairwise mode in groups that are fully known. (The lack of an implemented
   joining or persistence mechanism makes this impractical for anything but
   experimentation.)
@@ -65,7 +65,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC8613: https://tools.ietf.org/html/rfc8613
 .. _RFC9176: https://tools.ietf.org/html/rfc9176
 .. _RFC9528: https://tools.ietf.org/html/rfc9528
-.. _draft-ietf-core-oscore-groupcomm-21: https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-21
+.. _draft-ietf-core-oscore-groupcomm-23: https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-23
 .. _lakers: https://pypi.org/project/lakers-python/
 
 Dependencies
@@ -150,6 +150,5 @@ The full list of aiocoap contributors can be obtained from the version control h
 .. _examples: http://aiocoap.readthedocs.io/en/latest/examples.html
 .. _tools: http://aiocoap.readthedocs.io/en/latest/tools.html
 .. _installation: http://aiocoap.readthedocs.io/en/latest/installation.html
-.. _`aiocoap module`: http://aiocoap.readthedocs.io/en/latest/module/aiocoap.html
 .. _reuse.software: https://reuse.software/
 .. _txThings: https://github.com/siskin/txThings
