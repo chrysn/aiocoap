@@ -201,17 +201,30 @@ class EdhocCredentials(credentials._Objectish):
         else:
             self.own_key = None
 
-        if (own_cred is None) != (own_cred_style is None) or (own_cred is None) != (
-            self.own_key is None
-        ):
-            raise credentials.CredentialsLoadError(
-                "If own credentials are given, all of own_cred, own_cred_style and private_key(_path) need to be given"
-            )
-
         if own_cred_style is None:
             self.own_cred_style = None
         else:
             self.own_cred_style = edhoc.OwnCredStyle(own_cred_style)
+
+        if self.own_cred == {"unauthenticated": True}:
+            if self.own_key is not None or self.own_cred_style not in (
+                None,
+                OwnCredStyle.ByValue,
+            ):
+                raise credentials.CredentialsLoadError(
+                    "For local unauthenticated use, no key can be give, and own_cred_style needs to be by-value or absent"
+                )
+            self.own_key = CoseKeyForEdhoc.generate()
+            # FIXME: kid and subj should rather not be sent, but lakers insists on their presence
+            self.own_cred = self.own_key.as_ccs(kid=b"?", subject="")
+            self.own_cred_style = OwnCredStyle.ByValue
+        else:
+            if (own_cred is None) != (own_cred_style is None) or (own_cred is None) != (
+                self.own_key is None
+            ):
+                raise credentials.CredentialsLoadError(
+                    "If own credentials are given, all of own_cred, own_cred_style and private_key(_path) need to be given"
+                )
 
         # FIXME: This is only used on the client side, and expects that all parts (own and peer) are present
         self._established_context = None
@@ -337,6 +350,10 @@ class _EdhocContextBase(
         return outer_message, request_id
 
     def _make_ready(self, edhoc_context, c_ours, c_theirs):
+        # only in lakers >= 0.5 that is present
+        if hasattr(edhoc_context, "completed_without_message_4"):
+            edhoc_context.completed_without_message_4()
+
         # FIXME: both should offer this
         if (
             isinstance(edhoc_context, lakers.EdhocResponder)
