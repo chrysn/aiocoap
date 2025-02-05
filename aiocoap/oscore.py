@@ -791,11 +791,11 @@ class BaseSecurityContext:
 
     hashfun: hashes.HashAlgorithm
 
-    def _construct_nonce(self, partial_iv_short, piv_generator_id):
+    def _construct_nonce(self, partial_iv_short, piv_generator_id, alg: AeadAlgorithm):
         pad_piv = b"\0" * (5 - len(partial_iv_short))
 
         s = bytes([len(piv_generator_id)])
-        pad_id = b"\0" * (self.alg_aead.iv_bytes - 6 - len(piv_generator_id))
+        pad_id = b"\0" * (alg.iv_bytes - 6 - len(piv_generator_id))
 
         components = s + pad_id + piv_generator_id + pad_piv + partial_iv_short
 
@@ -992,13 +992,17 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
                 request_id.get_reusable_kid_and_piv()
             )
 
+        alg_symmetric = self.alg_aead
+
         if partial_iv_generated_by is None:
-            nonce, partial_iv_short = self._build_new_nonce()
+            nonce, partial_iv_short = self._build_new_nonce(alg_symmetric)
             partial_iv_generated_by = self.sender_id
 
             unprotected[COSE_PIV] = partial_iv_short
         else:
-            nonce = self._construct_nonce(partial_iv_short, partial_iv_generated_by)
+            nonce = self._construct_nonce(
+                partial_iv_short, partial_iv_generated_by, alg_symmetric
+            )
 
         if message.code.is_request():
             unprotected[COSE_KID] = self.sender_id
@@ -1031,7 +1035,9 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             outer_message, request_id, local_is_sender=True
         )
 
-        aad = self.alg_aead._build_encrypt0_structure(protected, external_aad)
+        aad = SymmetricEncryptionAlgorithm._build_encrypt0_structure(
+            protected, external_aad
+        )
 
         key = self._get_sender_key(outer_message, external_aad, plaintext, request_id)
 
@@ -1039,9 +1045,8 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         _alglog.debug("* aad = %s", aad.hex())
         _alglog.debug("* nonce = %s", nonce.hex())
         _alglog.debug("* key = %s", log_secret(key.hex()))
-
-        _alglog.debug("* algorithm = %s", self.alg_aead)
-        ciphertext = self.alg_aead.encrypt(plaintext, aad, key, nonce)
+        _alglog.debug("* algorithm = %s", alg_symmetric)
+        ciphertext = alg_symmetric.encrypt(plaintext, aad, key, nonce)
 
         _alglog.debug("Produced ciphertext %s", ciphertext.hex())
 
@@ -1145,7 +1150,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         return outer_message, plaintext
 
-    def _build_new_nonce(self):
+    def _build_new_nonce(self, alg: AlgAead):
         """This implements generation of a new nonce, assembled as per Figure 5
         of draft-ietf-core-object-security-06. Returns the shortened partial IV
         as well."""
@@ -1154,7 +1159,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         partial_iv = seqno.to_bytes(5, "big")
 
         return (
-            self._construct_nonce(partial_iv, self.sender_id),
+            self._construct_nonce(partial_iv, self.sender_id, alg),
             partial_iv.lstrip(b"\0") or b"\0",
         )
 
@@ -1253,8 +1258,6 @@ class CanUnprotect(BaseSecurityContext):
                     request_code=protected_message.code,
                 )
 
-        nonce = self._construct_nonce(partial_iv_short, partial_iv_generated_by)
-
         if unprotected.pop(COSE_COUNTERSIGNATURE0, None) is not None:
             try:
                 alg_signature = self.alg_signature
@@ -1303,15 +1306,22 @@ class CanUnprotect(BaseSecurityContext):
         enc_structure = ["Encrypt0", protected_serialized, external_aad]
         aad = cbor.dumps(enc_structure)
 
+        alg_symmetric = self.alg_aead
+
         key = self._get_recipient_key(protected_message)
+
+        nonce = self._construct_nonce(
+            partial_iv_short, partial_iv_generated_by, alg_symmetric
+        )
 
         _alglog.debug("Decrypting Encrypt0:")
         _alglog.debug("* ciphertext = %s", ciphertext.hex())
         _alglog.debug("* aad = %s", aad.hex())
         _alglog.debug("* nonce = %s", nonce.hex())
         _alglog.debug("* key = %s", log_secret(key.hex()))
+        _alglog.debug("* algorithm = %s", alg_symmetric)
         try:
-            plaintext = self.alg_aead.decrypt(ciphertext, aad, key, nonce)
+            plaintext = alg_symmetric.decrypt(ciphertext, aad, key, nonce)
         except Exception as e:
             _alglog.debug("Unprotecting failed")
             raise e
