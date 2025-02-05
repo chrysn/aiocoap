@@ -22,12 +22,14 @@ import abc
 from typing import Optional, List, Any, Tuple
 import secrets
 import warnings
+import logging
 
 from aiocoap.message import Message
 from aiocoap.util import cryptography_additions, deprecation_getattr, Sentinel
 from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED, CONTENT
 from aiocoap import error
 from . import credentials
+from aiocoap.defaults import log_secret
 
 from cryptography.hazmat.primitives.ciphers import aead
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -43,6 +45,10 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
 import cbor2 as cbor
 
 import filelock
+
+# Logger through which log events from cryptographic operations (both inside
+# the primitives and around key derivation) are traced.
+_alglog = logging.getLogger("aiocoap.cryptography")
 
 MAX_SEQNO = 2**40 - 1
 
@@ -518,16 +524,23 @@ def _from_kccs_common(ccs: bytes) -> dict:
 
 class Ed25519(AlgorithmCountersign):
     def sign(self, body, aad, private_key):
+        _alglog.debug("Perfoming signature:")
+        _alglog.debug("* body: %s", body.hex())
+        _alglog.debug("* AAD: %s", aad.hex())
         private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(
             private_key
         )
         return private_key.sign(self._build_countersign_structure(body, aad))
 
     def verify(self, signature, body, aad, public_key):
+        _alglog.debug("Verifying signature:")
+        _alglog.debug("* body: %s", body.hex())
+        _alglog.debug("* AAD: %s", aad.hex())
         public_key = asymmetric.ed25519.Ed25519PublicKey.from_public_bytes(public_key)
         try:
             public_key.verify(signature, self._build_countersign_structure(body, aad))
         except cryptography.exceptions.InvalidSignature:
+            _alglog.debug("Signature was invalid.")
             raise ProtectionInvalid("Signature mismatch")
 
     def _generate(self):
@@ -788,6 +801,12 @@ class BaseSecurityContext:
 
         used_common_iv = self.common_iv[: len(components)]
         nonce = _xor_bytes(used_common_iv, components)
+        _alglog.debug(
+            "Nonce construction: common %s ^ components %s = %s",
+            self.common_iv.hex(),
+            components.hex(),
+            nonce.hex(),
+        )
 
         return nonce
 
@@ -1014,12 +1033,27 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         key = self._get_sender_key(outer_message, external_aad, plaintext, request_id)
 
+        _alglog.debug("Encrypting Encrypt0:")
+        _alglog.debug("* aad = %s", aad.hex())
+        _alglog.debug("* nonce = %s", nonce.hex())
+        _alglog.debug("* key = %s", log_secret(key.hex()))
+
+        _alglog.debug("* algorithm = %s", self.alg_aead)
         ciphertext = self.alg_aead.encrypt(plaintext, aad, key, nonce)
+
+        _alglog.debug("Produced ciphertext %s", ciphertext.hex())
 
         _, payload = self._compress(protected, unprotected, ciphertext)
 
         if self.is_signing:
             signature = self.alg_signature.sign(payload, external_aad, self.private_key)
+            # This is bordering "it's OK to log it in plain", because a reader
+            # of the log can access both the plaintext and the ciphertext, but
+            # still, it is called a key.
+            _alglog.debug(
+                "Producing keystream from signature encryption key: %s",
+                log_secret(self.signature_encryption_key.hex()),
+            )
             keystream = self._kdf_for_keystreams(
                 partial_iv_generated_by,
                 partial_iv_short,
@@ -1029,7 +1063,9 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
                 if message.code.is_request()
                 else INFO_TYPE_KEYSTREAM_RESPONSE,
             )
+            _alglog.debug("Keystream is %s", keystream.hex())
             encrypted_signature = _xor_bytes(signature, keystream)
+            _alglog.debug("Encrypted signature %s", encrypted_signature.hex())
             payload += encrypted_signature
         outer_message.payload = payload
 
@@ -1232,6 +1268,10 @@ class CanUnprotect(BaseSecurityContext):
                 raise DecodeError("Message too short for signature")
             encrypted_signature = ciphertext[-siglen:]
 
+            _alglog.debug(
+                "Producing keystream from signature encryption key: %s",
+                log_secret(self.signature_encryption_key.hex()),
+            )
             keystream = self._kdf_for_keystreams(
                 partial_iv_generated_by,
                 partial_iv_short,
@@ -1241,6 +1281,8 @@ class CanUnprotect(BaseSecurityContext):
                 if protected_message.code.is_request()
                 else INFO_TYPE_KEYSTREAM_RESPONSE,
             )
+            _alglog.debug("Encrypted signature %s", encrypted_signature.hex())
+            _alglog.debug("Keystream is %s", keystream.hex())
             signature = _xor_bytes(encrypted_signature, keystream)
 
             ciphertext = ciphertext[:-siglen]
@@ -1263,7 +1305,16 @@ class CanUnprotect(BaseSecurityContext):
 
         key = self._get_recipient_key(protected_message)
 
-        plaintext = self.alg_aead.decrypt(ciphertext, aad, key, nonce)
+        _alglog.debug("Decrypting Encrypt0:")
+        _alglog.debug("* ciphertext = %s", ciphertext.hex())
+        _alglog.debug("* aad = %s", aad.hex())
+        _alglog.debug("* nonce = %s", nonce.hex())
+        _alglog.debug("* key = %s", log_secret(key.hex()))
+        try:
+            plaintext = self.alg_aead.decrypt(ciphertext, aad, key, nonce)
+        except Exception as e:
+            _alglog.debug("Unprotecting failed")
+            raise e
 
         self._post_decrypt_checks(
             external_aad, plaintext, protected_message, request_id
@@ -1423,6 +1474,13 @@ class SecurityContextUtils(BaseSecurityContext):
         # there.
         the_field_called_alg_aead = self.alg_aead.value
 
+        _alglog.debug("Deriving through KDF:")
+        _alglog.debug("* salt = %s", salt.hex() if salt else salt)
+        _alglog.debug("* ikm = %s", log_secret(ikm.hex()))
+        _alglog.debug("* role_id = %s", role_id.hex())
+        _alglog.debug("* out_type = %r", out_type)
+        _alglog.debug("* the_field_called_alg_aead = %s", the_field_called_alg_aead)
+
         if out_type == "Key":
             out_bytes = self.alg_aead.key_bytes
         elif out_type == "IV":
@@ -1450,7 +1508,10 @@ class SecurityContextUtils(BaseSecurityContext):
             out_type,
             out_bytes,
         ]
-        return self._kdf_lowlevel(salt, ikm, info, out_bytes)
+        _alglog.debug("* info = %r", info)
+        ret = self._kdf_lowlevel(salt, ikm, info, out_bytes)
+        _alglog.debug("Derivation of %r produced %s", out_type, log_secret(ret.hex()))
+        return ret
 
     def _kdf_for_keystreams(self, piv_generated_by, salt, ikm, role_id, out_type):
         """The HKDF as used to derive the keystreams of oscore-groupcomm."""
