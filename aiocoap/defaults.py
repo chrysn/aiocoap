@@ -238,6 +238,22 @@ def prettyprint_missing_modules():
     return missing
 
 
+def log_secret(secret):
+    """Wrapper around secret values that go into log output.
+
+    Unless AIOCOAP_REVEAL_KEYS is set accordingly, this ignores the input and
+    just produces redacted response."""
+    return "[redacted]"
+
+
+if os.environ.get("AIOCOAP_REVEAL_KEYS") == "show secrets in logs":
+    if os.access(__file__, mode=os.W_OK):
+
+        def log_secret(secret):
+            return secret
+    else:
+        raise RuntimeError("aiocoap was requested to reveal keys in log files, but ")
+
 missing_module_functions = {
     "dtls": dtls_missing_modules,
     "oscore": oscore_missing_modules,

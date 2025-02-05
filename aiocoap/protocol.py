@@ -37,6 +37,14 @@ an operator:
 * ERROR is used when something clearly went wrong. This includes irregular
   connection terminations and resource handler errors (which are demoted to
   error responses), and can often contain a backtrace.
+
+Logs will generally reveal messages exchanged between this and other systems,
+and attackers can observe their encrypted counterparts. Private or shared keys
+are only logged through an internal `log_secret` function, which usually
+replaces them with a redacted value. Setting the ``AIOCOAP_REVEAL_KEYS``
+environment variable to the value ``show secrets in logs`` bypasses that
+mechanism. As an additional precaution, this is only accepted if the effective
+user has write access to the aiocoap source code.
 """
 
 import asyncio
