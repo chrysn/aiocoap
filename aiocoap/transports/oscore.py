@@ -108,7 +108,7 @@ class OSCOREAddress(
             # and group mode
             detail = self.security_context.groupcontext.recipient_keys[
                 self.security_context.recipient_id
-            ]
+            ][self.security_context.alg_aead]
         else:
             detail = self.security_context.recipient_key
         return (self.underlying_address.blockwise_key, detail)

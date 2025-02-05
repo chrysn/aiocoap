@@ -992,7 +992,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
                 request_id.get_reusable_kid_and_piv()
             )
 
-        alg_symmetric = self.alg_aead
+        alg_symmetric = self.alg_group_enc if self.is_signing else self.alg_aead
 
         if partial_iv_generated_by is None:
             nonce, partial_iv_short = self._build_new_nonce(alg_symmetric)
@@ -1150,7 +1150,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         return outer_message, plaintext
 
-    def _build_new_nonce(self, alg: AlgAead):
+    def _build_new_nonce(self, alg: AeadAlgorithm):
         """This implements generation of a new nonce, assembled as per Figure 5
         of draft-ietf-core-object-security-06. Returns the shortened partial IV
         as well."""
@@ -1306,9 +1306,9 @@ class CanUnprotect(BaseSecurityContext):
         enc_structure = ["Encrypt0", protected_serialized, external_aad]
         aad = cbor.dumps(enc_structure)
 
-        alg_symmetric = self.alg_aead
+        alg_symmetric = self.alg_aead if signature is None else self.alg_group_enc
 
-        key = self._get_recipient_key(protected_message)
+        key = self._get_recipient_key(protected_message, alg_symmetric)
 
         nonce = self._construct_nonce(
             partial_iv_short, partial_iv_generated_by, alg_symmetric
@@ -1391,11 +1391,13 @@ class CanUnprotect(BaseSecurityContext):
 
         return unprotected_message, request_id
 
-    def _get_recipient_key(self, protected_message):
+    def _get_recipient_key(
+        self, protected_message, algorithm: SymmetricEncryptionAlgorithm
+    ):
         """Customization hook of the unprotect function
 
-        While most security contexts have a fixed recipient key, deterministic
-        requests build it on demand."""
+        While most security contexts have a fixed recipient key, group contexts
+        have multiple, and deterministic requests build it on demand."""
         return self.recipient_key
 
     def _post_decrypt_checks(self, aad, plaintext, protected_message, request_id):
@@ -1474,7 +1476,14 @@ class CanUnprotect(BaseSecurityContext):
 
 
 class SecurityContextUtils(BaseSecurityContext):
-    def _kdf(self, salt, ikm, role_id, out_type):
+    def _kdf(
+        self,
+        salt,
+        ikm,
+        role_id,
+        out_type,
+        key_alg: Optional[SymmetricEncryptionAlgorithm] = None,
+    ):
         """The HKDF as used to derive sender and recipient key and IV in
         RFC8613 Section 3.2.1, and analogously the Group Encryption Key of oscore-groupcomm.
         """
@@ -1483,16 +1492,20 @@ class SecurityContextUtils(BaseSecurityContext):
         # group OSCORE something that's very clearly *not* alg_aead is put in
         # there.
         the_field_called_alg_aead = self.alg_aead.value
-
+        # FIXME should probably be key_alg
+        if hasattr(self, "alg_group_enc"):
+            the_field_called_alg_aead = self.alg_group_enc.value
         _alglog.debug("Deriving through KDF:")
         _alglog.debug("* salt = %s", salt.hex() if salt else salt)
         _alglog.debug("* ikm = %s", log_secret(ikm.hex()))
         _alglog.debug("* role_id = %s", role_id.hex())
         _alglog.debug("* out_type = %r", out_type)
+        _alglog.debug("* key_alg = %r", key_alg)
         _alglog.debug("* the_field_called_alg_aead = %s", the_field_called_alg_aead)
 
+        assert (key_alg is None) ^ (out_type == "Key")
         if out_type == "Key":
-            out_bytes = self.alg_aead.key_bytes
+            out_bytes = key_alg.key_bytes
         elif out_type == "IV":
             out_bytes = max(
                 (
@@ -1566,9 +1579,11 @@ class SecurityContextUtils(BaseSecurityContext):
         hash function and id_context already configured beforehand, and from
         the passed salt and secret."""
 
-        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, "Key")
+        self.sender_key = self._kdf(
+            master_salt, master_secret, self.sender_id, "Key", self.alg_aead
+        )
         self.recipient_key = self._kdf(
-            master_salt, master_secret, self.recipient_id, "Key"
+            master_salt, master_secret, self.recipient_id, "Key", self.alg_aead
         )
 
         self.common_iv = self._kdf(master_salt, master_secret, b"", "IV")
@@ -2126,18 +2141,35 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
             "Group context without key indication was used for verification"
         )
 
-    def derive_keys(self, master_salt, master_secret):
-        # FIXME unify with parent?
+    def _get_sender_key(self, outer_message, aad, plaintext, request_id):
+        return self._sender_key[
+            self.alg_group_enc if self.is_signing else self.alg_aead
+        ]
 
-        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, "Key")
+    def derive_keys(self, master_salt, master_secret):
+        self._sender_key = {
+            self.alg_aead: self._kdf(
+                master_salt, master_secret, self.sender_id, "Key", self.alg_aead
+            )
+        }
         self.recipient_keys = {
-            recipient_id: self._kdf(master_salt, master_secret, recipient_id, "Key")
+            recipient_id: {
+                self.alg_aead: self._kdf(
+                    master_salt, master_secret, recipient_id, "Key", self.alg_aead
+                )
+            }
             for recipient_id in self.peers
         }
+        if self.alg_group_enc != self.alg_aead:
+            self._sender_key[self.alg_group_enc] = self._kdf(
+                master_salt, master_secret, self.sender_id, "Key", self.alg_group_enc
+            )
+            for recipient_id in self.peers:
+                self.recipient_keys[recipient_id][self.alg_group_enc] = self._kdf(
+                    master_salt, master_secret, recipient_id, "Key", self.alg_aead
+                )
 
         self.common_iv = self._kdf(master_salt, master_secret, b"", "IV")
-
-        # but this one is new
 
         self.signature_encryption_key = self._kdf(
             master_salt, master_secret, b"", "SEKey"
@@ -2251,7 +2283,9 @@ class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
 
     @property
     def recipient_key(self):
-        return self.groupcontext.recipient_keys[self.recipient_id]
+        return self.groupcontext.recipient_keys[self.recipient_id][
+            self.alg_group_enc if self.is_signing else self.alg_aead
+        ]
 
     @property
     def recipient_public_key(self):
@@ -2290,7 +2324,7 @@ class _PairwiseContextAspect(
         )
 
         self.sender_key = self._kdf(
-            self.groupcontext.sender_key,
+            self.groupcontext._sender_key[self.alg_aead],
             (
                 self.groupcontext.sender_auth_cred
                 + self.groupcontext.recipient_auth_creds[recipient_id]
@@ -2298,9 +2332,10 @@ class _PairwiseContextAspect(
             ),
             self.groupcontext.sender_id,
             "Key",
+            self.alg_group_enc if self.is_signing else self.alg_aead,
         )
         self.recipient_key = self._kdf(
-            self.groupcontext.recipient_keys[recipient_id],
+            self.groupcontext.recipient_keys[recipient_id][self.alg_aead],
             (
                 self.groupcontext.recipient_auth_creds[recipient_id]
                 + self.groupcontext.sender_auth_cred
@@ -2308,6 +2343,7 @@ class _PairwiseContextAspect(
             ),
             self.recipient_id,
             "Key",
+            self.alg_group_enc if self.is_signing else self.alg_aead,
         )
 
     def __repr__(self):
@@ -2479,7 +2515,7 @@ class _DeterministicProtectProtoAspect(
         request_id.can_reuse_nonce = False
         # FIXME: we're still sending a h'00' PIV. Not wrong, just a wasted byte.
 
-        return self._kdf(basekey, request_hash, self.sender_id, "Key")
+        return self._kdf(basekey, request_hash, self.sender_id, "Key", self.alg_aead)
 
     # details needed for various operations, especially eAAD generation
 
@@ -2557,12 +2593,16 @@ class _DeterministicUnprotectProtoAspect(
     def context_for_response(self):
         return self.groupcontext
 
-    def _get_recipient_key(self, protected_message):
+    def _get_recipient_key(self, protected_message, algorithm):
+        logging.critical(
+            "Deriving recipient key for protected message %s", protected_message
+        )
         return self._kdf(
             self.groupcontext.recipient_keys[self.recipient_id],
             protected_message.opt.request_hash,
             self.recipient_id,
             "Key",
+            algorithm,
         )
 
     def _post_decrypt_checks(self, aad, plaintext, protected_message, request_id):
