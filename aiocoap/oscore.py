@@ -175,22 +175,22 @@ class RequestIdentifiers:
     just pass them around.
     """
 
-    def __init__(self, kid, partial_iv, nonce, can_reuse_nonce, request_code):
+    def __init__(self, kid, partial_iv, can_reuse_nonce, request_code):
+        # The sender ID of whoever generated the partial IV
         self.kid = kid
         self.partial_iv = partial_iv
-        self.nonce = nonce
         self.can_reuse_nonce = can_reuse_nonce
         self.code_style = CodeStyle.from_request(request_code)
 
         self.request_hash = None
 
-    def get_reusable_nonce_and_piv(self):
-        """Return the nonce and the partial IV if can_reuse_nonce is True, and
+    def get_reusable_kid_and_piv(self):
+        """Return the kid and the partial IV if can_reuse_nonce is True, and
         set can_reuse_nonce to False."""
 
         if self.can_reuse_nonce:
             self.can_reuse_nonce = False
-            return (self.nonce, self.partial_iv)
+            return (self.kid, self.partial_iv)
         else:
             return (None, None)
 
@@ -985,17 +985,20 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         protected = {}
         nonce = None
+        partial_iv_generated_by = None
         unprotected = {}
         if request_id is not None:
-            nonce, partial_iv_short = request_id.get_reusable_nonce_and_piv()
-            if nonce is not None:
-                partial_iv_generated_by = request_id.kid
+            partial_iv_generated_by, partial_iv_short = (
+                request_id.get_reusable_kid_and_piv()
+            )
 
-        if nonce is None:
+        if partial_iv_generated_by is None:
             nonce, partial_iv_short = self._build_new_nonce()
             partial_iv_generated_by = self.sender_id
 
             unprotected[COSE_PIV] = partial_iv_short
+        else:
+            nonce = self._construct_nonce(partial_iv_short, partial_iv_generated_by)
 
         if message.code.is_request():
             unprotected[COSE_KID] = self.sender_id
@@ -1003,7 +1006,6 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             request_id = RequestIdentifiers(
                 self.sender_id,
                 partial_iv_short,
-                nonce,
                 can_reuse_nonce=None,
                 request_code=outer_message.code,
             )
@@ -1225,15 +1227,12 @@ class CanUnprotect(BaseSecurityContext):
             if not is_response:
                 raise ProtectionInvalid("No sequence number provided in request")
 
-            nonce = request_id.nonce
             seqno = None  # sentinel for not striking out anyting
             partial_iv_short = request_id.partial_iv
             partial_iv_generated_by = request_id.kid
         else:
             partial_iv_short = unprotected.pop(COSE_PIV)
             partial_iv_generated_by = self.recipient_id
-
-            nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
             seqno = int.from_bytes(partial_iv_short, "big")
 
@@ -1248,12 +1247,13 @@ class CanUnprotect(BaseSecurityContext):
                     raise replay_error
 
                 request_id = RequestIdentifiers(
-                    self.recipient_id,
+                    partial_iv_generated_by,
                     partial_iv_short,
-                    nonce,
                     can_reuse_nonce=replay_error is None,
                     request_code=protected_message.code,
                 )
+
+        nonce = self._construct_nonce(partial_iv_short, partial_iv_generated_by)
 
         if unprotected.pop(COSE_COUNTERSIGNATURE0, None) is not None:
             try:
