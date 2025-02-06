@@ -76,8 +76,6 @@ steps:
       - apt-get update
       - apt-get -y install iproute2
       - pip install tox
-      # Workaround for https://github.com/python-cffi/cffi/issues/71
-      - tox -e py313-allextras exec --skip-pkg-install -- pip install 'cffi >=1.17.0rc1'
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest --skip-env '^py31[^3]'
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^3]'"
