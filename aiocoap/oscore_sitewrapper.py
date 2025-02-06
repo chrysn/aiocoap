@@ -172,7 +172,7 @@ class OscoreSiteWrapper(interfaces.Resource):
         # dropped and thus all interest in the inner_pipe goes away
 
     async def _render_edhoc_to_pipe(self, pipe):
-        self.log.debug("Processing request as EDHOC message 1")
+        self.log.debug("Processing request as EDHOC message 1 or 3")
         # Conveniently we don't have to care for observation, and thus can treat the rendering to a pipeline as just a rendering
 
         request = pipe.request
@@ -193,12 +193,16 @@ class OscoreSiteWrapper(interfaces.Resource):
 
         if len(request.payload) == 0:
             raise error.BadRequest
-        if request.payload[0:1] != cbor2.dumps(True):
-            self.log.error(
-                "Receivign message 3 as a standalone message is not supported yet"
-            )
-            # FIXME: Add support for it
-            raise error.BadRequest
+
+        if request.payload[0:1] == cbor2.dumps(True):
+            self.log.debug("Processing request as EDHOC message 1")
+            self._process_edhoc_msg12(pipe)
+        else:
+            self.log.debug("Processing request as EDHOC message 3")
+            self._process_edhoc_msg34(pipe)
+
+    def _process_edhoc_msg12(self, pipe):
+        request = pipe.request
 
         origin = request.get_request_uri(local_is_server=True).removesuffix(
             "/.well-known/edhoc"
@@ -256,6 +260,13 @@ class OscoreSiteWrapper(interfaces.Resource):
         pipe.add_response(
             aiocoap.Message(code=aiocoap.CHANGED, payload=message_2), is_last=True
         )
+
+    def _process_edhoc_msg34(self, pipe):
+        self.log.error(
+            "Receivign message 3 as a standalone message is not supported yet"
+        )
+        # FIXME: Add support for it
+        raise error.BadRequest
 
     def _get_edhoc_identity(self, origin: str) -> Optional[edhoc.EdhocCredentials]:
         """With lakers-python 0.3.1, we can effectively only have one identity
