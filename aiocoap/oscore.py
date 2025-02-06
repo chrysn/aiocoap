@@ -991,6 +991,13 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         kid_context can be passed in as byte string in the same parameter.
         """
 
+        _alglog.debug(
+            "Protecting message %s with context %s and request ID %s",
+            message,
+            self,
+            request_id,
+        )
+
         assert (request_id is None) == message.code.is_request(), (
             "Requestishness of code to protect does not match presence of request ID"
         )
@@ -1095,6 +1102,11 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         # FIXME go through options section
 
+        _alglog.debug(
+            "Protecting the message succeeded, yielding ciphertext %s and request ID %s",
+            outer_message,
+            request_id,
+        )
         # the request_id in the second argument should be discarded by the
         # caller when protecting a response -- is that reason enough for an
         # `if` and returning None?
@@ -1219,6 +1231,13 @@ class CanUnprotect(BaseSecurityContext):
     recipient_key: bytes
 
     def unprotect(self, protected_message, request_id=None):
+        _alglog.debug(
+            "Unprotecting message %s with context %s and request ID %s",
+            protected_message,
+            self,
+            request_id,
+        )
+
         assert (request_id is not None) == protected_message.code.is_response(), (
             "Requestishness of code to unprotect does not match presence of request ID"
         )
@@ -1407,6 +1426,11 @@ class CanUnprotect(BaseSecurityContext):
                 # in this implementation accepted for passing around.
                 unprotected_message.opt.observe = -1 if seqno is None else seqno
 
+        _alglog.debug(
+            "Unprotecting succeeded, yielding plaintext %s and request_id %s",
+            unprotected_message,
+            request_id,
+        )
         return unprotected_message, request_id
 
     def _get_recipient_key(
