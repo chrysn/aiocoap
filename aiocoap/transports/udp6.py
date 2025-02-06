@@ -432,9 +432,9 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             ancdata.append(
                 (socket.IPPROTO_IPV6, socknumbers.IPV6_PKTINFO, message.remote.pktinfo)
             )
-        assert (
-            self._remote_being_sent_to.get(None) is None
-        ), "udp6.MessageInterfaceUDP6.send was reentered in a single task"
+        assert self._remote_being_sent_to.get(None) is None, (
+            "udp6.MessageInterfaceUDP6.send was reentered in a single task"
+        )
         self._remote_being_sent_to.set(message.remote)
         try:
             self.transport.sendmsg(
@@ -583,15 +583,15 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             raise
 
     def datagram_errqueue_received(self, data, ancdata, flags, address):
-        assert (
-            flags == socknumbers.MSG_ERRQUEUE
-        ), "Received non-error data through the errqueue"
+        assert flags == socknumbers.MSG_ERRQUEUE, (
+            "Received non-error data through the errqueue"
+        )
         pktinfo = None
         errno_value = None
         for cmsg_level, cmsg_type, cmsg_data in ancdata:
-            assert (
-                cmsg_level == socket.IPPROTO_IPV6
-            ), "Received non-IPv6 protocol through the errqueue"
+            assert cmsg_level == socket.IPPROTO_IPV6, (
+                "Received non-IPv6 protocol through the errqueue"
+            )
             if cmsg_type == socknumbers.IPV6_RECVERR:
                 extended_err = SockExtendedErr.load(cmsg_data)
                 self.log.debug("Socket error recevied, details: %s", extended_err)

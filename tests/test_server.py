@@ -549,7 +549,7 @@ class TestServer(TestServerBase):
         self.assertEqual(response.code, aiocoap.CONTENT, "Root resource was not found")
 
     _empty_ack_logmsg = re.compile(
-        "^Incoming message <aiocoap.Message at" " 0x[0-9a-f]+: ACK EMPTY ([^)]+)"
+        "^Incoming message <aiocoap.Message at 0x[0-9a-f]+: ACK EMPTY ([^)]+)"
     )
 
     def _count_empty_acks(self):
