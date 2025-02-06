@@ -791,7 +791,9 @@ class BaseSecurityContext:
 
     hashfun: hashes.HashAlgorithm
 
-    def _construct_nonce(self, partial_iv_short, piv_generator_id, alg: AeadAlgorithm):
+    def _construct_nonce(
+        self, partial_iv_short, piv_generator_id, alg: SymmetricEncryptionAlgorithm
+    ):
         pad_piv = b"\0" * (5 - len(partial_iv_short))
 
         s = bytes([len(piv_generator_id)])
@@ -886,7 +888,7 @@ class ContextWhereExternalAadIsGroup(BaseSecurityContext):
 
     external_aad_is_group = True
 
-    alg_group_enc: Optional[AeadAlgorithm]
+    alg_group_enc: Optional[SymmetricEncryptionAlgorithm]
     alg_signature: Optional[AlgorithmCountersign]
     # This is also of type AlgorithmCountersign because the staticstatic
     # function is sitting on the same type.
@@ -993,6 +995,9 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             )
 
         alg_symmetric = self.alg_group_enc if self.is_signing else self.alg_aead
+        assert (
+            isinstance(alg_symmetric, AeadAlgorithm) or self.is_signing
+        ), "Non-AEAD algorithms can only be used in signing modes."
 
         if partial_iv_generated_by is None:
             nonce, partial_iv_short = self._build_new_nonce(alg_symmetric)
@@ -1150,7 +1155,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         return outer_message, plaintext
 
-    def _build_new_nonce(self, alg: AeadAlgorithm):
+    def _build_new_nonce(self, alg: SymmetricEncryptionAlgorithm):
         """This implements generation of a new nonce, assembled as per Figure 5
         of draft-ietf-core-object-security-06. Returns the shortened partial IV
         as well."""

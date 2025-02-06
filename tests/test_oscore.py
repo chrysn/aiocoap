@@ -27,7 +27,7 @@ if not oscore_modules:
     C3_SALT = h("9e7ca92223786340")
     C3_ID_CTX = h("37cbf3210017a2d3")
 
-    default_algorithm = aiocoap.oscore.AES_CCM_16_64_128
+    default_algorithm = aiocoap.oscore.AES_CCM_16_64_128()
     default_hashfun = aiocoap.oscore.hashfunctions["sha256"]
 
     import aiocoap.oscore
