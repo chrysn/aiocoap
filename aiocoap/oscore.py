@@ -775,6 +775,14 @@ class BaseSecurityContext:
     #: AEAD algorithm. This may be None if it is not set in an OSCORE group context.
     alg_aead: Optional[AeadAlgorithm]
 
+    #: The common IV of the common context.
+    #:
+    #: This may be longer than needed for constructing IVs with any particular
+    #: algorithm, as per <https://www.ietf.org/archive/id/draft-ietf-core-oscore-groupcomm-23.html#section-2.1.4>
+    common_iv: bytes
+
+    id_context: Optional[bytes]
+
     @property
     def algorithm(self):
         warnings.warn(
@@ -913,6 +921,10 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
     # isn't there yet, and oscore_wrapper protects responses with the very same
     # context they came in on).
     responses_send_kid = False
+
+    #: The KID sent by this party when sending requests, or answering to group
+    #: requests.
+    sender_id: bytes
 
     @staticmethod
     def _compress(protected, unprotected, ciphertext):
@@ -1204,6 +1216,8 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
 
 class CanUnprotect(BaseSecurityContext):
+    recipient_key: bytes
+
     def unprotect(self, protected_message, request_id=None):
         assert (
             (request_id is not None) == protected_message.code.is_response()
@@ -1511,13 +1525,22 @@ class SecurityContextUtils(BaseSecurityContext):
         if hasattr(self, "alg_group_enc") and self.alg_group_enc is not None:
             the_field_called_alg_aead = self.alg_group_enc.value
         else:
+            assert (
+                self.alg_aead is not None
+            ), "At least alg_aead or alg_group_enc needs to be set on a context."
             the_field_called_alg_aead = self.alg_aead.value
 
         assert (key_alg is None) ^ (out_type == "Key")
         if out_type == "Key":
+            # Duplicate assertion needed while mypy can not see that the assert
+            # above the if is stricter than this.
+            assert key_alg is not None
             out_bytes = key_alg.key_bytes
             the_field_called_alg_aead = key_alg.value
         elif out_type == "IV":
+            assert (
+                self.alg_aead is not None
+            ), "At least alg_aead or alg_group_enc needs to be set on a context."
             out_bytes = max(
                 (
                     a.iv_bytes
@@ -1526,6 +1549,9 @@ class SecurityContextUtils(BaseSecurityContext):
                 )
             )
         elif out_type == "SEKey":
+            assert (
+                isinstance(self, GroupContext) and self.alg_group_enc is not None
+            ), "SEKey derivation is only defined for group contexts with a group encryption algorithm."
             # "While the obtained Signature Encryption Key is never used with
             # the Group Encryption Algorithm, its length was chosen to obtain a
             # matching level of security."
@@ -1773,7 +1799,9 @@ class FilesystemSecurityContext(
     """
 
     # possibly overridden in constructor
-    alg_aead = algorithms[DEFAULT_ALGORITHM]
+    #
+    # Type is ignored because while it *is* AlgAead, mypy can't tell.
+    alg_aead = algorithms[DEFAULT_ALGORITHM]  # type: ignore
 
     class LoadError(ValueError):
         """Exception raised with a descriptive message when trying to load a
@@ -2048,7 +2076,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
 
     # set during initialization (making all those attributes rather than
     # possibly properties as they might be in super)
-    sender_id = None
+    sender_id = None  # type: ignore
     id_context = None  # type: ignore
     private_key = None
     alg_aead = None
@@ -2406,8 +2434,9 @@ class _PairwiseContextAspect(
     def recipient_replay_window(self):
         return self.groupcontext.recipient_replay_windows[self.recipient_id]
 
-    # Set at initialization
-    recipient_key = None
+    # Set at initialization (making all those attributes rather than
+    # possibly properties as they might be in super)
+    recipient_key = None  # type: ignore
     sender_key = None
 
     @property
