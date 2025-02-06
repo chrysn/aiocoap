@@ -1258,6 +1258,10 @@ class CanUnprotect(BaseSecurityContext):
                     request_code=protected_message.code,
                 )
 
+        external_aad = self._extract_external_aad(
+            protected_message, request_id, local_is_sender=False
+        )
+
         if unprotected.pop(COSE_COUNTERSIGNATURE0, None) is not None:
             try:
                 alg_signature = self.alg_signature
@@ -1289,8 +1293,14 @@ class CanUnprotect(BaseSecurityContext):
             signature = _xor_bytes(encrypted_signature, keystream)
 
             ciphertext = ciphertext[:-siglen]
+
+            alg_signature.verify(
+                signature, ciphertext, external_aad, self.recipient_public_key
+            )
+
+            alg_symmetric = self.alg_group_enc
         else:
-            signature = None
+            alg_symmetric = self.alg_aead
 
         if unprotected:
             raise DecodeError("Unsupported unprotected option")
@@ -1300,13 +1310,8 @@ class CanUnprotect(BaseSecurityContext):
         ):  # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
 
-        external_aad = self._extract_external_aad(
-            protected_message, request_id, local_is_sender=False
-        )
         enc_structure = ["Encrypt0", protected_serialized, external_aad]
         aad = cbor.dumps(enc_structure)
-
-        alg_symmetric = self.alg_aead if signature is None else self.alg_group_enc
 
         key = self._get_recipient_key(protected_message, alg_symmetric)
 
@@ -1332,12 +1337,6 @@ class CanUnprotect(BaseSecurityContext):
 
         if not is_response and seqno is not None and replay_error is None:
             self.recipient_replay_window.strike_out(seqno)
-
-        if signature is not None:
-            # Only doing the expensive signature validation once the cheaper decyrption passed
-            alg_signature.verify(
-                signature, ciphertext, external_aad, self.recipient_public_key
-            )
 
         # FIXME add options from unprotected
 
