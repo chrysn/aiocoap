@@ -1488,24 +1488,21 @@ class SecurityContextUtils(BaseSecurityContext):
         RFC8613 Section 3.2.1, and analogously the Group Encryption Key of oscore-groupcomm.
         """
 
-        # The field in info is called `alg_aead` defined in RFC8613, but in
-        # group OSCORE something that's very clearly *not* alg_aead is put in
-        # there.
-        the_field_called_alg_aead = self.alg_aead.value
-        # FIXME should probably be key_alg
-        if hasattr(self, "alg_group_enc"):
-            the_field_called_alg_aead = self.alg_group_enc.value
         _alglog.debug("Deriving through KDF:")
         _alglog.debug("* salt = %s", salt.hex() if salt else salt)
         _alglog.debug("* ikm = %s", log_secret(ikm.hex()))
         _alglog.debug("* role_id = %s", role_id.hex())
         _alglog.debug("* out_type = %r", out_type)
         _alglog.debug("* key_alg = %r", key_alg)
-        _alglog.debug("* the_field_called_alg_aead = %s", the_field_called_alg_aead)
 
         assert (key_alg is None) ^ (out_type == "Key")
         if out_type == "Key":
             out_bytes = key_alg.key_bytes
+            if hasattr(self, "alg_group_enc"):
+                the_field_called_alg_aead = self.alg_group_enc.value
+            else:
+                the_field_called_alg_aead = self.alg_aead.value
+            the_field_called_alg_aead = key_alg.value
         elif out_type == "IV":
             out_bytes = max(
                 (
@@ -1514,6 +1511,8 @@ class SecurityContextUtils(BaseSecurityContext):
                     if a is not None
                 )
             )
+            # or of the longer one?
+            the_field_called_alg_aead = self.alg_aead.value
         elif out_type == "SEKey":
             # "While the obtained Signature Encryption Key is never used with
             # the Group Encryption Algorithm, its length was chosen to obtain a
@@ -1524,9 +1523,14 @@ class SecurityContextUtils(BaseSecurityContext):
         else:
             raise ValueError("Output type not recognized")
 
+        _alglog.debug("* the_field_called_alg_aead = %s", the_field_called_alg_aead)
+
         info = [
             role_id,
             self.id_context,
+            # The field in info is called `alg_aead` defined in RFC8613, but in
+            # group OSCORE something that's very clearly *not* alg_aead is put in
+            # there.
             the_field_called_alg_aead,
             out_type,
             out_bytes,
@@ -2166,7 +2170,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
             )
             for recipient_id in self.peers:
                 self.recipient_keys[recipient_id][self.alg_group_enc] = self._kdf(
-                    master_salt, master_secret, recipient_id, "Key", self.alg_aead
+                    master_salt, master_secret, recipient_id, "Key", self.alg_group_enc
                 )
 
         self.common_iv = self._kdf(master_salt, master_secret, b"", "IV")
