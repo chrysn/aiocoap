@@ -126,14 +126,13 @@ class RDRegistrant(AsyncCLIDaemon):
         p = argparse.ArgumentParser()
         p.add_argument(
             "rd_uri",
-            help="Preconfigured address of the resource" " directory",
+            help="Preconfigured address of the resource directory",
             nargs="?",
             default="coap://[ff05::fd]",
         )
         p.add_argument(
             "--simple",
-            help="Run simple registration rather than"
-            " full (incomplete: Never renews)",
+            help="Run simple registration rather than full (incomplete: Never renews)",
             action="store_true",
         )
         p.add_argument(

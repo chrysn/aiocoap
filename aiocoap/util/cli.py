@@ -21,9 +21,9 @@ class ActionNoYes(argparse.Action):
     # https://stackoverflow.com/questions/9234258/in-python-argparse-is-it-possible-to-have-paired-no-something-something-arg#9236426
     def __init__(self, option_strings, dest, default=True, required=False, help=None):
         assert len(option_strings) == 1, "ActionNoYes takes only one option name"
-        assert option_strings[0].startswith(
-            "--"
-        ), "ActionNoYes options must start with --"
+        assert option_strings[0].startswith("--"), (
+            "ActionNoYes options must start with --"
+        )
         super().__init__(
             ["--" + option_strings[0][2:], "--no-" + option_strings[0][2:]],
             dest,

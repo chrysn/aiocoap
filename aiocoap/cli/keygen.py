@@ -47,7 +47,7 @@ def main():
     missmods = aiocoap.defaults.oscore_missing_modules()
     if missmods:
         p.error(
-            f"Dependencies missing, consider installing aiocoap as \"aiocoap[oscore]\" or \"aiocoap[all]\". Missing modules: {', '.join(missmods)}"
+            f'Dependencies missing, consider installing aiocoap as "aiocoap[oscore]" or "aiocoap[all]". Missing modules: {", ".join(missmods)}'
         )
 
     from aiocoap import edhoc

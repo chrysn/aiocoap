@@ -114,9 +114,9 @@ class TcpConnection(
 
     def _send_message(self, msg: Message):
         self.log.debug("Sending message: %r", msg)
-        assert (
-            self._transport is not None
-        ), "Attempted to send message before connection"
+        assert self._transport is not None, (
+            "Attempted to send message before connection"
+        )
         self._transport.write(_serialize(msg))
 
     def _abort_with(self, abort_msg):

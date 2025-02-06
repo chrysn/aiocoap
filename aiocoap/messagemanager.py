@@ -500,9 +500,9 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
         self.log.debug("Sending message %r", message)
 
         if message.mtype is CON:
-            assert (
-                messageerror_monitor is not None
-            ), "messageerror_monitor needs to be set for CONs"
+            assert messageerror_monitor is not None, (
+                "messageerror_monitor needs to be set for CONs"
+            )
             self._add_exchange(message, messageerror_monitor)
 
         self._store_response_for_duplicates(message)
