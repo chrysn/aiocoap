@@ -1007,9 +1007,9 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             )
 
         alg_symmetric = self.alg_group_enc if self.is_signing else self.alg_aead
-        assert (
-            isinstance(alg_symmetric, AeadAlgorithm) or self.is_signing
-        ), "Non-AEAD algorithms can only be used in signing modes."
+        assert isinstance(alg_symmetric, AeadAlgorithm) or self.is_signing, (
+            "Non-AEAD algorithms can only be used in signing modes."
+        )
 
         if partial_iv_generated_by is None:
             nonce, partial_iv_short = self._build_new_nonce(alg_symmetric)
@@ -1525,9 +1525,9 @@ class SecurityContextUtils(BaseSecurityContext):
         if hasattr(self, "alg_group_enc") and self.alg_group_enc is not None:
             the_field_called_alg_aead = self.alg_group_enc.value
         else:
-            assert (
-                self.alg_aead is not None
-            ), "At least alg_aead or alg_group_enc needs to be set on a context."
+            assert self.alg_aead is not None, (
+                "At least alg_aead or alg_group_enc needs to be set on a context."
+            )
             the_field_called_alg_aead = self.alg_aead.value
 
         assert (key_alg is None) ^ (out_type == "Key")
@@ -1538,9 +1538,9 @@ class SecurityContextUtils(BaseSecurityContext):
             out_bytes = key_alg.key_bytes
             the_field_called_alg_aead = key_alg.value
         elif out_type == "IV":
-            assert (
-                self.alg_aead is not None
-            ), "At least alg_aead or alg_group_enc needs to be set on a context."
+            assert self.alg_aead is not None, (
+                "At least alg_aead or alg_group_enc needs to be set on a context."
+            )
             out_bytes = max(
                 (
                     a.iv_bytes
@@ -1549,9 +1549,9 @@ class SecurityContextUtils(BaseSecurityContext):
                 )
             )
         elif out_type == "SEKey":
-            assert (
-                isinstance(self, GroupContext) and self.alg_group_enc is not None
-            ), "SEKey derivation is only defined for group contexts with a group encryption algorithm."
+            assert isinstance(self, GroupContext) and self.alg_group_enc is not None, (
+                "SEKey derivation is only defined for group contexts with a group encryption algorithm."
+            )
             # "While the obtained Signature Encryption Key is never used with
             # the Group Encryption Algorithm, its length was chosen to obtain a
             # matching level of security."
