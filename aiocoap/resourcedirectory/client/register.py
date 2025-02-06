@@ -168,7 +168,7 @@ class Registerer:
 
         if len(addresses) > 1:
             self.log.warn(
-                "More than one registration interface found," " picking the first"
+                "More than one registration interface found, picking the first"
             )
 
         return addresses[0]

@@ -258,7 +258,7 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
         if self.is_known():
             import html
 
-            return f"""<abbr title="Content format {int(self)}{', named ContentFormat.' + html.escape(self.name) if hasattr(self, 'name') else ''}">{html.escape(self.media_type)}{'@' + self.encoding if self.encoding != 'identity' else ''}</abbr>"""
+            return f"""<abbr title="Content format {int(self)}{", named ContentFormat." + html.escape(self.name) if hasattr(self, "name") else ""}">{html.escape(self.media_type)}{"@" + self.encoding if self.encoding != "identity" else ""}</abbr>"""
         else:
             return f"""<abbr title="Unknown content format">{int(self)}</abbr>"""
 

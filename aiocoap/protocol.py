@@ -804,12 +804,12 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 DeprecationWarning,
                 stacklevel=2,
             )
-            assert (
-                app_request.opt.block1.block_number == 0
-            ), "Unexpected block number in app_request"
-            assert (
-                not app_request.opt.block1.more
-            ), "Unexpected more-flag in app_request"
+            assert app_request.opt.block1.block_number == 0, (
+                "Unexpected block number in app_request"
+            )
+            assert not app_request.opt.block1.more, (
+                "Unexpected more-flag in app_request"
+            )
             # this is where the library user can traditionally pass in size
             # exponent hints into the library.
             size_exp = app_request.opt.block1.size_exponent

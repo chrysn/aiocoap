@@ -149,7 +149,7 @@ class TestCommandlineClient(WithTestServer):
                 ]
             )
             # Concrete formatting depends on cbor-diag package
-            self.assertEqual(cbor_formatted, b'{"answer": 42_0}')
+            self.assertEqual(cbor_formatted, b'{"answer": 42}')
 
     @no_warnings
     @asynctest

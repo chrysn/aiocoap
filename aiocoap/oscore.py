@@ -259,9 +259,9 @@ class AES_CBC(SymmetricEncryptionAlgorithm, metaclass=abc.ABCMeta):
 
         # Padding according to https://www.rfc-editor.org/rfc/rfc5652#section-6.3
         k = cls.key_bytes
-        assert (
-            k < 256
-        ), "Algorithm with this key size should not have been created in the first plae"
+        assert k < 256, (
+            "Algorithm with this key size should not have been created in the first plae"
+        )
         pad_byte = k - (len(plaintext) % k)
         pad_bytes = bytes((pad_byte,)) * pad_byte
         plaintext += pad_bytes
@@ -991,9 +991,9 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         kid_context can be passed in as byte string in the same parameter.
         """
 
-        assert (
-            (request_id is None) == message.code.is_request()
-        ), "Requestishness of code to protect does not match presence of request ID"
+        assert (request_id is None) == message.code.is_request(), (
+            "Requestishness of code to protect does not match presence of request ID"
+        )
 
         outer_message, plaintext = self._split_message(message, request_id)
 
@@ -1219,9 +1219,9 @@ class CanUnprotect(BaseSecurityContext):
     recipient_key: bytes
 
     def unprotect(self, protected_message, request_id=None):
-        assert (
-            (request_id is not None) == protected_message.code.is_response()
-        ), "Requestishness of code to unprotect does not match presence of request ID"
+        assert (request_id is not None) == protected_message.code.is_response(), (
+            "Requestishness of code to unprotect does not match presence of request ID"
+        )
         is_response = protected_message.code.is_response()
 
         # Set to a raisable exception on replay check failures; it will be
@@ -1979,9 +1979,9 @@ class FilesystemSecurityContext(
 
             # The = case would only happen if someone deliberately sets all
             # numbers to 1 to force persisting on every step
-            assert (
-                self.sender_sequence_number <= self.sequence_number_persisted
-            ), "Using a sequence number that has been persisted already"
+            assert self.sender_sequence_number <= self.sequence_number_persisted, (
+                "Using a sequence number that has been persisted already"
+            )
 
     def _destroy(self):
         """Release the lock file, and ensure tha he object has become
