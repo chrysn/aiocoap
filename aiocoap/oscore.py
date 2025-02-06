@@ -242,7 +242,6 @@ class AES_CBC(SymmetricEncryptionAlgorithm, metaclass=abc.ABCMeta):
     """AES in CBC mode using tthe Python cryptography library"""
 
     tag_bytes = 0
-    iv_bytes = 0
     # This introduces padding -- this library doesn't need to care because
     # Python does allocation for us, but others may need to rethink their
     # buffer allocation strategies.
@@ -736,6 +735,7 @@ algorithms = {
     "A128GCM": A128GCM(),
     "A192GCM": A192GCM(),
     "A256GCM": A256GCM(),
+    "A128CBC": A128CBC(),
 }
 
 # algorithms with full parameter set
