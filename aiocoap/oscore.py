@@ -1512,6 +1512,7 @@ class SecurityContextUtils(BaseSecurityContext):
         assert (key_alg is None) ^ (out_type == "Key")
         if out_type == "Key":
             out_bytes = key_alg.key_bytes
+            the_field_called_alg_aead = key_alg.value
         elif out_type == "IV":
             out_bytes = max(
                 (
@@ -2148,32 +2149,23 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         )
 
     def _get_sender_key(self, outer_message, aad, plaintext, request_id):
-        return self._sender_key[
-            self.alg_group_enc if self.is_signing else self.alg_aead
-        ]
+        # If we even get here, there has to be a alg_group_enc, and thus the sender key does match it
+        return self._sender_key
 
     def derive_keys(self, master_salt, master_secret):
-        self._sender_key = {
-            self.alg_aead: self._kdf(
-                master_salt, master_secret, self.sender_id, "Key", self.alg_aead
-            )
-        }
+        the_main_alg = (
+            self.alg_group_enc if self.alg_group_enc is not None else self.alg_aead
+        )
+
+        self._sender_key = self._kdf(
+            master_salt, master_secret, self.sender_id, "Key", the_main_alg
+        )
         self.recipient_keys = {
-            recipient_id: {
-                self.alg_aead: self._kdf(
-                    master_salt, master_secret, recipient_id, "Key", self.alg_aead
-                )
-            }
+            recipient_id: self._kdf(
+                master_salt, master_secret, recipient_id, "Key", the_main_alg
+            )
             for recipient_id in self.peers
         }
-        if self.alg_group_enc != self.alg_aead:
-            self._sender_key[self.alg_group_enc] = self._kdf(
-                master_salt, master_secret, self.sender_id, "Key", self.alg_group_enc
-            )
-            for recipient_id in self.peers:
-                self.recipient_keys[recipient_id][self.alg_group_enc] = self._kdf(
-                    master_salt, master_secret, recipient_id, "Key", self.alg_group_enc
-                )
 
         self.common_iv = self._kdf(master_salt, master_secret, b"", "IV")
 
@@ -2289,9 +2281,8 @@ class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
 
     @property
     def recipient_key(self):
-        return self.groupcontext.recipient_keys[self.recipient_id][
-            self.alg_group_enc if self.is_signing else self.alg_aead
-        ]
+        # If we even get here, there has to be a alg_group_enc, and thus the recipient key does match it
+        return self.groupcontext.recipient_keys[self.recipient_id]
 
     @property
     def recipient_public_key(self):
@@ -2330,7 +2321,7 @@ class _PairwiseContextAspect(
         )
 
         self.sender_key = self._kdf(
-            self.groupcontext._sender_key[self.alg_aead],
+            self.groupcontext._sender_key,
             (
                 self.groupcontext.sender_auth_cred
                 + self.groupcontext.recipient_auth_creds[recipient_id]
@@ -2341,7 +2332,7 @@ class _PairwiseContextAspect(
             self.alg_group_enc if self.is_signing else self.alg_aead,
         )
         self.recipient_key = self._kdf(
-            self.groupcontext.recipient_keys[recipient_id][self.alg_aead],
+            self.groupcontext.recipient_keys[recipient_id],
             (
                 self.groupcontext.recipient_auth_creds[recipient_id]
                 + self.groupcontext.sender_auth_cred
