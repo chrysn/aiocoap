@@ -22,12 +22,14 @@ import abc
 from typing import Optional, List, Any, Tuple
 import secrets
 import warnings
+import logging
 
 from aiocoap.message import Message
 from aiocoap.util import cryptography_additions, deprecation_getattr, Sentinel
 from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED, CONTENT
 from aiocoap import error
 from . import credentials
+from aiocoap.defaults import log_secret
 
 from cryptography.hazmat.primitives.ciphers import aead
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -43,6 +45,10 @@ from cryptography.hazmat.primitives.asymmetric.utils import (
 import cbor2 as cbor
 
 import filelock
+
+# Logger through which log events from cryptographic operations (both inside
+# the primitives and around key derivation) are traced.
+_alglog = logging.getLogger("aiocoap.cryptography")
 
 MAX_SEQNO = 2**40 - 1
 
@@ -169,22 +175,22 @@ class RequestIdentifiers:
     just pass them around.
     """
 
-    def __init__(self, kid, partial_iv, nonce, can_reuse_nonce, request_code):
+    def __init__(self, kid, partial_iv, can_reuse_nonce, request_code):
+        # The sender ID of whoever generated the partial IV
         self.kid = kid
         self.partial_iv = partial_iv
-        self.nonce = nonce
         self.can_reuse_nonce = can_reuse_nonce
         self.code_style = CodeStyle.from_request(request_code)
 
         self.request_hash = None
 
-    def get_reusable_nonce_and_piv(self):
-        """Return the nonce and the partial IV if can_reuse_nonce is True, and
+    def get_reusable_kid_and_piv(self):
+        """Return the kid and the partial IV if can_reuse_nonce is True, and
         set can_reuse_nonce to False."""
 
         if self.can_reuse_nonce:
             self.can_reuse_nonce = False
-            return (self.nonce, self.partial_iv)
+            return (self.kid, self.partial_iv)
         else:
             return (None, None)
 
@@ -236,7 +242,6 @@ class AES_CBC(SymmetricEncryptionAlgorithm, metaclass=abc.ABCMeta):
     """AES in CBC mode using tthe Python cryptography library"""
 
     tag_bytes = 0
-    iv_bytes = 0
     # This introduces padding -- this library doesn't need to care because
     # Python does allocation for us, but others may need to rethink their
     # buffer allocation strategies.
@@ -518,16 +523,23 @@ def _from_kccs_common(ccs: bytes) -> dict:
 
 class Ed25519(AlgorithmCountersign):
     def sign(self, body, aad, private_key):
+        _alglog.debug("Perfoming signature:")
+        _alglog.debug("* body: %s", body.hex())
+        _alglog.debug("* AAD: %s", aad.hex())
         private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(
             private_key
         )
         return private_key.sign(self._build_countersign_structure(body, aad))
 
     def verify(self, signature, body, aad, public_key):
+        _alglog.debug("Verifying signature:")
+        _alglog.debug("* body: %s", body.hex())
+        _alglog.debug("* AAD: %s", aad.hex())
         public_key = asymmetric.ed25519.Ed25519PublicKey.from_public_bytes(public_key)
         try:
             public_key.verify(signature, self._build_countersign_structure(body, aad))
         except cryptography.exceptions.InvalidSignature:
+            _alglog.debug("Signature was invalid.")
             raise ProtectionInvalid("Signature mismatch")
 
     def _generate(self):
@@ -723,6 +735,7 @@ algorithms = {
     "A128GCM": A128GCM(),
     "A192GCM": A192GCM(),
     "A256GCM": A256GCM(),
+    "A128CBC": A128CBC(),
 }
 
 # algorithms with full parameter set
@@ -762,6 +775,14 @@ class BaseSecurityContext:
     #: AEAD algorithm. This may be None if it is not set in an OSCORE group context.
     alg_aead: Optional[AeadAlgorithm]
 
+    #: The common IV of the common context.
+    #:
+    #: This may be longer than needed for constructing IVs with any particular
+    #: algorithm, as per <https://www.ietf.org/archive/id/draft-ietf-core-oscore-groupcomm-23.html#section-2.1.4>
+    common_iv: bytes
+
+    id_context: Optional[bytes]
+
     @property
     def algorithm(self):
         warnings.warn(
@@ -778,16 +799,24 @@ class BaseSecurityContext:
 
     hashfun: hashes.HashAlgorithm
 
-    def _construct_nonce(self, partial_iv_short, piv_generator_id):
+    def _construct_nonce(
+        self, partial_iv_short, piv_generator_id, alg: SymmetricEncryptionAlgorithm
+    ):
         pad_piv = b"\0" * (5 - len(partial_iv_short))
 
         s = bytes([len(piv_generator_id)])
-        pad_id = b"\0" * (self.alg_aead.iv_bytes - 6 - len(piv_generator_id))
+        pad_id = b"\0" * (alg.iv_bytes - 6 - len(piv_generator_id))
 
         components = s + pad_id + piv_generator_id + pad_piv + partial_iv_short
 
         used_common_iv = self.common_iv[: len(components)]
         nonce = _xor_bytes(used_common_iv, components)
+        _alglog.debug(
+            "Nonce construction: common %s ^ components %s = %s",
+            self.common_iv.hex(),
+            components.hex(),
+            nonce.hex(),
+        )
 
         return nonce
 
@@ -867,7 +896,7 @@ class ContextWhereExternalAadIsGroup(BaseSecurityContext):
 
     external_aad_is_group = True
 
-    alg_group_enc: Optional[AeadAlgorithm]
+    alg_group_enc: Optional[SymmetricEncryptionAlgorithm]
     alg_signature: Optional[AlgorithmCountersign]
     # This is also of type AlgorithmCountersign because the staticstatic
     # function is sitting on the same type.
@@ -892,6 +921,10 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
     # isn't there yet, and oscore_wrapper protects responses with the very same
     # context they came in on).
     responses_send_kid = False
+
+    #: The KID sent by this party when sending requests, or answering to group
+    #: requests.
+    sender_id: bytes
 
     @staticmethod
     def _compress(protected, unprotected, ciphertext):
@@ -958,6 +991,13 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         kid_context can be passed in as byte string in the same parameter.
         """
 
+        _alglog.debug(
+            "Protecting message %s with context %s and request ID %s",
+            message,
+            self,
+            request_id,
+        )
+
         assert (request_id is None) == message.code.is_request(), (
             "Requestishness of code to protect does not match presence of request ID"
         )
@@ -966,17 +1006,27 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         protected = {}
         nonce = None
+        partial_iv_generated_by = None
         unprotected = {}
         if request_id is not None:
-            nonce, partial_iv_short = request_id.get_reusable_nonce_and_piv()
-            if nonce is not None:
-                partial_iv_generated_by = request_id.kid
+            partial_iv_generated_by, partial_iv_short = (
+                request_id.get_reusable_kid_and_piv()
+            )
 
-        if nonce is None:
-            nonce, partial_iv_short = self._build_new_nonce()
+        alg_symmetric = self.alg_group_enc if self.is_signing else self.alg_aead
+        assert isinstance(alg_symmetric, AeadAlgorithm) or self.is_signing, (
+            "Non-AEAD algorithms can only be used in signing modes."
+        )
+
+        if partial_iv_generated_by is None:
+            nonce, partial_iv_short = self._build_new_nonce(alg_symmetric)
             partial_iv_generated_by = self.sender_id
 
             unprotected[COSE_PIV] = partial_iv_short
+        else:
+            nonce = self._construct_nonce(
+                partial_iv_short, partial_iv_generated_by, alg_symmetric
+            )
 
         if message.code.is_request():
             unprotected[COSE_KID] = self.sender_id
@@ -984,7 +1034,6 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             request_id = RequestIdentifiers(
                 self.sender_id,
                 partial_iv_short,
-                nonce,
                 can_reuse_nonce=None,
                 request_code=outer_message.code,
             )
@@ -1010,16 +1059,32 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             outer_message, request_id, local_is_sender=True
         )
 
-        aad = self.alg_aead._build_encrypt0_structure(protected, external_aad)
+        aad = SymmetricEncryptionAlgorithm._build_encrypt0_structure(
+            protected, external_aad
+        )
 
         key = self._get_sender_key(outer_message, external_aad, plaintext, request_id)
 
-        ciphertext = self.alg_aead.encrypt(plaintext, aad, key, nonce)
+        _alglog.debug("Encrypting Encrypt0:")
+        _alglog.debug("* aad = %s", aad.hex())
+        _alglog.debug("* nonce = %s", nonce.hex())
+        _alglog.debug("* key = %s", log_secret(key.hex()))
+        _alglog.debug("* algorithm = %s", alg_symmetric)
+        ciphertext = alg_symmetric.encrypt(plaintext, aad, key, nonce)
+
+        _alglog.debug("Produced ciphertext %s", ciphertext.hex())
 
         _, payload = self._compress(protected, unprotected, ciphertext)
 
         if self.is_signing:
             signature = self.alg_signature.sign(payload, external_aad, self.private_key)
+            # This is bordering "it's OK to log it in plain", because a reader
+            # of the log can access both the plaintext and the ciphertext, but
+            # still, it is called a key.
+            _alglog.debug(
+                "Producing keystream from signature encryption key: %s",
+                log_secret(self.signature_encryption_key.hex()),
+            )
             keystream = self._kdf_for_keystreams(
                 partial_iv_generated_by,
                 partial_iv_short,
@@ -1029,12 +1094,19 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
                 if message.code.is_request()
                 else INFO_TYPE_KEYSTREAM_RESPONSE,
             )
+            _alglog.debug("Keystream is %s", keystream.hex())
             encrypted_signature = _xor_bytes(signature, keystream)
+            _alglog.debug("Encrypted signature %s", encrypted_signature.hex())
             payload += encrypted_signature
         outer_message.payload = payload
 
         # FIXME go through options section
 
+        _alglog.debug(
+            "Protecting the message succeeded, yielding ciphertext %s and request ID %s",
+            outer_message,
+            request_id,
+        )
         # the request_id in the second argument should be discarded by the
         # caller when protecting a response -- is that reason enough for an
         # `if` and returning None?
@@ -1107,7 +1179,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         return outer_message, plaintext
 
-    def _build_new_nonce(self):
+    def _build_new_nonce(self, alg: SymmetricEncryptionAlgorithm):
         """This implements generation of a new nonce, assembled as per Figure 5
         of draft-ietf-core-object-security-06. Returns the shortened partial IV
         as well."""
@@ -1116,7 +1188,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         partial_iv = seqno.to_bytes(5, "big")
 
         return (
-            self._construct_nonce(partial_iv, self.sender_id),
+            self._construct_nonce(partial_iv, self.sender_id, alg),
             partial_iv.lstrip(b"\0") or b"\0",
         )
 
@@ -1156,7 +1228,16 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
 
 class CanUnprotect(BaseSecurityContext):
+    recipient_key: bytes
+
     def unprotect(self, protected_message, request_id=None):
+        _alglog.debug(
+            "Unprotecting message %s with context %s and request ID %s",
+            protected_message,
+            self,
+            request_id,
+        )
+
         assert (request_id is not None) == protected_message.code.is_response(), (
             "Requestishness of code to unprotect does not match presence of request ID"
         )
@@ -1189,15 +1270,12 @@ class CanUnprotect(BaseSecurityContext):
             if not is_response:
                 raise ProtectionInvalid("No sequence number provided in request")
 
-            nonce = request_id.nonce
             seqno = None  # sentinel for not striking out anyting
             partial_iv_short = request_id.partial_iv
             partial_iv_generated_by = request_id.kid
         else:
             partial_iv_short = unprotected.pop(COSE_PIV)
             partial_iv_generated_by = self.recipient_id
-
-            nonce = self._construct_nonce(partial_iv_short, self.recipient_id)
 
             seqno = int.from_bytes(partial_iv_short, "big")
 
@@ -1212,12 +1290,15 @@ class CanUnprotect(BaseSecurityContext):
                     raise replay_error
 
                 request_id = RequestIdentifiers(
-                    self.recipient_id,
+                    partial_iv_generated_by,
                     partial_iv_short,
-                    nonce,
                     can_reuse_nonce=replay_error is None,
                     request_code=protected_message.code,
                 )
+
+        external_aad = self._extract_external_aad(
+            protected_message, request_id, local_is_sender=False
+        )
 
         if unprotected.pop(COSE_COUNTERSIGNATURE0, None) is not None:
             try:
@@ -1232,6 +1313,10 @@ class CanUnprotect(BaseSecurityContext):
                 raise DecodeError("Message too short for signature")
             encrypted_signature = ciphertext[-siglen:]
 
+            _alglog.debug(
+                "Producing keystream from signature encryption key: %s",
+                log_secret(self.signature_encryption_key.hex()),
+            )
             keystream = self._kdf_for_keystreams(
                 partial_iv_generated_by,
                 partial_iv_short,
@@ -1241,11 +1326,19 @@ class CanUnprotect(BaseSecurityContext):
                 if protected_message.code.is_request()
                 else INFO_TYPE_KEYSTREAM_RESPONSE,
             )
+            _alglog.debug("Encrypted signature %s", encrypted_signature.hex())
+            _alglog.debug("Keystream is %s", keystream.hex())
             signature = _xor_bytes(encrypted_signature, keystream)
 
             ciphertext = ciphertext[:-siglen]
+
+            alg_signature.verify(
+                signature, ciphertext, external_aad, self.recipient_public_key
+            )
+
+            alg_symmetric = self.alg_group_enc
         else:
-            signature = None
+            alg_symmetric = self.alg_aead
 
         if unprotected:
             raise DecodeError("Unsupported unprotected option")
@@ -1255,15 +1348,26 @@ class CanUnprotect(BaseSecurityContext):
         ):  # +1 assures access to plaintext[0] (the code)
             raise ProtectionInvalid("Ciphertext too short")
 
-        external_aad = self._extract_external_aad(
-            protected_message, request_id, local_is_sender=False
-        )
         enc_structure = ["Encrypt0", protected_serialized, external_aad]
         aad = cbor.dumps(enc_structure)
 
-        key = self._get_recipient_key(protected_message)
+        key = self._get_recipient_key(protected_message, alg_symmetric)
 
-        plaintext = self.alg_aead.decrypt(ciphertext, aad, key, nonce)
+        nonce = self._construct_nonce(
+            partial_iv_short, partial_iv_generated_by, alg_symmetric
+        )
+
+        _alglog.debug("Decrypting Encrypt0:")
+        _alglog.debug("* ciphertext = %s", ciphertext.hex())
+        _alglog.debug("* aad = %s", aad.hex())
+        _alglog.debug("* nonce = %s", nonce.hex())
+        _alglog.debug("* key = %s", log_secret(key.hex()))
+        _alglog.debug("* algorithm = %s", alg_symmetric)
+        try:
+            plaintext = alg_symmetric.decrypt(ciphertext, aad, key, nonce)
+        except Exception as e:
+            _alglog.debug("Unprotecting failed")
+            raise e
 
         self._post_decrypt_checks(
             external_aad, plaintext, protected_message, request_id
@@ -1271,12 +1375,6 @@ class CanUnprotect(BaseSecurityContext):
 
         if not is_response and seqno is not None and replay_error is None:
             self.recipient_replay_window.strike_out(seqno)
-
-        if signature is not None:
-            # Only doing the expensive signature validation once the cheaper decyrption passed
-            alg_signature.verify(
-                signature, ciphertext, external_aad, self.recipient_public_key
-            )
 
         # FIXME add options from unprotected
 
@@ -1328,13 +1426,20 @@ class CanUnprotect(BaseSecurityContext):
                 # in this implementation accepted for passing around.
                 unprotected_message.opt.observe = -1 if seqno is None else seqno
 
+        _alglog.debug(
+            "Unprotecting succeeded, yielding plaintext %s and request_id %s",
+            unprotected_message,
+            request_id,
+        )
         return unprotected_message, request_id
 
-    def _get_recipient_key(self, protected_message):
+    def _get_recipient_key(
+        self, protected_message, algorithm: SymmetricEncryptionAlgorithm
+    ):
         """Customization hook of the unprotect function
 
-        While most security contexts have a fixed recipient key, deterministic
-        requests build it on demand."""
+        While most security contexts have a fixed recipient key, group contexts
+        have multiple, and deterministic requests build it on demand."""
         return self.recipient_key
 
     def _post_decrypt_checks(self, aad, plaintext, protected_message, request_id):
@@ -1413,19 +1518,53 @@ class CanUnprotect(BaseSecurityContext):
 
 
 class SecurityContextUtils(BaseSecurityContext):
-    def _kdf(self, salt, ikm, role_id, out_type):
+    def _kdf(
+        self,
+        salt,
+        ikm,
+        role_id,
+        out_type,
+        key_alg: Optional[SymmetricEncryptionAlgorithm] = None,
+    ):
         """The HKDF as used to derive sender and recipient key and IV in
         RFC8613 Section 3.2.1, and analogously the Group Encryption Key of oscore-groupcomm.
         """
 
+        _alglog.debug("Deriving through KDF:")
+        _alglog.debug("* salt = %s", salt.hex() if salt else salt)
+        _alglog.debug("* ikm = %s", log_secret(ikm.hex()))
+        _alglog.debug("* role_id = %s", role_id.hex())
+        _alglog.debug("* out_type = %r", out_type)
+        _alglog.debug("* key_alg = %r", key_alg)
+
         # The field in info is called `alg_aead` defined in RFC8613, but in
         # group OSCORE something that's very clearly *not* alg_aead is put in
         # there.
-        the_field_called_alg_aead = self.alg_aead.value
+        #
+        # The rules about this come both from
+        # https://www.ietf.org/archive/id/draft-ietf-core-oscore-groupcomm-23.html#section-2.3
+        # and
+        # https://www.ietf.org/archive/id/draft-ietf-core-oscore-groupcomm-23.html#section-2.1.9
+        # but they produce the same outcome.
+        if hasattr(self, "alg_group_enc") and self.alg_group_enc is not None:
+            the_field_called_alg_aead = self.alg_group_enc.value
+        else:
+            assert self.alg_aead is not None, (
+                "At least alg_aead or alg_group_enc needs to be set on a context."
+            )
+            the_field_called_alg_aead = self.alg_aead.value
 
+        assert (key_alg is None) ^ (out_type == "Key")
         if out_type == "Key":
-            out_bytes = self.alg_aead.key_bytes
+            # Duplicate assertion needed while mypy can not see that the assert
+            # above the if is stricter than this.
+            assert key_alg is not None
+            out_bytes = key_alg.key_bytes
+            the_field_called_alg_aead = key_alg.value
         elif out_type == "IV":
+            assert self.alg_aead is not None, (
+                "At least alg_aead or alg_group_enc needs to be set on a context."
+            )
             out_bytes = max(
                 (
                     a.iv_bytes
@@ -1434,14 +1573,17 @@ class SecurityContextUtils(BaseSecurityContext):
                 )
             )
         elif out_type == "SEKey":
+            assert isinstance(self, GroupContext) and self.alg_group_enc is not None, (
+                "SEKey derivation is only defined for group contexts with a group encryption algorithm."
+            )
             # "While the obtained Signature Encryption Key is never used with
             # the Group Encryption Algorithm, its length was chosen to obtain a
             # matching level of security."
             out_bytes = self.alg_group_enc.key_bytes
-
-            the_field_called_alg_aead = self.alg_group_enc.value
         else:
             raise ValueError("Output type not recognized")
+
+        _alglog.debug("* the_field_called_alg_aead = %s", the_field_called_alg_aead)
 
         info = [
             role_id,
@@ -1450,7 +1592,10 @@ class SecurityContextUtils(BaseSecurityContext):
             out_type,
             out_bytes,
         ]
-        return self._kdf_lowlevel(salt, ikm, info, out_bytes)
+        _alglog.debug("* info = %r", info)
+        ret = self._kdf_lowlevel(salt, ikm, info, out_bytes)
+        _alglog.debug("Derivation of %r produced %s", out_type, log_secret(ret.hex()))
+        return ret
 
     def _kdf_for_keystreams(self, piv_generated_by, salt, ikm, role_id, out_type):
         """The HKDF as used to derive the keystreams of oscore-groupcomm."""
@@ -1495,9 +1640,11 @@ class SecurityContextUtils(BaseSecurityContext):
         hash function and id_context already configured beforehand, and from
         the passed salt and secret."""
 
-        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, "Key")
+        self.sender_key = self._kdf(
+            master_salt, master_secret, self.sender_id, "Key", self.alg_aead
+        )
         self.recipient_key = self._kdf(
-            master_salt, master_secret, self.recipient_id, "Key"
+            master_salt, master_secret, self.recipient_id, "Key", self.alg_aead
         )
 
         self.common_iv = self._kdf(master_salt, master_secret, b"", "IV")
@@ -1676,7 +1823,9 @@ class FilesystemSecurityContext(
     """
 
     # possibly overridden in constructor
-    alg_aead = algorithms[DEFAULT_ALGORITHM]
+    #
+    # Type is ignored because while it *is* AlgAead, mypy can't tell.
+    alg_aead = algorithms[DEFAULT_ALGORITHM]  # type: ignore
 
     class LoadError(ValueError):
         """Exception raised with a descriptive message when trying to load a
@@ -1951,7 +2100,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
 
     # set during initialization (making all those attributes rather than
     # possibly properties as they might be in super)
-    sender_id = None
+    sender_id = None  # type: ignore
     id_context = None  # type: ignore
     private_key = None
     alg_aead = None
@@ -2055,18 +2204,26 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
             "Group context without key indication was used for verification"
         )
 
-    def derive_keys(self, master_salt, master_secret):
-        # FIXME unify with parent?
+    def _get_sender_key(self, outer_message, aad, plaintext, request_id):
+        # If we even get here, there has to be a alg_group_enc, and thus the sender key does match it
+        return self._sender_key
 
-        self.sender_key = self._kdf(master_salt, master_secret, self.sender_id, "Key")
+    def derive_keys(self, master_salt, master_secret):
+        the_main_alg = (
+            self.alg_group_enc if self.alg_group_enc is not None else self.alg_aead
+        )
+
+        self._sender_key = self._kdf(
+            master_salt, master_secret, self.sender_id, "Key", the_main_alg
+        )
         self.recipient_keys = {
-            recipient_id: self._kdf(master_salt, master_secret, recipient_id, "Key")
+            recipient_id: self._kdf(
+                master_salt, master_secret, recipient_id, "Key", the_main_alg
+            )
             for recipient_id in self.peers
         }
 
         self.common_iv = self._kdf(master_salt, master_secret, b"", "IV")
-
-        # but this one is new
 
         self.signature_encryption_key = self._kdf(
             master_salt, master_secret, b"", "SEKey"
@@ -2180,6 +2337,7 @@ class _GroupContextAspect(GroupContext, CanUnprotect, SecurityContextUtils):
 
     @property
     def recipient_key(self):
+        # If we even get here, there has to be a alg_group_enc, and thus the recipient key does match it
         return self.groupcontext.recipient_keys[self.recipient_id]
 
     @property
@@ -2219,7 +2377,7 @@ class _PairwiseContextAspect(
         )
 
         self.sender_key = self._kdf(
-            self.groupcontext.sender_key,
+            self.groupcontext._sender_key,
             (
                 self.groupcontext.sender_auth_cred
                 + self.groupcontext.recipient_auth_creds[recipient_id]
@@ -2227,6 +2385,7 @@ class _PairwiseContextAspect(
             ),
             self.groupcontext.sender_id,
             "Key",
+            self.alg_group_enc if self.is_signing else self.alg_aead,
         )
         self.recipient_key = self._kdf(
             self.groupcontext.recipient_keys[recipient_id],
@@ -2237,6 +2396,7 @@ class _PairwiseContextAspect(
             ),
             self.recipient_id,
             "Key",
+            self.alg_group_enc if self.is_signing else self.alg_aead,
         )
 
     def __repr__(self):
@@ -2298,8 +2458,9 @@ class _PairwiseContextAspect(
     def recipient_replay_window(self):
         return self.groupcontext.recipient_replay_windows[self.recipient_id]
 
-    # Set at initialization
-    recipient_key = None
+    # Set at initialization (making all those attributes rather than
+    # possibly properties as they might be in super)
+    recipient_key = None  # type: ignore
     sender_key = None
 
     @property
@@ -2408,7 +2569,7 @@ class _DeterministicProtectProtoAspect(
         request_id.can_reuse_nonce = False
         # FIXME: we're still sending a h'00' PIV. Not wrong, just a wasted byte.
 
-        return self._kdf(basekey, request_hash, self.sender_id, "Key")
+        return self._kdf(basekey, request_hash, self.sender_id, "Key", self.alg_aead)
 
     # details needed for various operations, especially eAAD generation
 
@@ -2486,12 +2647,16 @@ class _DeterministicUnprotectProtoAspect(
     def context_for_response(self):
         return self.groupcontext
 
-    def _get_recipient_key(self, protected_message):
+    def _get_recipient_key(self, protected_message, algorithm):
+        logging.critical(
+            "Deriving recipient key for protected message %s", protected_message
+        )
         return self._kdf(
             self.groupcontext.recipient_keys[self.recipient_id],
             protected_message.opt.request_hash,
             self.recipient_id,
             "Key",
+            algorithm,
         )
 
     def _post_decrypt_checks(self, aad, plaintext, protected_message, request_id):

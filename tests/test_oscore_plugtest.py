@@ -33,6 +33,7 @@ output_whitelist = ["Check passed: "]
 debug_whitelist = [
     "INFO:coap-server:Render request raised a renderable error",
     "DEBUG:oscore-site:Will encrypt message as response: ",
+    "DEBUG:aiocoap.cryptography:Unprotecting failed",
 ]
 
 

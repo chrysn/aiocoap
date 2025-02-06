@@ -27,7 +27,7 @@ if not oscore_modules:
     C3_SALT = h("9e7ca92223786340")
     C3_ID_CTX = h("37cbf3210017a2d3")
 
-    default_algorithm = aiocoap.oscore.AES_CCM_16_64_128
+    default_algorithm = aiocoap.oscore.AES_CCM_16_64_128()
     default_hashfun = aiocoap.oscore.hashfunctions["sha256"]
 
     import aiocoap.oscore
@@ -77,13 +77,17 @@ class TestOSCOAPStatic(unittest.TestCase):
             "Common IV key derivation disagrees with test vector",
         )
 
-        sender_nonce_0 = secctx._construct_nonce(b"\0", secctx.sender_id)
+        sender_nonce_0 = secctx._construct_nonce(
+            b"\0", secctx.sender_id, default_algorithm
+        )
         self.assertEqual(
             sender_nonce_0,
             h("4622d4dd6d944168eefb54987c"),
             "Sender nonce disagrees with test vector",
         )
-        recipient_nonce_0 = secctx._construct_nonce(b"\0", secctx.recipient_id)
+        recipient_nonce_0 = secctx._construct_nonce(
+            b"\0", secctx.recipient_id, default_algorithm
+        )
         self.assertEqual(
             recipient_nonce_0,
             h("4722d4dd6d944169eefb54987c"),
@@ -117,13 +121,17 @@ class TestOSCOAPStatic(unittest.TestCase):
             "Common IV key derivation disagrees with test vector",
         )
 
-        sender_nonce_0 = secctx._construct_nonce(b"\0", secctx.sender_id)
+        sender_nonce_0 = secctx._construct_nonce(
+            b"\0", secctx.sender_id, default_algorithm
+        )
         self.assertEqual(
             sender_nonce_0,
             h("4722d4dd6d944169eefb54987c"),
             "Sender nonce disagrees with test vector",
         )
-        recipient_nonce_0 = secctx._construct_nonce(b"\0", secctx.recipient_id)
+        recipient_nonce_0 = secctx._construct_nonce(
+            b"\0", secctx.recipient_id, default_algorithm
+        )
         self.assertEqual(
             recipient_nonce_0,
             h("4622d4dd6d944168eefb54987c"),
@@ -157,13 +165,17 @@ class TestOSCOAPStatic(unittest.TestCase):
             "Common IV key derivation disagrees with test vector",
         )
 
-        sender_nonce_0 = secctx._construct_nonce(b"\0", secctx.sender_id)
+        sender_nonce_0 = secctx._construct_nonce(
+            b"\0", secctx.sender_id, default_algorithm
+        )
         self.assertEqual(
             sender_nonce_0,
             h("bf35ae297d2dace910c52e99f9"),
             "Sender nonce disagrees with test vector",
         )
-        recipient_nonce_0 = secctx._construct_nonce(b"\0", secctx.recipient_id)
+        recipient_nonce_0 = secctx._construct_nonce(
+            b"\0", secctx.recipient_id, default_algorithm
+        )
         self.assertEqual(
             recipient_nonce_0,
             h("bf35ae297d2dace810c52e99f9"),
@@ -199,13 +211,17 @@ class TestOSCOAPStatic(unittest.TestCase):
             "Common IV key derivation disagrees with test vector",
         )
 
-        sender_nonce_0 = secctx._construct_nonce(b"\0", secctx.sender_id)
+        sender_nonce_0 = secctx._construct_nonce(
+            b"\0", secctx.sender_id, default_algorithm
+        )
         self.assertEqual(
             sender_nonce_0,
             h("2ca58fb85ff1b81c0b7181b85e"),
             "Sender nonce disagrees with test vector",
         )
-        recipient_nonce_0 = secctx._construct_nonce(b"\0", secctx.recipient_id)
+        recipient_nonce_0 = secctx._construct_nonce(
+            b"\0", secctx.recipient_id, default_algorithm
+        )
         self.assertEqual(
             recipient_nonce_0,
             h("2da58fb85ff1b81d0b7181b85e"),
@@ -312,11 +328,13 @@ class TestOSCOAPStatic(unittest.TestCase):
         )
         request_sender_id = secctx.recipient_id
         request_piv_short = b"\x14"
-        request_nonce = secctx._construct_nonce(request_piv_short, request_sender_id)
+        request_nonce = secctx._construct_nonce(
+            request_piv_short, request_sender_id, default_algorithm
+        )
         outer_message, _ = secctx.protect(
             unprotected,
             aiocoap.oscore.RequestIdentifiers(
-                request_sender_id, request_piv_short, request_nonce, True, aiocoap.POST
+                request_sender_id, request_piv_short, True, aiocoap.POST
             ),
         )
         outer_message.mid = unprotected.mid
@@ -347,11 +365,13 @@ class TestOSCOAPStatic(unittest.TestCase):
         )
         request_sender_id = secctx.recipient_id
         request_piv_short = b"\x14"
-        request_nonce = secctx._construct_nonce(request_piv_short, request_sender_id)
+        request_nonce = secctx._construct_nonce(
+            request_piv_short, request_sender_id, default_algorithm
+        )
         outer_message, _ = secctx.protect(
             unprotected,
             aiocoap.oscore.RequestIdentifiers(
-                request_sender_id, request_piv_short, request_nonce, False, aiocoap.POST
+                request_sender_id, request_piv_short, False, aiocoap.POST
             ),
         )
         outer_message.mid = unprotected.mid
