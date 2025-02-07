@@ -169,10 +169,18 @@ class Pipe:
 
     def _add_event(self, event):
         if self._event_callbacks is False:
-            # Happens, for example, when a proxy receives multiple requests on a single token
-            self.log.warning(
-                "Response %r added after %r has already ended", event, self
-            )
+            if event.exception is not None:
+                self.log.error(
+                    "Discarded exception in %r added after %r has ended",
+                    event,
+                    self,
+                    exception=event.exception,
+                )
+            else:
+                # Happens, for example, when a proxy receives multiple requests on a single token
+                self.log.warning(
+                    "Response %r added after %r has already ended", event, self
+                )
             return
 
         for cb, is_interest in self._event_callbacks[:]:
