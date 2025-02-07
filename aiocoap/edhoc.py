@@ -350,10 +350,6 @@ class _EdhocContextBase(
         return outer_message, request_id
 
     def _make_ready(self, edhoc_context, c_ours, c_theirs):
-        # only in lakers >= 0.5 that is present
-        if hasattr(edhoc_context, "completed_without_message_4"):
-            edhoc_context.completed_without_message_4()
-
         # FIXME: both should offer this
         if (
             isinstance(edhoc_context, lakers.EdhocResponder)
@@ -410,6 +406,7 @@ class EdhocInitiatorContext(_EdhocContextBase):
             cred_i_mode.as_lakers(), None
         )
 
+        initiator.completed_without_message_4()
         self._make_ready(initiator, c_ours, c_theirs)
 
     def message_3_to_include(self) -> Optional[bytes]:
@@ -438,6 +435,8 @@ class EdhocResponderContext(_EdhocContextBase):
         # a general protect/unprotect, and things only work because all
         # relevant functions get their checks introduced
         self._incomplete = True
+
+        self._message_4 = None
 
     def message_3_to_include(self) -> Optional[bytes]:
         # as a responder we never send one
@@ -473,6 +472,20 @@ class EdhocResponderContext(_EdhocContextBase):
             m3len = payload_stream.tell()
             message_3 = protected_message.payload[:m3len]
 
+            self._offer_message_3(message_3)
+
+            protected_message = protected_message.copy(
+                edhoc=False, payload=protected_message.payload[m3len:]
+            )
+
+        return super().unprotect(protected_message, request_id)
+
+    def _offer_message_3(self, message_3: bytes) -> bytes:
+        """Send in a message 3, obtain a message 4
+
+        It is safe to discard the output, eg. when the CoAP EDHOC option is
+        used."""
+        if self._incomplete:
             id_cred_i, ead_3 = self._responder.parse_message_3(message_3)
             if ead_3 is not None:
                 self.log.error("Aborting EDHOC: EAD3 present")
@@ -492,15 +505,12 @@ class EdhocResponderContext(_EdhocContextBase):
             self.authenticated_claims.extend(claims)
 
             self._responder.verify_message_3(cred_i)
+            self._message_4 = self._responder.prepare_message_4()
 
             self._make_ready(self._responder, self.recipient_id, self.sender_id)
             self._incomplete = False
 
-            protected_message = protected_message.copy(
-                edhoc=False, payload=protected_message.payload[m3len:]
-            )
-
-        return super().unprotect(protected_message, request_id)
+        return self._message_4
 
 
 class OwnCredStyle(enum.Enum):

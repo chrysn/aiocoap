@@ -11,6 +11,7 @@ remote property adaequately.
 import logging
 from typing import Optional
 import uuid
+import io
 
 import cbor2
 import lakers
@@ -262,11 +263,41 @@ class OscoreSiteWrapper(interfaces.Resource):
         )
 
     def _process_edhoc_msg34(self, pipe):
-        self.log.error(
-            "Receivign message 3 as a standalone message is not supported yet"
+        request = pipe.request
+
+        payload = io.BytesIO(request.payload)
+        try:
+            c_r = cbor2.load(payload)
+        except cbor2.CBORDecodeError:
+            self.log.error("Message 3 received without valid CBOR start")
+            raise error.BadRequest
+        message_3 = payload.read()
+
+        if isinstance(c_r, int) and not isinstance(c_r, bool) and -24 <= c_r < 23:
+            c_r = cbor2.dumps(c_r)
+        if not isinstance(c_r, bytes):
+            self.log.error(f"Message 3 received with invalid C_R {c_r:r}")
+            raise error.BadRequest
+
+        # Our lookup is modelled expecting OSCORE header objects, so we rebuild one
+        unprotected = {oscore.COSE_KID: c_r}
+
+        try:
+            sc = self.server_credentials.find_oscore(unprotected)
+        except KeyError:
+            self.log.error(
+                f"No OSCORE context found with recipient_id / c_r matching {c_r!r}"
+            )
+            raise error.BadRequest
+
+        if not isinstance(sc, edhoc.EdhocResponderContext):
+            raise error.BadRequest
+
+        message_4 = sc._offer_message_3(message_3)
+
+        pipe.add_response(
+            aiocoap.Message(code=aiocoap.CHANGED, payload=message_4), is_last=True
         )
-        # FIXME: Add support for it
-        raise error.BadRequest
 
     def _get_edhoc_identity(self, origin: str) -> Optional[edhoc.EdhocCredentials]:
         """With lakers-python 0.3.1, we can effectively only have one identity
