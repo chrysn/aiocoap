@@ -827,6 +827,9 @@ class Main(AsyncCLIDaemon):
     async def start(self, args=None):
         parser = build_parser()
         parser.add_argument(
+            "--version", action="version", version="%(prog)s " + aiocoap.meta.version
+        )
+        parser.add_argument(
             "--proxy-domain",
             help="Enable the RD proxy extension. Example: `proxy.example.net` will produce base URIs like `coap://node1.proxy.example.net/`. The names must all resolve to an address the RD is bound to.",
             type=str,
