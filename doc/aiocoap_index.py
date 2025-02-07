@@ -8,6 +8,7 @@ import os
 import textwrap
 import glob
 import os.path
+from pathlib import Path
 
 from docutils.parsers.rst.directives.misc import Include
 
@@ -77,7 +78,9 @@ class IncludePreprocessed(Include):
 def build_moduledocs(app):
     """Create per-module sources like sphinx-apidoc, but at build time and with
     customizations."""
-    srcdir = app.builder.srcdir
+    # Beware that in sphinx as of Debian bookworm, this is not a Path yet (but
+    # docs building is only regularly tested on newer versions)
+    srcdir = Path(app.builder.srcdir)
 
     moddir = srcdir / "module"
     os.makedirs(moddir, exist_ok=True)

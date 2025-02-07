@@ -339,6 +339,9 @@ class FileServerProgram(AsyncCLIDaemon):
     def build_parser():
         p = argparse.ArgumentParser(description=__doc__)
         p.add_argument(
+            "--version", action="version", version="%(prog)s " + aiocoap.meta.version
+        )
+        p.add_argument(
             "-v",
             "--verbose",
             help="Be more verbose (repeat to debug)",
