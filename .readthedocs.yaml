@@ -8,6 +8,7 @@ build:
 
 sphinx:
   builder: html
+  configuration: ./doc/conf.py
 
 python:
   install:
