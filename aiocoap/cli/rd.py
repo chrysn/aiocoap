@@ -820,38 +820,39 @@ def build_parser():
 
     add_server_arguments(p)
 
+    p.add_argument(
+        "--version", action="version", version="%(prog)s " + aiocoap.meta.version
+    )
+    p.add_argument(
+        "--proxy-domain",
+        help="Enable the RD proxy extension. Example: `proxy.example.net` will produce base URIs like `coap://node1.proxy.example.net/`. The names must all resolve to an address the RD is bound to.",
+        type=str,
+    )
+    p.add_argument(
+        "--lwm2m-compat",
+        help="Compatibility mode for LwM2M clients that can not perform some discovery steps (moving the registration resource to `/rd`)",
+        action="store_true",
+        default=None,
+    )
+    p.add_argument(
+        "--no-lwm2m-compat",
+        help="Disable all compativility with LwM2M clients that can not perform some discovery steps (not even accepting registrations at `/rd` with warnings)",
+        action="store_false",
+        dest="lwm2m_compat",
+    )
+    p.add_argument(
+        "--verbose",
+        help="Increase debug log output (repeat for increased verbosity)",
+        action="count",
+        default=0,
+    )
+
     return p
 
 
 class Main(AsyncCLIDaemon):
     async def start(self, args=None):
         parser = build_parser()
-        parser.add_argument(
-            "--version", action="version", version="%(prog)s " + aiocoap.meta.version
-        )
-        parser.add_argument(
-            "--proxy-domain",
-            help="Enable the RD proxy extension. Example: `proxy.example.net` will produce base URIs like `coap://node1.proxy.example.net/`. The names must all resolve to an address the RD is bound to.",
-            type=str,
-        )
-        parser.add_argument(
-            "--lwm2m-compat",
-            help="Compatibility mode for LwM2M clients that can not perform some discovery steps (moving the registration resource to `/rd`)",
-            action="store_true",
-            default=None,
-        )
-        parser.add_argument(
-            "--no-lwm2m-compat",
-            help="Disable all compativility with LwM2M clients that can not perform some discovery steps (not even accepting registrations at `/rd` with warnings)",
-            action="store_false",
-            dest="lwm2m_compat",
-        )
-        parser.add_argument(
-            "--verbose",
-            help="Increase debug log output (repeat for increased verbosity)",
-            action="count",
-            default=0,
-        )
         options = parser.parse_args(args if args is not None else sys.argv[1:])
 
         # Putting in an empty site to construct the site with a context
