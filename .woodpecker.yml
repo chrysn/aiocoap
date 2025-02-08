@@ -172,3 +172,8 @@ steps:
       folder: public
       ssh_key:
         from_secret: ssh_key
+    when:
+      - event: push
+        # add your branch name here temporarily if you want to see the output
+        # deployed even before it hits main
+        branch: main
