@@ -124,6 +124,17 @@ steps:
       - python3 -m sphinx doc public/doc/
       - python3 -m docutils README.rst --strict > /dev/null
 
+  build-wheel:
+    image: python:3.13
+    depends_on: []
+    environment:
+      FORCE_COLOR: "1"
+    commands:
+      - pip install build
+      - python3 -m build
+      - mkdir -p public
+      - cp -r dist/ public/
+
   build-pages:
     image: docker.io/python:3
     depends_on:
@@ -132,6 +143,7 @@ steps:
       - test:3.13
       - test:pypy
       - doc
+      - build-wheel
     environment:
       FORCE_COLOR: "1"
     commands:
@@ -142,7 +154,14 @@ steps:
       - python3 -m coverage html --include=aiocoap/\*
       - mkdir -p pubic
       - mv htmlcov public/coverage/
-      - echo '<title>aiocoap build artifacts</title><h1>aiocoap build artifacts<ul><li><a href="coverage/">Coverage report</a><li><a href="doc/">Documentation</a>' > public/index.html
+      # Link for the wheel goes to the `raw.` URI because that allows CORS,
+      # making it useful as a pyodide source.
+      - echo '<title>aiocoap build artifacts</title>' > public/index.html
+      - echo '<h1>aiocoap build artifacts</h1><ul>' >> public/index.html
+      - echo '<li><a href="coverage/">Coverage report</a>' >> public/index.html
+      - echo '<li><a href="doc/">Documentation</a>' >> public/index.html
+      - echo '<li><a href="https://raw.codeberg.page/aiocoap/aiocoap/@pages/'$(echo dist/*.whl)'">Current wheel</a>' >> public/index.html
+      - cat public/index.html
 
   publish-pages:
     image: codeberg.org/xfix/plugin-codeberg-pages-deploy:1
