@@ -161,6 +161,7 @@ steps:
       - echo '<li><a href="coverage/">Coverage report</a>' >> public/index.html
       - echo '<li><a href="doc/">Documentation</a>' >> public/index.html
       - echo '<li><a href="https://raw.codeberg.page/aiocoap/aiocoap/@pages/'$(echo dist/*.whl)'">Current wheel</a>' >> public/index.html
+      - echo '</ul><footer>Current version described as '$(git describe) >> public/index.html
       - cat public/index.html
 
   publish-pages:
