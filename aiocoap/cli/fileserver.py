@@ -6,7 +6,7 @@
 read-only fashion via CoAP. It provides directory listings, and guesses the
 media type of files it serves.
 
-It follows the conventions set out for the [kitchen-sink fileserver],
+It follows the conventions set out for the `kitchen-sink fileserver`_,
 optionally with write support, with some caveats:
 
 * There are some time-of-check / time-of-use race conditions around the
@@ -29,7 +29,7 @@ optionally with write support, with some caveats:
 
 * Directory creation and deletion is not supported at the moment.
 
-[kitchen-sink fileserver]: https://www.ietf.org/archive/id/draft-amsuess-core-coap-kitchensink-00.html#name-coap
+.. _`kitchen-sink fileserver`: https://www.ietf.org/archive/id/draft-amsuess-core-coap-kitchensink-06.html#name-coap-file-service
 """
 
 import argparse
