@@ -131,6 +131,7 @@ steps:
       - test:py312
       - test:3.13
       - test:pypy
+      - doc
     environment:
       FORCE_COLOR: "1"
     commands:
