@@ -2,7 +2,8 @@ aiocoap -- The Python CoAP library
 ==================================
 
 The aiocoap package is an implementation of CoAP, the `Constrained Application
-Protocol`_.
+Protocol`_. It facilitates writing applications that talk to
+network enabled embedded ("IoT" / "Internet of Things") devices.
 
 It is written in Python 3 using its `native asyncio`_ methods to facilitate
 concurrent operations while maintaining an easy to use interface.
