@@ -152,7 +152,7 @@ steps:
       - python3 -m coverage combine
       - python3 -m coverage report --include=aiocoap/\*
       - python3 -m coverage html --include=aiocoap/\*
-      - mkdir -p pubic
+      - mkdir -p public
       - mv htmlcov public/coverage/
       # Link for the wheel goes to the `raw.` URI because that allows CORS,
       # making it useful as a pyodide source.
@@ -161,7 +161,7 @@ steps:
       - echo '<li><a href="coverage/">Coverage report</a>' >> public/index.html
       - echo '<li><a href="doc/">Documentation</a>' >> public/index.html
       - echo '<li><a href="https://raw.codeberg.page/aiocoap/aiocoap/@pages/'$(echo dist/*.whl)'">Current wheel</a>' >> public/index.html
-      - echo '</ul><footer>Current version described as '$(git describe) >> public/index.html
+      - echo '</ul><footer>Current version described as '$(git describe --always) >> public/index.html
       - cat public/index.html
 
   publish-pages:
