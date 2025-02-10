@@ -31,11 +31,11 @@ command line client.
 
 On the server side, generate a key for the server::
 
-    $ aiocoap-keygen generate fileserver.cosekey --kid 0a --subject "s"
-    {14: {2: "s", 8: {1: {1: 2, 2: h'0a', -1: 1, -2: ..., -3: ...}}}}
+    $ aiocoap-keygen generate fileserver.cosekey --kid 0a
+    {14: {8: {1: {1: 2, 2: h'0a', -1: 1, -2: ..., -3: ...}}}}
 
-.. note:: The KIDs and subject length limitations that make all those be
-   single-byte are subject to ongoing development in aiocoap and lakers.
+.. note:: Setting a key ID is required to later send the credential by key ID,
+   which enables sending the own credential "by key ID" (which is more compact).
 
 The output of this is a public key, which goes into the credential file you create next as ``fileserver.cred.diag``::
 
@@ -54,8 +54,8 @@ The output of this is a public key, which goes into the credential file you crea
 
 Now over to the client::
 
-    $ aiocoap-keygen generate client.cosekey --kid 01 --subject "c"
-    {14: {2: "c", 8: {1: {1: 2, 2: h'01', -1: 1, -2: ..., -3: ...}}}}
+    $ aiocoap-keygen generate client.cosekey --kid 01
+    {14: {8: {1: {1: 2, 2: h'01', -1: 1, -2: ..., -3: ...}}}}
 
 Likewise, create a credential file we call ``client.cred.diag``::
 
@@ -109,9 +109,6 @@ Finally we can start the fileserver::
 
    * Generating local identities should be more streamlined, with less
      copy-pasting involved.
-
-   * The necessity of having a kid and a subject in keys for everything to work
-     in the first place is subject to ongoing discussion.
 
    * unilateral authentication is supported by setting the peer's credentials
      to `{"unauthenticated": true}` -- but that needs some more explaining as

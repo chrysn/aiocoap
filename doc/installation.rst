@@ -121,16 +121,26 @@ See the :doc:`pyodide` section of the documentation on how aiocoap can be used t
 .. _pyodide: https://pyodide.org/
 .. _`Jupyter notebook`: https://jupyter.org/try-jupyter/
 
-If you want to run an unreleased branch or test own code,
+Manual version selection
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The latest main version is made available as part of the documentation, coverage and test builds,
+and can be used like this::
+
+    >>> import micropip
+    >>> await micropip.install("https://raw.codeberg.page/aiocoap/aiocoap/@pages/dist/aiocoap-0.4.12.post0-py3-none-any.whl")
+
+Note that the file name is parsed by micropip,
+and therefore needs to change as versions change.
+The latest link is found on <https://aiocoap.codeberg.page/aiocoap/>.
+
+To test a local build with pyodide,
 get a Git checkout as described for development above, and run::
 
     python3 -m build
 
 Then, copy the newly created file ``dist/aiocoap-${VERSION}-py3-none-any.whl``
 to a file server on the public web.
-Make sure to leave the file name as is,
-because micropip will attempt to parse it.
-Then you can pass the URI of the file instead of the name "aiocoap" to micropip.install.
 Note that the server may need some CORS_ setup to allow loading of the file from foreign web sites.
 For that reason, running the ``http.server`` module as a web server on localhost creates an insufficient server.
 

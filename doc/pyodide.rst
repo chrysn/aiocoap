@@ -3,7 +3,7 @@ pyodide and Jupyter
 
 aiocoap can be run in a Python interpreter that is running in the browser
 called pyodide_.
-See :doc:`the its section in the installation instructions <guidedtour>`
+See :ref:`the its section in the installation instructions <installation-pyodide>`
 for how to install in this environment.
 
 The recommended way to use pyodide is through a `Jupyter notebook`_.
