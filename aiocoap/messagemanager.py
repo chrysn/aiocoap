@@ -153,7 +153,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             # than an exception later, nothing terminally bad should come of
             # this error.
             self.log.warning(
-                "Internal shutdown sequence msismatch: error dispatched through messagemanager after shutown"
+                "Internal shutdown sequence mismatch: error dispatched through messagemanager after shutown"
             )
             return
 
