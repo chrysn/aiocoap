@@ -158,6 +158,7 @@ class WithLogMonitoring(unittest.TestCase):
         def emit(self, record):
             record.preformatted = self.preformatter.format(record)
 
+            record.orig_msg = record.msg
             if record.args and not hasattr(record, "style"):
                 # Several of the precise_warnings and simiiar uses rely on the
                 # ability to match on the message as shown. This mechanism
@@ -172,7 +173,6 @@ class WithLogMonitoring(unittest.TestCase):
                 #
                 # The original message is retained for use with cases when it
                 # is easier that way.
-                record.orig_msg = record.msg
                 record.msg = record.msg % record.args
 
             record.args = None
