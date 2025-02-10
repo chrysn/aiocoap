@@ -97,6 +97,10 @@ Bugs (ranging from "design goal" and "wishlist" to typos) are currently tracked
 in the `github issue tracker`_. Pull requests are welcome there; if you start
 working on larger changes, please coordinate on the issue tracker.
 
+Security critical bugs may instead be reported in private to <chrysn@fsfe.org>
+(`PGP key`_) for coordinated disclosure; the maintainer reserves the right to
+publish fixes ahead of a planned embargo time at he deems suitable.
+
 Documentation is built using sphinx_ with ``python3 -m sphinx doc/ ${TARGET}``;
 hacks used there are described in ``./doc/README.doc``.
 
@@ -113,6 +117,7 @@ suite at codeberg`_, from where `coverage reports`_ are available.
 .. _`CI suite at codeberg`: https://ci.codeberg.org/repos/12879
 .. _`coverage reports`: https://aiocoap.codeberg.page/aiocoap/coverage/
 .. _tox: https://tox.readthedocs.io/
+.. _`PGP key`: https://christian.amsuess.com/pgp
 
 Relevant URLs
 -------------
