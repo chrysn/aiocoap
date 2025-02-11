@@ -90,7 +90,7 @@ steps:
     commands:
       - pip install mypy
       - pip install '.[all]'
-      - mypy --install-types --non-interactive aiocoap
+      - mypy --install-types --non-interactive src/aiocoap
 
   ruff:
     image: python:3
@@ -102,7 +102,7 @@ steps:
       - ruff format --check
       # Excluding the client scripts as their heavy reliance on `from aiocoap
       # import *` would decrease their usefullness as easy quick-start script
-      - ruff check aiocoap
+      - ruff check src
 
   reuse:
     image: python:3
@@ -150,8 +150,8 @@ steps:
       - python3 -m pip install coverage
       - mv collected-coverage/*/.coverage* .
       - python3 -m coverage combine
-      - python3 -m coverage report --include=aiocoap/\*
-      - python3 -m coverage html --include=aiocoap/\*
+      - python3 -m coverage report
+      - python3 -m coverage html
       - mkdir -p public
       - mv htmlcov public/coverage/
       # Link for the wheel goes to the `raw.` URI because that allows CORS,

@@ -22,7 +22,7 @@ Files:
   MANIFEST.in
   NEWS.rst
   README.rst
-  aiocoap/credentials.cddl
+  src/aiocoap/credentials.cddl
   contrib/aiocoap.ipynb
   contrib/aiocoap-proxy.ipynb
   contrib/aiocoap-server.ipynb
