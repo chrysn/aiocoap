@@ -351,6 +351,8 @@ class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
         self.log = log
         self.loop = loop
 
+        self._shutting_down = False
+
     def _connection_for_address(self, host, port, pskId, psk):
         """Return a DTLSConnection to a given address. This will always give
         the same result for the same host/port combination, at least for as
@@ -385,6 +387,9 @@ class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
         if request.requested_scheme != "coaps":
             return None
 
+        if self._shutting_down:
+            raise error.LibraryShutdown
+
         if request.unresolved_remote:
             host, port = hostportsplit(request.unresolved_remote)
             port = port or COAPS_PORT
@@ -410,6 +415,8 @@ class MessageInterfaceTinyDTLS(interfaces.MessageInterface):
         message.remote.send(message.encode())
 
     async def shutdown(self):
+        self._shutting_down = True
+
         remaining_connections = list(self._pool.values())
         for c in remaining_connections:
             c.shutdown()

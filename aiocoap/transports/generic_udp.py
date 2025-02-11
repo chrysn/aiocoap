@@ -51,8 +51,8 @@ class GenericMessageInterface(interfaces.MessageInterface):
             message.remote.send(message.encode())
 
     async def shutdown(self):
-        await self._pool.shutdown()
         self._mman = None
+        await self._pool.shutdown()
 
     async def determine_remote(self, request):
         if request.requested_scheme not in ("coap", None):
@@ -68,6 +68,9 @@ class GenericMessageInterface(interfaces.MessageInterface):
             raise ValueError(
                 "No location found to send message to (neither in .opt.uri_host nor in .remote)"
             )
+
+        if self._mman is None:
+            raise error.LibraryShutdown
 
         result = await self._pool.connect((host, port))
         if request.remote.maximum_block_size_exp < result.maximum_block_size_exp:

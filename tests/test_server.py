@@ -274,13 +274,17 @@ class WithClient(WithAsyncLoop, Destructing):
     def setUp(self):
         super(WithClient, self).setUp()
 
+        self.test_did_shut_down_client = False
+
         self.client = self.loop.run_until_complete(
             aiocoap.Context.create_client_context()
         )
 
     def tearDown(self):
-        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
-        self.loop.run_until_complete(self.client.shutdown())
+        if not self.test_did_shut_down_client:
+            self.test_did_shut_down_client = False
+            self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
+            self.loop.run_until_complete(self.client.shutdown())
 
         # Nothing in the context should keep the request interfaces alive;
         # delete them first to see *which* of them is the one causing the
@@ -560,6 +564,22 @@ class TestServer(TestServerBase):
             for x in self.handler
             if x.name != "coap-server"
         )
+
+    @no_warnings
+    def test_clean_shutdown(self):
+        self.loop.run_until_complete(self.client.shutdown())
+        self.test_did_shut_down_client = True
+
+        request = self.build_request()
+        # This is clearly misuse of the API, but nonetheless, only a
+        # LibraryShutdown should fly out of it.
+        #
+        # Ideally, we'd do that "during" shutdown", but that's terribly racy
+        # business, both wins are acceptable (what if the shutdown hasn't
+        # really begun yet), and it's highly unlikely that we hit the juicy
+        # cases.
+        with self.assertRaises(aiocoap.error.LibraryShutdown):
+            self.loop.run_until_complete(self.fetch_response(request))
 
 
 @unittest.skipIf(common.tcp_disabled, "TCP disabled in environment")

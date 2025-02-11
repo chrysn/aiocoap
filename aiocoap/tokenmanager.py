@@ -218,6 +218,10 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         return await self.token_interface.fill_or_recognize_remote(message)
 
     def request(self, request):
+        if self.outgoing_requests is None:
+            request.add_exception(error.LibraryShutdown())
+            return
+
         msg = request.request
 
         assert msg.code.is_request(), "Message code is not valid for request"
