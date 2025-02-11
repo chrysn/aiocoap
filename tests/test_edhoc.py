@@ -21,6 +21,8 @@ class WithEdhocPair(WithTestServer, WithClient):
     client_knows_server = True
     server_knows_client = True
 
+    use_combined_edhoc = True
+
     def setUp(self):
         super().setUp()
 
@@ -54,6 +56,7 @@ class WithEdhocPair(WithTestServer, WithClient):
             "edhoc-oscore": {
                 "suite": 2,
                 "method": 3,
+                "use_combined_edhoc": self.use_combined_edhoc,
                 "own_cred_style": self.client_style,
                 "own_cred": clientccs,
                 "private_key_file": str(clientkey_file),
@@ -133,6 +136,10 @@ class TestServerEdhocKidAnon(BaseServerEdhoc):
     server_style = "by-key-id"
     client_style = "by-value"
     server_knows_client = False
+
+
+class TestServerEdhocVeryVerbose(TestServerEdhocValueValue):
+    use_combined_edhoc = False
 
 
 # that's not supposed to be tested, its child classes are

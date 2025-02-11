@@ -169,6 +169,12 @@ class EdhocCredentials(credentials._Objectish):
     own_cred: Optional[dict]
     peer_cred: Optional[dict]
 
+    #: Whether the combined flow should be used when using this credential set.
+    #:
+    #: If unset or None, this the decision is left to the library (which at the
+    #: time of writing always picks True).
+    use_combined_edhoc: Optional[bool]
+
     def __init__(
         self,
         suite: int,
@@ -178,6 +184,7 @@ class EdhocCredentials(credentials._Objectish):
         own_cred: Optional[dict] = None,
         private_key_file: Optional[str] = None,
         private_key: Optional[dict] = None,
+        use_combined_edhoc: Optional[bool] = None,
     ):
         from . import edhoc
 
@@ -185,6 +192,7 @@ class EdhocCredentials(credentials._Objectish):
         self.method = method
         self.own_cred = own_cred
         self.peer_cred = peer_cred
+        self.use_combined_edhoc = use_combined_edhoc
 
         if private_key_file is not None and private_key is not None:
             raise credentials.CredentialsLoadError(
@@ -264,6 +272,8 @@ class EdhocCredentials(credentials._Objectish):
         logger.info(
             "No OSCORE context found for EDHOC context %r, initiating one.", self
         )
+        # The semantic identifier (an arbitrary string)
+        #
         # FIXME: We don't support role reversal yet, but once we
         # register this context to be available for incoming
         # requests, we'll have to pick more carefully
@@ -326,7 +336,39 @@ class EdhocCredentials(credentials._Objectish):
 
         logger.debug("Message 2 was verified")
 
-        return EdhocInitiatorContext(initiator, c_i, c_r, self.own_cred_style, logger)
+        secctx = EdhocInitiatorContext(initiator, c_i, c_r, self.own_cred_style, logger)
+
+        if self.use_combined_edhoc is not False:
+            secctx.complete_without_message_4()
+            # That's enough: Message 3 can well be sent along with the next
+            # message.
+            return secctx
+
+        logger.debug("Sending explicit message 3 without optimization")
+
+        message_3 = secctx._message_3
+        assert message_3 is not None
+        secctx._message_3 = None
+
+        if len(c_r) == 1 and (0 <= c_r[0] < 24 or 0x20 <= c_r[0] < 0x38):
+            c_r_encoded = c_r
+        else:
+            c_r_encoded = cbor2.dumps(c_r)
+        msg3 = Message(
+            code=POST,
+            proxy_scheme=underlying_proxy_scheme,
+            uri_host=underlying_uri_host,
+            uri_path=[".well-known", "edhoc"],
+            payload=c_r_encoded + message_3,
+        )
+        msg3.remote = underlying_address
+        msg4 = await wire.request(msg3).response_raising
+
+        secctx.complete_with_message_4(msg4.payload)
+
+        logger.debug("Received message 4, context is ready")
+
+        return secctx
 
 
 class _EdhocContextBase(
@@ -350,10 +392,6 @@ class _EdhocContextBase(
         return outer_message, request_id
 
     def _make_ready(self, edhoc_context, c_ours, c_theirs):
-        # only in lakers >= 0.5 that is present
-        if hasattr(edhoc_context, "completed_without_message_4"):
-            edhoc_context.completed_without_message_4()
-
         # FIXME: both should offer this
         if (
             isinstance(edhoc_context, lakers.EdhocResponder)
@@ -410,7 +448,22 @@ class EdhocInitiatorContext(_EdhocContextBase):
             cred_i_mode.as_lakers(), None
         )
 
+        self._incomplete = True
+        self._init_details = (initiator, c_ours, c_theirs)
+
+    def complete_without_message_4(self) -> None:
+        (initiator, c_ours, c_theirs) = self._init_details
+        initiator.completed_without_message_4()
         self._make_ready(initiator, c_ours, c_theirs)
+        self._incomplete = False
+        self._init_details = None
+
+    def complete_with_message_4(self, message_4: bytes) -> None:
+        (initiator, c_ours, c_theirs) = self._init_details
+        initiator.process_message_4(message_4)
+        self._make_ready(initiator, c_ours, c_theirs)
+        self._incomplete = False
+        self._init_details = None
 
     def message_3_to_include(self) -> Optional[bytes]:
         if self._message_3 is not None:
@@ -438,6 +491,8 @@ class EdhocResponderContext(_EdhocContextBase):
         # a general protect/unprotect, and things only work because all
         # relevant functions get their checks introduced
         self._incomplete = True
+
+        self._message_4 = None
 
     def message_3_to_include(self) -> Optional[bytes]:
         # as a responder we never send one
@@ -473,6 +528,20 @@ class EdhocResponderContext(_EdhocContextBase):
             m3len = payload_stream.tell()
             message_3 = protected_message.payload[:m3len]
 
+            self._offer_message_3(message_3)
+
+            protected_message = protected_message.copy(
+                edhoc=False, payload=protected_message.payload[m3len:]
+            )
+
+        return super().unprotect(protected_message, request_id)
+
+    def _offer_message_3(self, message_3: bytes) -> bytes:
+        """Send in a message 3, obtain a message 4
+
+        It is safe to discard the output, eg. when the CoAP EDHOC option is
+        used."""
+        if self._incomplete:
             id_cred_i, ead_3 = self._responder.parse_message_3(message_3)
             if ead_3 is not None:
                 self.log.error("Aborting EDHOC: EAD3 present")
@@ -492,15 +561,12 @@ class EdhocResponderContext(_EdhocContextBase):
             self.authenticated_claims.extend(claims)
 
             self._responder.verify_message_3(cred_i)
+            self._message_4 = self._responder.prepare_message_4()
 
             self._make_ready(self._responder, self.recipient_id, self.sender_id)
             self._incomplete = False
 
-            protected_message = protected_message.copy(
-                edhoc=False, payload=protected_message.payload[m3len:]
-            )
-
-        return super().unprotect(protected_message, request_id)
+        return self._message_4
 
 
 class OwnCredStyle(enum.Enum):

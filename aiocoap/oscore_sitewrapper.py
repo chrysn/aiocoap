@@ -11,6 +11,7 @@ remote property adaequately.
 import logging
 from typing import Optional
 import uuid
+import io
 
 import cbor2
 import lakers
@@ -172,7 +173,7 @@ class OscoreSiteWrapper(interfaces.Resource):
         # dropped and thus all interest in the inner_pipe goes away
 
     async def _render_edhoc_to_pipe(self, pipe):
-        self.log.debug("Processing request as EDHOC message 1")
+        self.log.debug("Processing request as EDHOC message 1 or 3")
         # Conveniently we don't have to care for observation, and thus can treat the rendering to a pipeline as just a rendering
 
         request = pipe.request
@@ -193,12 +194,16 @@ class OscoreSiteWrapper(interfaces.Resource):
 
         if len(request.payload) == 0:
             raise error.BadRequest
-        if request.payload[0:1] != cbor2.dumps(True):
-            self.log.error(
-                "Receivign message 3 as a standalone message is not supported yet"
-            )
-            # FIXME: Add support for it
-            raise error.BadRequest
+
+        if request.payload[0:1] == cbor2.dumps(True):
+            self.log.debug("Processing request as EDHOC message 1")
+            self._process_edhoc_msg12(pipe)
+        else:
+            self.log.debug("Processing request as EDHOC message 3")
+            self._process_edhoc_msg34(pipe)
+
+    def _process_edhoc_msg12(self, pipe):
+        request = pipe.request
 
         origin = request.get_request_uri(local_is_server=True).removesuffix(
             "/.well-known/edhoc"
@@ -255,6 +260,43 @@ class OscoreSiteWrapper(interfaces.Resource):
 
         pipe.add_response(
             aiocoap.Message(code=aiocoap.CHANGED, payload=message_2), is_last=True
+        )
+
+    def _process_edhoc_msg34(self, pipe):
+        request = pipe.request
+
+        payload = io.BytesIO(request.payload)
+        try:
+            c_r = cbor2.load(payload)
+        except cbor2.CBORDecodeError:
+            self.log.error("Message 3 received without valid CBOR start")
+            raise error.BadRequest
+        message_3 = payload.read()
+
+        if isinstance(c_r, int) and not isinstance(c_r, bool) and -24 <= c_r < 23:
+            c_r = cbor2.dumps(c_r)
+        if not isinstance(c_r, bytes):
+            self.log.error(f"Message 3 received with invalid C_R {c_r:r}")
+            raise error.BadRequest
+
+        # Our lookup is modelled expecting OSCORE header objects, so we rebuild one
+        unprotected = {oscore.COSE_KID: c_r}
+
+        try:
+            sc = self.server_credentials.find_oscore(unprotected)
+        except KeyError:
+            self.log.error(
+                f"No OSCORE context found with recipient_id / c_r matching {c_r!r}"
+            )
+            raise error.BadRequest
+
+        if not isinstance(sc, edhoc.EdhocResponderContext):
+            raise error.BadRequest
+
+        message_4 = sc._offer_message_3(message_3)
+
+        pipe.add_response(
+            aiocoap.Message(code=aiocoap.CHANGED, payload=message_4), is_last=True
         )
 
     def _get_edhoc_identity(self, origin: str) -> Optional[edhoc.EdhocCredentials]:
