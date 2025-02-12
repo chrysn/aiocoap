@@ -1,3 +1,7 @@
+.. meta::
+  :copyright: SPDX-FileCopyrightText: Christian Amsüss
+  :copyright: SPDX-License-Identifier: MIT
+
 Version 0.4.12
 --------------
 

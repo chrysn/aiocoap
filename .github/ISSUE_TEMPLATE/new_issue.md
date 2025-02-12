@@ -1,4 +1,6 @@
 ---
+# SPDX-FileCopyrightText: Christian Amsüss
+# SPDX-License-Identifier: MIT
 name: New issue
 about: Template for any newly opened issue
 
