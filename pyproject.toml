@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
+# SPDX-License-Identifier: MIT
+
 [build-system]
 requires = [ "setuptools >= 66.0" ]
 build-backend = "setuptools.build_meta"

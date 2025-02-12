@@ -1,0 +1,9 @@
+version = 1
+
+[[annotations]]
+path = [
+  "test_credentials_oscore_context/sequence.json",
+  "test_credentials_oscore_context/settings.json",
+]
+SPDX-FileCopyrightText = "Christian Amsüss and the aiocoap contributors"
+SPDX-License-Identifier = "MIT"

@@ -1,3 +1,7 @@
+.. meta::
+  :copyright: SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
+  :copyright: SPDX-License-Identifier: MIT
+
 aiocoap -- The Python CoAP library
 ==================================
 

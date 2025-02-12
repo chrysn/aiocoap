@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+SPDX-FileCopyrightText: chrysn
+SPDX-License-Identifier: MIT
+Please keep this in sync with proper SVG metadata.
+-->
 <svg
    xmlns:dc="http://purl.org/dc/elements/1.1/"
    xmlns:cc="http://creativecommons.org/ns#"
@@ -100,7 +105,7 @@
         </dc:creator>
         <dc:rights>
           <cc:Agent>
-            <dc:title>The file is published under the same license as the aiocoap project (see its LICENSE file).</dc:title>
+            <dc:title>The file is published under the MIT license.t See also the file's SPDX metadata.</dc:title>
           </cc:Agent>
         </dc:rights>
       </cc:Work>

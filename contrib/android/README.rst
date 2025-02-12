@@ -1,3 +1,7 @@
+.. meta::
+  :copyright: SPDX-FileCopyrightText: Christian Amsüss
+  :copyright: SPDX-License-Identifier: MIT
+
 Files in here prepare ``../aiocoap-kivy-widget`` to be run on Android:
 
 * ``./prepare-launcher-code.py``

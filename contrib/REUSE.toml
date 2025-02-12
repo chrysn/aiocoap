@@ -1,0 +1,19 @@
+version = 1
+
+[[annotations]]
+path = [
+  "aiocoap.ipynb",
+  "aiocoap-proxy.ipynb",
+  "aiocoap-server.ipynb",
+  "edhoc-demo-server.ipynb",
+  "oscore-plugtest/common-context/a/secret.json",
+  "oscore-plugtest/common-context/a/settings.json",
+  "oscore-plugtest/common-context/b/secret.json",
+  "oscore-plugtest/common-context/b/settings.json",
+  "oscore-plugtest/common-context/c/secret.json",
+  "oscore-plugtest/common-context/c/settings.json",
+  "oscore-plugtest/common-context/d/secret.json",
+  "oscore-plugtest/common-context/d/settings.json",
+]
+SPDX-FileCopyrightText = "Christian Amsüss and the aiocoap contributors"
+SPDX-License-Identifier = "MIT"
