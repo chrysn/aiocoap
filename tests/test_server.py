@@ -9,7 +9,6 @@ import aiocoap
 import aiocoap.resource
 from aiocoap.numbers import ContentFormat
 import unittest
-import logging
 import os
 import json
 
@@ -611,24 +610,6 @@ class TestServerWS(TestServer):
         return request
 
 
-def run_fixture_as_standalone_server(fixture):
-    import sys
-
-    if "-v" in sys.argv:
-        logging.basicConfig()
-        logging.getLogger("coap").setLevel(logging.DEBUG)
-        logging.getLogger("coap-server").setLevel(logging.DEBUG)
-
-    print("Running test server")
-    s = fixture()
-    s.setUp()
-    try:
-        s.loop.run_forever()
-    except KeyboardInterrupt:
-        print("Shutting down test server")
-        s.tearDown()
-
-
 if __name__ == "__main__":
     # due to the imports, you'll need to run this as `python3 -m tests.test_server`
-    run_fixture_as_standalone_server(WithTestServer)
+    common.run_fixture_as_standalone_server(WithTestServer)

@@ -72,3 +72,7 @@ class TestServerDTLS(TestServer, WithDTLSClient, WithDTLSServer):
 
 
 del TestServer
+
+if __name__ == "__main__":
+    # due to the imports, you'll need to run this as `python3 -m tests.test_server`
+    common.run_fixture_as_standalone_server(WithDTLSServer)

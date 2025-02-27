@@ -11,10 +11,10 @@ import sys
 
 import aiocoap
 
-from .test_server import WithClient, WithTestServer, run_fixture_as_standalone_server
+from .test_server import WithClient, WithTestServer
 
 from .fixtures import no_warnings, asynctest
-from .common import tcp_disabled
+from .common import tcp_disabled, run_fixture_as_standalone_server
 
 IS_STANDALONE = False
 

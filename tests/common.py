@@ -135,6 +135,25 @@ class CapturingSubprocess(asyncio.SubprocessProtocol):
         self.read_more.set_result(None)
 
 
+def run_fixture_as_standalone_server(fixture):
+    import sys
+    import logging
+
+    if "-v" in sys.argv:
+        logging.basicConfig()
+        logging.getLogger("coap").setLevel(logging.DEBUG)
+        logging.getLogger("coap-server").setLevel(logging.DEBUG)
+
+    print("Running test server")
+    s = fixture()
+    s.setUp()
+    try:
+        s.loop.run_forever()
+    except KeyboardInterrupt:
+        print("Shutting down test server")
+        s.tearDown()
+
+
 if __name__ == "__main__":
     print("Python prefix:", PYTHON_PREFIX)
     print(

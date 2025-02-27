@@ -21,9 +21,9 @@ from .test_server import (
     no_warnings,
     ReplacingResource,
     MultiRepresentationResource,
-    run_fixture_as_standalone_server,
     asynctest,
 )
+from .common import run_fixture_as_standalone_server
 
 
 class ObservableCounter(ObservableResource):
