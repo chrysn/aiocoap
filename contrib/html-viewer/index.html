@@ -1,0 +1,41 @@
+<!doctype html>
+<!--
+SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
+SPDX-License-Identifier: MIT
+-->
+<html lang="en">
+  <head>
+      <title>CoAP Resource Viewer</title>
+      <meta charset="utf-8">
+      <script src="https://cdn.jsdelivr.net/pyodide/v0.27.3/full/pyodide.js"></script>
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pygments-rouge-css@0.1.0/default.css" />
+      <style>
+        #uri-row { display: flex; }
+        #uri-row label { flex: 0 0 auto; }
+        #go { flex: 0 0 auto; }
+        #uri { flex: 1 1 auto; }
+      </style>
+  </head>
+  <body>
+    <h1>CoAP Resource Viewer</h1>
+    <form id="uri-row" disabled target="#">
+    <label for="uri">URI:&nbsp;</label><input id="uri" type="text" value="coaps+ws://example.com/" disabled /><button id="go" disabled>Go</button>
+    </form>
+    <p id="status">Loading program…</p>
+    <div id="output"></div>
+
+    <script type="text/javascript">
+      async function main(){
+        let pyodide = await loadPyodide();
+        await pyodide.loadPackage("micropip")
+        let micropip = pyodide.pyimport('micropip');
+        await micropip.install("aiocoap[prettyprint]");
+        pyodide.runPython(await (await fetch("viewer.py")).text());
+        let outer_main = pyodide.globals.get("outer_main");
+        result = await outer_main();
+        console.error("Python main function quit.")
+      }
+      main();
+    </script>
+  </body>
+</html>
