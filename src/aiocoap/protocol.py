@@ -465,7 +465,7 @@ class Context(interfaces.RequestProvider):
         for ri in self.request_interfaces:
             if await ri.fill_or_recognize_remote(message):
                 return ri
-        raise RuntimeError("No request interface could route message")
+        raise error.NoRequestInterface()
 
     def request(self, request_message, handle_blockwise=True):
         if handle_blockwise:
