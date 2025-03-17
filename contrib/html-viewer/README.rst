@@ -12,14 +12,15 @@ To use it, place the files in this directory on a web server::
 
     $ python3 -m http.server
 
-and go to <http://localhost:8080/#coaps+ws://demo.coap.amsuess.com/.well-known/core>
+and go to <http://localhost:8080/##coaps+ws://demo.coap.amsuess.com/.well-known/core>
 (which immediately accesses the indicated demo CoAP resource).
 
 When started, the application loads up pyodide_ and styles from the web,
 loads aiocoap from PyPI_ (i.e., it pulls in the released version rather than the local copy),
 and then accesses CoAP resources through CoAP-over-WebSockets.
 
-The current version does not attempt to use cross-proxy to access resources on other transports.
+If a CoAP cross-proxy is configured in the application's settings,
+CoAP resources on other transports can be reached as well.
 
 A public instance of this is running at <https://coap.amsuess.com/view/>.
 

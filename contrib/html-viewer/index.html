@@ -10,16 +10,22 @@ SPDX-License-Identifier: MIT
       <script src="https://cdn.jsdelivr.net/pyodide/v0.27.3/full/pyodide.js"></script>
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pygments-rouge-css@0.1.0/default.css" />
       <style>
-        #uri-row { display: flex; }
-        #uri-row label { flex: 0 0 auto; }
-        #go { flex: 0 0 auto; }
-        #uri { flex: 1 1 auto; }
+        form p { display: flex; }
+        form p label { flex: 0 0 auto; padding-right: 0.5em; }
+        form p input { flex: 1 1 auto; }
+        form p button { flex: 0 0 auto; }
       </style>
+      <meta name="viewport" content="width=device-width" />
   </head>
   <body>
     <h1>CoAP Resource Viewer</h1>
-    <form id="uri-row" disabled target="#">
-    <label for="uri">URI:&nbsp;</label><input id="uri" type="text" value="coaps+ws://example.com/" disabled /><button id="go" disabled>Go</button>
+    <form disabled id="mainform">
+      <p>
+    <label for="uri">URI:</label> <input id="uri" type="text" value="coaps+ws://example.com/" disabled /><button id="go" disabled>Go</button>
+      </p>
+    <details><summary>Settings</summary>
+      <p><label for="proxy">Proxy:</label> <input id="proxy" type="text" placeholder="e.g. coaps+ws://proxy.coap.amsuess.com" disabled /></p>
+    </details>
     </form>
     <p id="status">Loading program…</p>
     <div id="output"></div>

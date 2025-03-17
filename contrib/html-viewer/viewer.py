@@ -5,6 +5,7 @@
 """This file is intended to be run in pyodide by the accompanying index.html"""
 
 import aiocoap
+import aiocoap.proxy.client
 import js
 import asyncio
 import html
@@ -28,40 +29,71 @@ async def main():
     status = js.document.getElementById("status").firstChild
 
     uri = js.document.getElementById("uri")
+    proxy = js.document.getElementById("proxy")
     go = js.document.getElementById("go")
-    uri_row = js.document.getElementById("uri-row")
+    mainform = js.document.getElementById("mainform")
 
     clicks = asyncio.Queue()
 
-    fragment = js.window.location.hash.lstrip("#")
+    # the proxy URI is absolute and even pathless, so no fragment should be in there anyway
+    fragment = js.window.location.hash.removeprefix("#")
     if fragment:
-        uri.value = fragment
+        (proxy.value, _, uri.value) = fragment.partition("#")
 
     def onsubmit(event):
         clicks.put_nowait(None)
         return False
 
-    uri_row.onsubmit = onsubmit
+    mainform.onsubmit = onsubmit
     uri.disabled = False
+    proxy.disabled = False
     go.disabled = False
 
     protocol = await aiocoap.Context.create_client_context()
 
     while True:
+        output.innerHTML = ""
         js.document.title = uri.value
-        js.window.location.hash = uri.value
-        task = asyncio.create_task(observe(protocol, status, output, uri.value))
+        js.window.location.hash = "#" + proxy.value + "#" + uri.value
+        task = asyncio.create_task(
+            observe(protocol, status, output, uri.value, proxy.value)
+        )
         await clicks.get()
         task.cancel()
         status.value = "Starting over with new address…"
 
 
-async def observe(protocol, status, output, uri):
+async def observe(protocol, status, output, uri, proxy):
+    # FIXME: udp6 doesn't fail prettily on pyodide, catching
+    if uri.partition("://")[0] not in ["coap+ws", "coaps+ws"] and not proxy:
+        status.data = "Error: Only the URI schemes 'coap+ws' or 'coaps+ws' are supported without a configured proxy."
+        return
     try:
         status.data = "Sending request…"
         while True:
             msg = aiocoap.Message(code=aiocoap.GET, uri=uri, observe=0)
-            request = protocol.request(msg)
+
+            if proxy:
+                # FIXME: aiocoap's proxying does not set proxy-scheme right, doing it manually
+                # requester = aiocoap.proxy.client.ProxyForwarder(proxy, protocol)
+                requester = protocol
+
+                host, port = aiocoap.util.hostportsplit(msg.remote.hostinfo)
+                msg.opt.uri_port = port
+                msg.opt.uri_host = host
+                msg.opt.proxy_scheme = msg.remote.scheme
+
+                to_proxy = aiocoap.Message(uri=proxy)
+                msg.remote = to_proxy.remote
+
+                # and furthermore there is something wrong with the proxy
+                # (sending an observable result and then 5.00), so skipping
+                # observe here
+                msg.opt.observe = None
+            else:
+                requester = protocol
+
+            request = requester.request(msg)
 
             def render(response):
                 status.data = f"Live data ({response.code})…"
@@ -81,7 +113,7 @@ async def observe(protocol, status, output, uri):
             async for response in request.observation:
                 render(response)
 
-            status.data = "Lost observation, waiting before retry…"
+            status.data += ", and then lost observation; waiting before retry…"
             await asyncio.sleep(10)
             status.data = "Retrying…"
     except Exception as e:
