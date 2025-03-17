@@ -67,7 +67,7 @@ class Registerer:
 
         self._context = context
 
-        self._link_source = None
+        self._link_source = link_source
         self._link_data = None  #: Message
         self._lt = lt
         self._initial_rd = rd
