@@ -51,13 +51,21 @@ def get_default_clienttransports(*, loop=None, use_env=True):
     if not oscore_missing_modules():
         yield "oscore"
 
-    if not dtls_missing_modules():
-        yield "tinydtls"
+    if not is_pyodide:
+        # There, those would just raise NotImplementedError all over the place
 
-    yield "tcpclient"
-    yield "tlsclient"
+        if not dtls_missing_modules():
+            yield "tinydtls"
+
+        yield "tcpclient"
+        yield "tlsclient"
+
     if not ws_missing_modules():
         yield "ws"
+
+    if is_pyodide:
+        # There, the remaining ones would just raise NotImplementedError all over the place
+        return
 
     if sys.platform != "linux":
         # udp6 was never reported to work on anything but linux; would happily
@@ -93,17 +101,24 @@ def get_default_servertransports(*, loop=None, use_env=True):
     if not oscore_missing_modules():
         yield "oscore"
 
-    if not dtls_missing_modules():
-        if "AIOCOAP_DTLSSERVER_ENABLED" in os.environ:
-            yield "tinydtls_server"
-        yield "tinydtls"
+    if not is_pyodide:
+        # There, those would just raise NotImplementedError all over the place
+        if not dtls_missing_modules():
+            if "AIOCOAP_DTLSSERVER_ENABLED" in os.environ:
+                yield "tinydtls_server"
+            yield "tinydtls"
 
-    yield "tcpserver"
-    yield "tcpclient"
-    yield "tlsserver"
-    yield "tlsclient"
+        yield "tcpserver"
+        yield "tcpclient"
+        yield "tlsserver"
+        yield "tlsclient"
+
     if not ws_missing_modules():
         yield "ws"
+
+    if is_pyodide:
+        # There, the remaining ones would just raise NotImplementedError all over the place
+        return
 
     if sys.platform != "linux":
         # udp6 was never reported to work on anything but linux; would happily

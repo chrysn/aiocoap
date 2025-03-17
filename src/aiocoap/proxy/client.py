@@ -41,7 +41,7 @@ class ProxyForwarder(interfaces.RequestProvider):
         host, port = hostportsplit(message.remote.hostinfo)
         message.opt.uri_port = port
         message.opt.uri_host = host
-        message.opt.proxy_scheme = self.proxy_address.scheme
+        message.opt.proxy_scheme = message.remote.scheme
         message.remote = self.proxy_address
 
         return self.context.request(message)

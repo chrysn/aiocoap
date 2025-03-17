@@ -270,6 +270,14 @@ class NetworkError(HelpfulError):
                 return "The operating system refused to send the request. For example, this can occur when attempting to send broadcast requests instead of multicast requests."
 
 
+class NoRequestInterface(RuntimeError, ConstructionRenderableError, NetworkError):
+    code = codes.PROXYING_NOT_SUPPORTED
+    message = "Error: No CoAP transport available for this scheme on any request interface."  # or address, but we don't take transport-indication in full yet
+
+    def extra_help(self, hints={}):
+        return "More transports may be enabled by installing extra optional dependencies. Alternatively, consider using a CoAP-CoAP proxy."
+
+
 class ResolutionError(NetworkError):
     """Resolving the host component of a URI to a usable transport address was
     not possible"""
