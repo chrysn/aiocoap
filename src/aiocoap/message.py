@@ -205,13 +205,28 @@ class Message(object):
         """
         import html
 
+        return f"""<details style="padding-left:1em"><summary style="margin-left:-1em;display:list-item;">Message with code {self.code._repr_html_() if self.code is not None else "None"}, remote {html.escape(str(self.remote))}</summary>
+                {self.opt._repr_html_()}{self.payload_html()}"""
+
+    def payload_html(self):
+        """An HTML representation of the payload
+
+        The precise format is not guaranteed, but generally it may involve
+        pretty-printing, syntax highlighting, and visible notes that content
+        was reflowed or absent.
+
+        The result may vary depending on the available modules (falling back go
+        plain HTML-escaped ``repr()`` of the payload).
+        """
+        import html
+
         if not self.payload:
-            payload_rendered = "<p>No payload</p>"
+            return "<p>No payload</p>"
         else:
             from . import defaults
 
             if defaults.prettyprint_missing_modules():
-                payload_rendered = f"<code>{html.escape(repr(self.payload))}</code>"
+                return f"<code>{html.escape(repr(self.payload))}</code>"
             else:
                 from .util.prettyprint import pretty_print, lexer_for_mime
 
@@ -224,7 +239,7 @@ class Message(object):
                     text = pygments.highlight(text, lexer, HtmlFormatter())
                 except pygments.util.ClassNotFound:
                     text = html.escape(text)
-                payload_rendered = (
+                return (
                     "<div>"
                     + "".join(
                         f'<p style="color:gray;font-size:small;">{html.escape(n)}</p>'
@@ -233,8 +248,6 @@ class Message(object):
                     + f"<pre>{text}</pre>"
                     + "</div>"
                 )
-        return f"""<details style="padding-left:1em"><summary style="margin-left:-1em;display:list-item;">Message with code {self.code._repr_html_() if self.code is not None else "None"}, remote {html.escape(str(self.remote))}</summary>
-                {self.opt._repr_html_()}{payload_rendered}"""
 
     def copy(self, **kwargs):
         """Create a copy of the Message. kwargs are treated like the named
