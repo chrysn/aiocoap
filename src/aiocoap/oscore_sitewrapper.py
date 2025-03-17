@@ -34,6 +34,13 @@ class OscoreSiteWrapper(interfaces.Resource):
         self._inner_site = inner_site
         self.server_credentials = server_credentials
 
+    def get_resources_as_linkheader(self):
+        # Not applying any limits while WKCResource does not either
+        #
+        # Not adding `;osc` everywhere as that is excessive (and not telling
+        # much, as one won't know *how* to get those credentials)
+        return self._inner_site.get_resources_as_linkheader()
+
     async def render(self, request):
         raise RuntimeError(
             "OscoreSiteWrapper can only be used through the render_to_pipe interface"
@@ -43,9 +50,6 @@ class OscoreSiteWrapper(interfaces.Resource):
         raise RuntimeError(
             "OscoreSiteWrapper can only be used through the render_to_pipe interface"
         )
-
-    # FIXME: should there be a get_resources_as_linkheader that just forwards
-    # all the others and indicates ;osc everywhere?
 
     async def render_to_pipe(self, pipe):
         request = pipe.request

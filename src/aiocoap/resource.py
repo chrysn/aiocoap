@@ -243,6 +243,9 @@ class WKCResource(Resource):
         self.impl_info = impl_info
 
     async def render_get(self, request):
+        # If this is ever filtered to the request's authenticated claims,
+        # adjustments may be due in oscore_sitewrapper's
+        # get_resources_as_linkheader
         links = self.listgenerator()
 
         if self.impl_info is not None:
