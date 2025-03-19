@@ -370,7 +370,7 @@ class FileServerProgram(AsyncCLIDaemon):
         )
         p.add_argument(
             "--etag-length",
-            help="Control length of ETag, 0-8 (0 disables)",
+            help="Control length of ETag, 0-8 (0 disables, for servers where files are never modified)",
             metavar="LENGTH",
             default=8,
             type=int,
