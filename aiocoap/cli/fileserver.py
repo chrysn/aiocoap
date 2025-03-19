@@ -140,9 +140,14 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         return False
 
     def hash_stat(self, stat):
-        # The subset that the author expects to (possibly) change if the file changes
-        data = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
-        return hashlib.sha256(repr(data).encode("ascii")).digest()[:self.etag_length]
+        """Builds an ETag for a given stat output, truncating it to the configured length
+
+        When ETags are disabled, None is returned.
+        """
+        if self.etag_length:
+            # The subset that the author expects to (possibly) change if the file changes
+            data = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+            return hashlib.sha256(repr(data).encode("ascii")).digest()[:self.etag_length]
 
     async def render_get(self, request):
         if request.opt.uri_path == (".well-known", "core"):
@@ -157,21 +162,17 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         except FileNotFoundError:
             raise NoSuchFile()
 
-        if self.etag_length:
-            etag = self.hash_stat(st)
+        etag = self.hash_stat(st)
 
-            if etag in request.opt.etags:
-                response = aiocoap.Message(code=codes.VALID)
-                response.opt.etag = etag
-                return response
+        if etag and etag in request.opt.etags:
+            response = aiocoap.Message(code=codes.VALID)
+        else:
+            if S_ISDIR(st.st_mode):
+                response = await self.render_get_dir(request, path)
+            elif S_ISREG(st.st_mode):
+                response = await self.render_get_file(request, path)
 
-        if S_ISDIR(st.st_mode):
-            response = await self.render_get_dir(request, path)
-        elif S_ISREG(st.st_mode):
-            response = await self.render_get_file(request, path)
-
-        if self.etag_length:
-            response.opt.etag = etag
+        response.opt.etag = etag
         return response
 
     async def render_put(self, request):
