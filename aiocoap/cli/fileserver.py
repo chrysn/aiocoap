@@ -169,10 +169,13 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         else:
             if S_ISDIR(st.st_mode):
                 response = await self.render_get_dir(request, path)
+                send_etag = True
             elif S_ISREG(st.st_mode):
                 response = await self.render_get_file(request, path)
+                send_etag = response.opt.block2 is not None
 
-        response.opt.etag = etag
+        if request.opt.etags or send_etag:
+            response.opt.etag = etag
         return response
 
     async def render_put(self, request):
