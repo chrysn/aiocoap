@@ -2,6 +2,42 @@
   :copyright: SPDX-FileCopyrightText: Christian Amsüss
   :copyright: SPDX-License-Identifier: MIT
 
+Version 0.4.13
+--------------
+
+Enhancements
+~~~~~~~~~~~~
+
+* Lakers was updated to 0.5, enabling
+  - a larger set of CCS credentials, and
+  - using EDHOC message 3 without the EDHOC option optimization.
+* OSCORE server contexts can now be registered at a Resource Directory, showing all resources.
+* Fileserver only sends Block2 and ETag on demand; ETag length can be configured.
+
+Breaking changes
+~~~~~~~~~~~~~~~~
+
+* Group OSCORE was updated to reflect the latest draft version -23, and thus incompatible with groups on older versions.
+
+Minor enhancements
+~~~~~~~~~~~~~~~~~~
+
+* Logging of OSCORE contexts was enhanced; a tightly checked ``AIOCOAP_REVEAL_KEYS`` variable was introduced to avoid logging secrets in regular operation.
+* CLI tools now consistently support --version.
+* The DTLS test can be run as a server (like other tests).
+* Various error handling fixes, especially on the shutdown path.
+* Various documentation updates, addressing OpenSSF best practice concerns.
+* Failed CoAP transport selection now raises a ``NoRequestInterface`` error.
+* On pyodide, socket based transports are not initialized.
+  (They would have failed at runtime inside the standard library).
+* The ``ProxyForarder`` (client side proxying) is fixed to correctly send requests cross-transport.
+* The RD registrant can now use its ``link_source`` argument.
+
+Contrib
+~~~~~~~
+
+* An HTML/WASM based CoAP viewer example was added.
+
 Version 0.4.12
 --------------
 
