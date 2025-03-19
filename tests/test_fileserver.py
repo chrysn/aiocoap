@@ -125,7 +125,7 @@ async def work_fileserver(ctx, base_uri, assert_):
     assert_(res.opt.content_format == 40, "Directory listing is not in link-format")
     assert_(res.payload == b"", "Directory is initially not empty")
 
-    file1_body = b"Hello World\n" * 100
+    file1_body = b"Hello World\n" * 200
     req = Message(code=PUT, uri=base_uri + "file", payload=file1_body)
     res = await ctx.request(req).response_raising
     assert_(res.code == CHANGED)
@@ -172,7 +172,12 @@ async def work_fileserver(ctx, base_uri, assert_):
     res = await ctx.request(req).response_raising
     assert_(res.code == CHANGED)
 
-    req = Message(code=GET, uri=base_uri + "file")
+    # Empty ETag is actually illegal, but the workaround to force the server to
+    # send one is even cruder, see
+    # https://github.com/core-wg/corrclar/issues/46
+    #
+    # This is not needed with the original body because that is blockwise'd.
+    req = Message(code=GET, uri=base_uri + "file", etag=b"")
     res = await ctx.request(req).response_raising
     assert_(res.code == CONTENT)
     assert_(res.payload == file2_body)
