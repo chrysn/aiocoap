@@ -64,29 +64,15 @@ async def main():
 
 
 async def observe(protocol, status, output, uri, proxy):
-    # FIXME: udp6 doesn't fail prettily on pyodide, catching
-    if uri.partition("://")[0] not in ["coap+ws", "coaps+ws"] and not proxy:
-        status.data = "Error: Only the URI schemes 'coap+ws' or 'coaps+ws' are supported without a configured proxy."
-        return
     try:
         status.data = "Sending request…"
         while True:
             msg = aiocoap.Message(code=aiocoap.GET, uri=uri, observe=0)
 
             if proxy:
-                # FIXME: aiocoap's proxying does not set proxy-scheme right, doing it manually
-                # requester = aiocoap.proxy.client.ProxyForwarder(proxy, protocol)
-                requester = protocol
+                requester = aiocoap.proxy.client.ProxyForwarder(proxy, protocol)
 
-                host, port = aiocoap.util.hostportsplit(msg.remote.hostinfo)
-                msg.opt.uri_port = port
-                msg.opt.uri_host = host
-                msg.opt.proxy_scheme = msg.remote.scheme
-
-                to_proxy = aiocoap.Message(uri=proxy)
-                msg.remote = to_proxy.remote
-
-                # and furthermore there is something wrong with the proxy
+                # there is something wrong with the proxy
                 # (sending an observable result and then 5.00), so skipping
                 # observe here
                 msg.opt.observe = None
@@ -97,7 +83,7 @@ async def observe(protocol, status, output, uri, proxy):
 
             def render(response):
                 status.data = f"Live data ({response.code})…"
-                prettified = pretty(response)
+                prettified = response.payload_html()
                 output.innerHTML = (
                     prettified
                     or '<p style="color:gray;font-size:small;">Response was empty</p>'
@@ -116,30 +102,10 @@ async def observe(protocol, status, output, uri, proxy):
             status.data += ", and then lost observation; waiting before retry…"
             await asyncio.sleep(10)
             status.data = "Retrying…"
+    except aiocoap.error.NoRequestInterface:
+        status.data = f"Only CoAP over WebSockets (coaps+ws) is available from a browser. Set a cross-proxy to access this resource."
+    except aiocoap.error.HelpfulError as e:
+        # Could go with actual HTML here
+        status.data = f"{e.message}\n{e.extra_help()}"
     except Exception as e:
         status.data = f"Failed permanently, please try different URI: {e!r}"
-
-
-def pretty(message):
-    # FIXME: This is part of the Message._repr_html_, but should be available
-    # for standalone use without rendering code and options
-    from aiocoap.util.prettyprint import pretty_print, lexer_for_mime
-
-    (notes, mediatype, text) = pretty_print(message)
-    import pygments
-    from pygments.formatters import HtmlFormatter
-
-    try:
-        lexer = lexer_for_mime(mediatype)
-        text = pygments.highlight(text, lexer, HtmlFormatter())
-    except pygments.util.ClassNotFound:
-        text = html.escape(text)
-    return (
-        "<div>"
-        + "".join(
-            f'<p style="color:gray;font-size:small;">{html.escape(n)}</p>'
-            for n in notes
-        )
-        + f"<pre>{text}</pre>"
-        + "</div>"
-    )
