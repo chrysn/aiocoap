@@ -147,7 +147,9 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         if self.etag_length:
             # The subset that the author expects to (possibly) change if the file changes
             data = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
-            return hashlib.sha256(repr(data).encode("ascii")).digest()[:self.etag_length]
+            return hashlib.sha256(repr(data).encode("ascii")).digest()[
+                : self.etag_length
+            ]
 
     async def render_get(self, request):
         if request.opt.uri_path == (".well-known", "core"):
@@ -383,7 +385,13 @@ class FileServerProgram(AsyncCLIDaemon):
         return p
 
     async def start_with_options(
-        self, path, verbosity=0, register=False, server_opts=None, write=False, etag_length=8
+        self,
+        path,
+        verbosity=0,
+        register=False,
+        server_opts=None,
+        write=False,
+        etag_length=8,
     ):
         log = logging.getLogger("fileserver")
         coaplog = logging.getLogger("coap-server")
