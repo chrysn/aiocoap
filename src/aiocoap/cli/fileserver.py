@@ -79,11 +79,12 @@ class PreconditionFailed(error.ConstructionRenderableError):
 class FileServer(Resource, aiocoap.interfaces.ObservableResource):
     # Resource is only used to give the nice render_xxx methods
 
-    def __init__(self, root, log, *, write=False):
+    def __init__(self, root, log, *, write=False, etag_length=8):
         super().__init__()
         self.root = root
         self.log = log
         self.write = write
+        self.etag_length = etag_length
 
         self._observations = {}  # path -> [last_stat, [callbacks]]
 
@@ -138,11 +139,17 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         # Only GETs to non-directory access handle it explicitly
         return False
 
-    @staticmethod
-    def hash_stat(stat):
-        # The subset that the author expects to (possibly) change if the file changes
-        data = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
-        return hashlib.sha256(repr(data).encode("ascii")).digest()[:8]
+    def hash_stat(self, stat):
+        """Builds an ETag for a given stat output, truncating it to the configured length
+
+        When ETags are disabled, None is returned.
+        """
+        if self.etag_length:
+            # The subset that the author expects to (possibly) change if the file changes
+            data = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size)
+            return hashlib.sha256(repr(data).encode("ascii")).digest()[
+                : self.etag_length
+            ]
 
     async def render_get(self, request):
         if request.opt.uri_path == (".well-known", "core"):
@@ -159,15 +166,18 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
 
         etag = self.hash_stat(st)
 
-        if etag in request.opt.etags:
+        if etag and etag in request.opt.etags:
             response = aiocoap.Message(code=codes.VALID)
         else:
             if S_ISDIR(st.st_mode):
                 response = await self.render_get_dir(request, path)
+                send_etag = True
             elif S_ISREG(st.st_mode):
                 response = await self.render_get_file(request, path)
+                send_etag = response.opt.block2 is not None
 
-        response.opt.etag = etag
+        if request.opt.etags or send_etag:
+            response.opt.etag = etag
         return response
 
     async def render_put(self, request):
@@ -291,6 +301,11 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         block_out = aiocoap.optiontypes.BlockOption.BlockwiseTuple(
             block_in.block_number, len(data) > block_in.size, block_in.size_exponent
         )
+        if block_out.block_number == 0 and block_out.more is False:
+            # Didn't find any place in 7959 that says a Block2 must be present
+            # if the full body is sent, but if I mis read that, we might add an
+            # `or request.opt.block2 is not None`.
+            block_out = None
         content_format = None
         if guessed_type is not None:
             try:
@@ -356,6 +371,14 @@ class FileServerProgram(AsyncCLIDaemon):
             nargs="?",
             default=False,
         )
+        p.add_argument(
+            "--etag-length",
+            help="Control length of ETag, 0-8 (0 disables, for servers where files are never modified)",
+            metavar="LENGTH",
+            default=8,
+            type=int,
+            choices=range(0, 8),
+        )
         p.add_argument("--write", help="Allow writes by any user", action="store_true")
         p.add_argument(
             "path",
@@ -370,7 +393,13 @@ class FileServerProgram(AsyncCLIDaemon):
         return p
 
     async def start_with_options(
-        self, path, verbosity=0, register=False, server_opts=None, write=False
+        self,
+        path,
+        verbosity=0,
+        register=False,
+        server_opts=None,
+        write=False,
+        etag_length=8,
     ):
         log = logging.getLogger("fileserver")
         coaplog = logging.getLogger("coap-server")
@@ -384,7 +413,7 @@ class FileServerProgram(AsyncCLIDaemon):
             log.setLevel(logging.DEBUG)
             coaplog.setLevel(logging.DEBUG)
 
-        server = FileServer(path, log, write=write)
+        server = FileServer(path, log, write=write, etag_length=etag_length)
         if server_opts is None:
             self.context = await aiocoap.Context.create_server_context(server)
         else:
