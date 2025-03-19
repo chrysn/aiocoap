@@ -360,11 +360,11 @@ class FileServerProgram(AsyncCLIDaemon):
         )
         p.add_argument(
             "--etag-length",
-            help="Control length of ETag, 0-32 (0 disables)",
+            help="Control length of ETag, 0-8 (0 disables)",
             metavar="LENGTH",
             default=8,
             type=int,
-            choices=range(0,33),
+            choices=range(0, 8),
         )
         p.add_argument("--write", help="Allow writes by any user", action="store_true")
         p.add_argument(
