@@ -301,6 +301,11 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         block_out = aiocoap.optiontypes.BlockOption.BlockwiseTuple(
             block_in.block_number, len(data) > block_in.size, block_in.size_exponent
         )
+        if block_out.block_number == 0 and block_out.more is False:
+            # Didn't find any place in 7959 that says a Block2 must be present
+            # if the full body is sent, but if I mis read that, we might add an
+            # `or request.opt.block2 is not None`.
+            block_out = None
         content_format = None
         if guessed_type is not None:
             try:
