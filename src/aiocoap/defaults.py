@@ -267,7 +267,9 @@ if os.environ.get("AIOCOAP_REVEAL_KEYS") == "show secrets in logs":
         def log_secret(secret):
             return secret
     else:
-        raise RuntimeError("aiocoap was requested to reveal keys in log files, but ")
+        raise RuntimeError(
+            "aiocoap was requested to reveal keys in log files, but aiocoap installation is not writable by user."
+        )
 
 missing_module_functions = {
     "dtls": dtls_missing_modules,
