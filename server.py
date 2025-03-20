@@ -63,7 +63,7 @@ class BlockResource(resource.Resource):
             self.content = self.content + b"0123456789\n"
 
     async def render_get(self, request):
-        return aiocoap.Message(payload=self.content)
+        return aiocoap.Message(payload=self.content, content_format=ContentFormat.TEXT)
 
     async def render_put(self, request):
         print("PUT payload: %s" % request.payload)
@@ -89,7 +89,7 @@ class SeparateLargeResource(resource.Resource):
             "mortal men doomed to die, one ring for the dark lord on his "
             "dark throne.".encode("ascii")
         )
-        return aiocoap.Message(payload=payload)
+        return aiocoap.Message(payload=payload, content_format=ContentFormat.TEXT)
 
 
 class TimeResource(resource.ObservableResource):
@@ -120,7 +120,7 @@ class TimeResource(resource.ObservableResource):
 
     async def render_get(self, request):
         payload = datetime.datetime.now().strftime("%Y-%m-%d %H:%M").encode("ascii")
-        return aiocoap.Message(payload=payload)
+        return aiocoap.Message(payload=payload, content_format=ContentFormat.TEXT)
 
 
 class WhoAmI(resource.Resource):
@@ -139,7 +139,10 @@ class WhoAmI(resource.Resource):
         else:
             text.append("No claims authenticated.")
 
-        return aiocoap.Message(content_format=0, payload="\n".join(text).encode("utf8"))
+        return aiocoap.Message(
+            payload="\n".join(text).encode("utf8"),
+            content_format=ContentFormat.TEXT,
+        )
 
 
 # logging setup
