@@ -129,7 +129,12 @@ def build_parser():
 
 
 def configure_logging(verbosity):
-    logging.basicConfig()
+    try:
+        import colorlog
+    except ImportError:
+        logging.basicConfig()
+    else:
+        colorlog.basicConfig()
 
     if verbosity <= -2:
         logging.getLogger("coap").setLevel(logging.CRITICAL + 1)
