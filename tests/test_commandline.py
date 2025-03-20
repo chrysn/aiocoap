@@ -70,7 +70,8 @@ class TestCommandlineClient(WithTestServer):
         )
 
         debug = subprocess.check_output(
-            AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty", "-v", "-v"],
+            AIOCOAP_CLIENT
+            + ["coap://" + self.servernetloc + "/empty", "-v", "-v", "--no-color"],
             stderr=subprocess.STDOUT,
         )
         self.assertTrue(
