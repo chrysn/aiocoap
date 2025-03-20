@@ -60,7 +60,7 @@ class TestCommandlineClient(WithTestServer):
         self.assertEqual(empty_json, b"{}")
 
         verbose = subprocess.check_output(
-            AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty", "-v"],
+            AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty", "-vv"],
             stderr=subprocess.STDOUT,
         )
         # It'd not be actually wrong to have info level messages in here, but
@@ -70,12 +70,13 @@ class TestCommandlineClient(WithTestServer):
         )
 
         debug = subprocess.check_output(
-            AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty", "-v", "-v"],
+            AIOCOAP_CLIENT
+            + ["coap://" + self.servernetloc + "/empty", "-v", "-v", "-v"],
             stderr=subprocess.STDOUT,
         )
         self.assertTrue(
             b"DEBUG:coap:Incoming message" in debug,
-            "Not even some (or unexpected) output in aiocoap-client -vv",
+            "Not even some (or unexpected) output in aiocoap-client -vvv",
         )
 
         quiet = subprocess.check_output(
@@ -272,7 +273,6 @@ class TestCommandlineClient(WithTestServer):
                 "coap://0.0.0.0/empty",
                 "--proxy",
                 "coap://" + self.servernetloc,
-                "--verbose",
             ],
             stderr=subprocess.STDOUT,
         )
