@@ -142,7 +142,7 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
     >>> int(ContentFormat.by_media_type('text/plain;charset=utf-8'))
     0
     >>> ContentFormat(60)
-    <ContentFormat 60, media_type='application/cbor', encoding='identity'>
+    <ContentFormat 60, media_type='application/cbor'>
     >>> ContentFormat(11060).encoding
     'deflate'
 
@@ -159,7 +159,7 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
     selection and naming are arbitrary and biased. The remaining known types
     are available through the :meth:`by_media_type` class method.
     >>> ContentFormat.TEXT
-    <ContentFormat 0, media_type='text/plain; charset=utf-8', encoding='identity'>
+    <ContentFormat 0, media_type='text/plain; charset=utf-8'>
 
     A convenient property of ContentFormat is that any content format is
     true in a boolean context, and thus when used in alternation with None, can
@@ -242,12 +242,15 @@ class ContentFormat(ExtensibleIntEnum, metaclass=ContentFormatMeta):
         }
 
     def __repr__(self):
+        parts = []
+        if self.is_known():
+            parts.append(f", media_type={self.media_type!r}")
+            if self.encoding != "identity":
+                parts.append(f", encoding={self.encoding!r}")
         return "<%s %d%s>" % (
             type(self).__name__,
             self,
-            ", media_type=%r, encoding=%r" % (self.media_type, self.encoding)
-            if self.is_known()
-            else "",
+            "".join(parts),
         )
 
     def __bool__(self):
