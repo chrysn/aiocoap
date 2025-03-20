@@ -2,6 +2,34 @@
   :copyright: SPDX-FileCopyrightText: Christian Amsüss
   :copyright: SPDX-License-Identifier: MIT
 
+Version 0.4.14
+--------------
+
+This is mainly a CLI and integration update.
+
+Enhancements in aiocoap-client
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* --interactive mode now takes some arguments (eg. --proxy and --credentials) both globally and per request.
+  Options like --version were removed from inside interactive mode.
+* -v/--verbose now prints sent and received messages; add more -v to increase the log levels.
+* Sufficiently many -v now produce log messages beyond DEBUG.
+
+Dependencies
+~~~~~~~~~~~~
+
+* The websockets module is now also supported in its versions 14 and 15.
+* colorlog was added as an optional dependency in the ``[prettyprint]`` feature.
+
+Minor enhancements and fixes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Explicit string representation of CoAP option numbers was added.
+* The repr of ContentFormat elide the encoding in the trivial case.
+* Workarounds were dropped in the contrib/html-viewer and for websockets.
+* The server example is now more explicit in its content formats.
+* Testing of doctests was restored.
+
 Version 0.4.13
 --------------
 
