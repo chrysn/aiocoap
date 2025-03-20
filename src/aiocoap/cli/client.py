@@ -48,6 +48,15 @@ def augment_parser_for_global(p, *, prescreen=False):
     p.add_argument(
         "--version", action="version", version="%(prog)s " + aiocoap.meta.version
     )
+
+    p.add_argument(
+        "--interactive",
+        help="Enter interactive mode. Combine with --help or run `help` interactively to see which options apply where; some can be used globally and overwritten locally.",
+        action="store_true",
+    )
+
+
+def augment_parser_for_either(p):
     p.add_argument(
         "--color",
         help="Color output (default on TTYs if all required modules are installed)",
@@ -60,11 +69,20 @@ def augment_parser_for_global(p, *, prescreen=False):
         default=None,
         action=ActionNoYes,
     )
-
     p.add_argument(
-        "--interactive",
-        help="Enter interactive mode. Arguments listed below are per-request in interactive mode.",
-        action="store_true",
+        "--proxy", help="Relay the CoAP request to a proxy for execution", metavar="URI"
+    )
+    p.add_argument(
+        "--credentials",
+        help="Load credentials to use from a given file",
+        type=Path,
+    )
+    p.add_argument(
+        "--no-set-hostname",
+        help="Suppress transmission of Uri-Host even if the host name is not an IP literal",
+        dest="set_hostname",
+        action="store_false",
+        default=True,
     )
 
 
@@ -94,9 +112,6 @@ def augment_parser_for_interactive(p, *, prescreen=False):
         metavar="MIME",
     )
     p.add_argument(
-        "--proxy", help="Relay the CoAP request to a proxy for execution", metavar="URI"
-    )
-    p.add_argument(
         "--payload",
         help="Send X as request payload (eg. with a PUT). If X starts with an '@', its remainder is treated as a file name and read from; '@-' reads from the console. Non-file data may be recoded, see --content-format.",
         metavar="X",
@@ -113,18 +128,6 @@ def augment_parser_for_interactive(p, *, prescreen=False):
         metavar="MIME",
     )
     p.add_argument(
-        "--no-set-hostname",
-        help="Suppress transmission of Uri-Host even if the host name is not an IP literal",
-        dest="set_hostname",
-        action="store_false",
-        default=True,
-    )
-    p.add_argument(
-        "--credentials",
-        help="Load credentials to use from a given file",
-        type=Path,
-    )
-    p.add_argument(
         "url",
         nargs="?" if prescreen else None,
         help="CoAP address to fetch",
@@ -137,6 +140,7 @@ def build_parser(*, use_global=True, use_interactive=True, prescreen=False):
         p.add_argument("--help", action="store_true")
     if use_global:
         augment_parser_for_global(p, prescreen=prescreen)
+    augment_parser_for_either(p)
     if use_interactive:
         augment_parser_for_interactive(p, prescreen=prescreen)
 
@@ -451,7 +455,7 @@ async def single_request(args, context, globalopts=None):
         if options.payload_initial_szx is not None:
             request.remote.maximum_block_size_exp = options.payload_initial_szx
 
-        if options.proxy is None:
+        if options.proxy is None or options.proxy in ("none", "", "-"):
             interface = context
         else:
             interface = aiocoap.proxy.client.ProxyForwarder(options.proxy, context)
