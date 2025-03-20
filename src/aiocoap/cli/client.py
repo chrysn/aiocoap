@@ -31,8 +31,43 @@ from aiocoap.numbers import ContentFormat
 log = logging.getLogger("coap.aiocoap-client")
 
 
-def build_parser():
-    p = argparse.ArgumentParser(description=__doc__)
+def augment_parser_for_global(p):
+    p.add_argument(
+        "-v",
+        "--verbose",
+        help="Increase the debug output",
+        action="count",
+    )
+    p.add_argument(
+        "-q",
+        "--quiet",
+        help="Decrease the debug output",
+        action="count",
+    )
+    p.add_argument(
+        "--version", action="version", version="%(prog)s " + aiocoap.meta.version
+    )
+    p.add_argument(
+        "--color",
+        help="Color output (default on TTYs if all required modules are installed)",
+        default=None,
+        action=ActionNoYes,
+    )
+    p.add_argument(
+        "--pretty-print",
+        help="Pretty-print known content formats (default on TTYs if all required modules are installed)",
+        default=None,
+        action=ActionNoYes,
+    )
+
+    p.add_argument(
+        "--interactive",
+        help="Enter interactive mode. Arguments listed below are per-request in interactive mode.",
+        action="store_true",
+    )
+
+
+def augment_parser_for_interactive(p):
     p.add_argument(
         "--non",
         help="Send request as non-confirmable (NON) message",
@@ -84,48 +119,22 @@ def build_parser():
         default=True,
     )
     p.add_argument(
-        "-v",
-        "--verbose",
-        help="Increase the debug output",
-        action="count",
-    )
-    p.add_argument(
-        "-q",
-        "--quiet",
-        help="Decrease the debug output",
-        action="count",
-    )
-    # careful: picked before parsing
-    p.add_argument(
-        "--interactive",
-        help="Enter interactive mode",
-        action="store_true",
-    )
-    p.add_argument(
         "--credentials",
         help="Load credentials to use from a given file",
         type=Path,
     )
     p.add_argument(
-        "--version", action="version", version="%(prog)s " + aiocoap.meta.version
-    )
-
-    p.add_argument(
-        "--color",
-        help="Color output (default on TTYs if all required modules are installed)",
-        default=None,
-        action=ActionNoYes,
-    )
-    p.add_argument(
-        "--pretty-print",
-        help="Pretty-print known content formats (default on TTYs if all required modules are installed)",
-        default=None,
-        action=ActionNoYes,
-    )
-    p.add_argument(
         "url",
         help="CoAP address to fetch",
     )
+
+
+def build_parser(*, use_global=True, use_interactive=True):
+    p = argparse.ArgumentParser(description=__doc__)
+    if use_global:
+        augment_parser_for_global(p)
+    if use_interactive:
+        augment_parser_for_interactive(p)
 
     return p
 
