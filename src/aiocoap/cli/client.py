@@ -221,10 +221,18 @@ def message_to_text(m, direction):
 
     Refactoring this into a message method will need to address the direction
     discovery eventually."""
-    # FIXME: Update when transport-indication is available
-    yield f"{m.code} {direction} {m.remote.hostinfo} using {m.remote.scheme}"
+    if m.remote is None:
+        # This happens when unprocessable remotes are, eg. putting in an HTTP URI
+        yield f"{m.code} {direction} (unknown)"
+    else:
+        # FIXME: Update when transport-indication is available
+        # FIXME: This is slightly wrong because it does not account for what ProxyRedirector does
+        yield f"{m.code} {direction} {m.remote.scheme}://{m.remote.hostinfo}"
     for opt in m.opt.option_list():
-        yield f"* {opt.number}: {opt.value!r}"
+        if hasattr(opt.number, "name"):
+            yield f"- {opt.number.name_printable} ({opt.number.value}): {opt.value!r}"
+        else:
+            yield f"- {opt.number.value}: {opt.value!r}"
     if m.payload:
         limit = 16
         if len(m.payload) > limit:
