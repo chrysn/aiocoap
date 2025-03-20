@@ -79,7 +79,7 @@ if not is_pyodide:
     import websockets.asyncio.connection
     import websockets.asyncio.server
 else:
-    import aiocoap.util.pyodide_websockets as websockets  # type: ignore
+    import aiocoap.util.pyodide_websockets as websockets  # type: ignore[no-redef]
 
 
 def _decode_message(data: bytes) -> Message:
