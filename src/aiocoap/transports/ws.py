@@ -75,10 +75,11 @@ from aiocoap.transports import rfc8323common
 from ..credentials import CredentialsMap
 from ..defaults import is_pyodide
 
-if is_pyodide:
-    import aiocoap.util.pyodide_websockets as websockets
+if not is_pyodide:
+    import websockets.asyncio.connection
+    import websockets.asyncio.server
 else:
-    import websockets  # type: ignore
+    import aiocoap.util.pyodide_websockets as websockets  # type: ignore
 
 
 def _decode_message(data: bytes) -> Message:
@@ -123,10 +124,11 @@ PoolKey = namedtuple("PoolKey", ("scheme", "hostinfo"))
 
 
 class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
-    _connection: websockets.WebSocketCommonProtocol
+    _connection: websockets.asyncio.connection.Connection
     # Only used to ensure that remotes are associated to the right pool -- not
     # that there'd be any good reason to have multiple of those.
     _pool: weakref.ReferenceType[WSPool]
+    _poolkey: PoolKey
 
     scheme = None  # Override property -- it's per instance here
 
@@ -148,7 +150,7 @@ class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
         self.log = log
 
         self._local_is_server = isinstance(
-            connection, websockets.WebSocketServerProtocol
+            connection, websockets.asyncio.server.ServerConnection
         )
 
         if local_hostinfo is None:
@@ -217,7 +219,7 @@ class WSPool(interfaces.TokenInterface):
     _outgoing_starting: Dict[PoolKey, asyncio.Task]
     _pool: Dict[PoolKey, WSRemote]
 
-    _servers: List[websockets.WebSocketServer]
+    _servers: List[websockets.asyncio.server.Server]
 
     def __init__(self, tman, log, loop) -> None:
         self.loop = loop
@@ -258,22 +260,24 @@ class WSPool(interfaces.TokenInterface):
                 # FIXME see module documentation
                 port = port + 3000
 
-            server = await websockets.serve(
+            server = await websockets.asyncio.server.serve(
                 functools.partial(self._new_connection, scheme="coap+ws"),
                 host,
                 port,
-                subprotocols=["coap"],
+                # Ignoring type: Documentation says strings are OK
+                subprotocols=["coap"],  # type: ignore[list-item]
                 process_request=self._process_request,
                 ping_interval=None,  # "SHOULD NOT be used"
             )
             self._servers.append(server)
 
             if server_context is not None:
-                server = await websockets.serve(
+                server = await websockets.asyncio.server.serve(
                     functools.partial(self._new_connection, scheme="coaps+ws"),
                     host,
                     port + 1,
-                    subprotocols=["coap"],
+                    # Ignoring type: Documentation says strings are OK
+                    subprotocols=["coap"],  # type: ignore[list-item]
                     process_request=self._process_request,
                     ping_interval=None,  # "SHOULD NOT be used"
                     ssl=server_context,
@@ -290,19 +294,7 @@ class WSPool(interfaces.TokenInterface):
         # (path is present up to 10.0 and absent in 10.1; keeping it around to
         # stay compatible with different versions).
 
-        hostheader = websocket.request_headers["Host"]
-        if hostheader.count(":") > 1 and "[" not in hostheader:
-            # Workaround for websockets version before
-            # https://github.com/aaugustin/websockets/issues/802
-            #
-            # To be removed once a websockets version with this fix can be
-            # depended on
-            hostheader = (
-                "["
-                + hostheader[: hostheader.rfind(":")]
-                + "]"
-                + hostheader[hostheader.rfind(":") :]
-            )
+        hostheader = websocket.request.headers["Host"]
         local_hostinfo = util.hostportsplit(hostheader)
 
         remote = WSRemote(
@@ -318,7 +310,8 @@ class WSPool(interfaces.TokenInterface):
         await self._run_recv_loop(remote)
 
     @staticmethod
-    async def _process_request(path, request_headers):
+    async def _process_request(connection, request):
+        path = connection.request.path
         if path != "/.well-known/coap":
             return (http.HTTPStatus.NOT_FOUND, [], b"")
         # Continue with WebSockets
@@ -363,7 +356,8 @@ class WSPool(interfaces.TokenInterface):
 
             websocket = await websockets.connect(
                 "%s://%s/.well-known/coap" % (ws_scheme, key.hostinfo),
-                subprotocols=["coap"],
+                # Ignoring type: Documentation says strings are OK
+                subprotocols=["coap"],  # type: ignore[list-item]
                 ping_interval=None,
                 ssl=ssl_context,
             )
@@ -399,9 +393,9 @@ class WSPool(interfaces.TokenInterface):
 
             if key in self._pool:
                 message.remote = self._pool[key]
-                if message.remote._connection.open:
-                    return True
-                # else try opening a new one
+                # It would have handled the ConnectionClosed on recv and
+                # removed itself if it was not live.
+                return True
 
             if key not in self._outgoing_starting:
                 self._connect(key)
