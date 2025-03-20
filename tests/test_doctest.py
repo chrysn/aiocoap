@@ -17,11 +17,13 @@ def _load_tests():
     niceties), but as it is, it at least covers the cases again."""
     i = 0
     base = Path(aiocoap.__file__).parent
-    for root, dn, fn in base.walk():
+    # FIXME: Once Python 3.11 support is dropped, revert the commit that added
+    # this line and check whether any module dependencies can be removed.
+    for root, dn, fn in os.walk(base):
         for f in fn:
             if not f.endswith(".py"):
                 continue
-            parts = list(root.relative_to(base.parent).parts)
+            parts = list(Path(root).relative_to(base.parent).parts)
             if f != "__init__.py":
                 parts.append(Path(f).stem)
             p = ".".join(parts)
