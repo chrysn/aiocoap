@@ -6,6 +6,7 @@ import doctest
 import aiocoap.defaults
 import os
 import sys
+from pathlib import Path
 
 
 def _load_tests():
@@ -15,12 +16,15 @@ def _load_tests():
     would allow getting actual breakpoints where things fail, or other pytest
     niceties), but as it is, it at least covers the cases again."""
     i = 0
-    for root, dn, fn in os.walk("aiocoap"):
+    base = Path(aiocoap.__file__).parent
+    for root, dn, fn in base.walk():
         for f in fn:
             if not f.endswith(".py"):
                 continue
-            p = os.path.join(root, f)
-            p = p[:-3].replace(os.sep, ".")
+            parts = list(root.relative_to(base.parent).parts)
+            if f != "__init__.py":
+                parts.append(Path(f).stem)
+            p = ".".join(parts)
             if (
                 "oscore" in p or "edhoc" in p
             ) and aiocoap.defaults.oscore_missing_modules():
