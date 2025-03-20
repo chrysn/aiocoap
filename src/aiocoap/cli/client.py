@@ -128,13 +128,16 @@ def build_parser():
     return p
 
 
-def configure_logging(verbosity):
-    try:
-        import colorlog
-    except ImportError:
+def configure_logging(verbosity, color):
+    if color:
+        try:
+            import colorlog
+        except ImportError:
+            color = False
+        else:
+            colorlog.basicConfig()
+    if not color:
         logging.basicConfig()
-    else:
-        colorlog.basicConfig()
 
     if verbosity <= -2:
         logging.getLogger("coap").setLevel(logging.CRITICAL + 1)
@@ -307,7 +310,7 @@ async def single_request(args, context):
     if options.pretty_print is None:
         options.pretty_print = sys.stdout.isatty() and not pretty_print_modules
 
-    configure_logging((options.verbose or 0) - (options.quiet or 0))
+    configure_logging((options.verbose or 0) - (options.quiet or 0), options.color)
 
     try:
         try:
