@@ -147,8 +147,16 @@ def build_parser(*, use_global=True, use_interactive=True, prescreen=False):
     return p
 
 
-def configure_logging(verbosity):
-    logging.basicConfig()
+def configure_logging(verbosity, color):
+    if color is not False:
+        try:
+            import colorlog
+        except ImportError:
+            color = False
+        else:
+            colorlog.basicConfig()
+    if not color:
+        logging.basicConfig()
 
     if verbosity <= -2:
         logging.getLogger("coap").setLevel(logging.CRITICAL + 1)
@@ -616,7 +624,9 @@ def sync_main(args=None):
     first_parser = build_parser(prescreen=True)
     first_args = first_parser.parse_args(args)
 
-    configure_logging((first_args.verbose or 0) - (first_args.quiet or 0))
+    configure_logging(
+        (first_args.verbose or 0) - (first_args.quiet or 0), first_args.color
+    )
 
     if not first_args.interactive:
         try:

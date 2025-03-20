@@ -339,7 +339,12 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
 
 class FileServerProgram(AsyncCLIDaemon):
     async def start(self):
-        logging.basicConfig()
+        try:
+            import colorlog
+        except ImportError:
+            logging.basicConfig()
+        else:
+            colorlog.basicConfig()
 
         self.registerer = None
 

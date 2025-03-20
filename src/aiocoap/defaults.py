@@ -250,6 +250,10 @@ def prettyprint_missing_modules():
         import cbor_diag  # noqa: F401
     except ImportError:
         missing.append("cbor-diag")
+    # explicitly not covering colorlog: They are bundled to keep the number of
+    # externally visible optional dependency groups managable, but the things
+    # that depend on `prettyprint_missing_modules` work no matter whether
+    # colorlog is in or not.
     return missing
 
 

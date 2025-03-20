@@ -65,7 +65,7 @@ class TestCommandlineClient(WithTestServer):
         )
         verbose = verbose.decode("utf-8").strip().split("\n")
         # Filtering out regular `-v` output, which is intended for users.
-        info_from_cli = [l for l in verbose if "INFO:coap.aiocoap-client:" in l]
+        info_from_cli = [l for l in verbose if ":coap.aiocoap-client:" in l]
         info_from_library = [l for l in verbose if l not in info_from_cli]
         # It'd not be actually wrong to have info level messages in here, but
         # they should at least not start appearing unnoticed.
@@ -80,7 +80,13 @@ class TestCommandlineClient(WithTestServer):
 
         debug = subprocess.check_output(
             AIOCOAP_CLIENT
-            + ["coap://" + self.servernetloc + "/empty", "-v", "-v", "-v"],
+            + [
+                "coap://" + self.servernetloc + "/empty",
+                "-v",
+                "-v",
+                "-v",
+                "--no-color",
+            ],
             stderr=subprocess.STDOUT,
         )
         self.assertTrue(
