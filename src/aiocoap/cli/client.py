@@ -4,6 +4,7 @@
 
 """aiocoap-client is a simple command-line tool for interacting with CoAP servers"""
 
+import copy
 import sys
 import asyncio
 import argparse
@@ -31,8 +32,61 @@ from aiocoap.numbers import ContentFormat
 log = logging.getLogger("coap.aiocoap-client")
 
 
-def build_parser():
-    p = argparse.ArgumentParser(description=__doc__)
+def augment_parser_for_global(p, *, prescreen=False):
+    p.add_argument(
+        "-v",
+        "--verbose",
+        help="Increase the debug output",
+        action="count",
+    )
+    p.add_argument(
+        "-q",
+        "--quiet",
+        help="Decrease the debug output",
+        action="count",
+    )
+    p.add_argument(
+        "--version", action="version", version="%(prog)s " + aiocoap.meta.version
+    )
+
+    p.add_argument(
+        "--interactive",
+        help="Enter interactive mode. Combine with --help or run `help` interactively to see which options apply where; some can be used globally and overwritten locally.",
+        action="store_true",
+    )
+
+
+def augment_parser_for_either(p):
+    p.add_argument(
+        "--color",
+        help="Color output (default on TTYs if all required modules are installed)",
+        default=None,
+        action=ActionNoYes,
+    )
+    p.add_argument(
+        "--pretty-print",
+        help="Pretty-print known content formats (default on TTYs if all required modules are installed)",
+        default=None,
+        action=ActionNoYes,
+    )
+    p.add_argument(
+        "--proxy", help="Relay the CoAP request to a proxy for execution", metavar="URI"
+    )
+    p.add_argument(
+        "--credentials",
+        help="Load credentials to use from a given file",
+        type=Path,
+    )
+    p.add_argument(
+        "--no-set-hostname",
+        help="Suppress transmission of Uri-Host even if the host name is not an IP literal",
+        dest="set_hostname",
+        action="store_false",
+        default=True,
+    )
+
+
+def augment_parser_for_interactive(p, *, prescreen=False):
     p.add_argument(
         "--non",
         help="Send request as non-confirmable (NON) message",
@@ -58,9 +112,6 @@ def build_parser():
         metavar="MIME",
     )
     p.add_argument(
-        "--proxy", help="Relay the CoAP request to a proxy for execution", metavar="URI"
-    )
-    p.add_argument(
         "--payload",
         help="Send X as request payload (eg. with a PUT). If X starts with an '@', its remainder is treated as a file name and read from; '@-' reads from the console. Non-file data may be recoded, see --content-format.",
         metavar="X",
@@ -77,55 +128,21 @@ def build_parser():
         metavar="MIME",
     )
     p.add_argument(
-        "--no-set-hostname",
-        help="Suppress transmission of Uri-Host even if the host name is not an IP literal",
-        dest="set_hostname",
-        action="store_false",
-        default=True,
-    )
-    p.add_argument(
-        "-v",
-        "--verbose",
-        help="Increase the debug output",
-        action="count",
-    )
-    p.add_argument(
-        "-q",
-        "--quiet",
-        help="Decrease the debug output",
-        action="count",
-    )
-    # careful: picked before parsing
-    p.add_argument(
-        "--interactive",
-        help="Enter interactive mode",
-        action="store_true",
-    )
-    p.add_argument(
-        "--credentials",
-        help="Load credentials to use from a given file",
-        type=Path,
-    )
-    p.add_argument(
-        "--version", action="version", version="%(prog)s " + aiocoap.meta.version
-    )
-
-    p.add_argument(
-        "--color",
-        help="Color output (default on TTYs if all required modules are installed)",
-        default=None,
-        action=ActionNoYes,
-    )
-    p.add_argument(
-        "--pretty-print",
-        help="Pretty-print known content formats (default on TTYs if all required modules are installed)",
-        default=None,
-        action=ActionNoYes,
-    )
-    p.add_argument(
         "url",
+        nargs="?" if prescreen else None,
         help="CoAP address to fetch",
     )
+
+
+def build_parser(*, use_global=True, use_interactive=True, prescreen=False):
+    p = argparse.ArgumentParser(description=__doc__, add_help=not prescreen)
+    if prescreen:
+        p.add_argument("--help", action="store_true")
+    if use_global:
+        augment_parser_for_global(p, prescreen=prescreen)
+    augment_parser_for_either(p)
+    if use_interactive:
+        augment_parser_for_interactive(p, prescreen=prescreen)
 
     return p
 
@@ -326,9 +343,9 @@ def present(message, options, file=sys.stdout):
                 file.write("\n")
 
 
-async def single_request(args, context):
-    parser = build_parser()
-    options = parser.parse_args(args)
+async def single_request(args, context, globalopts=None):
+    parser = build_parser(use_global=globalopts is None)
+    options = parser.parse_args(args, copy.copy(globalopts))
 
     pretty_print_modules = aiocoap.defaults.prettyprint_missing_modules()
     if pretty_print_modules and (options.color is True or options.pretty_print is True):
@@ -341,8 +358,6 @@ async def single_request(args, context):
         options.color = sys.stdout.isatty() and not pretty_print_modules
     if options.pretty_print is None:
         options.pretty_print = sys.stdout.isatty() and not pretty_print_modules
-
-    configure_logging((options.verbose or 0) - (options.quiet or 0))
 
     try:
         try:
@@ -440,7 +455,7 @@ async def single_request(args, context):
         if options.payload_initial_szx is not None:
             request.remote.maximum_block_size_exp = options.payload_initial_szx
 
-        if options.proxy is None:
+        if options.proxy is None or options.proxy in ("none", "", "-"):
             interface = context
         else:
             interface = aiocoap.proxy.client.ProxyForwarder(options.proxy, context)
@@ -541,7 +556,7 @@ async def single_request_with_context(args):
 interactive_expecting_keyboard_interrupt = None
 
 
-async def interactive():
+async def interactive(globalopts):
     global interactive_expecting_keyboard_interrupt
     interactive_expecting_keyboard_interrupt = asyncio.get_event_loop().create_future()
 
@@ -564,7 +579,7 @@ async def interactive():
             break
 
         current_task = asyncio.create_task(
-            single_request(line, context=context),
+            single_request(line, context=context, globalopts=globalopts),
             name="Interactive prompt command %r" % line,
         )
         interactive_expecting_keyboard_interrupt = (
@@ -596,22 +611,25 @@ def sync_main(args=None):
     if args is None:
         args = sys.argv[1:]
 
-    if "--interactive" not in args:
+    # This one is tolerant and doesn't even terminate with --help, so that
+    # --help and --interactive --help can do the right thing.
+    first_parser = build_parser(prescreen=True)
+    first_args = first_parser.parse_args(args)
+
+    configure_logging((first_args.verbose or 0) - (first_args.quiet or 0))
+
+    if not first_args.interactive:
         try:
             asyncio.run(single_request_with_context(args))
         except KeyboardInterrupt:
             sys.exit(3)
     else:
-        if len(args) != 1:
-            print(
-                "No other arguments must be specified when entering interactive mode",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        global_parser = build_parser(use_interactive=False)
+        globalopts = global_parser.parse_args(args)
 
         loop = asyncio.get_event_loop()
         task = loop.create_task(
-            interactive(),
+            interactive(globalopts),
             name="Interactive prompt",
         )
 
