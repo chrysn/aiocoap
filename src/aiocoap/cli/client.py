@@ -4,6 +4,7 @@
 
 """aiocoap-client is a simple command-line tool for interacting with CoAP servers"""
 
+import copy
 import sys
 import asyncio
 import argparse
@@ -31,7 +32,7 @@ from aiocoap.numbers import ContentFormat
 log = logging.getLogger("coap.aiocoap-client")
 
 
-def augment_parser_for_global(p):
+def augment_parser_for_global(p, *, prescreen=False):
     p.add_argument(
         "-v",
         "--verbose",
@@ -67,7 +68,7 @@ def augment_parser_for_global(p):
     )
 
 
-def augment_parser_for_interactive(p):
+def augment_parser_for_interactive(p, *, prescreen=False):
     p.add_argument(
         "--non",
         help="Send request as non-confirmable (NON) message",
@@ -125,16 +126,19 @@ def augment_parser_for_interactive(p):
     )
     p.add_argument(
         "url",
+        nargs="?" if prescreen else None,
         help="CoAP address to fetch",
     )
 
 
-def build_parser(*, use_global=True, use_interactive=True):
-    p = argparse.ArgumentParser(description=__doc__)
+def build_parser(*, use_global=True, use_interactive=True, prescreen=False):
+    p = argparse.ArgumentParser(description=__doc__, add_help=not prescreen)
+    if prescreen:
+        p.add_argument("--help", action="store_true")
     if use_global:
-        augment_parser_for_global(p)
+        augment_parser_for_global(p, prescreen=prescreen)
     if use_interactive:
-        augment_parser_for_interactive(p)
+        augment_parser_for_interactive(p, prescreen=prescreen)
 
     return p
 
@@ -335,9 +339,9 @@ def present(message, options, file=sys.stdout):
                 file.write("\n")
 
 
-async def single_request(args, context):
-    parser = build_parser()
-    options = parser.parse_args(args)
+async def single_request(args, context, globalopts=None):
+    parser = build_parser(use_global=globalopts is None)
+    options = parser.parse_args(args, copy.copy(globalopts))
 
     pretty_print_modules = aiocoap.defaults.prettyprint_missing_modules()
     if pretty_print_modules and (options.color is True or options.pretty_print is True):
@@ -350,8 +354,6 @@ async def single_request(args, context):
         options.color = sys.stdout.isatty() and not pretty_print_modules
     if options.pretty_print is None:
         options.pretty_print = sys.stdout.isatty() and not pretty_print_modules
-
-    configure_logging((options.verbose or 0) - (options.quiet or 0))
 
     try:
         try:
@@ -550,7 +552,7 @@ async def single_request_with_context(args):
 interactive_expecting_keyboard_interrupt = None
 
 
-async def interactive():
+async def interactive(globalopts):
     global interactive_expecting_keyboard_interrupt
     interactive_expecting_keyboard_interrupt = asyncio.get_event_loop().create_future()
 
@@ -573,7 +575,7 @@ async def interactive():
             break
 
         current_task = asyncio.create_task(
-            single_request(line, context=context),
+            single_request(line, context=context, globalopts=globalopts),
             name="Interactive prompt command %r" % line,
         )
         interactive_expecting_keyboard_interrupt = (
@@ -605,22 +607,25 @@ def sync_main(args=None):
     if args is None:
         args = sys.argv[1:]
 
-    if "--interactive" not in args:
+    # This one is tolerant and doesn't even terminate with --help, so that
+    # --help and --interactive --help can do the right thing.
+    first_parser = build_parser(prescreen=True)
+    first_args = first_parser.parse_args(args)
+
+    configure_logging((first_args.verbose or 0) - (first_args.quiet or 0))
+
+    if not first_args.interactive:
         try:
             asyncio.run(single_request_with_context(args))
         except KeyboardInterrupt:
             sys.exit(3)
     else:
-        if len(args) != 1:
-            print(
-                "No other arguments must be specified when entering interactive mode",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        global_parser = build_parser(use_interactive=False)
+        globalopts = global_parser.parse_args(args)
 
         loop = asyncio.get_event_loop()
         task = loop.create_task(
-            interactive(),
+            interactive(globalopts),
             name="Interactive prompt",
         )
 
