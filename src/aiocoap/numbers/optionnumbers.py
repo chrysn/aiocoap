@@ -136,6 +136,13 @@ class OptionNumber(ExtensibleIntEnum):
             option.value = value
         return option
 
+    @property
+    def name_printable(self):
+        """The name of the code in human-readable form
+
+        This is only available on options that have a known name."""
+        return self.name.replace("_", " ").title().replace(" ", "-")
+
     def _repr_html_(self):
         import html
 
@@ -147,7 +154,7 @@ class OptionNumber(ExtensibleIntEnum):
                 else ", not part of the cache key"
             )
         if hasattr(self, "name"):
-            return f'<abbr title="option {int(self)}: {properties}">{html.escape(self.name)}</abbr>'
+            return f'<abbr title="option {int(self)}: {properties}">{html.escape(self.name_printable)}</abbr>'
         else:
             return f'<abbr title="{properties}">Option {int(self)}</abbr>'
 

@@ -28,6 +28,8 @@ from aiocoap.util import contenttype
 from aiocoap.util.cli import ActionNoYes
 from aiocoap.numbers import ContentFormat
 
+log = logging.getLogger("coap.aiocoap-client")
+
 
 def build_parser():
     p = argparse.ArgumentParser(description=__doc__)
@@ -138,9 +140,16 @@ def configure_logging(verbosity):
     elif verbosity == 0:
         logging.getLogger("coap").setLevel(logging.WARNING)
     elif verbosity == 1:
+        logging.getLogger("coap").setLevel(logging.WARNING)
+        logging.getLogger("coap.aiocoap-client").setLevel(logging.INFO)
+    elif verbosity == 2:
         logging.getLogger("coap").setLevel(logging.INFO)
-    elif verbosity >= 2:
+    elif verbosity >= 3:
         logging.getLogger("coap").setLevel(logging.DEBUG)
+    elif verbosity >= 4:
+        logging.getLogger("coap").setLevel(0)
+
+    log.debug("Logging configured.")
 
 
 def colored(text, options, tokenlambda):
@@ -161,6 +170,10 @@ def colored(text, options, tokenlambda):
 
 
 def incoming_observation(options, response):
+    log.info("Received Observe notification:")
+    for line in message_to_text(response, "from"):
+        log.info(line)
+
     if options.observe_exec:
         p = subprocess.Popen(options.observe_exec, shell=True, stdin=subprocess.PIPE)
         # FIXME this blocks
@@ -201,6 +214,33 @@ def apply_credentials(context, credentials, errfn):
         raise errfn(
             "Unknown suffix: %s (expected: .json or .diag)" % (credentials.suffix)
         )
+
+
+def message_to_text(m, direction):
+    """Convert a message to a text form similar to how they are shown in RFCs.
+
+    Refactoring this into a message method will need to address the direction
+    discovery eventually."""
+    if m.remote is None:
+        # This happens when unprocessable remotes are, eg. putting in an HTTP URI
+        yield f"{m.code} {direction} (unknown)"
+    else:
+        # FIXME: Update when transport-indication is available
+        # FIXME: This is slightly wrong because it does not account for what ProxyRedirector does
+        yield f"{m.code} {direction} {m.remote.scheme}://{m.remote.hostinfo}"
+    for opt in m.opt.option_list():
+        if hasattr(opt.number, "name"):
+            yield f"- {opt.number.name_printable} ({opt.number.value}): {opt.value!r}"
+        else:
+            yield f"- {opt.number.value}: {opt.value!r}"
+    if m.payload:
+        limit = 16
+        if len(m.payload) > limit:
+            yield f"Payload: {m.payload[:limit].hex()}... ({len(m.payload)} bytes total)"
+        else:
+            yield f"Payload: {m.payload[:limit].hex()} ({len(m.payload)} bytes)"
+    else:
+        yield "No payload"
 
 
 def present(message, options, file=sys.stdout):
@@ -407,6 +447,10 @@ async def single_request(args, context):
 
         requested_uri = request.get_request_uri()
 
+        log.info("Sending request:")
+        for line in message_to_text(request, "to"):
+            log.info(line)
+
         requester = interface.request(request)
 
         if options.observe:
@@ -422,6 +466,10 @@ async def single_request(args, context):
                 requester.response.cancel()
             if options.observe and not requester.observation.cancelled:
                 requester.observation.cancel()
+
+        log.info("Received response:")
+        for line in message_to_text(response_data, "from"):
+            log.info(line)
 
         response_uri = response_data.get_request_uri()
         if requested_uri != response_uri:

@@ -60,22 +60,32 @@ class TestCommandlineClient(WithTestServer):
         self.assertEqual(empty_json, b"{}")
 
         verbose = subprocess.check_output(
-            AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty", "-v"],
+            AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty", "-vv"],
             stderr=subprocess.STDOUT,
         )
+        verbose = verbose.decode("utf-8").strip().split("\n")
+        # Filtering out regular `-v` output, which is intended for users.
+        info_from_cli = [l for l in verbose if "INFO:coap.aiocoap-client:" in l]
+        info_from_library = [l for l in verbose if l not in info_from_cli]
         # It'd not be actually wrong to have info level messages in here, but
         # they should at least not start appearing unnoticed.
         self.assertEqual(
-            verbose, b"", "Unexpected info-level messages in simple request"
+            info_from_library, [], "Unexpected info-level messages in simple request"
+        )
+        # Precise format may vary
+        self.assertTrue(
+            any("Uri-Path (11): 'empty'" in l for l in info_from_cli),
+            f"-v should include human-redable form of request (but is just {info_from_cli})",
         )
 
         debug = subprocess.check_output(
-            AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty", "-v", "-v"],
+            AIOCOAP_CLIENT
+            + ["coap://" + self.servernetloc + "/empty", "-v", "-v", "-v"],
             stderr=subprocess.STDOUT,
         )
         self.assertTrue(
             b"DEBUG:coap:Incoming message" in debug,
-            "Not even some (or unexpected) output in aiocoap-client -vv",
+            "Not even some (or unexpected) output in aiocoap-client -vvv",
         )
 
         quiet = subprocess.check_output(
@@ -272,7 +282,6 @@ class TestCommandlineClient(WithTestServer):
                 "coap://0.0.0.0/empty",
                 "--proxy",
                 "coap://" + self.servernetloc,
-                "--verbose",
             ],
             stderr=subprocess.STDOUT,
         )
