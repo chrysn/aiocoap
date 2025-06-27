@@ -10,6 +10,8 @@ import aiocoap.resource as resource
 import aiocoap
 import asyncio
 
+import cbor2
+
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("coap-server").setLevel(logging.DEBUG)
 
@@ -30,7 +32,7 @@ async def main():
 
     # Keys from IETF109 plug test: Rikard Test 2 Entity 1
     server_credentials[":a"] = aiocoap.oscore.SimpleGroupContext(
-        algorithm=aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM],
+        alg_aead=aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM],
         hashfun=aiocoap.oscore.hashfunctions[aiocoap.oscore.DEFAULT_HASHFUNCTION],
         alg_signature=aiocoap.oscore.Ed25519(),
         alg_group_enc=aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM],
@@ -43,14 +45,51 @@ async def main():
             "397CEB5A8D21D74A9258C20C33FC45AB152B02CF479B2E3081285F77454CF347"
         ),
         peers={
-            bytes.fromhex("51"): bytes.fromhex(
-                "2668BA6CA302F14E952228DA1250A890C143FDBA4DAED27246188B9E42C94B6D"
+            bytes.fromhex("51"): cbor2.dumps(
+                {
+                    8: {
+                        1: {
+                            1: 1,
+                            3: -8,
+                            -1: 6,
+                            -2: bytes.fromhex(
+                                "2668BA6CA302F14E952228DA1250A890C143FDBA4DAED27246188B9E42C94B6D"
+                            ),
+                        }
+                    }
+                }
             ),
-            bytes.fromhex("52"): bytes.fromhex(
-                "5394E43633CDAC96F05120EA9F21307C9355A1B66B60A834B53E9BF60B1FB7DF"
+            bytes.fromhex("52"): cbor2.dumps(
+                {
+                    8: {
+                        1: {
+                            1: 1,
+                            3: -8,
+                            -1: 6,
+                            -2: bytes.fromhex(
+                                "5394E43633CDAC96F05120EA9F21307C9355A1B66B60A834B53E9BF60B1FB7DF"
+                            ),
+                        }
+                    }
+                }
             ),
             bytes.fromhex("dc"): aiocoap.oscore.DETERMINISTIC_KEY,
         },
+        sender_auth_cred=cbor2.dumps(
+            {
+                8: {
+                    1: {
+                        1: 1,
+                        3: -8,
+                        -1: 6,
+                        -2: bytes.fromhex(
+                            "CE616F28426EF24EDB51DBCEF7A23305F886F657959D4DF889DDFC0255042159"
+                        ),
+                    }
+                }
+            }
+        ),
+        group_manager_cred=b"This can be an arbitrary byte string as long as nobody interacts with the GM and all agree what it is.",
     )
 
     await asyncio.get_running_loop().create_future()

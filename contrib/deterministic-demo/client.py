@@ -8,6 +8,8 @@ import asyncio
 
 from aiocoap import *
 
+import cbor2
+
 logging.basicConfig(level=logging.INFO)
 
 
@@ -19,7 +21,7 @@ async def main():
     # Acting as Rikard Test 2 Entity 3
     protocol.client_credentials["coap://localhost/*"] = (
         aiocoap.oscore.SimpleGroupContext(
-            algorithm=aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM],
+            alg_aead=aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM],
             hashfun=aiocoap.oscore.hashfunctions[aiocoap.oscore.DEFAULT_HASHFUNCTION],
             alg_signature=aiocoap.oscore.Ed25519(),
             alg_group_enc=aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM],
@@ -33,18 +35,55 @@ async def main():
                 "E550CD532B881D52AD75CE7B91171063E568F2531FBDFB32EE01D1910BCF810F"
             ),
             peers={
-                bytes.fromhex("0A"): bytes.fromhex(
-                    "CE616F28426EF24EDB51DBCEF7A23305F886F657959D4DF889DDFC0255042159"
+                bytes.fromhex("0A"): cbor2.dumps(
+                    {
+                        8: {
+                            1: {
+                                1: 1,
+                                3: -8,
+                                -1: 6,
+                                -2: bytes.fromhex(
+                                    "CE616F28426EF24EDB51DBCEF7A23305F886F657959D4DF889DDFC0255042159"
+                                ),
+                            }
+                        }
+                    }
                 ),
-                bytes.fromhex("51"): bytes.fromhex(
-                    "2668BA6CA302F14E952228DA1250A890C143FDBA4DAED27246188B9E42C94B6D"
+                bytes.fromhex("51"): cbor2.dumps(
+                    {
+                        8: {
+                            1: {
+                                1: 1,
+                                3: -8,
+                                -1: 6,
+                                -2: bytes.fromhex(
+                                    "2668BA6CA302F14E952228DA1250A890C143FDBA4DAED27246188B9E42C94B6D"
+                                ),
+                            }
+                        }
+                    }
                 ),
                 # that's a new one for deterministic, and we build a key for it but no shared secret
-                bytes.fromhex("dc"): None,
+                bytes.fromhex("dc"): aiocoap.oscore.DETERMINISTIC_KEY,
             },
             # requests in group mode would be sent with
             #                    ).pairwise_for(bytes.fromhex('0A'))
             # but here we want to request deterministically
+            sender_auth_cred=cbor2.dumps(
+                {
+                    8: {
+                        1: {
+                            1: 1,
+                            3: -8,
+                            -1: 6,
+                            -2: bytes.fromhex(
+                                "5394E43633CDAC96F05120EA9F21307C9355A1B66B60A834B53E9BF60B1FB7DF"
+                            ),
+                        }
+                    }
+                }
+            ),
+            group_manager_cred=b"This can be an arbitrary byte string as long as nobody interacts with the GM and all agree what it is.",
         ).for_sending_deterministic_requests(bytes.fromhex("dc"), bytes.fromhex("0a"))
     )
 
