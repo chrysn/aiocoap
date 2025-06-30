@@ -105,7 +105,7 @@ CodeStyle.FETCH_CONTENT = CodeStyle(FETCH, CONTENT)
 CodeStyle.POST_CHANGED = CodeStyle(POST, CHANGED)
 
 
-class DeterministicKey:
+class _DeterministicKey:
     """Singleton to indicate that for this key member no public or private key
     is available because it is the Deterministic Client (see
     <https://www.ietf.org/archive/id/draft-amsuess-core-cachable-oscore-01.html>)
@@ -116,8 +116,7 @@ class DeterministicKey:
     """
 
 
-DETERMINISTIC_KEY = DeterministicKey()
-del DeterministicKey
+DETERMINISTIC_KEY = _DeterministicKey()
 
 
 class NotAProtectedMessage(error.Error, ValueError):
@@ -2169,7 +2168,7 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
                 "The key in the provided sender credential does not match the private key"
             )
 
-    def _parse_credential(self, credential: bytes):
+    def _parse_credential(self, credential: bytes | _DeterministicKey):
         """Extract the public key (in the public_key format the respective
         AlgorithmCountersign needs) from credentials. This raises a ValueError
         if the credentials do not match the group's cred_fmt, or if the
@@ -2180,6 +2179,9 @@ class SimpleGroupContext(GroupContext, CanProtect, CanUnprotect, SecurityContext
         return both the key and extracted other data, where that other data
         would be stored with the peer this is parsed from).
         """
+
+        if credential is DETERMINISTIC_KEY:
+            return credential
 
         if self.cred_fmt != COSE_KCCS:
             raise ValueError(
@@ -2573,11 +2575,25 @@ class _DeterministicProtectProtoAspect(
 
     # details needed for various operations, especially eAAD generation
 
+    @property
+    def sender_auth_cred(self):
+        # When preparing the external_aad, the element 'sender_cred' in the
+        # aad_array takes the empty CBOR byte string (0x40).
+        return b""
+
     # not inline because the equivalent lambda would not be recognized by mypy
     # (workaround for <https://github.com/python/mypy/issues/8083>)
     @property
     def alg_aead(self):
         return self.groupcontext.alg_aead
+
+    @property
+    def alg_group_enc(self):
+        return self.groupcontext.alg_group_enc
+
+    @property
+    def alg_pairwise_key_agreement(self):
+        return self.groupcontext.alg_pairwise_key_agreement
 
     @property
     def hashfun(self):
@@ -2594,6 +2610,10 @@ class _DeterministicProtectProtoAspect(
     @property
     def alg_signature(self):
         return self.groupcontext.alg_signature
+
+    @property
+    def group_manager_cred(self):
+        return self.groupcontext.group_manager_cred
 
 
 class _DeterministicUnprotectProtoAspect(
@@ -2687,11 +2707,25 @@ class _DeterministicUnprotectProtoAspect(
 
     # details needed for various operations, especially eAAD generation
 
+    @property
+    def recipient_auth_cred(self):
+        # When preparing the external_aad, the element 'sender_cred' in the
+        # aad_array takes the empty CBOR byte string (0x40).
+        return b""
+
     # not inline because the equivalent lambda would not be recognized by mypy
     # (workaround for <https://github.com/python/mypy/issues/8083>)
     @property
     def alg_aead(self):
         return self.groupcontext.alg_aead
+
+    @property
+    def alg_group_enc(self):
+        return self.groupcontext.alg_group_enc
+
+    @property
+    def alg_pairwise_key_agreement(self):
+        return self.groupcontext.alg_pairwise_key_agreement
 
     @property
     def hashfun(self):
@@ -2708,6 +2742,10 @@ class _DeterministicUnprotectProtoAspect(
     @property
     def alg_signature(self):
         return self.groupcontext.alg_signature
+
+    @property
+    def group_manager_cred(self):
+        return self.groupcontext.group_manager_cred
 
 
 def verify_start(message):

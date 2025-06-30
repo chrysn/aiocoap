@@ -2,7 +2,7 @@
   :copyright: SPDX-FileCopyrightText: Christian Amsüss
   :copyright: SPDX-License-Identifier: MIT
 
-Deterministic OSCORE demo
+Cacheable OSCORE demo
 =========================
 
 This shows the implementation of cachable-oscore_ that comes with aiocoap as an experimental extension.
