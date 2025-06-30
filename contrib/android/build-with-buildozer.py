@@ -17,6 +17,16 @@ buildozer_venv = Path(__file__).parent / "venv-buildozer"
 
 contrib = Path(__file__).parent.parent
 
+subprocess.check_call(
+    [
+        "inkscape",
+        "../../doc/logo-square.svg",
+        "-o",
+        out / "square.png",
+        "--export-width=512",
+    ]
+)
+
 with (out / "buildozer.spec").open("w") as buildozerspec:
     buildozerspec.write("""\
 [app]
@@ -26,6 +36,8 @@ package.domain = org.example
 source.dir = .
 source.include_exts = py
 version = 0.1
+presplash.filename = square.png
+icon.filename = square.png
 
 # docutils for kivy rst widget
 #
