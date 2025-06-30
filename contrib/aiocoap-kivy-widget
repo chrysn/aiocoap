@@ -15,6 +15,7 @@ nor debug output are easily accessible.
 import asyncio
 import logging
 
+import aiocoap.cli.defaults
 from aiocoap import Context, Message, CHANGED, defaults
 from aiocoap.resource import Site, Resource, ObservableResource, WKCResource
 from aiocoap.resourcedirectory.client.register import Registerer
@@ -246,4 +247,7 @@ class CoAPDisplay(App):
         asyncio.get_event_loop().create_task(self.main())
 
 if __name__ == '__main__':
+    # Having dependency issues is hard to debug on Android; better print out
+    # the state of affairs:
+    aiocoap.cli.defaults.main()
     asyncio.run(CoAPDisplay().async_run())
