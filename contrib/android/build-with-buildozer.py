@@ -45,6 +45,9 @@ icon.filename = square.png
 # aiocoap as that's copied in below). for some reason, ge25519's dependency on
 # fe25519 needs to be spelled out. (Likewise for cryptography and cffi?)
 requirements = python3,kivy,docutils,cbor2,pygments,cbor-diag,colorlog,cryptography,cffi,filelock,ge25519,fe25519,lakers-python,websockets
+# ... of which some need local recipes, otherwise p4a will just spick the amd64
+# wheels into the apk:
+p4a.local_recipes = ../p4a-recipes
 orientation = portrait
 
 fullscreen = 0
