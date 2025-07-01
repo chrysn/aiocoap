@@ -17,7 +17,7 @@ with (out / "android.txt").open("w") as androidtxt:
     androidtxt.write("orientation=portrait\n")
 
 shutil.copytree(contrib / "widgets_common", out / "widgets_common", dirs_exist_ok=True)
-shutil.copytree(contrib.parent / "aiocoap", out / "aiocoap", dirs_exist_ok=True)
+shutil.copytree(contrib.parent / "src" / "aiocoap", out / "aiocoap", dirs_exist_ok=True)
 
 wheels = [
     "https://files.pythonhosted.org/packages/d5/e1/af78b099196feaab7c0252108abc4f5cfd36d255ac47c4b4a695ff838bf9/cbor2-5.4.6-py3-none-any.whl",

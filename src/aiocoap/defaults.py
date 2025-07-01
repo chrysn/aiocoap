@@ -181,6 +181,7 @@ def oscore_missing_modules():
         missing.append("cbor2")
     try:
         import cryptography  # noqa: F401
+        import cryptography.exceptions
     except ImportError:
         missing.append("cryptography")
     else:
