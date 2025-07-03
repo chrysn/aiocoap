@@ -543,7 +543,7 @@ class EdhocResponderContext(_EdhocContextBase):
         used."""
         if self._incomplete:
             id_cred_i, ead_3 = self._responder.parse_message_3(message_3)
-            if ead_3 is not None:
+            if ead_3:
                 self.log.error("Aborting EDHOC: EAD3 present")
                 raise error.BadRequest
 
