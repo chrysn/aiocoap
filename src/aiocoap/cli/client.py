@@ -220,25 +220,33 @@ def incoming_observation(options, response):
 
 
 def apply_credentials(context, credentials, errfn):
-    if credentials.suffix == ".json":
-        import json
+    try:
+        if credentials.suffix == ".json":
+            import json
 
-        context.client_credentials.load_from_dict(json.load(credentials.open("rb")))
-    elif credentials.suffix == ".diag":
-        try:
-            import cbor_diag
-            import cbor2
-        except ImportError:
-            raise errfn(
-                "Loading credentials in CBOR diagnostic format requires cbor2 and cbor_diag package"
+            context.client_credentials.load_from_dict(json.load(credentials.open("rb")))
+        elif credentials.suffix == ".diag":
+            try:
+                import cbor_diag
+                import cbor2
+            except ImportError:
+                raise errfn(
+                    "Loading credentials in CBOR diagnostic format requires cbor2 and cbor_diag package"
+                )
+            context.client_credentials.load_from_dict(
+                cbor2.loads(cbor_diag.diag2cbor(credentials.open().read()))
             )
-        context.client_credentials.load_from_dict(
-            cbor2.loads(cbor_diag.diag2cbor(credentials.open().read()))
-        )
-    else:
-        raise errfn(
-            "Unknown suffix: %s (expected: .json or .diag)" % (credentials.suffix)
-        )
+        else:
+            raise errfn(
+                "Unknown suffix: %s (expected: .json or .diag)" % (credentials.suffix)
+            )
+    except FileNotFoundError as e:
+        raise errfn("Credential file not found: %s" % e.filename)
+    except (OSError, ValueError) as e:
+        # Any of the parsers could reasonably raise those, and while they don't
+        # have HelpfulError support, they should still not render a backtrace
+        # but a proper CLI error.
+        raise errfn("Processing credential file: %s" % e)
 
 
 def message_to_text(m, direction):
