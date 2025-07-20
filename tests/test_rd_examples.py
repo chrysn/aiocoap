@@ -31,9 +31,7 @@ class WithResourceDirectory(Destructing):
     async def asyncSetUp(self):
         await super().asyncSetUp()
 
-        self.rd = aiocoap.cli.rd.Main(
-            ["--bind", hostportjoin("::1", self.rd_port)]
-        )
+        self.rd = aiocoap.cli.rd.Main(["--bind", hostportjoin("::1", self.rd_port)])
         await self.rd.initializing
 
     async def asyncTearDown(self):

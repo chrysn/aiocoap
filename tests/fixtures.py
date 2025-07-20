@@ -76,12 +76,14 @@ def no_warnings(function, expected_warnings=None):
 
     # Happy function coloring workaround
     if inspect.iscoroutinefunction(function):
+
         async def wrapped(self, *args, function=function):
             pre = sync_pre(self)
             result = await function(self, *args)
             sync_post(self, pre)
             return result
     else:
+
         def wrapped(self, *args, function=function):
             pre = sync_pre(self)
             result = function(self, *args)

@@ -235,13 +235,12 @@ class WithTestServer(Destructing):
             else []
         )
 
-        self.server = await \
-            aiocoap.Context.create_server_context(
-                self.create_testing_site(),
-                bind=(self.serveraddress, None),
-                multicast=multicastif,
-                _ssl_context=self.get_server_ssl_context(),
-            )
+        self.server = await aiocoap.Context.create_server_context(
+            self.create_testing_site(),
+            bind=(self.serveraddress, None),
+            multicast=multicastif,
+            _ssl_context=self.get_server_ssl_context(),
+        )
 
     async def asyncTearDown(self):
         await super().asyncTearDown()

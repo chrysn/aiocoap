@@ -47,7 +47,9 @@ class WithFileServer(unittest.IsolatedAsyncioTestCase):
 
         self.filedir = tempfile.mkdtemp(suffix="-fileserver")
 
-        self.__task = asyncio.get_event_loop().create_task(self.run_server(ready, self.__done))
+        self.__task = asyncio.get_event_loop().create_task(
+            self.run_server(ready, self.__done)
+        )
         await ready
 
     # This might be overly complex; it was stripped down from the more intricate OSCORE plug tests

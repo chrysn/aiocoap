@@ -52,9 +52,7 @@ class TestClientWithSetHost(WithTestServer, WithClient):
         else:
             # The simple6 transport misreports remotes to which a socket was
             # opened with a name.
-            if "simple6" not in list(
-                aiocoap.defaults.get_default_clienttransports()
-            ):
+            if "simple6" not in list(aiocoap.defaults.get_default_clienttransports()):
                 self.assertEqual(
                     response.get_request_uri(),
                     "coap://" + self.servernetloc + "/empty",
