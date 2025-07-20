@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: MIT AND BSD-3-Clause
 
 [build-system]
 requires = [ "setuptools >= 66.0" ]
@@ -13,7 +13,11 @@ authors = [
     { name = "Christian Amsüss", email = "chrysn@fsfe.org" },
     { name = "the aiocoap contributors" },
 ]
-license = { text = "MIT" }
+license = "MIT AND BSD-3-Clause"
+license-files = [
+    "LICENSES/MIT.txt",
+    "LICENSES/BSD-3-Clause.txt",
+]
 keywords = [ "coap", "asyncio", "iot" ]
 classifiers= [
     "Development Status :: 5 - Production/Stable",
