@@ -15,8 +15,7 @@ authors = [
 ]
 license = "MIT AND BSD-3-Clause"
 license-files = [
-    "LICENSES/MIT.txt",
-    "LICENSES/BSD-3-Clause.txt",
+    "LICENSES/*",
 ]
 keywords = [ "coap", "asyncio", "iot" ]
 classifiers= [
