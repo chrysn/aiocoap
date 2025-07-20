@@ -20,7 +20,7 @@ IS_STANDALONE = False
 
 
 class WithTLSServer(WithTestServer):
-    def setUp(self):
+    async def asyncSetUp(self):
         self.keydir = tempfile.mkdtemp(suffix="-testkeypair")
         self.keyfile = self.keydir + "/key.pem"
         self.certfile = self.keydir + "/cert.pem"
@@ -65,10 +65,10 @@ class WithTLSServer(WithTestServer):
                 )
             )
 
-        super().setUp()
+        await super().asyncSetUp()
 
-    def tearDown(self):
-        super().tearDown()
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
         shutil.rmtree(self.keydir)
 
     def get_server_ssl_context(self):

@@ -20,7 +20,7 @@ _skip_unless_oscore = unittest.skipIf(
 )
 
 
-class WithGroupKeys(unittest.TestCase):
+class WithGroupKeys(unittest.IsolatedAsyncioTestCase):
     def _set_up_algorithms(self):
         self.alg_aead = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
         self.alg_group_enc = aiocoap.oscore.algorithms[aiocoap.oscore.DEFAULT_ALGORITHM]
@@ -28,7 +28,7 @@ class WithGroupKeys(unittest.TestCase):
         self.alg_countersign = aiocoap.oscore.Ed25519()
         self.alg_pairwise_key_agreement = aiocoap.oscore.EcdhSsHkdf256()
 
-    def setUp(self):
+    async def asyncSetUp(self):
         self._set_up_algorithms()
 
         group_id = b"G"
@@ -65,12 +65,12 @@ class WithGroupKeys(unittest.TestCase):
             for i, _ in enumerate(participants)
         ]
 
-        super().setUp()
+        await super().asyncSetUp()
 
 
 class WithGroupServer(WithTestServer, WithGroupKeys):
-    def setUp(self):
-        super().setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
 
         server_credentials = aiocoap.credentials.CredentialsMap()
         server_credentials[":a"] = self.groups[0]
@@ -79,9 +79,9 @@ class WithGroupServer(WithTestServer, WithGroupKeys):
         )
 
 
-class WithGroupClient(WithClient):
-    def setUp(self):
-        super().setUp()
+class WithGroupClient(WithClient, WithGroupKeys):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
 
         self.client.client_credentials["coap://%s/*" % self.servernetloc] = self.groups[
             1
@@ -95,8 +95,8 @@ class TestGroupOscore(TestServer, WithGroupServer, WithGroupClient):
 
 @_skip_unless_oscore
 class TestGroupOscoreWithPairwise(TestGroupOscore):
-    def setUp(self):
-        super().setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
 
         for k, v in self.client.client_credentials.items():
             self.client.client_credentials[k] = v.pairwise_for(self.groups[0].sender_id)

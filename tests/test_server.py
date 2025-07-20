@@ -243,8 +243,6 @@ class WithTestServer(Destructing):
         )
 
     async def asyncTearDown(self):
-        await super().asyncTearDown()
-
         # let the server receive the acks we just sent
         await asyncio.sleep(CLEANUPTIME)
         await self.server.shutdown()
@@ -263,6 +261,8 @@ class WithTestServer(Destructing):
         await self._del_to_be_sure("server")
 
         super(WithTestServer, self).tearDown()
+
+        await super().asyncTearDown()
 
     serveraddress = "::1"
     servernetloc = "[%s]" % serveraddress

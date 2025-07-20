@@ -73,10 +73,10 @@ class WithMockSock(unittest.IsolatedAsyncioTestCase):
 
 
 class TestNoncoapClient(WithTestServer, WithMockSock):
-    def setUp(self):
+    async def asyncSetUp(self):
         self.mocksock_remote_addr = (self.serveraddress, aiocoap.COAP_PORT)
 
-        super().setUp()
+        await super().asyncSetUp()
 
     @precise_warnings(["Ignoring unparsable message from ..."])
     async def test_veryshort(self):
@@ -162,11 +162,11 @@ class TestNoncoapMulticastClient(WithTestServer, WithMockSock):
     # explicitly, though.
     serveraddress = "::"
 
-    def setUp(self):
+    async def asyncSetUp(self):
         # always used with sendto
         self.mocksock_remote_addr = None
 
-        super().setUp()
+        await super().asyncSetUp()
 
     @no_warnings
     async def test_mutlicast_ping(self):

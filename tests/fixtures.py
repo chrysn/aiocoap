@@ -17,7 +17,7 @@ import warnings
 import weakref
 
 # time granted to asyncio to receive datagrams sent via loopback, and to close
-# connections. if tearDown checks fail erratically, tune this up -- but it
+# connections. if asyncTearDown checks fail erratically, tune this up -- but it
 # causes per-fixture delays.
 CLEANUPTIME = 0.01
 
@@ -35,7 +35,7 @@ ASYNCTEST_TIMEOUT = 3 * 60
 
 def is_test_successful(testcase):
     """Return true if a current TestCase instancance completed so far without
-    raising errors. This is supposed to be used in tearDown handlers on self
+    raising errors. This is supposed to be used in asyncTearDown handlers on self
     when additional debug information can be shown that would otherwise be
     discarded, or to skip tests during teardown that are bound to fail."""
     return testcase._outcome.success
@@ -105,7 +105,7 @@ def precise_warnings(expected_warnings):
 
 
 class WithLogMonitoring(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
+    async def asyncSetUp(self):
         self.handler = self.ListHandler()
 
         logging.root.setLevel(0)
@@ -113,10 +113,10 @@ class WithLogMonitoring(unittest.IsolatedAsyncioTestCase):
         logging.captureWarnings(True)
         warnings.simplefilter("always")
 
-        super(WithLogMonitoring, self).setUp()
+        await super().asyncSetUp()
 
-    def tearDown(self):
-        super(WithLogMonitoring, self).tearDown()
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
 
         logging.root.removeHandler(self.handler)
 

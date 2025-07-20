@@ -14,7 +14,7 @@ from aiocoap.util import hostportjoin
 
 
 class WithProxyServer(Destructing):
-    async def setUp(self):
+    async def asyncSetUp(self):
         await super().asyncSetUp()
 
         self.forwardproxy = aiocoap.cli.proxy.Main(
@@ -22,7 +22,7 @@ class WithProxyServer(Destructing):
         )
         await self.forwardproxy.initializing
 
-    async def tearDown(self):
+    async def asyncTearDown(self):
         await self.forwardproxy.shutdown()
         await self._del_to_be_sure("forwardproxy")
         await asyncio.sleep(CLEANUPTIME)
@@ -34,16 +34,17 @@ class WithProxyServer(Destructing):
 
 
 class WithProxyClient(WithClient, WithProxyServer):
-    def setUp(self):
-        super(WithProxyClient, self).setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
         original_client_log = self.client.log
         self.client = aiocoap.proxy.client.ProxyForwarder(
             self.proxyaddress, self.client
         )
         self.client.log = original_client_log
 
-    def tearDown(self):
+    async def asyncTearDown(self):
         self.client = self.client.context
+        await super().asyncTearDown()
 
 
 class TestServerWithProxy(WithProxyClient, TestServer):

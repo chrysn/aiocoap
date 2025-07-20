@@ -14,8 +14,8 @@ identity = "test-client"
 
 
 class WithDTLSClient(WithClient):
-    def setUp(self):
-        super().setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
         # FIXME shouldn't that only need the servernamealias?
         self.client.client_credentials.load_from_dict(
             {
@@ -40,8 +40,8 @@ class WithDTLSClient(WithClient):
 
 
 class WithDTLSServer(WithTestServer):
-    def setUp(self):
-        super().setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
         self.server.server_credentials.load_from_dict(
             {
                 ":client": {
