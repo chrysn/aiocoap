@@ -44,6 +44,10 @@ class MockSockProtocol:
         self.incoming_queue.put_nowait((data, addr))
 
     async def close(self):
+        self.transport.close()
+
+    def connection_lost(self, exc):
+        # This is a datagram transport, it's only closed because we closed it
         pass
 
     # emulating the possibly connected socket.socket this once was
