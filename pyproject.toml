@@ -13,7 +13,7 @@ authors = [
     { name = "Christian Amsüss", email = "chrysn@fsfe.org" },
     { name = "the aiocoap contributors" },
 ]
-license = "MIT AND BSD-3-Clause"
+license-expression = "MIT AND BSD-3-Clause"
 license-files = [
     "LICENSES/*",
 ]
