@@ -9,24 +9,22 @@ import asyncio
 import unittest
 import aiocoap
 
-from .fixtures import precise_warnings, no_warnings, asynctest
+from .fixtures import precise_warnings, no_warnings
 from .test_server import WithTestServer
 from .common import tcp_disabled
 
 
 @unittest.skipIf(tcp_disabled, "TCP disabled in environment")
 class TestNoncoapTCPClient(WithTestServer):
-    def setUp(self):
-        super().setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
 
-        self.mock_r, self.mock_w = self.loop.run_until_complete(
+        self.mock_r, self.mock_w = await \
             asyncio.open_connection(self.serveraddress, aiocoap.COAP_PORT)
-        )
 
-    def tearDown(self):
+    async def asyncTearDown(self):
         self.mock_w.close()
-
-        super().tearDown()
+        await super().asyncTearDown()
 
     @staticmethod
     def _read_as_messages(encoded: bytes):
@@ -79,7 +77,7 @@ class TestNoncoapTCPClient(WithTestServer):
             triggered_eof = True
             self.mock_r.feed_eof()
 
-        self.loop.create_task(kill_read())
+        asyncio.get_event_loop().create_task(kill_read())
         r = (
             await self.mock_r.read()
         )  # timing out would be a typical failure case here too
@@ -106,28 +104,23 @@ class TestNoncoapTCPClient(WithTestServer):
         self.assertEqual(messages, [], "Server sent messages on its own")
 
     @precise_warnings(["Aborting connection: Failed to parse message"])
-    @asynctest
     async def test_http_get(self):
         await self.should_abort_early(b"GET /.well-known/core HTTP/1.0")
 
     @precise_warnings(["Aborting connection: No CSM received"])
-    @asynctest
     async def test_early_get(self):
         await self.should_abort_early(b"\0\x01")
 
     @no_warnings
-    @asynctest
     async def test_incomplete_small(self):
         await self.should_idle_quietly(b"\0")
 
     @no_warnings
-    @asynctest
     async def test_incomplete_large1(self):
         # announcing but not sending 1 bytes extlen
         await self.should_idle_quietly(b"\xd0")
 
     @no_warnings
-    @asynctest
     async def test_incomplete_large2(self):
         # sending one out of four bytes extlen
         # a server could in theory reject this on grounds of "no matter what
@@ -135,13 +128,11 @@ class TestNoncoapTCPClient(WithTestServer):
         await self.should_idle_quietly(b"\xf0\0")
 
     @no_warnings
-    @asynctest
     async def test_incomplete_large3(self):
         # announcing a 269 byte long message, but not even sendin the code
         await self.should_idle_quietly(b"\xe0\0\0")
 
     @precise_warnings(["Aborting connection: Overly large message announced"])
-    @asynctest
     async def test_incomplete_large4(self):
         # announcing the longest possible message, this should excede
         # everyone's max-message-size.
@@ -150,7 +141,6 @@ class TestNoncoapTCPClient(WithTestServer):
         await self.should_abort_early(b"\xf0\xff\xff\xff\xff")
 
     @precise_warnings(["Aborting connection: Failed to parse message"])
-    @asynctest
     async def test_wrong_tkl(self):
         # send an unspecified token length of 15.
         # the rest of the message is an empty CSM, so if the server were to
@@ -160,19 +150,16 @@ class TestNoncoapTCPClient(WithTestServer):
     # Fun inside the CSM
 
     @no_warnings
-    @asynctest
     async def test_exotic_elective_csm_option(self):
         # send option number something-even (something-odd plus 269) as an empty option
         await self.should_idle_quietly(b"\x30\xe1\xe0\xf1\xf1")
 
     @precise_warnings(["Aborting connection: Option not supported"])
-    @asynctest
     async def test_exotic_compulsory_csm_option(self):
         # send option number something-odd (something-even plus 269) as an empty option
         await self.should_abort_early(b"\x30\xe1\xe0\xf2\xf2")
 
     @precise_warnings(["Aborting connection: Option not supported"])
-    @asynctest
     async def test_exotic_compulsory_csm_option_late(self):
         # send an empty CSM, and after that the one from compulsory_csm_option
         await self.should_abort_early(b"\0\xe1\x30\xe1\xe0\xf2\xf2")

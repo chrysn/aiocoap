@@ -13,11 +13,11 @@ import os
 import json
 
 from . import common
-from .fixtures import no_warnings, WithAsyncLoop, Destructing, CLEANUPTIME, asynctest
+from .fixtures import no_warnings, Destructing, CLEANUPTIME
 
 
-class slow_empty_ack(contextlib.ContextDecorator):
-    def __enter__(self):
+class slow_empty_ack(contextlib.AsyncContextDecorator):
+    async def __aenter__(self):
         # FIXME: Pushing the times here so that even on a loaded system
         # with pypy and coverage, this can complete realistically.
         #
@@ -30,7 +30,7 @@ class slow_empty_ack(contextlib.ContextDecorator):
         )
         return self
 
-    def __exit__(self, *exc):
+    async def __aexit__(self, *exc):
         aiocoap.numbers.TransportTuning.EMPTY_ACK_DELAY = self.original_empty_ack_delay
         return False
 
@@ -215,7 +215,7 @@ class BasicTestingSite(aiocoap.resource.Site):
             self.add_resource(["one"], ReplacingResource())
 
 
-class WithTestServer(WithAsyncLoop, Destructing):
+class WithTestServer(Destructing):
     # to allow overriding the factory class
     TestingSite = BasicTestingSite
 
@@ -226,8 +226,8 @@ class WithTestServer(WithAsyncLoop, Destructing):
         """Override hook for subclasses that want to populate _ssl_context at construction"""
         return None
 
-    def setUp(self):
-        super(WithTestServer, self).setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
 
         multicastif = (
             os.environ["AIOCOAP_TEST_MCIF"].split(":")
@@ -235,24 +235,25 @@ class WithTestServer(WithAsyncLoop, Destructing):
             else []
         )
 
-        self.server = self.loop.run_until_complete(
+        self.server = await \
             aiocoap.Context.create_server_context(
                 self.create_testing_site(),
                 bind=(self.serveraddress, None),
                 multicast=multicastif,
                 _ssl_context=self.get_server_ssl_context(),
             )
-        )
 
-    def tearDown(self):
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
+
         # let the server receive the acks we just sent
-        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
-        self.loop.run_until_complete(self.server.shutdown())
+        await asyncio.sleep(CLEANUPTIME)
+        await self.server.shutdown()
         # Nothing in the context should keep the request interfaces alive;
         # delete them first to see *which* of them is the one causing the
         # trouble
         while self.server.request_interfaces:
-            self._del_to_be_sure(
+            await self._del_to_be_sure(
                 {
                     "get": (lambda self: self.server.request_interfaces[0]),
                     "del": (lambda self: self.server.request_interfaces.__delitem__(0)),
@@ -260,7 +261,7 @@ class WithTestServer(WithAsyncLoop, Destructing):
                     % self.server.request_interfaces[0],
                 }
             )
-        self._del_to_be_sure("server")
+        await self._del_to_be_sure("server")
 
         super(WithTestServer, self).tearDown()
 
@@ -269,27 +270,27 @@ class WithTestServer(WithAsyncLoop, Destructing):
     servernamealias = common.loopbackname_v6 or common.loopbackname_v46
 
 
-class WithClient(WithAsyncLoop, Destructing):
-    def setUp(self):
-        super(WithClient, self).setUp()
+class WithClient(Destructing):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
 
         self.test_did_shut_down_client = False
 
-        self.client = self.loop.run_until_complete(
-            aiocoap.Context.create_client_context()
-        )
+        self.client = await aiocoap.Context.create_client_context()
 
-    def tearDown(self):
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
+
         if not self.test_did_shut_down_client:
             self.test_did_shut_down_client = False
-            self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
-            self.loop.run_until_complete(self.client.shutdown())
+            await asyncio.sleep(CLEANUPTIME)
+            await self.client.shutdown()
 
         # Nothing in the context should keep the request interfaces alive;
         # delete them first to see *which* of them is the one causing the
         # trouble
         while self.client.request_interfaces:
-            self._del_to_be_sure(
+            await self._del_to_be_sure(
                 {
                     "get": (lambda self: self.client.request_interfaces[0]),
                     "del": (lambda self: self.client.request_interfaces.__delitem__(0)),
@@ -298,7 +299,7 @@ class WithClient(WithAsyncLoop, Destructing):
                 }
             )
 
-        self._del_to_be_sure("client")
+        await self._del_to_be_sure("client")
 
         super(WithClient, self).tearDown()
 
@@ -317,28 +318,24 @@ class TestServerBase(WithTestServer, WithClient):
         request.unresolved_remote = self.servernetloc
         return request
 
-    @asynctest
-    async def fetch_response(self, request):
-        return await self.client.request(request).response
-
 
 class TestServer(TestServerBase):
     @no_warnings
-    def test_empty_accept(self):
+    async def test_empty_accept(self):
         request = self.build_request()
         request.opt.uri_path = ["empty"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code, aiocoap.CONTENT, "Simple request did not succede"
         )
         self.assertEqual(response.payload, b"", "Simple request gave unexpected result")
 
     @no_warnings
-    def test_unacceptable_accept(self):
+    async def test_unacceptable_accept(self):
         request = self.build_request()
         request.opt.uri_path = ["empty"]
         request.opt.accept = 9999
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code,
             aiocoap.NOT_ACCEPTABLE,
@@ -346,28 +343,28 @@ class TestServer(TestServerBase):
         )
 
     @no_warnings
-    def test_js_accept(self):
+    async def test_js_accept(self):
         request = self.build_request()
         request.opt.uri_path = ["empty"]
         request.opt.accept = ContentFormat.JSON
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(response.code, aiocoap.CONTENT, "JSON request did not succede")
         self.assertEqual(response.payload, b"{}", "JSON request gave unexpected result")
 
     @no_warnings
-    def test_nonexisting_resource(self):
+    async def test_nonexisting_resource(self):
         request = self.build_request()
         request.opt.uri_path = ["nonexisting"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code, aiocoap.NOT_FOUND, "Nonexisting resource was not not found"
         )
 
     @no_warnings
-    def test_spurious_resource(self):
+    async def test_spurious_resource(self):
         request = self.build_request()
         request.opt.uri_path = ["..", "empty"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         # different behavior would be ok-ish, as the .. in the request is forbidden, but returning 4.04 is sane here
         self.assertEqual(
             response.code,
@@ -377,21 +374,21 @@ class TestServer(TestServerBase):
 
     @no_warnings
     @slow_empty_ack()
-    def test_fast_resource(self):
+    async def test_fast_resource(self):
         request = self.build_request()
         request.opt.uri_path = ["empty"]
 
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
 
         self.assertEqual(response.code, aiocoap.CONTENT, "Fast request did not succede")
         self.assertEqual(self._count_empty_acks(), 0, "Fast resource had an empty ack")
 
     @no_warnings
-    def test_slow_resource(self):
+    async def test_slow_resource(self):
         request = self.build_request()
         request.opt.uri_path = ["slow"]
 
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
 
         self.assertEqual(response.code, aiocoap.CONTENT, "Slow request did not succede")
         if response.requested_scheme in (None, "coap"):
@@ -402,10 +399,10 @@ class TestServer(TestServerBase):
             )
 
     @no_warnings
-    def test_big_resource(self):
+    async def test_big_resource(self):
         request = self.build_request()
         request.opt.uri_path = ["big"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code, aiocoap.CONTENT, "Big resource request did not succede"
         )
@@ -420,7 +417,7 @@ class TestServer(TestServerBase):
         request = self.build_request()
         request.opt.uri_path = ["big"]
         request.opt.etags = [response.opt.etag]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code,
             aiocoap.VALID,
@@ -432,10 +429,10 @@ class TestServer(TestServerBase):
 
     @no_warnings
     @slow_empty_ack()
-    def test_slowbig_resource(self):
+    async def test_slowbig_resource(self):
         request = self.build_request()
         request.opt.uri_path = ["slowbig"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code, aiocoap.CONTENT, "SlowBig resource request did not succede"
         )
@@ -450,10 +447,10 @@ class TestServer(TestServerBase):
             )
 
     @no_warnings
-    def test_manualbig_resource(self):
+    async def test_manualbig_resource(self):
         request = self.build_request()
         request.opt.uri_path = ["manualbig"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code, aiocoap.CONTENT, "ManualBig resource request did not succede"
         )
@@ -462,14 +459,14 @@ class TestServer(TestServerBase):
         )
 
     @no_warnings
-    def test_replacing_resource(self):
+    async def test_replacing_resource(self):
         testpattern = b"01" * 1024
 
         request = self.build_request()
         request.code = aiocoap.PUT
         request.payload = testpattern
         request.opt.uri_path = ["replacing", "one"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code, aiocoap.CHANGED, "PUT did not result in CHANGED"
         )
@@ -478,7 +475,7 @@ class TestServer(TestServerBase):
         request = self.build_request()
         request.code = aiocoap.GET
         request.opt.uri_path = ["replacing", "one"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code,
             aiocoap.CONTENT,
@@ -494,7 +491,7 @@ class TestServer(TestServerBase):
         request.code = aiocoap.POST
         request.payload = testpattern
         request.opt.uri_path = ["replacing", "one"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code,
             aiocoap.CONTENT,
@@ -506,10 +503,10 @@ class TestServer(TestServerBase):
             "Replacing resource did not replace as expected when POSTed",
         )
 
-    def test_error_resources(self):
+    async def test_error_resources(self):
         request = self.build_request()
         request.opt.uri_path = ["error", "generic"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code,
             aiocoap.INTERNAL_SERVER_ERROR,
@@ -521,7 +518,7 @@ class TestServer(TestServerBase):
 
         request = self.build_request()
         request.opt.uri_path = ["error", "pretty"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code,
             aiocoap.NOT_FOUND,
@@ -534,7 +531,7 @@ class TestServer(TestServerBase):
 
         request = self.build_request()
         request.opt.uri_path = ["error", "double"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code,
             aiocoap.INTERNAL_SERVER_ERROR,
@@ -545,10 +542,10 @@ class TestServer(TestServerBase):
         )
 
     @no_warnings
-    def test_root_resource(self):
+    async def test_root_resource(self):
         request = self.build_request()
         request.opt.uri_path = []
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertEqual(response.code, aiocoap.CONTENT, "Root resource was not found")
 
     _empty_ack_logmsg = re.compile(
@@ -565,8 +562,8 @@ class TestServer(TestServerBase):
         )
 
     @no_warnings
-    def test_clean_shutdown(self):
-        self.loop.run_until_complete(self.client.shutdown())
+    async def test_clean_shutdown(self):
+        await self.client.shutdown()
         self.test_did_shut_down_client = True
 
         request = self.build_request()
@@ -578,7 +575,7 @@ class TestServer(TestServerBase):
         # really begun yet), and it's highly unlikely that we hit the juicy
         # cases.
         with self.assertRaises(aiocoap.error.LibraryShutdown):
-            self.loop.run_until_complete(self.fetch_response(request))
+            await self.client.request(request).response
 
 
 @unittest.skipIf(common.tcp_disabled, "TCP disabled in environment")

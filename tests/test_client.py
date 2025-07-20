@@ -6,14 +6,13 @@ import asyncio
 import aiocoap
 import errno
 
-from .test_server import WithTestServer, WithClient, no_warnings, asynctest
+from .test_server import WithTestServer, WithClient, no_warnings
 
 
 class TestClientWithSetHost(WithTestServer, WithClient):
     set_uri_host = True
 
     @no_warnings
-    @asynctest
     async def test_uri_parser(self):
         request = aiocoap.Message(code=aiocoap.GET)
         request_uri = "coap://" + self.servernetloc + "/empty?query=a&query=b"
@@ -54,7 +53,7 @@ class TestClientWithSetHost(WithTestServer, WithClient):
             # The simple6 transport misreports remotes to which a socket was
             # opened with a name.
             if "simple6" not in list(
-                aiocoap.defaults.get_default_clienttransports(loop=self.loop)
+                aiocoap.defaults.get_default_clienttransports()
             ):
                 self.assertEqual(
                     response.get_request_uri(),
@@ -63,7 +62,6 @@ class TestClientWithSetHost(WithTestServer, WithClient):
                 )
 
     @no_warnings
-    @asynctest
     async def test_uri_parser2(self):
         """A difficult test because it is prone to keeping the transport
         around, bothering later tests"""
@@ -104,16 +102,14 @@ class TestClientWithHostlessMessages(TestClientWithSetHost):
 
 class TestClientOther(WithTestServer, WithClient):
     @no_warnings
-    # can't do @asynctest because of assertRaises
-    def test_raising(self):
+    async def test_raising(self):
         """This test obtains results via the response_raising property of a
         Request."""
-        yieldfrom = self.loop.run_until_complete
 
         request = aiocoap.Message(
             code=aiocoap.GET, uri="coap://" + self.servernetloc + "/empty"
         )
-        response = yieldfrom(self.client.request(request).response_raising)
+        response = await self.client.request(request).response_raising
         self.assertEqual(
             response.code,
             aiocoap.CONTENT,
@@ -125,14 +121,10 @@ class TestClientOther(WithTestServer, WithClient):
         )
         ## @FIXME i'd like to assertRaises(NotFound), see docstring of
         # :class:`ResponseWrappingError`
-        self.assertRaises(
-            aiocoap.error.ResponseWrappingError,
-            yieldfrom,
-            self.client.request(request).response_raising,
-        )
+        with self.assertRaises(aiocoap.error.ResponseWrappingError):
+            await self.client.request(request).response_raising
 
     @no_warnings
-    @asynctest
     async def test_nonraising(self):
         """This test obtains results via the response_nonraising property of a
         Request."""
@@ -153,7 +145,6 @@ class TestClientOther(WithTestServer, WithClient):
         self.assertEqual(response.code, aiocoap.INTERNAL_SERVER_ERROR)
 
     @no_warnings
-    @asynctest
     async def test_freeoncancel(self):
         # As there's no programmatic feedback about what actually gets sent,
         # looking at the logs is the easiest option, even though it will
@@ -187,7 +178,6 @@ class TestClientOther(WithTestServer, WithClient):
         # ACK Content from the prior test also got counted.
 
     @no_warnings
-    @asynctest
     async def test_freeoncancel_non(self):
         # With a NON, the response should take long. (Not trying to race the
         # "I'm taking too long"-ACK by making the sleep short enough).

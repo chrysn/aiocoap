@@ -15,7 +15,6 @@ from .test_server import (
     WithTestServer,
     WithClient,
     no_warnings,
-    asynctest,
     BigResource,
     BasicTestingSite,
 )
@@ -42,7 +41,6 @@ class TestBlockwise(WithChunkyTestServer, WithClient):
     # tracked as https://github.com/chrysn/aiocoap/issues/58; behavior can be successful more or less by chance
     @unittest.skip
     @no_warnings
-    @asynctest
     async def test_sequential(self):
         """Test whether the client serializes simultaneous block requests"""
 
@@ -76,7 +74,6 @@ class TestBlockwise(WithChunkyTestServer, WithClient):
         )
 
     @no_warnings
-    @asynctest
     async def test_client_hints(self):
         """Test whether a handle_blockwise=True request takes a block2 option
         set in it as a hint to start requesting with a low size right away
@@ -101,7 +98,6 @@ class TestBlockwise(WithChunkyTestServer, WithClient):
         )
 
     @no_warnings
-    @asynctest
     async def test_server_hints(self):
         """Test whether the needs_blockwise server mechanism considers size
         exponent limits of the remote.
@@ -125,7 +121,6 @@ class TestBlockwise(WithChunkyTestServer, WithClient):
         )
 
     @no_warnings
-    @asynctest
     async def test_client_hints_block1(self):
         """Test whether a client can successfully indicate per-remote sizes
         even for the block1 phase."""

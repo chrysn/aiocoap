@@ -41,39 +41,19 @@ def is_test_successful(testcase):
     return testcase._outcome.success
 
 
-def asynctest(method):
-    """Decorator for async WithAsyncLoop fixtures methods that runs them from
-    the fixture's loop with a static timeout"""
-
-    @functools.wraps(method)
-    def wrapper(self, *args, **kwargs):
-        task = asyncio.ensure_future(method(self, *args, **kwargs), loop=self.loop)
-        for f in asyncio.as_completed([task], timeout=ASYNCTEST_TIMEOUT):
-            try:
-                return self.loop.run_until_complete(f)
-            except asyncio.TimeoutError:
-                task.cancel()
-                # give the task a chance to run finally handlers
-                self.loop.run_until_complete(task)
-                raise
-
-    return wrapper
-
-
 def no_warnings(function, expected_warnings=None):
-    if inspect.iscoroutinefunction(function):
-        raise Exception(
-            "no_warnings decorates functions, not coroutines. Put it over @asynctest."
-        )
     expected_warnings = expected_warnings or []
 
-    def wrapped(self, *args, function=function):
+    def sync_pre(self):
         # assertLogs does not work as assertDoesntLog anyway without major
         # tricking, and it interacts badly with WithLogMonitoring as they both
         # try to change the root logger's level.
 
         startcount = len(self.handler.list)
-        result = function(self, *args)
+        return (startcount,)
+
+    def sync_post(self, pre):
+        (startcount,) = pre
         messages = [
             m.getMessage()
             for m in self.handler.list[startcount:]
@@ -93,7 +73,20 @@ def no_warnings(function, expected_warnings=None):
                 expected_warnings,
                 "Function %s had unexpected warnings" % function.__name__,
             )
-        return result
+
+    # Happy function coloring workaround
+    if inspect.iscoroutinefunction(function):
+        async def wrapped(self, *args, function=function):
+            pre = sync_pre(self)
+            result = await function(self, *args)
+            sync_post(self, pre)
+            return result
+    else:
+        def wrapped(self, *args, function=function):
+            pre = sync_pre(self)
+            result = function(self, *args)
+            sync_post(self, pre)
+            return result
 
     wrapped.__name__ = function.__name__
     wrapped.__doc__ = function.__doc__
@@ -109,7 +102,7 @@ def precise_warnings(expected_warnings):
     return functools.partial(no_warnings, expected_warnings=expected_warnings)
 
 
-class WithLogMonitoring(unittest.TestCase):
+class WithLogMonitoring(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.handler = self.ListHandler()
 
@@ -201,20 +194,13 @@ class WithLogMonitoring(unittest.TestCase):
             raise AssertionError("Warning not logged: %r" % message)
 
 
-class WithAsyncLoop(unittest.TestCase):
-    def setUp(self):
-        super(WithAsyncLoop, self).setUp()
-
-        self.loop = asyncio.get_event_loop()
-
-
 class Destructing(WithLogMonitoring):
     # Errors produced by this can be quite large, but the truncated version
     # that gets printed when they exceed maxDiff is not useful, so removing any
     # printing limits.
     maxDiff = None
 
-    def _del_to_be_sure(self, attribute):
+    async def _del_to_be_sure(self, attribute):
         if isinstance(attribute, str):
             getter = lambda self, attribute=attribute: getattr(self, attribute)
             deleter = lambda self, attribute=attribute: delattr(self, attribute)
@@ -234,7 +220,7 @@ class Destructing(WithLogMonitoring):
             return
 
         # let everything that gets async-triggered by close() happen
-        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
+        await asyncio.sleep(CLEANUPTIME)
         gc.collect()
 
         def snapshot():
@@ -313,7 +299,7 @@ class Destructing(WithLogMonitoring):
                 # debugging situation
                 logging.root.info("Starting extended grace period")
                 for i in range(10):
-                    self.loop.run_until_complete(asyncio.sleep(1))
+                    await asyncio.sleep(1)
                     gc.collect()
                     s = snapshot()
                     if s is None:

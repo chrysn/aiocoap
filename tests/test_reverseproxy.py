@@ -7,7 +7,6 @@ import unittest
 
 from . import common
 from .test_server import (
-    WithAsyncLoop,
     Destructing,
     WithClient,
     WithTestServer,
@@ -18,9 +17,9 @@ import aiocoap.cli.proxy
 from aiocoap.util import hostportjoin
 
 
-class WithReverseProxy(WithAsyncLoop, Destructing):
-    def setUp(self):
-        super(WithReverseProxy, self).setUp()
+class WithReverseProxy(Destructing):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
 
         self.reverseproxy = aiocoap.cli.proxy.Main(
             [
@@ -32,17 +31,14 @@ class WithReverseProxy(WithAsyncLoop, Destructing):
                 "--pathbased",
                 "%s:%s" % ("/".join(self.path_for_real_server), self.servernetloc),
             ],
-            loop=self.loop,
         )
-        self.loop.run_until_complete(self.reverseproxy.initializing)
+        await self.reverseproxy.initializing
 
-    def tearDown(self):
-        super(WithReverseProxy, self).tearDown()
-        self.loop.run_until_complete(self.reverseproxy.shutdown())
-
-        self._del_to_be_sure("reverseproxy")
-
-        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
+    async def asyncTearDown(self):
+        await self.reverseproxy.shutdown()
+        await self._del_to_be_sure("reverseproxy")
+        await asyncio.sleep(CLEANUPTIME)
+        await super().asyncTearDown()
 
     proxyport = 56839
     proxyhost = common.loopbackname_v6 or common.loopbackname_v46
@@ -57,9 +53,7 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
         common.using_simple6,
         "Some proxy tests fail with simple6 (https://github.com/chrysn/aiocoap/issues/88)",
     )
-    def test_routing(self):
-        yieldfrom = lambda f: self.loop.run_until_complete(f)
-
+    async def test_routing(self):
         def req():
             request = aiocoap.Message(code=aiocoap.GET)
             request.unresolved_remote = self.proxyaddress
@@ -68,7 +62,7 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
 
         request = req()
 
-        response = yieldfrom(self.client.request(request).response)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code,
             aiocoap.BAD_REQUEST,
@@ -78,7 +72,7 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
         request = req()
         request.opt.uri_host = self.name_for_real_server
 
-        response = yieldfrom(self.client.request(request).response)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code,
             aiocoap.CONTENT,
@@ -88,7 +82,7 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
         request = req()
         request.opt.uri_path = self.path_for_real_server + request.opt.uri_path
 
-        response = yieldfrom(self.client.request(request).response)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code,
             aiocoap.CONTENT,
@@ -99,9 +93,7 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
         common.using_simple6,
         "Some proxy tests fail with simple6 (https://github.com/chrysn/aiocoap/issues/88)",
     )
-    def test_options(self):
-        yieldfrom = lambda f: self.loop.run_until_complete(f)
-
+    async def test_options(self):
         def req():
             request = aiocoap.Message(code=aiocoap.GET)
             request.unresolved_remote = self.proxyaddress
@@ -113,7 +105,7 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
 
         request.opt.proxy_scheme = "coap"
 
-        response = yieldfrom(self.client.request(request).response)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code,
             aiocoap.BAD_OPTION,
@@ -125,7 +117,7 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
             aiocoap.optiontypes.StringOption(2**10 + 2, "can't proxy this")
         )
 
-        response = yieldfrom(self.client.request(request).response)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code, aiocoap.BAD_OPTION, "Proxy did not react to unsafe option."
         )
@@ -135,7 +127,7 @@ class TestReverseProxy(WithReverseProxy, WithClient, WithTestServer):
             aiocoap.optiontypes.StringOption(2**10, "nothing to see here")
         )
 
-        response = yieldfrom(self.client.request(request).response)
+        response = await self.client.request(request).response
         self.assertEqual(
             response.code,
             aiocoap.CONTENT,
