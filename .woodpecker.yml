@@ -27,10 +27,14 @@ steps:
       FORCE_COLOR: "1"
     commands:
       - apt-get update
-      - apt-get -y install tox build-essential python3.11-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev libgirepository1.0-dev libcairo2-dev
+      - apt-get -y install tox build-essential python3.11-dev libssl-dev autoconf python3-setuptools python3-pip iproute2 libffi-dev libgirepository1.0-dev libcairo2-dev python3-build
+      # tox uses the host's setuptools to run sdist, which won't work with the
+      # old setuptools 66 of this distribution. (But we don't need setuptools
+      # for sdist, build produces a suitable file just as well).
+      - python3 -m build
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
-      - tox --notest
-      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+      - tox --notest --installpkg dist/aiocoap-*.whl
+      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --installpkg dist/aiocoap-*.whl"
       - mkdir collected-coverage/tox-bookworm/ -p
       - mv .coverage* collected-coverage/tox-bookworm/
 
