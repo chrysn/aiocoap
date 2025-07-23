@@ -124,6 +124,12 @@ class WithLogMonitoring(unittest.IsolatedAsyncioTestCase):
             x.preformatted for x in self.handler.list if x.name != "asyncio"
         )
 
+        # GC runs can emit ResourceWarning, eg. from `sock_finalize`. Let's
+        # make sure they don't show up randomly in the next test. (We should
+        # still get a hold of them, given that they indicate trouble, but let's
+        # not indicate trouble in *unrelated* tests).
+        gc.collect()
+
         if "AIOCOAP_TESTS_SHOWLOG" in os.environ:
             print(complete_log, file=sys.stderr)
             complete_log = "was just printed unconditionally anyway"
