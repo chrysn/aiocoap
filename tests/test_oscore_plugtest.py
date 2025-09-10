@@ -209,9 +209,13 @@ class TestOSCOREPlugtestWithRecovery(TestOSCOREPlugtestBase):
 
 for x in range(0, 17):
     for cls in (TestOSCOREPlugtestWithRecovery, TestOSCOREPlugtestWithoutRecovery):
-        t = lambda self, x=x: self._test_plugtestclient(x)
+
+        async def t(self, x=x):
+            await self._test_plugtestclient(x)
+
         if x == 16:
-            # That test can not succeed against a regular plugtest server
+            # That test can not succeed against a regular plugtest server: It
+            # is about sending an OSCORE message to a non-OSCORE server.
             t = unittest.expectedFailure(t)
         if x == 7:
             # That test fails because there is no proper observation cancellation
