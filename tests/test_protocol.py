@@ -29,11 +29,6 @@ class TestProtocolSetup(WithLogMonitoring):
     # The following tests should be converted to context managers once usable.
 
     @no_warnings
-    # Workaround for https://github.com/chrysn/aiocoap/issues/321
-    @unittest.skipIf(
-        hasattr(common, "gbulb"),
-        reason="uvloop has unresolved issues with unused contexts",
-    )
     async def test_multiple_contexts(self):
         # Not that that'd be a regular thing to do, just checking it *can* be
         # done

@@ -46,7 +46,7 @@ These tools are currently present:
   and additionally serve as a playground for a more suitable Resource
   implementation.
 
-  The GUI is implemented in Gtk3 using the gbulb_ asyncio loop.
+  The GUI is implemented in Gtk3 using the gobject_ asyncio loop.
 
 * ``aiocoap-kivy-widget``: A similar (and smaller) widget implemented in Kivy_.
 
@@ -65,6 +65,6 @@ These tools are currently present:
 
   These files can be uploaded to `a live version of Jupyter Lite`_.
 
-.. _gbulb: https://github.com/nathan-hoad/gbulb
+.. _gobject: https://pygobject.gnome.org/guide/asynchronous.html
 .. _Kivy: https://kivy.org/
 .. _`a live version of Jupyter Lite`: https://jupyter.org/try-jupyter/lab/

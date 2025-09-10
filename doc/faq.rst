@@ -29,7 +29,7 @@ while it is not clear where to better put them).
   aiocoap is agnostic of the backing asyncio implementation
   as long as it implements the functionality required by the transport
   (``add_reader`` for udp6, ``sockname`` extra for role reversal on simple6).
-  It is known to work with uvloop_ and gbulb_.
+  It is known to work with uvloop_ and gobject_.
 
   When aiocoap is used with pyodide_
   (that is, in a web browser, with a Python interpreter compiled through emscripten),
@@ -39,7 +39,7 @@ while it is not clear where to better put them).
   in the :mod:`WebSockets transport<aiocoap.transports.ws>`.
 
 .. _uvloop: https://uvloop.readthedocs.io/
-.. _gbulb: https://github.com/nathan-hoad/gbulb
+.. _gobject: https://pygobject.gnome.org/guide/asynchronous.html
 .. _pyodide: https://pyodide.org/
 .. _`Jupyter notebook`: https://jupyter.org/try-jupyter/lab/
 

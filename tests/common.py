@@ -15,10 +15,6 @@ if os.environ.get("AIOCOAP_TESTS_LOOP", None) == "uvloop":
     import uvloop
 
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-elif os.environ.get("AIOCOAP_TESTS_LOOP", None) == "gbulb":
-    import gbulb
-
-    gbulb.install()
 elif os.environ.get("AIOCOAP_TESTS_LOOP", None) == "glib":
     from gi.events import GLibEventLoopPolicy
 
