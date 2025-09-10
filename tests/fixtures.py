@@ -262,6 +262,9 @@ class Destructing(WithLogMonitoring):
                 if str(type(frame)) == "<class 'frame'>":
                     return _format_frame(frame, survivor_id)
 
+                # Kept for future reference only; it appears that at some point
+                # up to Python 3.14, get_referrers switched over from producing
+                # the dict of an object to the object itself.
                 if isinstance(frame, dict):
                     # If it's a __dict__, it'd be really handy to know whose dict that is
                     framerefs = gc.get_referrers(frame)
