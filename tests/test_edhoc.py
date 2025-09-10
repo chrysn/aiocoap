@@ -96,8 +96,8 @@ class WithEdhocPair(WithTestServer, WithClient):
         )
 
     async def asyncTearDown(self):
-        self.tmpdir.cleanup()
         await super().asyncTearDown()
+        self.tmpdir.cleanup()
 
 
 edhoc_modules = aiocoap.defaults.oscore_missing_modules()
