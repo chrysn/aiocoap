@@ -427,6 +427,7 @@ class WSPool(interfaces.TokenInterface):
     async def shutdown(self):
         self._in_shutdown = True
         self.log.debug("Shutting down any connections on %r", self)
+        self._tokenmanager = None
 
         client_shutdowns = [
             asyncio.create_task(
