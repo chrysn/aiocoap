@@ -212,7 +212,7 @@ class Destructing(WithLogMonitoring):
         if isinstance(attribute, str):
             getter = lambda self, attribute=attribute: getattr(self, attribute)
             deleter = lambda self, attribute=attribute: delattr(self, attribute)
-            label = attribute
+            label = "self." + attribute
         else:
             getter = attribute["get"]
             deleter = attribute["del"]
@@ -324,6 +324,7 @@ class Destructing(WithLogMonitoring):
             else:
                 snapshotsmessage = s
             errormessage = (
-                "Protocol %s was not garbage collected.\n\n" % label + snapshotsmessage
+                "Test component %s was not garbage collected.\n\n" % label
+                + snapshotsmessage
             )
             self.fail(errormessage)

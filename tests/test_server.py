@@ -256,7 +256,7 @@ class WithTestServer(Destructing):
                 {
                     "get": (lambda self: self.server.request_interfaces[0]),
                     "del": (lambda self: self.server.request_interfaces.__delitem__(0)),
-                    "label": "request_interfaces[%s]"
+                    "label": "self.request_interfaces[%s]"
                     % self.server.request_interfaces[0],
                 }
             )
@@ -293,7 +293,7 @@ class WithClient(Destructing):
                 {
                     "get": (lambda self: self.client.request_interfaces[0]),
                     "del": (lambda self: self.client.request_interfaces.__delitem__(0)),
-                    "label": "request_interfaces[%s]"
+                    "label": "self.client.request_interfaces[0] which is %s"
                     % self.client.request_interfaces[0],
                 }
             )
