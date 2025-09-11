@@ -170,7 +170,10 @@ class WithLogMonitoring(IsolatedAsyncioTestCase):
         def emit(self, record):
             record.preformatted = self.preformatter.format(record)
 
-            record.orig_msg = record.msg
+            if not hasattr(record, "orig_msg"):
+                # Apparently the same record sometimes gets emitted twice, so
+                # let's not overwrite the valuable information in here.
+                record.orig_msg = record.msg
             if record.args and not hasattr(record, "style"):
                 # Several of the precise_warnings and simiiar uses rely on the
                 # ability to match on the message as shown. This mechanism
