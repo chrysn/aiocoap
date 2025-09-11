@@ -33,6 +33,17 @@ CLEANUPTIME = 0.01
 ASYNCTEST_TIMEOUT = 3 * 60
 
 
+class IsolatedAsyncioTestCase(unittest.IsolatedAsyncioTestCase):
+    if os.environ.get("AIOCOAP_TESTS_LOOP", None) == "uvloop":
+        import uvloop as _uvloop
+
+        loop_factory = lambda self: self._uvloop.new_event_loop()
+    elif os.environ.get("AIOCOAP_TESTS_LOOP", None) == "glib":
+        from gi.events import GLibEventLoopPolicy as _GLibEventLoopPolicy
+
+        loop_factory = lambda self: self._GLibEventLoopPolicy().new_event_loop()
+
+
 def is_test_successful(testcase):
     """Return true if a current TestCase instancance completed so far without
     raising errors. This is supposed to be used in asyncTearDown handlers on self
@@ -104,7 +115,7 @@ def precise_warnings(expected_warnings):
     return functools.partial(no_warnings, expected_warnings=expected_warnings)
 
 
-class WithLogMonitoring(unittest.IsolatedAsyncioTestCase):
+class WithLogMonitoring(IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.handler = self.ListHandler()
 

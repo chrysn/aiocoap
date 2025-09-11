@@ -10,17 +10,6 @@ import asyncio
 
 import aiocoap.defaults
 
-if os.environ.get("AIOCOAP_TESTS_LOOP", None) == "uvloop":
-    import asyncio
-    import uvloop
-
-    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-elif os.environ.get("AIOCOAP_TESTS_LOOP", None) == "glib":
-    from gi.events import GLibEventLoopPolicy
-
-    policy = GLibEventLoopPolicy()
-    asyncio.set_event_loop_policy(policy)
-
 # All test servers are bound to loopback; if for any reason one'd want to run
 # with particular transports, just set them explicitly.
 os.environ["AIOCOAP_DTLSSERVER_ENABLED"] = "1"
