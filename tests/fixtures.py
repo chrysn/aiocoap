@@ -34,6 +34,15 @@ ASYNCTEST_TIMEOUT = 3 * 60
 
 
 class IsolatedAsyncioTestCase(unittest.IsolatedAsyncioTestCase):
+    if sys.version_info < (3, 13):
+        # Patching in the 3.13 feature that loop_factory is respected
+        def _setupAsyncioRunner(self):
+            assert self._asyncioRunner is None, "asyncio runner is already initialized"
+            runner = asyncio.Runner(debug=True, loop_factory=self.loop_factory)
+            self._asyncioRunner = runner
+
+        loop_factory = None
+
     if os.environ.get("AIOCOAP_TESTS_LOOP", None) == "uvloop":
         import uvloop as _uvloop
 
