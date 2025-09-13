@@ -22,7 +22,7 @@ when:
 steps:
   test:tox-bookworm:
     image: debian:bookworm
-    depends_on: [test:3.13]
+    depends_on: [test:3.13-minimal]
     environment:
       FORCE_COLOR: "1"
     commands:
@@ -40,7 +40,7 @@ steps:
 
   test:pypy:
     image: docker.io/pypy:3
-    depends_on: [test:3.13]
+    depends_on: [test:3.13-minimal]
     environment:
       FORCE_COLOR: "1"
     commands:
@@ -57,7 +57,7 @@ steps:
 
   test:py312:
     image: docker.io/python:3.12
-    depends_on: [test:3.13]
+    depends_on: [test:3.13-minimal]
     environment:
       FORCE_COLOR: "1"
     commands:
@@ -72,12 +72,26 @@ steps:
       - mv .coverage* collected-coverage/tox-3.12/
 
 
-  test:3.13:
+  test:3.13-minimal:
     image: docker.io/python:3.13
     depends_on: []
     environment:
+      # This is the fastest we can run at all, and serves as our "hero test"
+      TOXENV: "py313-noextras"
+      FORCE_COLOR: "1"
+    commands:
+      - pip install tox
+      - tox --notest --skip-env '^py31[^3]'
+      - tox --skip-env '^py31[^3]'
+      - mkdir collected-coverage/tox-3.13-minimal/ -p
+      - mv .coverage* collected-coverage/tox-3.13-minimal/
+
+  test:3.13:
+    image: docker.io/python:3.13
+    depends_on: [test:3.13-minimal]
+    environment:
       # Possibly necessary because the image uses some Debian as a base might have another Python installed
-      TOXENV: "py313-noextras,py313-allextras"
+      TOXENV: "py313-allextras"
       FORCE_COLOR: "1"
     commands:
       - apt-get update
@@ -147,6 +161,7 @@ steps:
     depends_on:
       - test:tox-bookworm
       - test:py312
+      - test:3.13-minimal
       - test:3.13
       - test:pypy
       - doc

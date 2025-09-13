@@ -13,7 +13,7 @@ import aiocoap
 import aiocoap.defaults
 from aiocoap.util import hostportjoin
 
-from .test_server import WithAsyncLoop, WithClient, asynctest
+from .test_server import WithClient
 from .fixtures import is_test_successful
 
 from .common import PYTHON_PREFIX, CapturingSubprocess
@@ -77,24 +77,26 @@ class WithAssertNofaillines(unittest.TestCase):
     "Module missing for running OSCORE tests: %s"
     % (aiocoap.defaults.oscore_missing_modules(),),
 )
-class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
-    def setUp(self):
-        super(WithPlugtestServer, self).setUp()
-        ready = self.loop.create_future()
-        self.__done = self.loop.create_future()
+class WithPlugtestServer(WithAssertNofaillines):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        ready = asyncio.get_event_loop().create_future()
+        self.__done = asyncio.get_event_loop().create_future()
 
         self.contextdir = tempfile.mkdtemp(suffix="-contexts")
 
-        self.__task = self.loop.create_task(self.run_server(ready, self.__done))
+        self.__task = asyncio.get_event_loop().create_task(
+            self.run_server(ready, self.__done)
+        )
         self.__task.add_done_callback(
             lambda _: None
             if ready.done()
             else ready.set_exception(self.__task.exception())
         )
-        self.loop.run_until_complete(ready)
+        await ready
 
     async def run_server(self, readiness, done):
-        self.process, process_outputs = await self.loop.subprocess_exec(
+        self.process, process_outputs = await asyncio.get_event_loop().subprocess_exec(
             CapturingSubprocess, *self.SERVER, self.contextdir + "/server", stdin=None
         )
         try:
@@ -125,13 +127,13 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
         finally:
             self.process.close()
 
-    def tearDown(self):
+    async def asyncTearDown(self):
         # Don't leave this over, even if anything is raised during teardown
         self.process.terminate()
 
-        super().tearDown()
+        await super().asyncTearDown()
 
-        out, err = self.loop.run_until_complete(self.__done)
+        out, err = await self.__done
 
         if not is_test_successful(self):
             if not out and not err:
@@ -161,9 +163,8 @@ class WithPlugtestServer(WithAsyncLoop, WithAssertNofaillines):
 
 
 class TestOSCOREPlugtestBase(WithPlugtestServer, WithClient, WithAssertNofaillines):
-    @asynctest
     async def _test_plugtestclient(self, x):
-        proc, transport = await self.loop.subprocess_exec(
+        proc, transport = await asyncio.get_event_loop().subprocess_exec(
             CapturingSubprocess,
             *(
                 CLIENT
@@ -208,9 +209,13 @@ class TestOSCOREPlugtestWithRecovery(TestOSCOREPlugtestBase):
 
 for x in range(0, 17):
     for cls in (TestOSCOREPlugtestWithRecovery, TestOSCOREPlugtestWithoutRecovery):
-        t = lambda self, x=x: self._test_plugtestclient(x)
+
+        async def t(self, x=x):
+            await self._test_plugtestclient(x)
+
         if x == 16:
-            # That test can not succeed against a regular plugtest server
+            # That test can not succeed against a regular plugtest server: It
+            # is about sending an OSCORE message to a non-OSCORE server.
             t = unittest.expectedFailure(t)
         if x == 7:
             # That test fails because there is no proper observation cancellation

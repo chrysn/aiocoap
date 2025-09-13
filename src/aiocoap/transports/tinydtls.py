@@ -247,6 +247,9 @@ class DTLSClientConnection(interfaces.EndpointAddress):
             # This also does what `.close()` does -- that would happen at
             # __del__, but let's wait for that.
             self._dtls_socket.resetPeer(self._connection)
+            # At least on Python 3.12 with websockets present in tests, this
+            # needs to be dropped now or segfaults happen.
+            self._connection = None
         # doing this here allows the dtls socket to send a final word, but
         # by closing this, we protect the nascent next connection from any
         # delayed ICMP errors that might still wind up in the old socket

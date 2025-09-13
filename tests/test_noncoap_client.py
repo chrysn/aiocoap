@@ -13,8 +13,8 @@ import unittest
 
 import aiocoap
 
-from .fixtures import precise_warnings, no_warnings, asynctest
-from .test_server import WithTestServer, WithAsyncLoop
+from .fixtures import precise_warnings, no_warnings
+from .test_server import WithTestServer
 
 # For some reasons site-local requests do not work on my test setup, resorting
 # to link-local; that means a link needs to be given, and while we never need
@@ -44,6 +44,10 @@ class MockSockProtocol:
         self.incoming_queue.put_nowait((data, addr))
 
     async def close(self):
+        self.transport.close()
+
+    def connection_lost(self, exc):
+        # This is a datagram transport, it's only closed because we closed it
         pass
 
     # emulating the possibly connected socket.socket this once was
@@ -58,48 +62,42 @@ class MockSockProtocol:
         return (await self.incoming_queue.get())[0]
 
 
-class WithMockSock(WithAsyncLoop):
-    def setUp(self):
-        super().setUp()
-        _, self.mocksock = self.loop.run_until_complete(
-            self.loop.create_datagram_endpoint(
-                lambda: MockSockProtocol(self.mocksock_remote_addr),
-                family=socket.AF_INET6,
-            )
+class WithMockSock(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        _, self.mocksock = await asyncio.get_event_loop().create_datagram_endpoint(
+            lambda: MockSockProtocol(self.mocksock_remote_addr),
+            family=socket.AF_INET6,
         )
 
-    def tearDown(self):
-        self.loop.run_until_complete(self.mocksock.close())
+    async def asyncTearDown(self):
+        await self.mocksock.close()
 
-        super().tearDown()
+        await super().asyncTearDown()
 
 
 class TestNoncoapClient(WithTestServer, WithMockSock):
-    def setUp(self):
+    async def asyncSetUp(self):
         self.mocksock_remote_addr = (self.serveraddress, aiocoap.COAP_PORT)
 
-        super().setUp()
+        await super().asyncSetUp()
 
     @precise_warnings(["Ignoring unparsable message from ..."])
-    @asynctest
     async def test_veryshort(self):
         self.mocksock.send(b"\x40")
         await asyncio.sleep(0.1)
 
     @precise_warnings(["Ignoring unparsable message from ..."])
-    @asynctest
     async def test_short_mid(self):
         self.mocksock.send(b"\x40\x01\x97")
         await asyncio.sleep(0.1)
 
     @precise_warnings(["Ignoring unparsable message from ..."])
-    @asynctest
     async def test_version2(self):
         self.mocksock.send(b"\x80\x01\x99\x98")
         await asyncio.sleep(0.1)
 
     @no_warnings
-    @asynctest
     async def test_duplicate(self):
         self.mocksock.send(b"\x40\x01\x99\x99")  # that's a GET /
         await asyncio.sleep(0.1)
@@ -115,7 +113,6 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
         self.assertTrue(r1 is not None, "No responses received to duplicate GET")
 
     @no_warnings
-    @asynctest
     async def test_ping(self):
         self.mocksock.send(
             b"\x40\x00\x99\x9a"
@@ -124,7 +121,6 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
         assert response == b"\x70\x00\x99\x9a"
 
     @no_warnings
-    @asynctest
     async def test_noresponse(self):
         self.mocksock.send(
             b"\x50\x01\x99\x9b\xd1\xf5\x02"
@@ -138,7 +134,6 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
             pass
 
     @no_warnings
-    @asynctest
     async def test_unknownresponse_reset(self):
         self.mocksock.send(
             bytes.fromhex("4040ffff")
@@ -151,7 +146,6 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
         )
 
     @no_warnings
-    @asynctest
     async def test_unknownresponse_noreset(self):
         self.mocksock.send(
             bytes.fromhex("6040ffff")
@@ -172,14 +166,13 @@ class TestNoncoapMulticastClient(WithTestServer, WithMockSock):
     # explicitly, though.
     serveraddress = "::"
 
-    def setUp(self):
+    async def asyncSetUp(self):
         # always used with sendto
         self.mocksock_remote_addr = None
 
-        super().setUp()
+        await super().asyncSetUp()
 
     @no_warnings
-    @asynctest
     async def test_mutlicast_ping(self):
         # exactly like the unicast case -- just to verify we're actually reaching our server
         self.mocksock.sendto(
@@ -195,7 +188,6 @@ class TestNoncoapMulticastClient(WithTestServer, WithMockSock):
         assert response == b"\x70\x00\x99\x9a"
 
     @no_warnings
-    @asynctest
     async def test_multicast_unknownresponse_noreset(self):
         self.mocksock.sendto(
             bytes.fromhex("4040ffff"),

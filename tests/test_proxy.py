@@ -6,29 +6,27 @@ import asyncio
 import unittest
 
 from . import common
-from .test_server import WithAsyncLoop, Destructing, WithClient, TestServer, CLEANUPTIME
+from .test_server import Destructing, WithClient, TestServer, CLEANUPTIME
 from .test_client import TestClientWithSetHost
 import aiocoap.proxy.client
 import aiocoap.cli.proxy
 from aiocoap.util import hostportjoin
 
 
-class WithProxyServer(WithAsyncLoop, Destructing):
-    def setUp(self):
-        super(WithProxyServer, self).setUp()
+class WithProxyServer(Destructing):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
 
         self.forwardproxy = aiocoap.cli.proxy.Main(
             ["--forward", "--bind", hostportjoin(self.proxyhost, self.proxyport)]
         )
-        self.loop.run_until_complete(self.forwardproxy.initializing)
+        await self.forwardproxy.initializing
 
-    def tearDown(self):
-        super(WithProxyServer, self).tearDown()
-        self.loop.run_until_complete(self.forwardproxy.shutdown())
-
-        self._del_to_be_sure("forwardproxy")
-
-        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
+    async def asyncTearDown(self):
+        await self.forwardproxy.shutdown()
+        await self._del_to_be_sure("forwardproxy")
+        await asyncio.sleep(CLEANUPTIME)
+        await super().asyncTearDown()
 
     proxyport = 56839
     proxyhost = common.loopbackname_v6 or common.loopbackname_v46
@@ -36,16 +34,17 @@ class WithProxyServer(WithAsyncLoop, Destructing):
 
 
 class WithProxyClient(WithClient, WithProxyServer):
-    def setUp(self):
-        super(WithProxyClient, self).setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
         original_client_log = self.client.log
         self.client = aiocoap.proxy.client.ProxyForwarder(
             self.proxyaddress, self.client
         )
         self.client.log = original_client_log
 
-    def tearDown(self):
+    async def asyncTearDown(self):
         self.client = self.client.context
+        await super().asyncTearDown()
 
 
 class TestServerWithProxy(WithProxyClient, TestServer):

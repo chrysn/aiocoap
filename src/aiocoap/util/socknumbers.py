@@ -27,18 +27,18 @@ dropped (see [issue 352](https://github.com/chrysn/aiocoap/issues/352)).
 import sys
 
 try:
-    from socket import IPV6_PKTINFO, IPV6_RECVPKTINFO
+    from socket import IPV6_PKTINFO, IPV6_RECVPKTINFO  # type: ignore
 except ImportError:
     if sys.platform == "linux":
         # Not sure if here are any Linux builds at all where this is
         # unavailable
-        IPV6_PKTINFO = 50
-        IPv6_RECVPKTINFO = 49
+        IPV6_PKTINFO = 50  # type: ignore
+        IPv6_RECVPKTINFO = 49  # type: ignore
     elif sys.platform == "darwin":
         # when __APPLE_USE_RFC_3542 is defined / as would be when
         # https://bugs.python.org/issue35569 is fixed
-        IPV6_PKTINFO = 46
-        IPV6_RECVPKTINFO = 61
+        IPV6_PKTINFO = 46  # type: ignore
+        IPV6_RECVPKTINFO = 61  # type: ignore
     # Not attempting to make any guesses for other platforms; the udp6 module
     # will fail to import where it needs the specifics
 
@@ -46,12 +46,12 @@ try:
     from IN import IPV6_RECVERR, IP_RECVERR  # type: ignore
 except ImportError:
     if sys.platform == "linux":
-        IPV6_RECVERR = 25
-        IP_RECVERR = 11
+        IPV6_RECVERR = 25  # type: ignore
+        IP_RECVERR = 11  # type: ignore
 
 # for https://bitbucket.org/pypy/pypy/issues/2648/
 try:
-    from socket import MSG_ERRQUEUE
+    from socket import MSG_ERRQUEUE  # type: ignore
 except ImportError:
     if sys.platform == "linux":
         MSG_ERRQUEUE = 8192  # type: ignore

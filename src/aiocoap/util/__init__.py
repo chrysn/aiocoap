@@ -174,9 +174,9 @@ class Sentinel:
 
     >>> import json     # Not using CBOR as that may not be present for tests
     >>> FIXME = Sentinel("FIXME")
-    >>> json.dumps([1, FIXME, 3])
+    >>> json.dumps([1, FIXME, 3])           # doctest: +ELLIPSIS
     Traceback (most recent call last):
-    TypeError: Object of type Sentinel is not JSON serializable
+    TypeError: Object of type Sentinel is not JSON ...
     """
 
     def __init__(self, label):

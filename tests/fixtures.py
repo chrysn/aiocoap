@@ -17,7 +17,7 @@ import warnings
 import weakref
 
 # time granted to asyncio to receive datagrams sent via loopback, and to close
-# connections. if tearDown checks fail erratically, tune this up -- but it
+# connections. if asyncTearDown checks fail erratically, tune this up -- but it
 # causes per-fixture delays.
 CLEANUPTIME = 0.01
 
@@ -33,47 +33,47 @@ CLEANUPTIME = 0.01
 ASYNCTEST_TIMEOUT = 3 * 60
 
 
+class IsolatedAsyncioTestCase(unittest.IsolatedAsyncioTestCase):
+    if sys.version_info < (3, 13):
+        # Patching in the 3.13 feature that loop_factory is respected
+        def _setupAsyncioRunner(self):
+            assert self._asyncioRunner is None, "asyncio runner is already initialized"
+            runner = asyncio.Runner(debug=True, loop_factory=self.loop_factory)
+            self._asyncioRunner = runner
+
+        loop_factory = None
+
+    if os.environ.get("AIOCOAP_TESTS_LOOP", None) == "uvloop":
+        import uvloop as _uvloop
+
+        loop_factory = lambda self: self._uvloop.new_event_loop()
+    elif os.environ.get("AIOCOAP_TESTS_LOOP", None) == "glib":
+        from gi.events import GLibEventLoopPolicy as _GLibEventLoopPolicy
+
+        loop_factory = lambda self: self._GLibEventLoopPolicy().new_event_loop()
+
+
 def is_test_successful(testcase):
     """Return true if a current TestCase instancance completed so far without
-    raising errors. This is supposed to be used in tearDown handlers on self
+    raising errors. This is supposed to be used in asyncTearDown handlers on self
     when additional debug information can be shown that would otherwise be
     discarded, or to skip tests during teardown that are bound to fail."""
     return testcase._outcome.success
 
 
-def asynctest(method):
-    """Decorator for async WithAsyncLoop fixtures methods that runs them from
-    the fixture's loop with a static timeout"""
-
-    @functools.wraps(method)
-    def wrapper(self, *args, **kwargs):
-        task = asyncio.ensure_future(method(self, *args, **kwargs), loop=self.loop)
-        for f in asyncio.as_completed([task], timeout=ASYNCTEST_TIMEOUT):
-            try:
-                return self.loop.run_until_complete(f)
-            except asyncio.TimeoutError:
-                task.cancel()
-                # give the task a chance to run finally handlers
-                self.loop.run_until_complete(task)
-                raise
-
-    return wrapper
-
-
 def no_warnings(function, expected_warnings=None):
-    if inspect.iscoroutinefunction(function):
-        raise Exception(
-            "no_warnings decorates functions, not coroutines. Put it over @asynctest."
-        )
     expected_warnings = expected_warnings or []
 
-    def wrapped(self, *args, function=function):
+    def sync_pre(self):
         # assertLogs does not work as assertDoesntLog anyway without major
         # tricking, and it interacts badly with WithLogMonitoring as they both
         # try to change the root logger's level.
 
         startcount = len(self.handler.list)
-        result = function(self, *args)
+        return (startcount,)
+
+    def sync_post(self, pre):
+        (startcount,) = pre
         messages = [
             m.getMessage()
             for m in self.handler.list[startcount:]
@@ -93,7 +93,22 @@ def no_warnings(function, expected_warnings=None):
                 expected_warnings,
                 "Function %s had unexpected warnings" % function.__name__,
             )
-        return result
+
+    # Happy function coloring workaround
+    if inspect.iscoroutinefunction(function):
+
+        async def wrapped(self, *args, function=function):
+            pre = sync_pre(self)
+            result = await function(self, *args)
+            sync_post(self, pre)
+            return result
+    else:
+
+        def wrapped(self, *args, function=function):
+            pre = sync_pre(self)
+            result = function(self, *args)
+            sync_post(self, pre)
+            return result
 
     wrapped.__name__ = function.__name__
     wrapped.__doc__ = function.__doc__
@@ -109,8 +124,8 @@ def precise_warnings(expected_warnings):
     return functools.partial(no_warnings, expected_warnings=expected_warnings)
 
 
-class WithLogMonitoring(unittest.TestCase):
-    def setUp(self):
+class WithLogMonitoring(IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
         self.handler = self.ListHandler()
 
         logging.root.setLevel(0)
@@ -118,16 +133,22 @@ class WithLogMonitoring(unittest.TestCase):
         logging.captureWarnings(True)
         warnings.simplefilter("always")
 
-        super(WithLogMonitoring, self).setUp()
+        await super().asyncSetUp()
 
-    def tearDown(self):
-        super(WithLogMonitoring, self).tearDown()
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
 
         logging.root.removeHandler(self.handler)
 
         complete_log = " Complete log:\n" + "\n".join(
             x.preformatted for x in self.handler.list if x.name != "asyncio"
         )
+
+        # GC runs can emit ResourceWarning, eg. from `sock_finalize`. Let's
+        # make sure they don't show up randomly in the next test. (We should
+        # still get a hold of them, given that they indicate trouble, but let's
+        # not indicate trouble in *unrelated* tests).
+        gc.collect()
 
         if "AIOCOAP_TESTS_SHOWLOG" in os.environ:
             print(complete_log, file=sys.stderr)
@@ -158,7 +179,10 @@ class WithLogMonitoring(unittest.TestCase):
         def emit(self, record):
             record.preformatted = self.preformatter.format(record)
 
-            record.orig_msg = record.msg
+            if not hasattr(record, "orig_msg"):
+                # Apparently the same record sometimes gets emitted twice, so
+                # let's not overwrite the valuable information in here.
+                record.orig_msg = record.msg
             if record.args and not hasattr(record, "style"):
                 # Several of the precise_warnings and simiiar uses rely on the
                 # ability to match on the message as shown. This mechanism
@@ -201,24 +225,17 @@ class WithLogMonitoring(unittest.TestCase):
             raise AssertionError("Warning not logged: %r" % message)
 
 
-class WithAsyncLoop(unittest.TestCase):
-    def setUp(self):
-        super(WithAsyncLoop, self).setUp()
-
-        self.loop = asyncio.get_event_loop()
-
-
 class Destructing(WithLogMonitoring):
     # Errors produced by this can be quite large, but the truncated version
     # that gets printed when they exceed maxDiff is not useful, so removing any
     # printing limits.
     maxDiff = None
 
-    def _del_to_be_sure(self, attribute):
+    async def _del_to_be_sure(self, attribute):
         if isinstance(attribute, str):
             getter = lambda self, attribute=attribute: getattr(self, attribute)
             deleter = lambda self, attribute=attribute: delattr(self, attribute)
-            label = attribute
+            label = "self." + attribute
         else:
             getter = attribute["get"]
             deleter = attribute["del"]
@@ -234,7 +251,7 @@ class Destructing(WithLogMonitoring):
             return
 
         # let everything that gets async-triggered by close() happen
-        self.loop.run_until_complete(asyncio.sleep(CLEANUPTIME))
+        await asyncio.sleep(CLEANUPTIME)
         gc.collect()
 
         def snapshot():
@@ -268,6 +285,9 @@ class Destructing(WithLogMonitoring):
                 if str(type(frame)) == "<class 'frame'>":
                     return _format_frame(frame, survivor_id)
 
+                # Kept for future reference only; it appears that at some point
+                # up to Python 3.14, get_referrers switched over from producing
+                # the dict of an object to the object itself.
                 if isinstance(frame, dict):
                     # If it's a __dict__, it'd be really handy to know whose dict that is
                     framerefs = gc.get_referrers(frame)
@@ -313,7 +333,7 @@ class Destructing(WithLogMonitoring):
                 # debugging situation
                 logging.root.info("Starting extended grace period")
                 for i in range(10):
-                    self.loop.run_until_complete(asyncio.sleep(1))
+                    await asyncio.sleep(1)
                     gc.collect()
                     s = snapshot()
                     if s is None:
@@ -330,6 +350,7 @@ class Destructing(WithLogMonitoring):
             else:
                 snapshotsmessage = s
             errormessage = (
-                "Protocol %s was not garbage collected.\n\n" % label + snapshotsmessage
+                "Test component %s was not garbage collected.\n\n" % label
+                + snapshotsmessage
             )
             self.fail(errormessage)

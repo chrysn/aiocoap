@@ -13,14 +13,14 @@ import aiocoap
 
 from .test_server import WithClient, WithTestServer
 
-from .fixtures import no_warnings, asynctest
+from .fixtures import no_warnings
 from .common import tcp_disabled, run_fixture_as_standalone_server
 
 IS_STANDALONE = False
 
 
 class WithTLSServer(WithTestServer):
-    def setUp(self):
+    async def asyncSetUp(self):
         self.keydir = tempfile.mkdtemp(suffix="-testkeypair")
         self.keyfile = self.keydir + "/key.pem"
         self.certfile = self.keydir + "/cert.pem"
@@ -65,10 +65,10 @@ class WithTLSServer(WithTestServer):
                 )
             )
 
-        super().setUp()
+        await super().asyncSetUp()
 
-    def tearDown(self):
-        super().tearDown()
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
         shutil.rmtree(self.keydir)
 
     def get_server_ssl_context(self):
@@ -86,8 +86,12 @@ class WithTLSServer(WithTestServer):
 
 class WithTLSClient(WithClient):
     # This expects that something -- typically the colocated WithTestServer -- sets certfile first
-    def setUp(self):
-        super().setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+
+        # we're not async ourself, but WithClient only sets up the client in
+        # asyncSetUp, and apparently, setUp runs before asyncSetUp, so we have
+        # to be in (and wait for) asyncSetUp too
 
         self.client.client_credentials["coaps+tcp://%s/*" % self.servernamealias] = (
             aiocoap.credentials.TLSCert(certfile=self.certfile)
@@ -97,7 +101,6 @@ class WithTLSClient(WithClient):
 @unittest.skipIf(tcp_disabled, "TCP disabled in environment")
 class TestTLS(WithTLSServer, WithTLSClient):
     @no_warnings
-    @asynctest
     async def test_tls(self):
         request = aiocoap.Message(code=aiocoap.GET)
         request.set_request_uri(

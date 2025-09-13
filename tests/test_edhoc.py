@@ -23,8 +23,8 @@ class WithEdhocPair(WithTestServer, WithClient):
 
     use_combined_edhoc = True
 
-    def setUp(self):
-        super().setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
 
         # Unlike in DTLS, we do these as a pair because we generate both key
         # pairs and distribute them to both sides
@@ -95,8 +95,8 @@ class WithEdhocPair(WithTestServer, WithClient):
             self.server.serversite, self.server.server_credentials
         )
 
-    def tearDown(self):
-        super().tearDown()
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
         self.tmpdir.cleanup()
 
 
@@ -106,10 +106,10 @@ edhoc_modules = aiocoap.defaults.oscore_missing_modules()
 @unittest.skipIf(edhoc_modules, "EDHOC/OSCORE missing modules (%s)" % (edhoc_modules,))
 class BaseServerEdhoc(TestServerBase, WithEdhocPair):
     @no_warnings
-    def test_whoami_is_client(self):
+    async def test_whoami_is_client(self):
         request = self.build_request()
         request.opt.uri_path = ["whoami"]
-        response = self.fetch_response(request)
+        response = await self.client.request(request).response
         self.assertTrue(
             b":edhocclient" in response.payload,
             f"Expected to see own role in response, got {response.payload=}",

@@ -8,13 +8,14 @@ The aiocoap-proxy utility is tested in test_proxy inside this process as
 orchestration of success reporting is not that easy with a daemon process;
 aiocoap-rd might need to get tested in a similar way to -proxy."""
 
+import asyncio
 import subprocess
 import unittest
 import os
 
 import aiocoap.defaults
 
-from .test_server import WithTestServer, no_warnings, asynctest
+from .test_server import WithTestServer, no_warnings
 from .common import PYTHON_PREFIX
 
 linkheader_modules = aiocoap.defaults.linkheader_missing_modules()
@@ -37,9 +38,8 @@ class TestCommandlineClient(WithTestServer):
         self.assertTrue(helptext.startswith(b"usage: aiocoap-client "))
 
     @no_warnings
-    @asynctest
     async def test_get(self):
-        await self.loop.run_in_executor(None, self._test_get)
+        await asyncio.get_event_loop().run_in_executor(None, self._test_get)
 
     def _test_get(self):
         # FIXME style: subprocesses could be orchestrated using asyncio as well
@@ -168,9 +168,8 @@ class TestCommandlineClient(WithTestServer):
             self.assertEqual(cbor_formatted, b'{"answer": 42}')
 
     @no_warnings
-    @asynctest
     async def test_post(self):
-        await self.loop.run_in_executor(None, self._test_post)
+        await asyncio.get_event_loop().run_in_executor(None, self._test_post)
 
     def _test_post(self):
         replace_foo = subprocess.check_output(
@@ -198,9 +197,8 @@ class TestCommandlineClient(WithTestServer):
         self.assertEqual(replace_file, b"")
 
     @no_warnings
-    @asynctest
     async def test_erroneous(self):
-        await self.loop.run_in_executor(None, self._test_erroneous)
+        await asyncio.get_event_loop().run_in_executor(None, self._test_erroneous)
 
     def _test_erroneous(self):
         with self.assertRaises(subprocess.CalledProcessError):
@@ -271,9 +269,8 @@ class TestCommandlineClient(WithTestServer):
             )
 
     @no_warnings
-    @asynctest
     async def test_noproxy(self):
-        await self.loop.run_in_executor(None, self._test_noproxy)
+        await asyncio.get_event_loop().run_in_executor(None, self._test_noproxy)
 
     def _test_noproxy(self):
         # Having this successful and just return text is a bespoke weirdness of

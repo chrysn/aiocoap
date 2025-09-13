@@ -11,7 +11,7 @@ import unittest
 import aiocoap
 from aiocoap.util import hostportjoin
 
-from .test_server import WithAsyncLoop, Destructing, WithClient, asynctest
+from .test_server import Destructing, WithClient
 
 linkheader_modules = aiocoap.defaults.linkheader_missing_modules()
 _skip_unless_linkheader = unittest.skipIf(
@@ -23,29 +23,26 @@ if not linkheader_modules:
     import aiocoap.cli.rd
 
 
-class WithResourceDirectory(WithAsyncLoop, Destructing):
+class WithResourceDirectory(Destructing):
     rd_address = "::1"
     rd_port = 56830
     rd_netloc = "[%s]:%d" % (rd_address, rd_port)
 
-    def setUp(self):
-        super().setUp()
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
 
-        self.rd = aiocoap.cli.rd.Main(
-            ["--bind", hostportjoin("::1", self.rd_port)], loop=self.loop
-        )
-        self.loop.run_until_complete(self.rd.initializing)
+        self.rd = aiocoap.cli.rd.Main(["--bind", hostportjoin("::1", self.rd_port)])
+        await self.rd.initializing
 
-    def tearDown(self):
-        self.loop.run_until_complete(self.rd.shutdown())
-        super().tearDown()
+    async def asyncTearDown(self):
+        await self.rd.shutdown()
+        await super().asyncTearDown()
 
-        self._del_to_be_sure("rd")
+        await self._del_to_be_sure("rd")
 
 
 class TestDiscovery(WithResourceDirectory, WithClient):
     @_skip_unless_linkheader
-    @asynctest
     async def test_discovery(self):
         request = aiocoap.Message(
             code=aiocoap.GET,
@@ -83,7 +80,6 @@ class TestDiscovery(WithResourceDirectory, WithClient):
         return self._endpoints[rt]
 
     @_skip_unless_linkheader
-    @asynctest
     async def test_registration(self):
         request = aiocoap.Message(
             code=aiocoap.POST,

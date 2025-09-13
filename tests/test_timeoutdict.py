@@ -3,14 +3,12 @@
 # SPDX-License-Identifier: MIT
 
 import asyncio
+import unittest
 
 from aiocoap.util.asyncio.timeoutdict import TimeoutDict
 
-from .fixtures import WithAsyncLoop, asynctest
 
-
-class TestTimeoutDict(WithAsyncLoop):
-    @asynctest
+class TestTimeoutDict(unittest.IsolatedAsyncioTestCase):
     async def test_presence_and_absence(self):
         timeout = 0.2
         d = TimeoutDict(timeout)
