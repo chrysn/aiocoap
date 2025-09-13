@@ -35,7 +35,12 @@ class TestCommandlineClient(WithTestServer):
         helptext = subprocess.check_output(
             AIOCOAP_CLIENT + ["--help"], env={"LANG": "C.UTF-8"}
         )
-        self.assertTrue(helptext.startswith(b"usage: aiocoap-client "))
+        # We can't test for "usage: aiocoap-client" because starting 3.14,
+        # output is colored.
+        self.assertTrue(
+            b"usage:" in helptext
+            and b"Content format of the --payload data." in helptext
+        )
 
     @no_warnings
     async def test_get(self):
@@ -299,4 +304,6 @@ class TestCommandlineRD(unittest.TestCase):
     )
     def test_help(self):
         helptext = subprocess.check_output(AIOCOAP_RD + ["--help"])
-        self.assertTrue(helptext.startswith(b"usage: aiocoap-rd "))
+        self.assertTrue(
+            b"usage:" in helptext and b"Compatibility mode for LwM2M" in helptext
+        )
