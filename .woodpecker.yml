@@ -103,6 +103,23 @@ steps:
       - mkdir collected-coverage/tox-3.13/ -p
       - mv .coverage* collected-coverage/tox-3.13/
 
+  test:3.14:
+    image: docker.io/python:3.14-rc
+    depends_on: [test:3.13-minimal]
+    environment:
+      # Possibly necessary because the image uses some Debian as a base might have another Python installed
+      TOXENV: "py314-allextras"
+      FORCE_COLOR: "1"
+    commands:
+      - apt-get update
+      - apt-get -y install iproute2
+      - pip install tox
+      # Separate run so I don't waste time telling errors in setup apart from errors at runtime
+      - tox --notest --skip-env '^py31[^4]'
+      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^4]'"
+      - mkdir collected-coverage/tox-3.14/ -p
+      - mv .coverage* collected-coverage/tox-3.14/
+
   mypy:
     image: docker.io/python:3.12
     depends_on: []
@@ -163,6 +180,7 @@ steps:
       - test:py312
       - test:3.13-minimal
       - test:3.13
+      - test:3.14
       - test:pypy
       - doc
       - build-wheel
