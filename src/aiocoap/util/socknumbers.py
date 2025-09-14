@@ -33,12 +33,10 @@ except ImportError:
         IPV6_RECVERR = 25  # type: ignore
         IP_RECVERR = 11  # type: ignore
 
-# for https://bitbucket.org/pypy/pypy/issues/2648/
 try:
-    from socket import MSG_ERRQUEUE  # type: ignore
+    from socket import MSG_ERRQUEUE  # noqa: F401
 except ImportError:
-    if sys.platform == "linux":
-        MSG_ERRQUEUE = 8192  # type: ignore
+    pass
 
 HAS_RECVERR = "IP_RECVERR" in locals() and "MSG_ERRQUEUE" in locals()
 """Indicates whether the discovered constants indicate that the Linux
