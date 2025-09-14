@@ -294,7 +294,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=[]
     ):
         try:
-            sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVPKTINFO, 1)
+            sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
         except NameError:
             raise RuntimeError(
                 "RFC3542 PKTINFO flags are unavailable, unable to create a udp6 transport."
@@ -430,7 +430,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         ancdata = []
         if message.remote.pktinfo is not None:
             ancdata.append(
-                (socket.IPPROTO_IPV6, socknumbers.IPV6_PKTINFO, message.remote.pktinfo)
+                (socket.IPPROTO_IPV6, socket.IPV6_PKTINFO, message.remote.pktinfo)
             )
         assert self._remote_being_sent_to.get(None) is None, (
             "udp6.MessageInterfaceUDP6.send was reentered in a single task"
@@ -547,10 +547,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         """Implementation of the RecvmsgDatagramProtocol interface, called by the transport."""
         pktinfo = None
         for cmsg_level, cmsg_type, cmsg_data in ancdata:
-            if (
-                cmsg_level == socket.IPPROTO_IPV6
-                and cmsg_type == socknumbers.IPV6_PKTINFO
-            ):
+            if cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == socket.IPV6_PKTINFO:
                 pktinfo = cmsg_data
             else:
                 self.log.info(
@@ -596,10 +593,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                 extended_err = SockExtendedErr.load(cmsg_data)
                 self.log.debug("Socket error recevied, details: %s", extended_err)
                 errno_value = extended_err.ee_errno
-            elif (
-                cmsg_level == socket.IPPROTO_IPV6
-                and cmsg_type == socknumbers.IPV6_PKTINFO
-            ):
+            elif cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == socket.IPV6_PKTINFO:
                 pktinfo = cmsg_data
             else:
                 self.log.info(
