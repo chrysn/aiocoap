@@ -77,6 +77,12 @@ all = [
 [tool.setuptools.dynamic]
 version = { attr = "aiocoap.meta.version" }
 
+[tool.setuptools.packages.find]
+where = [ "." ]
+# It's unclear why, but in some environments including aiocoap included also
+# its submodules, in others it didn't. Listing both is safe for both.
+include = [ "aiocoap", "aiocoap.*" ]
+
 [[tool.mypy.overrides]]
 module = [
     # Tracked in https://github.com/chrysn/cbor-diag-py/issues/2

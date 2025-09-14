@@ -128,7 +128,7 @@ steps:
     commands:
       - pip install mypy
       - pip install '.[all]'
-      - mypy --install-types --non-interactive src/aiocoap
+      - mypy --install-types --non-interactive aiocoap
 
   ruff:
     image: python:3
@@ -140,7 +140,7 @@ steps:
       - ruff format --check
       # Excluding the client scripts as their heavy reliance on `from aiocoap
       # import *` would decrease their usefullness as easy quick-start script
-      - ruff check src
+      - ruff check aiocoap
 
   reuse:
     image: python:3
