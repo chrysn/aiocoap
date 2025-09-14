@@ -65,7 +65,7 @@ shutil.copy(contrib / "aiocoap-kivy-widget", out / "main.py")
 # We could use aiocoap from PyPI, but so far things only work with this
 # branch's version.
 shutil.copytree(contrib / "widgets_common", out / "widgets_common", dirs_exist_ok=True)
-shutil.copytree(contrib.parent / "src" / "aiocoap", out / "aiocoap", dirs_exist_ok=True)
+shutil.copytree(contrib.parent / "aiocoap", out / "aiocoap", dirs_exist_ok=True)
 
 venv.create(buildozer_venv, with_pip=True)
 # Note that we need the full "activate" dance for buildozer as it will want to
