@@ -3,25 +3,13 @@
 # SPDX-License-Identifier: MIT
 
 """This module contains numeric constants that would be expected in the socket
-module, but are not exposed there.
+module, but are not exposed there yet.
 
-This gathers both socket numbers that can be present in the socket module (eg.
-the PKTINFO constants) but are not in some versions (eg. on macOS before
-<https://bugs.python.org/issue35569> is fixed) and platform dependent constants
-that are not generally available at all (the ERR constants).
-
-Where available, the CPython-private IN module is used to obtain some platform
-specific constants.
-
-Any hints on where to get them from in a more reliable way are appreciated;
-possible options are parsing C header files (at build time?) or interacting
-with shared libraries for obtaining the symbols. The right way would probably
-be including them in Python in a "other constants defined on this platform for
-sockets" module or dictionary.
-
-As of 2024, most of these are not needed any more; this module will be removed
-in favor of directly accessing `socket` constants once Python 3.13 support is
-dropped (see [issue 352](https://github.com/chrysn/aiocoap/issues/352)).
+This module will be removed in favor of directly accessing `socket` constants
+once Python 3.13 support is dropped (see
+[issue 352](https://github.com/chrysn/aiocoap/issues/352)), with any remnants
+(decision on whether the RECVERR mechanism *can* be used) moved into the
+defaults module.
 """
 
 import sys
