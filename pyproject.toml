@@ -56,7 +56,8 @@ linkheader = []
 # ge25519 is a workaround for
 # <https://github.com/pyca/cryptography/issues/5557>; being pure python it's
 # light enough to not warrant a dedicated group-oscore extra.
-oscore = [ "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-python >= 0.6, < 0.7" ]
+# cbor-diag is part of loading keys.
+oscore = [ "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-python >= 0.6, < 0.7", "cbor-diag"]
 tinydtls = [ "DTLSSocket >= 0.1.18" ]
 # technically websockets is not needed when running on pyodide, but that's hard
 # to express here
