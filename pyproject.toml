@@ -59,9 +59,7 @@ linkheader = []
 # cbor-diag is part of loading keys.
 oscore = [ "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-python >= 0.6, < 0.7", "cbor-diag"]
 tinydtls = [ "DTLSSocket >= 0.1.18" ]
-# technically websockets is not needed when running on pyodide, but that's hard
-# to express here
-ws = [ "websockets >= 13, < 16" ]
+ws = [ 'websockets >= 13, < 16; platform_system != "Emscripten"' ]
 prettyprint = [ "cbor2", "pygments >= 2.1", "cbor-diag", "colorlog" ]
 docs = [ "sphinx >= 5", "sphinx-argparse" ]
 
@@ -71,7 +69,7 @@ docs = [ "sphinx >= 5", "sphinx-argparse" ]
 all = [
     "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-python >= 0.5, < 0.7",
     "DTLSSocket >= 0.1.18",
-    "websockets >= 13, < 16",
+    'websockets >= 13, < 16; platform_system != "Emscripten"',
     "cbor2", "pygments", "cbor-diag", "colorlog",
 ]
 
