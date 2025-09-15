@@ -4,11 +4,16 @@ set -xeuo pipefail
 
 mkdir -p public
 
-mv collected-coverage/*/.coverage* .
-python3 -m coverage combine
-python3 -m coverage report
-python3 -m coverage html
-mv htmlcov public/coverage/
+# always the case in CI … but not locally, and not when we do quick CI runs
+# where tests are skipped
+if [ -e collected-coverage ]
+then
+    mv collected-coverage/*/.coverage* .
+    python3 -m coverage combine
+    python3 -m coverage report
+    python3 -m coverage html
+    mv htmlcov public/coverage/
+fi
 
 WHEEL=$(cd dist && echo *.whl)
 DESCRIBE=$(git describe --always)
@@ -42,7 +47,7 @@ EOF
 cat public/index.html
 # Our public directory will also serve as PyPI index in application/vnd.pypi.simple.v1+html format
 # As this is used without a placeholder, we have to generate a folder for every package:
-mkdir public/aiocoap/
+mkdir -p public/aiocoap/
 cat > public/aiocoap/index.html <<EOF
 <!DOCTYPE html>
 <html>
