@@ -188,21 +188,7 @@ steps:
       FORCE_COLOR: "1"
     commands:
       - python3 -m pip install coverage
-      - mv collected-coverage/*/.coverage* .
-      - python3 -m coverage combine
-      - python3 -m coverage report
-      - python3 -m coverage html
-      - mkdir -p public
-      - mv htmlcov public/coverage/
-      # Link for the wheel goes to the `raw.` URI because that allows CORS,
-      # making it useful as a pyodide source.
-      - echo '<title>aiocoap build artifacts</title>' > public/index.html
-      - echo '<h1>aiocoap build artifacts</h1><ul>' >> public/index.html
-      - echo '<li><a href="coverage/">Coverage report</a>' >> public/index.html
-      - echo '<li><a href="doc/">Documentation</a>' >> public/index.html
-      - echo '<li><a href="https://raw.codeberg.page/aiocoap/aiocoap/@pages/'$(echo dist/*.whl)'">Current wheel</a>' >> public/index.html
-      - echo '</ul><footer>Current version described as '$(git describe --always) >> public/index.html
-      - cat public/index.html
+      - ./.woodpecker/build-pages.sh
 
   publish-pages:
     image: codeberg.org/xfix/plugin-codeberg-pages-deploy:1
