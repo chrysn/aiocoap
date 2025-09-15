@@ -171,7 +171,7 @@ class TestEadHandling(TestServerEdhocValueValue):
 
         response = await self.client.request(request).response_raising
 
-    @precise_warnings(["Aborting EDHOC: EAD1 present"])
+    @precise_warnings(["Aborting EDHOC: Critical EAD1 present"])
     async def test_critical_ead1(self):
         import cbor2
         import lakers

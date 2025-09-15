@@ -232,8 +232,8 @@ class OscoreSiteWrapper(interfaces.Resource):
             cred_r=cbor2.dumps(own_credential_object.own_cred[14], canonical=True),
         )
         c_i, ead_1 = responder.process_message_1(request.payload[1:])
-        if ead_1:
-            self.log.error("Aborting EDHOC: EAD1 present")
+        if any(e.is_critical() for e in ead_1):
+            self.log.error("Aborting EDHOC: Critical EAD1 present")
             raise error.BadRequest
 
         used_own_identifiers = (

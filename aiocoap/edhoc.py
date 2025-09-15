@@ -292,6 +292,9 @@ class EdhocCredentials(credentials._Objectish):
         msg2 = await wire.request(msg1).response_raising
 
         (c_r, id_cred_r, ead_2) = initiator.parse_message_2(msg2.payload)
+        if any(e.is_critical() for e in ead_2):
+            self.log.error("Aborting EDHOC: Critical EAD2 present")
+            raise error.BadRequest
 
         assert isinstance(self.own_cred, dict) and list(self.own_cred.keys()) == [14], (
             "So far can only process CCS style own credentials a la {14: ...}, own_cred = %r"
@@ -543,8 +546,8 @@ class EdhocResponderContext(_EdhocContextBase):
         used."""
         if self._incomplete:
             id_cred_i, ead_3 = self._responder.parse_message_3(message_3)
-            if ead_3:
-                self.log.error("Aborting EDHOC: EAD3 present")
+            if any(e.is_critical() for e in ead_3):
+                self.log.error("Aborting EDHOC: Critical EAD3 present")
                 raise error.BadRequest
 
             try:
