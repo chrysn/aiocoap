@@ -15,7 +15,11 @@ echo '<h1>aiocoap build artifacts</h1><ul>' >> public/index.html
 echo '<li><a href="coverage/">Coverage report</a>' >> public/index.html
 echo '<li><a href="doc/">Documentation</a>' >> public/index.html
 echo '<li><a href="https://raw.codeberg.page/aiocoap/aiocoap/@pages/'$(echo dist/*.whl)'">Current wheel</a>' >> public/index.html
-echo '</ul><p>This URL also serves as a Python index API entry point (simple HTML index).' >> public/index.html
+# Or "could serve", because in pyodide practice it works neither with the
+# aiocoap.codeberg.page version (for lack of CORS), nor with the
+# raw.codeberg.page version (for lack of non-text/plain content types, and
+# micropip relies on content types)
+echo '</ul><!-- <p>This URL also serves as a Python index API entry point (simple HTML index). -->' >> public/index.html
 echo '<footer>Current version described as '$(git describe --always) >> public/index.html
 cat public/index.html
 # Our public directory will also serve as PyPI index in application/vnd.pypi.simple.v1+html format
