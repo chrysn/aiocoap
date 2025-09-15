@@ -56,21 +56,21 @@ linkheader = []
 # ge25519 is a workaround for
 # <https://github.com/pyca/cryptography/issues/5557>; being pure python it's
 # light enough to not warrant a dedicated group-oscore extra.
-oscore = [ "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-python >= 0.6, < 0.7" ]
+# cbor-diag is part of loading keys.
+oscore = [ "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-python >= 0.6, < 0.7", "cbor-diag"]
 tinydtls = [ "DTLSSocket >= 0.1.18" ]
-# technically websockets is not needed when running on pyodide, but that's hard
-# to express here
-ws = [ "websockets >= 13, < 16" ]
+ws = [ 'websockets >= 13, < 16; platform_system != "Emscripten"' ]
 prettyprint = [ "cbor2", "pygments >= 2.1", "cbor-diag", "colorlog" ]
 docs = [ "sphinx >= 5", "sphinx-argparse" ]
 
-# manually kept up to date to include everything except docs
+# manually kept up to date to include everything except docs, as long as it makes sense for that platform
 #
 # when updating this, also check what is needed to build in .readthedocs.yaml and .woodpecker.yml
 all = [
-    "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-python >= 0.5, < 0.7",
-    "DTLSSocket >= 0.1.18",
-    "websockets >= 13, < 16",
+    "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-python >= 0.6, < 0.7",
+    # explicit deviation: not on Emscripten b/c that doesn't even have UDP
+    'DTLSSocket >= 0.1.18; platform_system != "Emscripten"',
+    'websockets >= 13, < 16; platform_system != "Emscripten"',
     "cbor2", "pygments", "cbor-diag", "colorlog",
 ]
 
