@@ -1,4 +1,6 @@
 #!/bin/sh
+# SPDX-FileCopyrightText: Christian Amsüss
+# SPDX-License-Identifier: MIT
 
 set -xeuo pipefail
 
