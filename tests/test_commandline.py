@@ -19,20 +19,33 @@ from .test_server import WithTestServer, no_warnings
 from .common import PYTHON_PREFIX
 
 linkheader_modules = aiocoap.defaults.linkheader_missing_modules()
+prettyprinting_modules = aiocoap.defaults.prettyprint_missing_modules()
 
 AIOCOAP_CLIENT = PYTHON_PREFIX + ["./aiocoap-client"]
 AIOCOAP_RD = PYTHON_PREFIX + ["./aiocoap-rd"]
 
 
+async def check_output(args, stderr=None, env=None):
+    proc = await asyncio.create_subprocess_exec(
+        *args, stdout=subprocess.PIPE, stderr=stderr, env=env
+    )
+    (stdout, _) = await proc.communicate()
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(
+            cmd=args, returncode=proc.returncode, output=stdout
+        )
+    return stdout
+
+
 class TestCommandlineClient(WithTestServer):
     @no_warnings
-    def test_help(self):
+    async def test_help(self):
         # CI environments often don't have any locale set. That's not
         # representative of the interactive environments that run --help
         # (though it may be for others). Setting C.UTF-8 because at least pypy3
         # 7.3 doesn't default to a UTF-8 enabled mode, and the help output is
         # not just ASCII.
-        helptext = subprocess.check_output(
+        helptext = await check_output(
             AIOCOAP_CLIENT + ["--help"], env={"LANG": "C.UTF-8"}
         )
         # We can't test for "usage: aiocoap-client" because starting 3.14,
@@ -44,16 +57,12 @@ class TestCommandlineClient(WithTestServer):
 
     @no_warnings
     async def test_get(self):
-        await asyncio.get_event_loop().run_in_executor(None, self._test_get)
-
-    def _test_get(self):
-        # FIXME style: subprocesses could be orchestrated using asyncio as well
-        empty_default = subprocess.check_output(
+        empty_default = await check_output(
             AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty"]
         )
         self.assertEqual(empty_default, b"")
 
-        empty_json = subprocess.check_output(
+        empty_json = await check_output(
             AIOCOAP_CLIENT
             + [
                 "coap://" + self.servernetloc + "/empty",
@@ -64,7 +73,7 @@ class TestCommandlineClient(WithTestServer):
         )
         self.assertEqual(empty_json, b"{}")
 
-        verbose = subprocess.check_output(
+        verbose = await check_output(
             AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty", "-vv"],
             stderr=subprocess.STDOUT,
         )
@@ -83,7 +92,7 @@ class TestCommandlineClient(WithTestServer):
             f"-v should include human-redable form of request (but is just {info_from_cli})",
         )
 
-        debug = subprocess.check_output(
+        debug = await check_output(
             AIOCOAP_CLIENT
             + [
                 "coap://" + self.servernetloc + "/empty",
@@ -99,19 +108,19 @@ class TestCommandlineClient(WithTestServer):
             "Not even some (or unexpected) output in aiocoap-client -vvv",
         )
 
-        quiet = subprocess.check_output(
+        quiet = await check_output(
             AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty", "--quiet"],
             stderr=subprocess.STDOUT,
         )
         self.assertEqual(quiet, b"")
 
-        explicit_code = subprocess.check_output(
+        explicit_code = await check_output(
             AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty", "-m1"]
         )
         self.assertEqual(explicit_code, b"")
 
-        if not aiocoap.defaults.prettyprint_missing_modules():
-            json_formatted = subprocess.check_output(
+        if not prettyprinting_modules:
+            json_formatted = await check_output(
                 AIOCOAP_CLIENT
                 + [
                     "coap://" + self.servernetloc + "/answer",
@@ -125,7 +134,7 @@ class TestCommandlineClient(WithTestServer):
                 json_formatted.replace(b"\r", b""), b'{\n    "answer": 42\n}'
             )
 
-            json_colorformatted = subprocess.check_output(
+            json_colorformatted = await check_output(
                 AIOCOAP_CLIENT
                 + [
                     "coap://" + self.servernetloc + "/answer",
@@ -144,7 +153,7 @@ class TestCommandlineClient(WithTestServer):
                 "No indentation in color-pretty-printed JSON",
             )
 
-            json_coloronly = subprocess.check_output(
+            json_coloronly = await check_output(
                 AIOCOAP_CLIENT
                 + [
                     "coap://" + self.servernetloc + "/answer",
@@ -160,7 +169,7 @@ class TestCommandlineClient(WithTestServer):
                 b"    " not in json_coloronly, "Indentation in color-printed JSON"
             )
 
-            cbor_formatted = subprocess.check_output(
+            cbor_formatted = await check_output(
                 AIOCOAP_CLIENT
                 + [
                     "coap://" + self.servernetloc + "/answer",
@@ -174,10 +183,7 @@ class TestCommandlineClient(WithTestServer):
 
     @no_warnings
     async def test_post(self):
-        await asyncio.get_event_loop().run_in_executor(None, self._test_post)
-
-    def _test_post(self):
-        replace_foo = subprocess.check_output(
+        replace_foo = await check_output(
             AIOCOAP_CLIENT
             + [
                 "coap://" + self.servernetloc + "/replacing/one",
@@ -189,7 +195,7 @@ class TestCommandlineClient(WithTestServer):
         )
         self.assertEqual(replace_foo, b"fOO")
 
-        replace_file = subprocess.check_output(
+        replace_file = await check_output(
             AIOCOAP_CLIENT
             + [
                 "coap://" + self.servernetloc + "/replacing/one",
@@ -201,10 +207,17 @@ class TestCommandlineClient(WithTestServer):
         )
         self.assertEqual(replace_file, b"")
 
+    @unittest.skipIf(
+        prettyprinting_modules,
+        "Modules missing for running pretty-printing tests: %s"
+        % (prettyprinting_modules,),
+    )
+    @no_warnings
+    async def test_pretty_post(self):
         # POSTing CBOR is very risky, but it works for this value and allows
         # testing, in one go, the parsing of payload based on content-format,
         # and the rendering of output based on the Accept
-        replace_cbor = subprocess.check_output(
+        replace_cbor = await check_output(
             AIOCOAP_CLIENT
             + [
                 "coap://" + self.servernetloc + "/replacing/one",
@@ -224,7 +237,9 @@ class TestCommandlineClient(WithTestServer):
             b"00000000  81 63 66 4f 4f                                    |.cfOO|\n00000005\n",
         )
 
-        diagnostic_post = subprocess.check_output(
+    @no_warnings
+    async def test_location(self):
+        diagnostic_post = await check_output(
             AIOCOAP_CLIENT
             + [
                 "coap://" + self.servernetloc + "/create/",
@@ -241,32 +256,27 @@ class TestCommandlineClient(WithTestServer):
 
     @no_warnings
     async def test_erroneous(self):
-        await asyncio.get_event_loop().run_in_executor(None, self._test_erroneous)
-
-    def _test_erroneous(self):
         with self.assertRaises(subprocess.CalledProcessError):
             # non-existant method
-            subprocess.check_output(
+            await check_output(
                 AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty", "-mSPAM"],
                 stderr=subprocess.STDOUT,
             )
 
         with self.assertRaises(subprocess.CalledProcessError):
             # not a URI
-            subprocess.check_output(
+            await check_output(
                 AIOCOAP_CLIENT + ["coap::://" + self.servernetloc + "/empty"],
                 stderr=subprocess.STDOUT,
             )
 
         with self.assertRaises(subprocess.CalledProcessError):
             # relative URI
-            subprocess.check_output(
-                AIOCOAP_CLIENT + ["/empty"], stderr=subprocess.STDOUT
-            )
+            await check_output(AIOCOAP_CLIENT + ["/empty"], stderr=subprocess.STDOUT)
 
         with self.assertRaises(subprocess.CalledProcessError):
             # non-existant mime type
-            subprocess.check_output(
+            await check_output(
                 AIOCOAP_CLIENT
                 + ["coap://" + self.servernetloc + "/empty", "--accept", "spam/eggs"],
                 stderr=subprocess.STDOUT,
@@ -274,7 +284,7 @@ class TestCommandlineClient(WithTestServer):
 
         try:
             # No full URI given
-            subprocess.check_output(
+            await check_output(
                 AIOCOAP_CLIENT + [self.servernetloc + "/empty"],
                 stderr=subprocess.STDOUT,
             )
@@ -293,7 +303,7 @@ class TestCommandlineClient(WithTestServer):
             )
 
         try:
-            subprocess.check_output(
+            await check_output(
                 AIOCOAP_CLIENT + ["http://" + self.servernetloc + "/empty"],
                 stderr=subprocess.STDOUT,
             )
@@ -313,16 +323,13 @@ class TestCommandlineClient(WithTestServer):
 
     @no_warnings
     async def test_noproxy(self):
-        await asyncio.get_event_loop().run_in_executor(None, self._test_noproxy)
-
-    def _test_noproxy(self):
         # Having this successful and just return text is a bespoke weirdness of
         # the /empty resource (and MultiRepresentationResource in general).
         # Once https://github.com/chrysn/aiocoap/issues/268 is resolved, their
         # workarounds that make this not just ignore the critical proxy options
         # in the first place will go away, and this will need to process
         # aiocoap-client failing regularly.
-        stdout = subprocess.check_output(
+        stdout = await check_output(
             AIOCOAP_CLIENT
             + [
                 "coap://0.0.0.0/empty",
