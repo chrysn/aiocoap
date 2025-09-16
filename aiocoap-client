@@ -7,6 +7,7 @@
 setup.py is not used to create an entry point for it (eg. when running from the
 source directory)."""
 
+import asyncio
 import aiocoap.cli.client
 
-aiocoap.cli.client.sync_main()
+asyncio.run(aiocoap.cli.client.main())
