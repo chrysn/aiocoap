@@ -33,7 +33,9 @@ EDHOC example
 This example sets up encrypted access to the file server demo from the generic
 command line client.
 
-On the server side, generate a key for the server::
+On the server side, generate a key for the server:
+
+.. code-block:: shell-session
 
     $ aiocoap-keygen generate fileserver.cosekey --kid 0a
     {14: {8: {1: {1: 2, 2: h'0a', -1: 1, -2: ..., -3: ...}}}}
@@ -56,7 +58,9 @@ The output of this is a public key, which goes into the credential file you crea
       },
     }
 
-Now over to the client::
+Now over to the client:
+
+.. code-block:: shell-session
 
     $ aiocoap-keygen generate client.cosekey --kid 01
     {14: {8: {1: {1: 2, 2: h'01', -1: 1, -2: ..., -3: ...}}}}
@@ -88,14 +92,18 @@ we extend the last two lines to::
       }}
     }
 
-Finally we can start the fileserver::
+Finally we can start the fileserver:
+
+.. code-block:: shell-session
 
     $ ./aiocoap-fileserver --credentials fileserver.cred.diag
 
-… and exchange data with EDHOC and OSCORE initiated by the client::
+… and exchange data with EDHOC and OSCORE initiated by the client:
+
+.. code-block:: shell-session
 
     $ aiocoap-client "coap://[::1]/" --credentials client.cred.diag
-    # application/link-format content was re-formatted
+    … application/link-format content was re-formatted
     </.git/>; ct=40,
     </aiocoap/>; ct=40,
     [...]
