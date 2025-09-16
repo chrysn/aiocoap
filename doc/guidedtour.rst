@@ -145,7 +145,7 @@ start other requests in parallel, or do other processing in the meantime. For
 now, all we want is to wait until the response is ready::
 
     >>> await protocol.request(msg).response
-    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
+    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::1]:5683 with local address>, 186 byte(s) payload>
 
 Here, we have a successful message ("2.05 Content" is the rough equivalent of
 HTTP's "200 OK", and the 186 bytes of payload look promising). Until we can
@@ -179,7 +179,7 @@ and can be used without any local installation.
     >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
     >>> response = await protocol.request(msg).response
     >>> print(response)
-    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
+    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::1]:5683 with local address>, 186 byte(s) payload>
 
 That's better!
 
@@ -226,7 +226,7 @@ too::
     >>> response.code.is_successful()
     True
     >>> response.remote.hostinfo
-    '[::ffff:127.0.0.1]'
+    '[::1]'
     >>> response.remote.is_multicast
     False
 
