@@ -130,13 +130,23 @@ def run_fixture_as_standalone_server(fixture):
         logging.getLogger("coap-server").setLevel(logging.DEBUG)
 
     print("Running test server")
-    s = fixture()
-    s.setUp()
+
+    async def run():
+        s = fixture()
+
+        s._outcome = type("OutcomeHack", (), {})
+        s._outcome.success = True
+
+        await s.asyncSetUp()
+        try:
+            await asyncio.Future()
+        finally:
+            await s.asyncTearDown()
+
     try:
-        s.loop.run_forever()
+        asyncio.run(run())
     except KeyboardInterrupt:
-        print("Shutting down test server")
-        s.tearDown()
+        pass
 
 
 if __name__ == "__main__":
