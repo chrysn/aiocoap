@@ -101,7 +101,7 @@ The extras currently supported are:
   contain any external dependencies, but was left in place for compatibility.
 
 Which libraries and versions are pulled in by this exactly is documented in the
-``setup.py`` file.
+``pyproject.toml`` file.
 
 .. _RFC6690: https://tools.ietf.org/html/rfc6690
 
