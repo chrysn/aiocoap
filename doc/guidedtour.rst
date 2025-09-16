@@ -167,7 +167,7 @@ like this:
 Users of the highly recommended IPython_ can continue in their existing
 session, as support for the asynchronous shell is always available there.
 
-*pyodide users* should rather use ``"coaps+ws://demo.coap.amsuess.com/other/separate"`` here,
+If you use *pyodide*, you should use ``"coaps+ws://demo.coap.amsuess.com/other/separate"`` as the URI here,
 and change later URIs accordingly.
 That is an online service that runs the same server,
 and can be used without any local installation.
