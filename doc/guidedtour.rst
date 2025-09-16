@@ -213,7 +213,7 @@ The response
 ------------
 
 The response obtained in the main function is a message like the request
-message, just that it has a different code (2.05 is of the successful 2.00
+message, just that it has a different code (2.05 is of the successful 2.xx
 group), incidentally no options (because it's a very simple server), and actual
 data.
 
