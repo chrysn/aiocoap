@@ -25,11 +25,11 @@ AIOCOAP_CLIENT = PYTHON_PREFIX + ["./aiocoap-client"]
 AIOCOAP_RD = PYTHON_PREFIX + ["./aiocoap-rd"]
 
 
-async def check_output(args, stderr=None, env=None):
+async def check_output(args, *, stdin_buffer=None, stderr=None, env=None):
     proc = await asyncio.create_subprocess_exec(
-        *args, stdout=subprocess.PIPE, stderr=stderr, env=env
+        *args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr, env=env
     )
-    (stdout, _) = await proc.communicate()
+    (stdout, _) = await proc.communicate(stdin_buffer)
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(
             cmd=args, returncode=proc.returncode, output=stdout
@@ -252,6 +252,24 @@ class TestCommandlineClient(WithTestServer):
         self.assertEqual(
             b"Location options indicate new resource: /create/here/?this=this&that=that\n",
             diagnostic_post,
+        )
+
+    @no_warnings
+    async def test_interactive(self):
+        interactive_out = await check_output(
+            AIOCOAP_CLIENT
+            + [
+                "--interactive",
+            ],
+            stdin_buffer=f"coap://{self.servernetloc}/create/ -m post\ncoap://{self.servernetloc}/empty\n".encode(
+                "utf8"
+            ),
+            stderr=subprocess.STDOUT,
+        )
+        # Or similar, point is it should be plausible
+        self.assertEqual(
+            b"aiocoap> Location options indicate new resource: /create/here/?this=this&that=that\naiocoap> aiocoap> ",
+            interactive_out,
         )
 
     @no_warnings
