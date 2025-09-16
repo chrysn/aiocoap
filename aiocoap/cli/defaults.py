@@ -4,8 +4,10 @@
 
 """This helper script can be used to easily inspect aiocoap's environment
 autodetection (ie. whether all modules required for particular subsystems are
-available, losely corresponding to the "features" made available through
-setup.py); run it as `python3 -m aiocoap.cli.defaults`."""
+available, losely corresponding to its extras (as described in pyproject.toml
+or the installation documentation).
+
+Run it as `python3 -m aiocoap.cli.defaults`."""
 
 import sys
 from aiocoap.meta import version

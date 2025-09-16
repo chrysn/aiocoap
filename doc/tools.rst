@@ -20,7 +20,7 @@ integration in a bigger project in general.
    aiocoap-fileserver: A simple read-only file server with directory listings <module/aiocoap.cli.fileserver>
    aiocoap-keygen: A tool for generating keys for EDHOC <module/aiocoap.cli.keygen>
 
-Those utilities are installed by `setup.py` at the usual executable locations;
+Those utilities are installed along with the library at the usual executable locations;
 during development or when working from a git checkout of the project, wrapper
 scripts are available in the root directory. In some instances, it might be
 practical to access their functionality from within Python; see the

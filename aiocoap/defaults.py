@@ -154,7 +154,7 @@ def use_ai_v4mapped_emulation():
     return False
 
 
-# FIXME: If there were a way to check for the extras defined in setup.py, or to link these lists to what is descibed there, that'd be great.
+# FIXME: If there were a way to check for the extras defined in pyprojec.toml, or to link these lists to what is descibed there, that'd be great.
 
 
 def dtls_missing_modules():
