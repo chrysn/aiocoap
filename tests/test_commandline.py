@@ -201,6 +201,29 @@ class TestCommandlineClient(WithTestServer):
         )
         self.assertEqual(replace_file, b"")
 
+        # POSTing CBOR is very risky, but it works for this value and allows
+        # testing, in one go, the parsing of payload based on content-format,
+        # and the rendering of output based on the Accept
+        replace_cbor = subprocess.check_output(
+            AIOCOAP_CLIENT
+            + [
+                "coap://" + self.servernetloc + "/replacing/one",
+                "-m",
+                "post",
+                "--content-format",
+                "application/cbor",
+                "--accept",
+                "application/octet-stream",
+                "--pretty-print",
+                "--payload",
+                '["f00"]',
+            ]
+        )
+        self.assertEqual(
+            replace_cbor,
+            b"00000000  81 63 66 4f 4f                                    |.cfOO|\n00000005\n",
+        )
+
         diagnostic_post = subprocess.check_output(
             AIOCOAP_CLIENT
             + [
