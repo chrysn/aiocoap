@@ -125,8 +125,8 @@ See the :doc:`pyodide` section of the documentation on how aiocoap can be used t
 .. _pyodide: https://pyodide.org/
 .. _`Jupyter notebook`: https://jupyter.org/try-jupyter/
 
-Manual version selection
-~~~~~~~~~~~~~~~~~~~~~~~~
+Using unreleased versions on pyodide
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The latest main version is made available as part of the documentation, coverage and test builds,
 and can be used like this::
@@ -146,6 +146,7 @@ get a Git checkout as described for development above, and run::
 Then, copy the newly created file ``dist/aiocoap-${VERSION}-py3-none-any.whl``
 to a file server on the public web.
 Note that the server may need some CORS_ setup to allow loading of the file from foreign web sites.
-For that reason, running the ``http.server`` module as a web server on localhost creates an insufficient server.
+For that reason, running the ``http.server`` module as a web server on localhost creates an insufficient server
+(unless pyodide is also served from the same host).
 
 .. _CORS: https://en.wikipedia.org/wiki/Cross-origin_resource_sharing
