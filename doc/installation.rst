@@ -70,7 +70,7 @@ As a workaround, it can be helpful to not install with all extras, but replace t
 ``all`` with the extras you actually want from the list below. For example, if
 you see errors from DTLSSocket, rather than installing with ``[all,docs]``, you
 can leave out the ``tinydtls`` extra and install with
-``[linkheader,oscore,prettyprint,docs]``.
+``[oscore,prettyprint,docs]``.
 
 Slimmer installations
 ---------------------
