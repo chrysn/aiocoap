@@ -148,6 +148,15 @@ class DoubleErrorResource(aiocoap.resource.Resource):
             raise RuntimeError()
 
 
+class CreateForLocation(aiocoap.resource.Resource):
+    async def render_post(self, request):
+        return aiocoap.Message(
+            code=aiocoap.CREATED,
+            location_path=["create", "here", ""],
+            location_query=["this=this", "that=that"],
+        )
+
+
 class WhoAmI(aiocoap.resource.Resource):
     async def render_get(self, request):
         p = dict(
@@ -206,6 +215,7 @@ class BasicTestingSite(aiocoap.resource.Site):
         self.add_resource(["error", "generic"], GenericErrorResource())
         self.add_resource(["error", "pretty"], PrettyErrorResource())
         self.add_resource(["error", "double"], DoubleErrorResource())
+        self.add_resource(["create", ""], CreateForLocation())
         self.add_resource(["whoami"], WhoAmI())
         self.add_resource([], RootResource())
 

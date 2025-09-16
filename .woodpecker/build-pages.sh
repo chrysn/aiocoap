@@ -32,10 +32,10 @@ cat > public/index.html <<EOF
         <ul>
             <li><a href="coverage/">Coverage report</a>
             <li><a href="doc/">Documentation</a>
-            <li><a href="https://raw.codeberg.page/aiocoap/aiocoap/@pages/dist/${WHEEL}'">Current wheel</a>
+            <li><a href="https://raw.codeberg.page/aiocoap/aiocoap/@pages/dist/${WHEEL}">Current wheel</a>
         </ul>
 <!--
-        <p>This URL also serves as a Python index API entry point (simple HTML index). -->'
+        <p>This URL (but without the trailing slash) also serves as a Python index API entry point (simple HTML index).
 
         Or "could serve", because in pyodide practice it works neither with the
         aiocoap.codeberg.page version (for lack of CORS), nor with the
