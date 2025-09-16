@@ -18,21 +18,20 @@ supports multicast and other group communication scenarios (implemented, but
 not covered here as it needs even more manual actions so far).
 
 By itself, OSCORE has no key exchange protocol; it relies on other protocols to
-establidsh keys (there is ongoing work on a lightweight key exchange named
-EDHOC, and the ACE-OSCORE_ profile goes some way). Until those are implemented
-and wide-spread, OSCORE contexts can be provisioned manually to devices.
+establish keys (such as EDHOC or the ACE-OSCORE_ profile).
 
-An implementation of EDHOC is :doc:`available in aiocoap <stateofedhoc>`, but
-is still rather experimental.
+An implementation of EDHOC is available in aiocoap. **It is recommended to**
+:doc:`use aiocoap with EDHOC <stateofedhoc>` **instead of manually setting up
+OSCORE**, because the latter is hard to do right in a secure way.
 
-OSCORE state
-------------
+Using OSCORE statefully
+-----------------------
 
-Unless an add-on mode (sometimes called B2 mode as it's describe in OSCORE's
-Appendix B.2_) is used, some run-time information needs to be stored along with
-an OSCORE key.
+Unless an add-on mode id udrf (such as the work-in-progress KUDOS_ mechanism,
+or the example given in OSCORE's Appendix B.2_), some run-time information
+needs to be stored along with an OSCORE key.
 
-This allows instantaneous zero-round-trip trusted requests with just a single
+This allows instantaneous trusted requests with just a single
 round-trip (ie. a client can shut down, wake up with a different network
 address, and still the first UDP package it sends to the server can be relied
 and acted upon immediately). In this mode, there is no need for the device to
@@ -58,10 +57,10 @@ at runtime).
 OSCORE credentials
 ------------------
 
-As an experimental format, OSCORE uses JSON based credentials files that
+As an experimental format, OSCORE uses JSON based *credentials files* that
 describes OSCORE or (D)TLS credentials.
 
-For client, they indicate which URIs should be accessed using which OSCORE
+For clients, they indicate which URIs should be accessed using which OSCORE
 context. For servers, they indicate the available OSCORE contexts clients could
 use, and provide labels for them.
 
@@ -71,6 +70,7 @@ credentials file; this allows the state writes to be performed independently.
 .. _RFC8613: https://tools.ietf.org/html/rfc8613
 .. _EDHOC: https://tools.ietf.org/html/draft-selander-lake-edhoc-01
 .. _ACE-OSCORE: https://tools.ietf.org/html/draft-ietf-ace-oscore-profile-11
+.. _KUDOS: https://datatracker.ietf.org/doc/draft-ietf-core-oscore-key-update/
 .. _B.2: https://tools.ietf.org/html/rfc8613#appendix-B.2
 
 OSCORE example
@@ -126,11 +126,15 @@ With each of those goes a credentials map:
     ":client1": { "oscore": { "basedir": "server/from-client1/" } }
   }
 
-Then, the server can be started::
+Then, the server can be started:
+
+.. code-block:: shell-session
 
   $ ./aiocoap-fileserver data-to-be-served/ --credentials server.json
 
-And queried using the client::
+And queried using the client:
+
+.. code-block:: shell-session
 
   $ ./aiocoap-client coap://localhost/ --credentials client1.json
   <subdirectory/>; ct="40",
@@ -144,6 +148,6 @@ sniffer (or increased verbosity) to even be sure *that* the request was protecte
 
 
 Ways of implementing access controls, mandatory encryption and access control
-are being explored - as are extensions that simplify the setup process.
+are being explored.
 
 .. _`standard passphrase`: https://xkcd.com/936/

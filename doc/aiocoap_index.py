@@ -87,11 +87,8 @@ def build_moduledocs(app):
 
     basedir = srcdir.parent
     docs = [
-        x.removeprefix("src/")
-        .removesuffix(".py")
-        .replace("/", ".")
-        .replace(".__init__", "")
-        for x in glob.glob("src/aiocoap/**/*.py", recursive=True, root_dir=basedir)
+        x.removesuffix(".py").replace("/", ".").replace(".__init__", "")
+        for x in glob.glob("aiocoap/**/*.py", recursive=True, root_dir=basedir)
     ]
 
     for x in docs:

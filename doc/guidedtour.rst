@@ -31,7 +31,9 @@ You can not run the commands we are using in this section;
 just read through it, expected outputs are displayed anyway.
 
 Start off with the sample server by running the following in a terminal inside
-the aiocoap directory::
+the aiocoap directory:
+
+.. code-block:: shell-session
 
     $ ./server.py
 
@@ -49,10 +51,12 @@ This has started a CoAP server with some demo content, and keeps running until
 you terminate it with Ctrl-C.
 
 In a separate terminal, use :doc:`the aiocoap-client tool <tools>` to send a
-GET request to the server::
+GET request to the server:
+
+.. code-block:: shell-session
 
     $ ./aiocoap-client coap://localhost/.well-known/core
-    application/link-format content was re-formatted
+    … application/link-format content was re-formatted
     </.well-known/core>; ct="40",
     </time>; obs,
     </other/block>,
@@ -77,14 +81,18 @@ ervable attribute, a resource at the path ``/.well-known/core``, and more at
     output. This just makes sure your prompt does not start in the middle of
     the screen. I'll just ignore that.
 
-Let's see what ``/time`` gives us::
+Let's see what ``/time`` gives us:
+
+.. code-block:: shell-session
 
     $ ./aiocoap-client coap://localhost/time
     2021-12-07 10:08
 
 The response should have arrived immediately: The client sent a message to the
 server in which it requested the resource at ``/time``, and the server could
-right away send a message back. In contrast, ``/other/separate`` is slower::
+right away send a message back. In contrast, ``/other/separate`` is slower:
+
+.. code-block:: shell-session
 
     $ ./aiocoap-client coap://localhost/other/separate
     Three rings for the elven kings [abbreviated]
@@ -137,7 +145,7 @@ start other requests in parallel, or do other processing in the meantime. For
 now, all we want is to wait until the response is ready::
 
     >>> await protocol.request(msg).response
-    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
+    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::1]:5683 with local address>, 186 byte(s) payload>
 
 Here, we have a successful message ("2.05 Content" is the rough equivalent of
 HTTP's "200 OK", and the 186 bytes of payload look promising). Until we can
@@ -149,7 +157,9 @@ Asynchronous operation
 ----------------------
 
 To work interactively with asynchronous Python, start your Python interpreter
-like this::
+like this:
+
+.. code-block:: shell-session
 
     $ python3 -m asyncio
     >>>
@@ -157,7 +167,7 @@ like this::
 Users of the highly recommended IPython_ can continue in their existing
 session, as support for the asynchronous shell is always available there.
 
-*pyodide users* should rather use ``"coaps+ws://demo.coap.amsuess.com/other/separate"`` here,
+If you use *pyodide*, you should use ``"coaps+ws://demo.coap.amsuess.com/other/separate"`` as the URI here,
 and change later URIs accordingly.
 That is an online service that runs the same server,
 and can be used without any local installation.
@@ -169,7 +179,7 @@ and can be used without any local installation.
     >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
     >>> response = await protocol.request(msg).response
     >>> print(response)
-    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::ffff:127.0.0.1]:5683 with local address>, 186 byte(s) payload>
+    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::1]:5683 with local address>, 186 byte(s) payload>
 
 That's better!
 
@@ -203,7 +213,7 @@ The response
 ------------
 
 The response obtained in the main function is a message like the request
-message, just that it has a different code (2.05 is of the successful 2.00
+message, just that it has a different code (2.05 is of the successful 2.xx
 group), incidentally no options (because it's a very simple server), and actual
 data.
 
@@ -216,7 +226,7 @@ too::
     >>> response.code.is_successful()
     True
     >>> response.remote.hostinfo
-    '[::ffff:127.0.0.1]'
+    '[::1]'
     >>> response.remote.is_multicast
     False
 
