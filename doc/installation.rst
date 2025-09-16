@@ -118,7 +118,7 @@ When using pyodide (either directly or through a `Jupyter notebook`_),
 Installation is then done directly in the Python environment using::
 
     >>> import micropip
-    >>> await micropip.install("aiocoap[prettyprint,oscore]")
+    >>> await micropip.install("aiocoap[all]")
 
 See the :doc:`pyodide` section of the documentation on how aiocoap can be used there.
 
