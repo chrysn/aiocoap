@@ -201,6 +201,21 @@ class TestCommandlineClient(WithTestServer):
         )
         self.assertEqual(replace_file, b"")
 
+        diagnostic_post = subprocess.check_output(
+            AIOCOAP_CLIENT
+            + [
+                "coap://" + self.servernetloc + "/create/",
+                "-m",
+                "post",
+            ],
+            stderr=subprocess.STDOUT,
+        )
+        # Or similar; what matters is that the URI is properly recomposed
+        self.assertEqual(
+            b"Location options indicate new resource: /create/here/?this=this&that=that\n",
+            diagnostic_post,
+        )
+
     @no_warnings
     async def test_erroneous(self):
         await asyncio.get_event_loop().run_in_executor(None, self._test_erroneous)
