@@ -37,6 +37,31 @@ in which case any networking limitations of the hosting virtual machine may appl
 
 The ``./contrib`` directory of the aiocoap source code
 contains some example IPython notebooks that can be run right away.
+They already come with pre-populated output,
+but can be stepped through block by block by repeatedly pressing Shift-Return.
 
-   .. _pyodide: https://pyodide.org/
+* ``aiocoap-proxy.ipynb``:
+  A minimal client program that accesses a public service through a public proxy.
+
+  .. jupyterlite:: ../contrib/aiocoap-proxy.ipynb
+     :new_tab: True
+     :new_tab_button_text: Open in new tab
+
+* ``aiocoap-server.ipynb``:
+  A server program that bidirectionally exposes a browser interactive slider as a CoAP resource,
+  and registers the server at a public Resource Directory
+  (as a program running inside a browser is otherwise not easy to reach from outside).
+
+  .. jupyterlite:: ../contrib/aiocoap-server.ipynb
+     :new_tab: True
+     :new_tab_button_text: Open in new tab
+
+* ``edhoc-demo-server.ipynb``:
+  A client program that interacts with a public EDHOC protected CoAP server.
+
+  .. jupyterlite:: ../contrib/edhoc-demo-server.ipynb
+     :new_tab: True
+     :new_tab_button_text: Open in new tab
+
+.. _pyodide: https://pyodide.org/
 .. _`Jupyter notebook`: https://jupyter.org/try-jupyter

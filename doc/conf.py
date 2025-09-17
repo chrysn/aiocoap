@@ -16,6 +16,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "aiocoap_index",
     "sphinxarg.ext",
+    "jupyterlite_sphinx",
 ]
 
 source_suffix = ".rst"
