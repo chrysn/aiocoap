@@ -161,6 +161,10 @@ steps:
       - pip install '.[docs,oscore,prettyprint]'
       - python3 -m sphinx doc public/doc/
       - python3 -m docutils README.rst --strict > /dev/null
+      # codeberg pages redirects from ./index.html to ./ and drops query
+      # paramters. That's not wrong (wouldn't even blame them for not serving
+      # with unknown params), but mismatches what Jupyter is expecting.
+      - "find public/doc -name '*.html' -exec sed 's@lite/lab/index.html.path=@lite/lab/?path=@' -i '{}' '+'"
 
   build-wheel:
     image: python:3.13
