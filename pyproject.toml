@@ -61,7 +61,7 @@ oscore = [ "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-pyth
 tinydtls = [ "DTLSSocket >= 0.1.18" ]
 ws = [ 'websockets >= 13, < 16; platform_system != "Emscripten"' ]
 prettyprint = [ "cbor2", "pygments >= 2.1", "cbor-diag", "colorlog" ]
-docs = [ "sphinx >= 5", "sphinx-argparse", "jupyterlite-sphinx", "jupyterlite-pyodide-kernel" ]
+docs = [ "sphinx >= 5", "sphinx-argparse", "jupyterlite-sphinx", "jupyterlite-pyodide-kernel", "jupyterlab_widgets" ]
 
 # manually kept up to date to include everything except docs, as long as it makes sense for that platform
 #
