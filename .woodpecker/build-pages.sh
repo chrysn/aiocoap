@@ -78,7 +78,7 @@ do
         <h1>Package files for ${PACKAGE}</h1>
         <ul>
 EOF
-    for WHEEL in $( ( git ls-tree --name-only origin/pages:dist/ ; cd public/dist/ && ls ) |grep "^${PACKAGEFILE}$" | sort -u )
+    for WHEEL in $( ( git ls-tree --name-only origin/pages:dist/ ; cd public/dist/ && ls ) |grep "^${PACKAGEFILE}" | sort -u )
     do
         cat >> public/$PACKAGE/index.html <<EOF
 <li><a href="../dist/${WHEEL}">${WHEEL}</a>
