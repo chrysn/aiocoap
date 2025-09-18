@@ -8,10 +8,11 @@ pyodide and Jupyter
 aiocoap can be run in a Python interpreter that is running in the browser
 called pyodide_.
 
-The recommended way to use pyodide is through a `Jupyter notebook`_.
+The recommended way to explore pyodide is through a `Jupyter notebook`_.
 In a new "Notebook" of type "Python (Pyodide)",
 first perform the installation steps,
 and then use aiocoap like in the rest of the :doc:`guidedtour`.
+Some ready-to-play examples at the end of the page can be run directly from the documentation.
 
 See :ref:`the pyodide section in the installation instructions <installation-pyodide>`
 for how to install in those environments.
@@ -34,6 +35,8 @@ where options and other constants have tooltips indicating their numeric values.
 These features should be available not only when using pyodide,
 but also when using aiocoap in a server side Python session in Jupyter,
 in which case any networking limitations of the hosting virtual machine may apply.
+
+.. _contrib-pyodide:
 
 The ``./contrib`` directory of the aiocoap source code
 contains some example IPython notebooks that can be run right away.
@@ -64,4 +67,4 @@ but can be stepped through block by block by repeatedly pressing Shift-Return.
      :new_tab_button_text: Open in new tab
 
 .. _pyodide: https://pyodide.org/
-.. _`Jupyter notebook`: https://jupyter.org/try-jupyter
+.. _`Jupyter notebook`: https://jupyterlite-pyodide-kernel.readthedocs.io/en/latest/_static/lab/
