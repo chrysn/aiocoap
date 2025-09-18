@@ -52,6 +52,10 @@ cat public/index.html
 # At least in CI, we'll have to get that list before we can access it.
 git fetch origin pages --depth=1 --filter=blob:none
 
+# Debug helpers for when something goes awry in the index building
+ls -la public/dist
+git ls-tree --name-only origin/pages:dist/
+
 # We're mainly hosting aiocoap wheels here, but have some lakers-python builds
 # in the pages tree as well to aid use from pyodide before pyodide-recipes have
 # been disseminated all through the ecosystem.
