@@ -47,22 +47,44 @@ cat > public/index.html <<EOF
 </html>
 EOF
 cat public/index.html
-# Our public directory will also serve as PyPI index in application/vnd.pypi.simple.v1+html format
-# As this is used without a placeholder, we have to generate a folder for every package:
-mkdir -p public/aiocoap/
-cat > public/aiocoap/index.html <<EOF
+
+# Our files accumulate, so let's keep the older versions we do have visible also in the index.
+# At least in CI, we'll have to get that list before we can access it.
+git fetch origin pages --depth=1 --filter=blob:none
+
+# We're mainly hosting aiocoap wheels here, but have some lakers-python builds
+# in the pages tree as well to aid use from pyodide before pyodide-recipes have
+# been disseminated all through the ecosystem.
+for PACKAGE in aiocoap lakers-python
+do
+    # Our public directory will also serve as PyPI index in application/vnd.pypi.simple.v1+html format.
+    # The base URI is the pages URI without a trailing slash.
+
+    PACKAGEFILE=$(echo $PACKAGE | tr - _)
+    mkdir -p public/$PACKAGE/
+    cat > public/$PACKAGE/index.html <<EOF
 <!DOCTYPE html>
 <html>
     <head>
         <meta name="pypi:repository-version" content="1.0">
         <meta name="pypi:project-status" content="active">
-        <title>Built wheels for aiocoap</title>
+        <title>Package files for ${PACKAGE}</title>
     </head>
     <body>
-        <h1>Wheels generated for aiocoap</h1>
-        <a href="../dist/${WHEEL}">${WHEEL}</a>
+        <h1>Package files for ${PACKAGE}</h1>
+        <ul>
+EOF
+    for WHEEL in $( ( git ls-tree --name-only origin/pages:dist/ ; cd public/dist/ && ls ) |grep "^${PACKAGEFILE}$" | sort -u )
+    do
+        cat >> public/$PACKAGE/index.html <<EOF
+<li><a href="../dist/${WHEEL}">${WHEEL}</a>
+EOF
+    done
+    cat >> public/$PACKAGE/index.html <<EOF
+        </ul>
         <footer>Current version described as ${DESCRIBE}
     </body>
 </html>
 EOF
-cat public/aiocoap/index.html
+    cat public/$PACKAGE/index.html
+done
