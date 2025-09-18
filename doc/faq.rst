@@ -41,7 +41,7 @@ while it is not clear where to better put them).
 .. _uvloop: https://uvloop.readthedocs.io/
 .. _gobject: https://pygobject.gnome.org/guide/asynchronous.html
 .. _pyodide: https://pyodide.org/
-.. _`Jupyter notebook`: https://jupyter.org/try-jupyter/lab/
+.. _`Jupyter notebook`: https://jupyterlite-pyodide-kernel.readthedocs.io/en/latest/_static/lab/
 
 * **How can a server be scaled up to use multiple cores?**
 

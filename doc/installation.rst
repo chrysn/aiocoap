@@ -123,20 +123,34 @@ Installation is then done directly in the Python environment using::
 See the :doc:`pyodide` section of the documentation on how aiocoap can be used there.
 
 .. _pyodide: https://pyodide.org/
-.. _`Jupyter notebook`: https://jupyter.org/try-jupyter/
+.. _`Jupyter notebook`: https://jupyterlite-pyodide-kernel.readthedocs.io/en/latest/_static/lab/
+..
+   not using the more prominent
+   .. _`Jupyter notebook`: https://jupyter.org/try-jupyter/
+   (here and in other places around the docs)
+   because that's still on pyodide 0.27 with ABI 2024
 
 Using unreleased versions on pyodide
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The latest main version is made available as part of the documentation, coverage and test builds,
+The latest main version is made available through aiocoap's CI runs,
 and can be used like this::
 
     >>> import micropip
-    >>> await micropip.install("https://raw.codeberg.page/aiocoap/aiocoap/@pages/dist/aiocoap-0.4.12.post0-py3-none-any.whl")
+    >>> await micropip.install(
+    ...     "aiocoap[all]",
+    ...     index_urls=["https://coap.amsuess.com", "PYPI"]
+    ... )
 
-Note that the file name is parsed by micropip,
-and therefore needs to change as versions change.
-The latest link is found on <https://aiocoap.codeberg.page/aiocoap/>.
+That index not only contains the latest aiocoap versions,
+but also a suitable version of the lakers-python dependency.
+(Generally, that is package is regularly updated in pyodide,
+but the notebook may not be using the latest pyodide yet).
+
+..
+    It's not going through Codeberg pages because that can do correct
+    Content-Format (on regular pages) or CORS (on raw.codeberg.page), but
+    micropip needs both at the same time.
 
 To test a local build with pyodide,
 get a Git checkout as described for development above, and run::
@@ -145,6 +159,7 @@ get a Git checkout as described for development above, and run::
 
 Then, copy the newly created file ``dist/aiocoap-${VERSION}-py3-none-any.whl``
 to a file server on the public web.
+Do not rename the file, as it is parsed by micropip.
 Note that the server may need some CORS_ setup to allow loading of the file from foreign web sites.
 For that reason, running the ``http.server`` module as a web server on localhost creates an insufficient server
 (unless pyodide is also served from the same host).
