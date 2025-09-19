@@ -61,20 +61,13 @@ oscore = [ "cbor2", "cryptography (>= 2.5)", "filelock", "ge25519", "lakers-pyth
 tinydtls = [ "DTLSSocket >= 0.1.18" ]
 ws = [ 'websockets >= 13, < 16; platform_system != "Emscripten"' ]
 prettyprint = [ "cbor2", "pygments >= 2.1", "cbor-diag", "colorlog" ]
-# kernel >= 0.7.0a2 gives us pyodide 0.28.1, which uses the pyodide 2025 ABI, for which lakers-python builds exist
 docs = [
     "sphinx >= 5",
     "sphinx-argparse",
-    # The current versions require jupyterlite-pyodide-kernel >= 0.6 < 0.7 (and
-    # not giving a version makes it fall back to an ages old one that just
-    # didn't have the conflicts). The versions are also checked when doing git
-    # installs, so the @-line doesn't help. Instead, we'll do a pip install in
-    # CI directly from pip -- that appears to work.
-    #
-    # (Workaround-For: <https://github.com/jupyterlite/jupyterlite-sphinx/issues/315>)
-    #
-    #"jupyterlite-sphinx >= 0.21",
-    #"jupyterlite-sphinx @ git+https://github.com/jupyterlite/jupyterlite-sphinx",
+    # 0.21.0 doesn't have https://github.com/jupyterlite/jupyterlite-sphinx/issues/315 merged yet
+    #"jupyterlite-sphinx >= 0.21.1",
+    "jupyterlite-sphinx @ git+https://github.com/jupyterlite/jupyterlite-sphinx",
+    # kernel >= 0.7.0a2 gives us pyodide 0.28.1, which uses the pyodide 2025 ABI, for which lakers-python builds exist
     "jupyterlite-pyodide-kernel >= 0.7.0a2",
     "jupyterlab_widgets",
     ]
