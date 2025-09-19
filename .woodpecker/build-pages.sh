@@ -59,6 +59,13 @@ git ls-tree --name-only origin/pages:dist/
 # We're mainly hosting aiocoap wheels here, but have some lakers-python builds
 # in the pages tree as well to aid use from pyodide before pyodide-recipes have
 # been disseminated all through the ecosystem.
+#
+# Note that for actual use by pyodide, the resulting pages are currently
+# mirrored onto coap.amsuess.com to get CORS and media types right … and all
+# that is a workaround for <https://codeberg.org/forgejo/forgejo/issues/9361>
+# -- once that's through, we can just push packages, remove these from pages
+# (possibly truncating its history to get it slim again) and switch over to
+# Codeberg packages completely.
 for PACKAGE in aiocoap lakers-python
 do
     # Our public directory will also serve as PyPI index in application/vnd.pypi.simple.v1+html format.
