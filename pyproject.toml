@@ -64,9 +64,7 @@ prettyprint = [ "cbor2", "pygments >= 2.1", "cbor-diag", "colorlog" ]
 docs = [
     "sphinx >= 5",
     "sphinx-argparse",
-    # 0.21.0 doesn't have https://github.com/jupyterlite/jupyterlite-sphinx/issues/315 merged yet
-    #"jupyterlite-sphinx >= 0.21.1",
-    "jupyterlite-sphinx @ git+https://github.com/jupyterlite/jupyterlite-sphinx",
+    "jupyterlite-sphinx >= 0.22",
     # kernel >= 0.7.0a2 gives us pyodide 0.28.1, which uses the pyodide 2025 ABI, for which lakers-python builds exist
     "jupyterlite-pyodide-kernel >= 0.7.0a2",
     "jupyterlab_widgets",
