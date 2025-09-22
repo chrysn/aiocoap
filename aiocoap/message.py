@@ -541,7 +541,7 @@ class Message(object):
     # the message in the context of network and addresses
     #
 
-    def get_request_uri(self, *, local_is_server=False):
+    def get_request_uri(self, *, local_is_server=None):
         """The absolute URI this message belongs to.
 
         For requests, this is composed from the options (falling back to the
@@ -573,6 +573,17 @@ class Message(object):
             # to the point where its options don't accurately reflect its URI
             # any more. In that case, this is stored.
             return self._original_request_uri
+
+        inferred_local_is_server = (
+            self.direction is Direction.INCOMING
+        ) ^ self.code.is_response()
+
+        if local_is_server is not None:
+            assert local_is_server == inferred_local_is_server, (
+                "local_is_server value mismatches message direction"
+            )
+        else:
+            local_is_server = inferred_local_is_server
 
         if self.code.is_response():
             refmsg = self.request
