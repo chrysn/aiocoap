@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import enum
 import ipaddress
 import urllib.parse
 import struct
@@ -62,6 +63,11 @@ class Message(object):
       ``unresolved_remote``, or by the stack by echoing the incoming
       request's. Follows the :class:`.interfaces.EndpointAddress` interface.
       Non-roundtrippable.
+    * :attr:`direction`: A :cls:`.Direction` that distinguishes parsed from
+       to-be-serialized messages, and thus sets the meaning of the remote on
+       whether it is "from" there (incoming) or "to" there (outgoing).
+       Managed by the parsers (everything that is not a parsing result defaults
+       to being outgoing), and thus non-roundtrippable.
 
       While a message has not been transmitted, the property is managed by the
       :class:`.Message` itself using the :meth:`.set_request_uri()` or the
@@ -195,6 +201,7 @@ class Message(object):
         self.opt = Options()
 
         self.remote = None
+        self.direction: Direction = Direction.OUTGOING
 
         self.transport_tuning = transport_tuning or TransportTuning()
 
@@ -297,6 +304,7 @@ class Message(object):
         new.mid = kwargs.pop("mid", self.mid)
         new.token = kwargs.pop("token", self.token)
         new.remote = kwargs.pop("remote", self.remote)
+        new.direction = self.direction
         new.opt = copy.deepcopy(self.opt)
 
         if "uri" in kwargs:
@@ -325,10 +333,14 @@ class Message(object):
         msg.token = rawdata[4 : 4 + token_length]
         msg.payload = msg.opt.decode(rawdata[4 + token_length :])
         msg.remote = remote
+        msg.direction = Direction.INCOMING
         return msg
 
     def encode(self):
         """Create binary representation of message from Message object."""
+
+        assert self.direction == Direction.OUTGOING
+
         if self.code is None or self.mtype is None or self.mid is None:
             raise TypeError(
                 "Fatal Error: Code, Message Type and Message ID must not be None."
@@ -805,6 +817,12 @@ _quote_for_path = quote_factory(unreserved + sub_delims + ":@")
 _quote_for_query = quote_factory(
     unreserved + "".join(c for c in sub_delims if c != "&") + ":@/?"
 )
+
+
+class Direction(enum.Enum):
+    INCOMING = enum.auto()
+    OUTGOING = enum.auto()
+
 
 #: Result that can be returned from a render method instead of a Message when
 #: due to defaults (eg. multicast link-format queries) or explicit
