@@ -378,7 +378,7 @@ class Site(interfaces.ObservableResource, PathCapable):
         original_request_uri = getattr(
             request,
             "_original_request_uri",
-            request.get_request_uri(local_is_server=True),
+            request.get_request_uri(),
         )
 
         if request.opt.uri_path in self._resources:

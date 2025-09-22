@@ -579,6 +579,11 @@ class Message(object):
         ) ^ self.code.is_response()
 
         if local_is_server is not None:
+            warn(
+                "Argument local_is_server is not needed any more and is deprecated",
+                PendingDeprecationWarning,
+                stacklevel=2,
+            )
             assert local_is_server == inferred_local_is_server, (
                 "local_is_server value mismatches message direction"
             )
