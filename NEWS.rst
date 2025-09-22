@@ -2,6 +2,48 @@
   :copyright: SPDX-FileCopyrightText: Christian Amsüss
   :copyright: SPDX-License-Identifier: MIT
 
+Version 0.4.15
+--------------
+
+Documentation and examples
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Jupyter examples were simplified.
+* Documentation now includes live Jupyter notebooks to facilitate live usage.
+* Fixes to the guided tour, EDHOC and OSCORE recommendations.
+* Removed obsolete information.
+
+Libraries and compatibility
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Python 3.14 is now supported.
+* Support for gbulb was removed.
+* Tests were migrated from bespoke wrapper to using unittest's async mechanisms.
+* Use of the Lakers library was updated to 0.6.0, supporting a wider range of correct EDHOC interactions.
+
+Building and metadata
+~~~~~~~~~~~~~~~~~~~~~
+
+* Code was moved back from src/aiocoap/ to aiocoap/.
+* Examples for Android were updated and support Rust dependencies.
+* License information now correctly captures vendored BSD-3-Clause libraries.
+* Building now requires setuptools 77 or later.
+* Dependencies of extras were updated to no longer introduce unneeded or useless dependencies.
+
+Bugfixes
+~~~~~~~~
+
+* aiocoap-client now propertly reports file access errors.
+* A reference cycle in WebSockets transports was resolved.
+* Various tests were fixed or added (including coverage of aiocoap-client --interactive).
+* Missing dependencies (EDHOC requires cbor-diag for loading credentials) were declared.
+
+Other
+~~~~~
+
+* Cacheable OSCORE aligned with initial working group draft.
+* Workarounds for unsupported Python versions were dropped.
+
 Version 0.4.14
 --------------
 
