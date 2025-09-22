@@ -215,15 +215,19 @@ class Message(object):
         for k, v in kwargs.items():
             setattr(self.opt, k, v)
 
-    def __repr__(self):
+    def __fromto(self) -> str:
+        """Text 'from (remote)', 'to (remote)', 'incoming' or 'outgoing'
+        depending on direction and presence of a remote"""
         if self.remote:
-            fromto = (
+            return (
                 f"from {self.remote}"
                 if self.direction is Direction.INCOMING
                 else f"to {self.remote}"
             )
         else:
-            fromto = "incoming" if self.direction is Direction.INCOMING else "outgoing"
+            return "incoming" if self.direction is Direction.INCOMING else "outgoing"
+
+    def __repr__(self):
         options = f", {len(self.opt._options)} option(s)" if self.opt._options else ""
         payload = f", {len(self.payload)} byte(s) payload" if self.payload else ""
 
@@ -231,7 +235,7 @@ class Message(object):
         mtype = f", {self.mtype}" if self.mtype is not None else ""
         mid = f", MID {self.mid:#04x}" if self.mid is not None else ""
 
-        return f"<aiocoap.Message: {self.code} {fromto}{options}{payload}, {token}{mtype}{mid}>"
+        return f"<aiocoap.Message: {self.code} {self.__fromto()}{options}{payload}, {token}{mtype}{mid}>"
 
     def _repr_html_(self):
         """An HTML representation for Jupyter and similar environments
@@ -249,7 +253,7 @@ class Message(object):
         """
         import html
 
-        return f"""<details style="padding-left:1em"><summary style="margin-left:-1em;display:list-item;">Message with code {self.code._repr_html_() if self.code is not None else "None"}, remote {html.escape(str(self.remote))}</summary>
+        return f"""<details style="padding-left:1em"><summary style="margin-left:-1em;display:list-item;">Message with code {self.code._repr_html_() if self.code is not None else "None"}, {html.escape(str(self.__fromto()))}</summary>
                 {self.opt._repr_html_()}{self.payload_html()}"""
 
     def payload_html(self):
