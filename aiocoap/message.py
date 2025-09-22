@@ -10,6 +10,7 @@ import struct
 import copy
 import string
 from collections import namedtuple
+from warnings import warn
 
 from . import error, optiontypes
 from .numbers.codes import Code, CHANGED
@@ -145,21 +146,51 @@ class Message(object):
         token=b"",
         uri=None,
         transport_tuning=None,
+        _mid=None,
+        _mtype=None,
+        _token=b"",
         **kwargs,
     ):
         self.version = 1
-        if mtype is None:
+
+        # Moving those to underscore arguments: They're widespread in internal
+        # code, but no application has any business tampering with them.
+        #
+        # We trust that internal code doesn't try to set both.
+        if mid is not None:
+            warn(
+                "Initializing messages with an MID is deprecated. (No replacement: This needs to be managed by the library.)",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _mid = mid
+        if mtype is not None:
+            warn(
+                "Initializing messages with an mtype is deprecated. Instead, use a reliable or unreliable transport tunign.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _mtype = mtype
+        if token != b"":
+            warn(
+                "Initializing messages with a token is deprecated. (No replacement: This needs to be managed by the library.)",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _token = token
+
+        if _mtype is None:
             # leave it unspecified for convenience, sending functions will know what to do
             self.mtype = None
         else:
-            self.mtype = Type(mtype)
-        self.mid = mid
+            self.mtype = Type(_mtype)
+        self.mid = _mid
         if code is None:
             # as above with mtype
             self.code = None
         else:
             self.code = Code(code)
-        self.token = token
+        self.token = _token
         self.payload = payload
         self.opt = Options()
 
