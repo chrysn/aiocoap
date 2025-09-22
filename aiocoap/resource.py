@@ -110,6 +110,7 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
         return True
 
     async def render(self, request):
+        assert request.direction is message.Direction.INCOMING
         if not request.code.is_request():
             raise error.UnsupportedMethod()
         m = getattr(self, "render_%s" % str(request.code).lower(), None)

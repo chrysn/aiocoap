@@ -74,6 +74,7 @@ from aiocoap import Message, interfaces, ABORT, util, error
 from aiocoap.transports import rfc8323common
 from ..credentials import CredentialsMap
 from ..defaults import is_pyodide
+from ..message import Direction
 
 if not is_pyodide:
     import websockets.asyncio.connection
@@ -95,6 +96,7 @@ def _decode_message(data: bytes) -> Message:
     msg = Message(code=code, _token=token)
 
     msg.payload = msg.opt.decode(data[tokenoffset + tkl :])
+    msg.direction = Direction.INCOMING
 
     return msg
 

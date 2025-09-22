@@ -11,6 +11,7 @@ from aiocoap.transports import rfc8323common
 from aiocoap import interfaces, error, util
 from aiocoap import COAP_PORT, Message
 from aiocoap import defaults
+from aiocoap.message import Direction
 
 
 def _extract_message_size(data: bytes):
@@ -56,6 +57,7 @@ def _decode_message(data: bytes) -> Message:
     msg = Message(code=code, _token=token)
 
     msg.payload = msg.opt.decode(data[tokenoffset + tkl :])
+    msg.direction = Direction.INCOMING
 
     return msg
 
