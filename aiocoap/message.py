@@ -287,15 +287,15 @@ class Message(object):
         # necessarily hard immutable. Let's see where this goes.
 
         new = type(self)(
-            mtype=kwargs.pop("mtype", self.mtype),
-            mid=kwargs.pop("mid", self.mid),
             code=kwargs.pop("code", self.code),
             payload=kwargs.pop("payload", self.payload),
-            token=kwargs.pop("token", self.token),
             # Assuming these are not readily mutated, but rather passed
             # around in a class-like fashion
             transport_tuning=kwargs.pop("transport_tuning", self.transport_tuning),
         )
+        new.mtype = Type(kwargs.pop("mtype")) if "mtype" in kwargs else self.mtype
+        new.mid = kwargs.pop("mid", self.mid)
+        new.token = kwargs.pop("token", self.token)
         new.remote = kwargs.pop("remote", self.remote)
         new.opt = copy.deepcopy(self.opt)
 
@@ -319,7 +319,9 @@ class Message(object):
             raise error.UnparsableMessage("Fatal Error: Protocol Version must be 1")
         mtype = (vttkl & 0x30) >> 4
         token_length = vttkl & 0x0F
-        msg = Message(mtype=mtype, mid=mid, code=code)
+        msg = Message(code=code)
+        msg.mid = mid
+        msg.mtype = Type(mtype)
         msg.token = rawdata[4 : 4 + token_length]
         msg.payload = msg.opt.decode(rawdata[4 + token_length :])
         msg.remote = remote

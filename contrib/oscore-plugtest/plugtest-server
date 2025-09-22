@@ -84,12 +84,15 @@ class Observe(PlugtestResource, aiocoap.interfaces.ObservableResource):
         async def keep_entertained():
             await asyncio.sleep(2)
             serverobservation.trigger(aiocoap.Message(
-                mtype=aiocoap.CON, code=aiocoap.CONTENT,
+                # FIXME: Do we need to make this reliable? Makes sense for a
+                # plug test, but then is it a good test?
+                _mtype=aiocoap.CON, code=aiocoap.CONTENT,
                 payload=b"two", content_format=0,
                 ))
             await asyncio.sleep(2)
             serverobservation.trigger(aiocoap.Message(
-                mtype=aiocoap.CON, code=aiocoap.INTERNAL_SERVER_ERROR,
+                # FIXME: Errors on observations should be reliable by default
+                _mtype=aiocoap.CON, code=aiocoap.INTERNAL_SERVER_ERROR,
                 payload=b"Terminate Observe", content_format=0,
                 ))
         t = asyncio.create_task(keep_entertained())

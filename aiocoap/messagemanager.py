@@ -132,7 +132,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                 # peer does, we better not answer
                 if message.mtype == CON and not message.remote.is_multicast_locally:
                     self.log.info("Response not recognized - sending RST.")
-                    rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload="")
+                    rst = Message(_mtype=RST, _mid=message.mid, code=EMPTY, payload="")
                     rst.remote = message.remote.as_response_address()
                     self._send_initially(rst)
                 else:
@@ -347,7 +347,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
 
     def _process_ping(self, message):
         self.log.info("Received CoAP Ping from %s, replying with RST.", message.remote)
-        rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b"")
+        rst = Message(_mtype=RST, _mid=message.mid, code=EMPTY, payload=b"")
         rst.remote = message.remote.as_response_address()
         # not going via send_message because that would strip the mid, and we
         # already know that it can go straight to the wire
@@ -529,7 +529,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
 
         self.log.debug("Sending empty ACK: %s", reason)
         ack = Message(
-            mtype=ACK,
+            _mtype=ACK,
             code=EMPTY,
             payload=b"",
         )
