@@ -794,18 +794,25 @@ class UndecidedRemote(
     * :attr:`hostinfo`: The authority component of the URI, as it would occur
       in the URI.
 
+    Both in the constructor and in the repr, it also supports a single-value
+    form of a URI Origin.
+
     In order to produce URIs identical to those received in responses, and
     because the underlying types should really be binary anyway, IP addresses
     in the hostinfo are normalized:
 
     >>> UndecidedRemote("coap+tcp", "[::0001]:1234")
-    UndecidedRemote(scheme='coap+tcp', hostinfo='[::1]:1234')
+    UndecidedRemote('coap+tcp://[::1]:1234')
+    >>> tuple(UndecidedRemote("coap", "localhost"))
+    ('coap', 'localhost')
     """
 
     # This is settable per instance, for other transports to pick it up.
     maximum_block_size_exp = MAX_REGULAR_BLOCK_SIZE_EXP
 
-    def __new__(cls, scheme, hostinfo):
+    def __new__(cls, scheme: str, hostinfo: str | None):
+        if hostinfo is None:
+            return cls.from_pathless_uri(scheme)
         if "[" in hostinfo:
             (host, port) = hostportsplit(hostinfo)
             ip = ipaddress.ip_address(host)
@@ -821,7 +828,7 @@ class UndecidedRemote(
 
         >>> from aiocoap.message import UndecidedRemote
         >>> UndecidedRemote.from_pathless_uri("coap://localhost")
-        UndecidedRemote(scheme='coap', hostinfo='localhost')
+        UndecidedRemote('coap://localhost')
         """
 
         parsed = urllib.parse.urlparse(uri)
@@ -835,6 +842,9 @@ class UndecidedRemote(
             )
 
         return cls(parsed.scheme, parsed.netloc)
+
+    def __repr__(self):
+        return f"UndecidedRemote({f'{self.scheme}://{self.hostinfo}'!r})"
 
 
 _ascii_lowercase = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
