@@ -216,16 +216,22 @@ class Message(object):
             setattr(self.opt, k, v)
 
     def __repr__(self):
-        return "<aiocoap.Message at %#x: %s %s (%s, %s) remote %s%s%s>" % (
-            id(self),
-            self.mtype if self.mtype is not None else "no mtype,",
-            self.code,
-            "MID %s" % self.mid if self.mid is not None else "no MID",
-            "token %s" % self.token.hex() if self.token else "empty token",
-            self.remote,
-            ", %s option(s)" % len(self.opt._options) if self.opt._options else "",
-            ", %s byte(s) payload" % len(self.payload) if self.payload else "",
-        )
+        if self.remote:
+            fromto = (
+                f"from {self.remote}"
+                if self.direction is Direction.INCOMING
+                else f"to {self.remote}"
+            )
+        else:
+            fromto = "incoming" if self.direction is Direction.INCOMING else "outgoing"
+        options = f", {len(self.opt._options)} option(s)" if self.opt._options else ""
+        payload = f", {len(self.payload)} byte(s) payload" if self.payload else ""
+
+        token = f"token {self.token.hex()}" if self.token else "empty token"
+        mtype = f", {self.mtype}" if self.mtype is not None else ""
+        mid = f", MID {self.mid:#04x}" if self.mid is not None else ""
+
+        return f"<aiocoap.Message: {self.code} {fromto}{options}{payload}, {token}{mtype}{mid}>"
 
     def _repr_html_(self):
         """An HTML representation for Jupyter and similar environments

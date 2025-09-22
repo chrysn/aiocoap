@@ -59,7 +59,7 @@ def hashing_etag(request: message.Message, response: message.Message):
     >>> resp.payload = b'hello'
     >>> hashing_etag(req, resp)
     >>> resp                                            # doctest: +ELLIPSIS
-    <aiocoap.Message at ... 2.03 Valid ... 1 option(s)>
+    <aiocoap.Message: 2.03 Valid outgoing, 1 option(s)...>
     """
 
     if response.code != Code.CONTENT and response.code is not None:
