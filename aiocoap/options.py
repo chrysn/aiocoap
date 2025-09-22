@@ -126,7 +126,7 @@ def _empty_presence_view(option_number, doc=None):
     )
 
 
-class Options(object):
+class Options:
     """Represent CoAP Header Options."""
 
     # this is not so much an optimization as a safeguard -- if custom

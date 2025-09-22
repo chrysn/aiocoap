@@ -33,7 +33,7 @@ urllib.parse.uses_relative.extend(coap_schemes)
 urllib.parse.uses_netloc.extend(coap_schemes)
 
 
-class Message(object):
+class Message:
     """CoAP Message with some handling metadata
 
     This object's attributes provide access to the fields in a CoAP message and

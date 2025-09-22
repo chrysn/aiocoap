@@ -516,7 +516,7 @@ class Context(interfaces.RequestProvider):
         return await self.serversite.render_to_pipe(pipe)
 
 
-class BaseRequest(object):
+class BaseRequest:
     """Common mechanisms of :class:`Request` and :class:`MulticastRequest`"""
 
 
