@@ -35,8 +35,6 @@ steps:
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest --installpkg dist/aiocoap-*.whl
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --installpkg dist/aiocoap-*.whl"
-      - mkdir collected-coverage/tox-bookworm/ -p
-      - mv .coverage* collected-coverage/tox-bookworm/
 
   test:pypy:
     image: docker.io/pypy:3
@@ -52,8 +50,6 @@ steps:
       - pip install tox
       - tox --notest --skip-env '^py[^p]'
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py[^p]'"
-      - mkdir collected-coverage/pypy/ -p
-      - mv .coverage* collected-coverage/pypy/
 
   test:py312:
     image: docker.io/python:3.12
@@ -68,8 +64,6 @@ steps:
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest --skip-env '^py31[^2]'
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^2]'"
-      - mkdir collected-coverage/tox-3.12/ -p
-      - mv .coverage* collected-coverage/tox-3.12/
 
 
   test:3.13-minimal:
@@ -83,8 +77,6 @@ steps:
       - pip install tox
       - tox --notest --skip-env '^py31[^3]'
       - tox --skip-env '^py31[^3]'
-      - mkdir collected-coverage/tox-3.13-minimal/ -p
-      - mv .coverage* collected-coverage/tox-3.13-minimal/
 
   test:3.13:
     image: docker.io/python:3.13
@@ -100,8 +92,6 @@ steps:
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest --skip-env '^py31[^3]'
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^3]'"
-      - mkdir collected-coverage/tox-3.13/ -p
-      - mv .coverage* collected-coverage/tox-3.13/
 
   test:3.14:
     image: docker.io/python:3.14-rc
@@ -117,8 +107,6 @@ steps:
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest --skip-env '^py31[^4]'
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^4]'"
-      - mkdir collected-coverage/tox-3.14/ -p
-      - mv .coverage* collected-coverage/tox-3.14/
 
   mypy:
     image: docker.io/python:3.12

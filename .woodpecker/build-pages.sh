@@ -8,13 +8,13 @@ mkdir -p public
 
 # always the case in CI … but not locally, and not when we do quick CI runs
 # where tests are skipped
-if [ -e collected-coverage ]
+if [ -e .coverage ]
 then
+    export COVERAGE_FILE=.coverage/
     mv collected-coverage/*/.coverage* .
     python3 -m coverage combine
     python3 -m coverage report
-    python3 -m coverage html
-    mv htmlcov public/coverage/
+    python3 -m coverage html -d public/coverage/
 fi
 
 WHEEL=$(cd dist && echo *.whl)
