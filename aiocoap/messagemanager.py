@@ -468,10 +468,23 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                 if message.remote.is_multicast:
                     message.mtype = NON
                 else:
-                    if message.request is not None and message.request.mtype is NON:
-                        message.mtype = NON
-                    else:
-                        message.mtype = CON
+                    # All forcing factors are now accounted for -- either value
+                    # is now OK (and if the transport_tuning doesn't tell us,
+                    # we'll use sensible defaults)
+
+                    match message.transport_tuning.reliability:
+                        case True:
+                            message.mtype = CON
+                        case False:
+                            message.mtype = NON
+                        case None:
+                            if (
+                                message.request is not None
+                                and message.request.mtype is NON
+                            ):
+                                message.mtype = NON
+                            else:
+                                message.mtype = CON
         else:
             if self._active_exchanges is None:
                 self.log.warning(
