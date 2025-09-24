@@ -136,6 +136,8 @@ class Message(object):
         * Some options or even the payload may differ if a proxy was involved.
     """
 
+    request: Message | None = None
+
     def __init__(
         self,
         *,
