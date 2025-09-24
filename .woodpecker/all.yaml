@@ -179,7 +179,7 @@ steps:
     environment:
       FORCE_COLOR: "1"
     commands:
-      - python3 -m pip install coverage
+      - python3 -m pip install coverage genbadge[all]
       - ./.woodpecker/build-pages.sh
 
   publish-pages:
