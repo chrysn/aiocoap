@@ -468,10 +468,10 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                 if message.remote.is_multicast:
                     message.mtype = NON
                 else:
-                    # FIXME: on responses, this should take the request into
-                    # consideration (cf. RFC7252 Section 5.2.3, answer to NON
-                    # SHOULD be NON)
-                    message.mtype = CON
+                    if message.request is not None and message.request.mtype is NON:
+                        message.mtype = NON
+                    else:
+                        message.mtype = CON
         else:
             if self._active_exchanges is None:
                 self.log.warning(
