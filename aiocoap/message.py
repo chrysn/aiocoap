@@ -10,6 +10,7 @@ import struct
 import copy
 import string
 from collections import namedtuple
+from warnings import warn
 
 from . import error, optiontypes
 from .numbers.codes import Code, CHANGED
@@ -135,6 +136,8 @@ class Message:
         * Some options or even the payload may differ if a proxy was involved.
     """
 
+    request: Message | None = None
+
     def __init__(
         self,
         *,
@@ -145,21 +148,51 @@ class Message:
         token=b"",
         uri=None,
         transport_tuning=None,
+        _mid=None,
+        _mtype=None,
+        _token=b"",
         **kwargs,
     ):
         self.version = 1
-        if mtype is None:
+
+        # Moving those to underscore arguments: They're widespread in internal
+        # code, but no application has any business tampering with them.
+        #
+        # We trust that internal code doesn't try to set both.
+        if mid is not None:
+            warn(
+                "Initializing messages with an MID is deprecated. (No replacement: This needs to be managed by the library.)",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _mid = mid
+        if mtype is not None:
+            warn(
+                "Initializing messages with an mtype is deprecated. Instead, set transport_tuning=aiocoap.Reliable oraiocoap. Unreliable.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _mtype = mtype
+        if token != b"":
+            warn(
+                "Initializing messages with a token is deprecated. (No replacement: This needs to be managed by the library.)",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _token = token
+
+        if _mtype is None:
             # leave it unspecified for convenience, sending functions will know what to do
             self.mtype = None
         else:
-            self.mtype = Type(mtype)
-        self.mid = mid
+            self.mtype = Type(_mtype)
+        self.mid = _mid
         if code is None:
             # as above with mtype
             self.code = None
         else:
             self.code = Code(code)
-        self.token = token
+        self.token = _token
         self.payload = payload
         self.opt = Options()
 
@@ -256,15 +289,15 @@ class Message:
         # necessarily hard immutable. Let's see where this goes.
 
         new = type(self)(
-            mtype=kwargs.pop("mtype", self.mtype),
-            mid=kwargs.pop("mid", self.mid),
             code=kwargs.pop("code", self.code),
             payload=kwargs.pop("payload", self.payload),
-            token=kwargs.pop("token", self.token),
             # Assuming these are not readily mutated, but rather passed
             # around in a class-like fashion
             transport_tuning=kwargs.pop("transport_tuning", self.transport_tuning),
         )
+        new.mtype = Type(kwargs.pop("mtype")) if "mtype" in kwargs else self.mtype
+        new.mid = kwargs.pop("mid", self.mid)
+        new.token = kwargs.pop("token", self.token)
         new.remote = kwargs.pop("remote", self.remote)
         new.opt = copy.deepcopy(self.opt)
 
@@ -288,7 +321,9 @@ class Message:
             raise error.UnparsableMessage("Fatal Error: Protocol Version must be 1")
         mtype = (vttkl & 0x30) >> 4
         token_length = vttkl & 0x0F
-        msg = Message(mtype=mtype, mid=mid, code=code)
+        msg = Message(code=code)
+        msg.mid = mid
+        msg.mtype = Type(mtype)
         msg.token = rawdata[4 : 4 + token_length]
         msg.payload = msg.opt.decode(rawdata[4 + token_length :])
         msg.remote = remote

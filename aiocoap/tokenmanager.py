@@ -8,10 +8,6 @@ import random
 from . import error
 from . import interfaces
 
-# To be used sparingly here: This deals with request / responses on the token
-# layer. But the layer below won't even know that messages are responses, so it
-# can't make the informed decisions we make here.
-from .numbers.types import NON
 from .pipe import Pipe
 
 
@@ -135,10 +131,10 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
                 m.token = request.token
                 m.remote = request.remote.as_response_address()
 
-                if m.mtype is None and request.mtype is NON:
-                    # Default to sending NON to NON requests; rely on the
-                    # default (CON if stand-alone else ACK) otherwise.
-                    m.mtype = NON
+                # The token interface may use information from that, eg.
+                # whether the request was sent reliably or not.
+                m.request = request
+
                 self.token_interface.send_message(
                     m,
                     # No more interest from *that* remote; as it's the only

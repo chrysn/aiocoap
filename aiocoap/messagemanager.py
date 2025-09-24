@@ -132,7 +132,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                 # peer does, we better not answer
                 if message.mtype == CON and not message.remote.is_multicast_locally:
                     self.log.info("Response not recognized - sending RST.")
-                    rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload="")
+                    rst = Message(_mtype=RST, _mid=message.mid, code=EMPTY, payload="")
                     rst.remote = message.remote.as_response_address()
                     self._send_initially(rst)
                 else:
@@ -347,7 +347,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
 
     def _process_ping(self, message):
         self.log.info("Received CoAP Ping from %s, replying with RST.", message.remote)
-        rst = Message(mtype=RST, mid=message.mid, code=EMPTY, payload=b"")
+        rst = Message(_mtype=RST, _mid=message.mid, code=EMPTY, payload=b"")
         rst.remote = message.remote.as_response_address()
         # not going via send_message because that would strip the mid, and we
         # already know that it can go straight to the wire
@@ -468,10 +468,23 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                 if message.remote.is_multicast:
                     message.mtype = NON
                 else:
-                    # FIXME: on responses, this should take the request into
-                    # consideration (cf. RFC7252 Section 5.2.3, answer to NON
-                    # SHOULD be NON)
-                    message.mtype = CON
+                    # All forcing factors are now accounted for -- either value
+                    # is now OK (and if the transport_tuning doesn't tell us,
+                    # we'll use sensible defaults)
+
+                    match message.transport_tuning.reliability:
+                        case True:
+                            message.mtype = CON
+                        case False:
+                            message.mtype = NON
+                        case None:
+                            if (
+                                message.request is not None
+                                and message.request.mtype is NON
+                            ):
+                                message.mtype = NON
+                            else:
+                                message.mtype = CON
         else:
             if self._active_exchanges is None:
                 self.log.warning(
@@ -529,7 +542,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
 
         self.log.debug("Sending empty ACK: %s", reason)
         ack = Message(
-            mtype=ACK,
+            _mtype=ACK,
             code=EMPTY,
             payload=b"",
         )

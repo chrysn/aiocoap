@@ -12,18 +12,18 @@ import unittest
 
 class TestMessage(unittest.TestCase):
     def test_encode(self):
-        msg1 = aiocoap.Message(mtype=aiocoap.CON, mid=0, code=aiocoap.EMPTY)
+        msg1 = aiocoap.Message(_mtype=aiocoap.CON, _mid=0, code=aiocoap.EMPTY)
         binary1 = bytes((64, 0, 0, 0))
         self.assertEqual(
             msg1.encode(), binary1, "wrong encode operation for empty CON message"
         )
 
         msg2 = aiocoap.Message(
-            mtype=aiocoap.ACK,
-            mid=0xBC90,
+            _mtype=aiocoap.ACK,
+            _mid=0xBC90,
             code=aiocoap.CONTENT,
             payload=b"temp = 22.5 C",
-            token=b"q",
+            _token=b"q",
         )
         msg2.opt.etag = b"abcd"
         binary2 = (
@@ -62,10 +62,10 @@ class TestMessage(unittest.TestCase):
         msg3 = aiocoap.Message()
         self.assertRaises(TypeError, msg3.encode)
 
-        msg4 = aiocoap.Message(mtype=aiocoap.CON, mid=2 << 16)
+        msg4 = aiocoap.Message(_mtype=aiocoap.CON, _mid=2 << 16)
         self.assertRaises(Exception, msg4.encode)
 
-        msg5 = aiocoap.Message(mtype=aiocoap.CON, mid=0, code=aiocoap.EMPTY)
+        msg5 = aiocoap.Message(_mtype=aiocoap.CON, _mid=0, code=aiocoap.EMPTY)
         o = aiocoap.optiontypes.OpaqueOption(1234, value=b"abcd")
         msg5.opt.add_option(o)
         binary5 = binary1 + bytes((0xE4, 0x03, 0xC5)) + b"abcd"
@@ -73,12 +73,12 @@ class TestMessage(unittest.TestCase):
             msg5.encode(), binary5, "wrong encoding for high option numbers"
         )
 
-        msg6 = aiocoap.Message(mtype=aiocoap.CON, mid=0, code=aiocoap.EMPTY)
+        msg6 = aiocoap.Message(_mtype=aiocoap.CON, _mid=0, code=aiocoap.EMPTY)
         o = aiocoap.optiontypes.OpaqueOption(12345678, value=b"abcd")
         msg6.opt.add_option(o)
         self.assertRaises(ValueError, msg6.encode)
 
-        msg7 = aiocoap.Message(mtype=aiocoap.CON, mid=0, code=aiocoap.EMPTY)
+        msg7 = aiocoap.Message(_mtype=aiocoap.CON, _mid=0, code=aiocoap.EMPTY)
 
         def set_unknown_opt():
             msg7.opt.foobar = 42

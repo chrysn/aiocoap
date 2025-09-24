@@ -145,8 +145,29 @@ class TransportTuning:
     This number is not explicitly named in RFC7641.
     """
 
+    reliability: bool | None = None
+    """Should the message be sent reliably?
+
+    The choice is up to the transport as long as this is None; if set,
+    transports that make a distinction will use reliable (or unreliable for
+    False) transmission if the protocol allows it for that request. (For
+    example, it is ignored on multicast requests which can only be NON, and
+    in an observation, a CON needs to be sent at least once a day)."""
+
 
 _default_transport_tuning = TransportTuning()
+
+
+class Reliable(TransportTuning):
+    """TransportTuning to prefer reliable transmission (e.g. CON)"""
+
+    reliability = True
+
+
+class Unreliable(TransportTuning):
+    """TransportTuning to prefer unreliable transmission (e.g. NON)"""
+
+    reliability = False
 
 
 def __getattr__(name):

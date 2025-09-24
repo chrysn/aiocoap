@@ -53,7 +53,7 @@ def _decode_message(data: bytes) -> Message:
     code = data[tokenoffset - 1]
     token = data[tokenoffset : tokenoffset + tkl]
 
-    msg = Message(code=code, token=token)
+    msg = Message(code=code, _token=token)
 
     msg.payload = msg.opt.decode(data[tokenoffset + tkl :])
 
