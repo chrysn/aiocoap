@@ -10,8 +10,7 @@ mkdir -p public
 # where tests are skipped
 if [ -e .coverage ]
 then
-    export COVERAGE_FILE=.coverage/
-    mv collected-coverage/*/.coverage* .
+    export COVERAGE_FILE=.coverage/cov
     python3 -m coverage combine
     python3 -m coverage report
     python3 -m coverage html -d public/coverage/
