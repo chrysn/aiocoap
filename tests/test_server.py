@@ -63,7 +63,7 @@ class SlowResource(aiocoap.resource.Resource):
         #
         # This is done to aid the test_freeoncancel test, and should revert to
         # the default behavior once that has better control over the environment.
-        return aiocoap.Message(_mtype=aiocoap.CON)
+        return aiocoap.Message(transport_tuning=aiocoap.Reliable)
 
 
 class BigResource(aiocoap.resource.Resource):
