@@ -142,7 +142,7 @@ class TestBlockwise(WithChunkyTestServer, WithClient):
             "Response not chunked into 128 bytes",
         )
 
-    _received_logmsg = "Incoming message <aiocoap.Message at"
+    _received_logmsg = "Incoming message <aiocoap.Message"
 
     def _count_received_messages(self):
         # only client-side received empty-acks are counted

@@ -112,7 +112,7 @@ message.
     >>> from aiocoap import *
     >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
     >>> print(msg)
-    <aiocoap.Message at 0x0123deadbeef: no mtype, GET (no MID, empty token) remote None, 2 option(s)>
+    <aiocoap.Message: GET to UndecidedRemote(scheme='coap', hostinfo='localhost'), 2 option(s), empty token>
 
 The message consists of several parts. The non-optional ones are largely
 handled by aiocoap (message type, ID, token and remote are all None or empty
@@ -179,7 +179,7 @@ and can be used without any local installation.
     >>> msg = Message(code=GET, uri="coap://localhost/other/separate")
     >>> response = await protocol.request(msg).response
     >>> print(response)
-    <aiocoap.Message at 0x0123deadbef1: Type.CON 2.05 Content (MID 51187, token 00008199) remote <UDP6EndpointAddress [::1]:5683 with local address>, 186 byte(s) payload>
+    <aiocoap.Message: 2.05 Content from <UDP6EndpointAddress [::1] (locally ::1%lo)>, 1 option(s), 189 byte(s) payload, token 85e6, CON, MID 0x1234>
 
 That's better!
 

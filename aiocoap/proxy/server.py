@@ -116,6 +116,7 @@ class Proxy(interfaces.Resource):
         # wants. everything the responder needs of the request should be
         # extracted beforehand.
         request = request.copy(mid=None, token=None)
+        request.direction = message.Direction.OUTGOING
 
         try:
             request = self.apply_redirection(request)
@@ -140,6 +141,7 @@ class Proxy(interfaces.Resource):
         response.mtype = None
         response.mid = None
         response.remote = None
+        response.direction = message.Direction.OUTGOING
         response.token = None
 
         return response

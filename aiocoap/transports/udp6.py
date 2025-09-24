@@ -50,7 +50,7 @@ import struct
 import weakref
 from collections import namedtuple
 
-from ..message import Message
+from ..message import Message, Direction
 from ..numbers import constants
 from .. import defaults
 from .. import error
@@ -567,6 +567,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         except error.UnparsableMessage:
             self.log.warning("Ignoring unparsable message from %s", address)
             return
+        message.direction = Direction.INCOMING
 
         try:
             self._ctx.dispatch_message(message)

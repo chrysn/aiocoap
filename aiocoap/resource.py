@@ -59,7 +59,7 @@ def hashing_etag(request: message.Message, response: message.Message):
     >>> resp.payload = b'hello'
     >>> hashing_etag(req, resp)
     >>> resp                                            # doctest: +ELLIPSIS
-    <aiocoap.Message at ... 2.03 Valid ... 1 option(s)>
+    <aiocoap.Message: 2.03 Valid outgoing, 1 option(s)...>
     """
 
     if response.code != Code.CONTENT and response.code is not None:
@@ -110,6 +110,7 @@ class Resource(_ExposesWellknownAttributes, interfaces.Resource):
         return True
 
     async def render(self, request):
+        assert request.direction is message.Direction.INCOMING
         if not request.code.is_request():
             raise error.UnsupportedMethod()
         m = getattr(self, "render_%s" % str(request.code).lower(), None)
@@ -377,7 +378,7 @@ class Site(interfaces.ObservableResource, PathCapable):
         original_request_uri = getattr(
             request,
             "_original_request_uri",
-            request.get_request_uri(local_is_server=True),
+            request.get_request_uri(),
         )
 
         if request.opt.uri_path in self._resources:

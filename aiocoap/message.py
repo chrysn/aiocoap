@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import enum
 import ipaddress
 import urllib.parse
 import struct
@@ -62,6 +63,11 @@ class Message:
       ``unresolved_remote``, or by the stack by echoing the incoming
       request's. Follows the :class:`.interfaces.EndpointAddress` interface.
       Non-roundtrippable.
+    * :attr:`direction`: A :cls:`.Direction` that distinguishes parsed from
+       to-be-serialized messages, and thus sets the meaning of the remote on
+       whether it is "from" there (incoming) or "to" there (outgoing).
+       Managed by the parsers (everything that is not a parsing result defaults
+       to being outgoing), and thus non-roundtrippable.
 
       While a message has not been transmitted, the property is managed by the
       :class:`.Message` itself using the :meth:`.set_request_uri()` or the
@@ -197,6 +203,7 @@ class Message:
         self.opt = Options()
 
         self.remote = None
+        self.direction: Direction = Direction.OUTGOING
 
         self.transport_tuning = transport_tuning or TransportTuning()
 
@@ -210,17 +217,27 @@ class Message:
         for k, v in kwargs.items():
             setattr(self.opt, k, v)
 
+    def __fromto(self) -> str:
+        """Text 'from (remote)', 'to (remote)', 'incoming' or 'outgoing'
+        depending on direction and presence of a remote"""
+        if self.remote:
+            return (
+                f"from {self.remote}"
+                if self.direction is Direction.INCOMING
+                else f"to {self.remote}"
+            )
+        else:
+            return "incoming" if self.direction is Direction.INCOMING else "outgoing"
+
     def __repr__(self):
-        return "<aiocoap.Message at %#x: %s %s (%s, %s) remote %s%s%s>" % (
-            id(self),
-            self.mtype if self.mtype is not None else "no mtype,",
-            self.code,
-            "MID %s" % self.mid if self.mid is not None else "no MID",
-            "token %s" % self.token.hex() if self.token else "empty token",
-            self.remote,
-            ", %s option(s)" % len(self.opt._options) if self.opt._options else "",
-            ", %s byte(s) payload" % len(self.payload) if self.payload else "",
-        )
+        options = f", {len(self.opt._options)} option(s)" if self.opt._options else ""
+        payload = f", {len(self.payload)} byte(s) payload" if self.payload else ""
+
+        token = f"token {self.token.hex()}" if self.token else "empty token"
+        mtype = f", {self.mtype}" if self.mtype is not None else ""
+        mid = f", MID {self.mid:#04x}" if self.mid is not None else ""
+
+        return f"<aiocoap.Message: {self.code} {self.__fromto()}{options}{payload}, {token}{mtype}{mid}>"
 
     def _repr_html_(self):
         """An HTML representation for Jupyter and similar environments
@@ -238,7 +255,7 @@ class Message:
         """
         import html
 
-        return f"""<details style="padding-left:1em"><summary style="margin-left:-1em;display:list-item;">Message with code {self.code._repr_html_() if self.code is not None else "None"}, remote {html.escape(str(self.remote))}</summary>
+        return f"""<details style="padding-left:1em"><summary style="margin-left:-1em;display:list-item;">Message with code {self.code._repr_html_() if self.code is not None else "None"}, {html.escape(str(self.__fromto()))}</summary>
                 {self.opt._repr_html_()}{self.payload_html()}"""
 
     def payload_html(self):
@@ -299,6 +316,7 @@ class Message:
         new.mid = kwargs.pop("mid", self.mid)
         new.token = kwargs.pop("token", self.token)
         new.remote = kwargs.pop("remote", self.remote)
+        new.direction = self.direction
         new.opt = copy.deepcopy(self.opt)
 
         if "uri" in kwargs:
@@ -327,10 +345,14 @@ class Message:
         msg.token = rawdata[4 : 4 + token_length]
         msg.payload = msg.opt.decode(rawdata[4 + token_length :])
         msg.remote = remote
+        msg.direction = Direction.INCOMING
         return msg
 
     def encode(self):
         """Create binary representation of message from Message object."""
+
+        assert self.direction == Direction.OUTGOING
+
         if self.code is None or self.mtype is None or self.mid is None:
             raise TypeError(
                 "Fatal Error: Code, Message Type and Message ID must not be None."
@@ -521,7 +543,7 @@ class Message:
     # the message in the context of network and addresses
     #
 
-    def get_request_uri(self, *, local_is_server=False):
+    def get_request_uri(self, *, local_is_server=None):
         """The absolute URI this message belongs to.
 
         For requests, this is composed from the options (falling back to the
@@ -553,6 +575,22 @@ class Message:
             # to the point where its options don't accurately reflect its URI
             # any more. In that case, this is stored.
             return self._original_request_uri
+
+        inferred_local_is_server = (
+            self.direction is Direction.INCOMING
+        ) ^ self.code.is_response()
+
+        if local_is_server is not None:
+            warn(
+                "Argument local_is_server is not needed any more and is deprecated",
+                PendingDeprecationWarning,
+                stacklevel=2,
+            )
+            assert local_is_server == inferred_local_is_server, (
+                "local_is_server value mismatches message direction"
+            )
+        else:
+            local_is_server = inferred_local_is_server
 
         if self.code.is_response():
             refmsg = self.request
@@ -758,18 +796,25 @@ class UndecidedRemote(
     * :attr:`hostinfo`: The authority component of the URI, as it would occur
       in the URI.
 
+    Both in the constructor and in the repr, it also supports a single-value
+    form of a URI Origin.
+
     In order to produce URIs identical to those received in responses, and
     because the underlying types should really be binary anyway, IP addresses
     in the hostinfo are normalized:
 
     >>> UndecidedRemote("coap+tcp", "[::0001]:1234")
-    UndecidedRemote(scheme='coap+tcp', hostinfo='[::1]:1234')
+    UndecidedRemote('coap+tcp://[::1]:1234')
+    >>> tuple(UndecidedRemote("coap", "localhost"))
+    ('coap', 'localhost')
     """
 
     # This is settable per instance, for other transports to pick it up.
     maximum_block_size_exp = MAX_REGULAR_BLOCK_SIZE_EXP
 
-    def __new__(cls, scheme, hostinfo):
+    def __new__(cls, scheme: str, hostinfo: str | None):
+        if hostinfo is None:
+            return cls.from_pathless_uri(scheme)
         if "[" in hostinfo:
             (host, port) = hostportsplit(hostinfo)
             ip = ipaddress.ip_address(host)
@@ -785,7 +830,7 @@ class UndecidedRemote(
 
         >>> from aiocoap.message import UndecidedRemote
         >>> UndecidedRemote.from_pathless_uri("coap://localhost")
-        UndecidedRemote(scheme='coap', hostinfo='localhost')
+        UndecidedRemote('coap://localhost')
         """
 
         parsed = urllib.parse.urlparse(uri)
@@ -800,6 +845,9 @@ class UndecidedRemote(
 
         return cls(parsed.scheme, parsed.netloc)
 
+    def __repr__(self):
+        return f"UndecidedRemote({f'{self.scheme}://{self.hostinfo}'!r})"
+
 
 _ascii_lowercase = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 
@@ -807,6 +855,12 @@ _quote_for_path = quote_factory(unreserved + sub_delims + ":@")
 _quote_for_query = quote_factory(
     unreserved + "".join(c for c in sub_delims if c != "&") + ":@/?"
 )
+
+
+class Direction(enum.Enum):
+    INCOMING = enum.auto()
+    OUTGOING = enum.auto()
+
 
 #: Result that can be returned from a render method instead of a Message when
 #: due to defaults (eg. multicast link-format queries) or explicit

@@ -209,9 +209,7 @@ class OscoreSiteWrapper(interfaces.Resource):
     def _process_edhoc_msg12(self, pipe):
         request = pipe.request
 
-        origin = request.get_request_uri(local_is_server=True).removesuffix(
-            "/.well-known/edhoc"
-        )
+        origin = request.get_request_uri().removesuffix("/.well-known/edhoc")
         own_credential_object = self._get_edhoc_identity(origin)
         if own_credential_object is None:
             self.log.error(

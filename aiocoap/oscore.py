@@ -24,7 +24,7 @@ import secrets
 import warnings
 import logging
 
-from aiocoap.message import Message
+from aiocoap.message import Message, Direction
 from aiocoap.util import cryptography_additions, deprecation_getattr, Sentinel
 from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED, CONTENT
 from aiocoap import error
@@ -1001,7 +1001,11 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
             "Requestishness of code to protect does not match presence of request ID"
         )
 
+        assert message.direction is Direction.OUTGOING
+
         outer_message, plaintext = self._split_message(message, request_id)
+
+        outer_message.direction = Direction.OUTGOING
 
         protected = {}
         nonce = None
@@ -1242,6 +1246,8 @@ class CanUnprotect(BaseSecurityContext):
         )
         is_response = protected_message.code.is_response()
 
+        assert protected_message.direction is Direction.INCOMING
+
         # Set to a raisable exception on replay check failures; it will be
         # raised, but the package may still be processed in the course of Echo handling.
         replay_error = None
@@ -1379,6 +1385,7 @@ class CanUnprotect(BaseSecurityContext):
 
         unprotected_message = Message(code=plaintext[0])
         unprotected_message.payload = unprotected_message.opt.decode(plaintext[1:])
+        unprotected_message.direction = Direction.INCOMING
 
         try_initialize = (
             not self.recipient_replay_window.is_initialized()
