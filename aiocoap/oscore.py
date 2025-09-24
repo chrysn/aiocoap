@@ -1006,6 +1006,8 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
         outer_message, plaintext = self._split_message(message, request_id)
 
         outer_message.direction = Direction.OUTGOING
+        # There are currently no properties that relate to OSCORE that'd need to be discarded.
+        outer_message.transport_tuning = message.transport_tuning
 
         protected = {}
         nonce = None
