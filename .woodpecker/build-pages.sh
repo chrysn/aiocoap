@@ -16,6 +16,8 @@ then
     python3 -m coverage html -d public/coverage/
 fi
 
+./.woodpecker/badges.sh
+
 WHEEL=$(cd dist && echo *.whl)
 DESCRIBE=$(git describe --always)
 # Link for the wheel goes to the `raw.` URI because that allows CORS,
