@@ -185,7 +185,7 @@ class TestClientOther(WithTestServer, WithClient):
         request = aiocoap.Message(
             code=aiocoap.GET,
             uri="coap://" + self.servernetloc + "/slow",
-            _mtype=aiocoap.NON,
+            transport_tuning=aiocoap.Unreliable,
         )
         self.resp = self.client.request(request).response
         # Wait for the request to actually be sent
