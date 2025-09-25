@@ -38,6 +38,7 @@ class OptionNumber(ExtensibleIntEnum):
     OSCORE = 9
     URI_PATH = 11
     CONTENT_FORMAT = 12
+    URI_PATH_ABBREV = 13  # from draft-ietf-core-uri-path-abbrev
     MAX_AGE = 14
     URI_QUERY = 15
     HOP_LIMIT = 16
@@ -210,3 +211,8 @@ OptionNumber.HOP_LIMIT.set_format(optiontypes.UintOption)
 # experimental for draft-amsuess-core-cachable-oscore
 
 OptionNumber.REQUEST_HASH.set_format(optiontypes.OpaqueOption)
+
+# draft-ietf-core-uri-path-abbrev
+
+# FIXME: Should we express this as an enum right away?
+OptionNumber.URI_PATH_ABBREV.set_format(optiontypes.UintOption)
