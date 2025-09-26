@@ -32,6 +32,7 @@ from . import error
 from . import interfaces
 from .numbers.contentformat import ContentFormat
 from .numbers.codes import Code
+from .numbers import uri_path_abbrev
 from .pipe import Pipe
 from .util.linkformat import Link, LinkFormat
 
@@ -460,6 +461,24 @@ class Site(interfaces.ObservableResource, PathCapable):
         return LinkFormat(links)
 
     async def render_to_pipe(self, request: Pipe):
+        # As soon as we use the provided render_to_pipe that fans out to
+        # needs_blockwise_assembly etc, we'll have multiple methods that all
+        # need to agree on how the path is processed, even before we go into
+        # the site dispatch -- so we better resolve this now (exercising our
+        # liberties as a library proxy) and provide a consistent view.
+        if request.request.opt.uri_path_abbrev is not None:
+            if request.request.opt.uri_path:
+                # Conflicting options
+                raise error.BadOption()
+            try:
+                request.request.opt.uri_path = uri_path_abbrev._map[
+                    request.request.opt.uri_path_abbrev
+                ]
+            except KeyError:
+                # Unknown option
+                raise error.BadOption() from None
+            request.request.opt.uri_path_abbrev = None
+
         try:
             child, subrequest = self._find_child_and_pathstripped_message(
                 request.request
