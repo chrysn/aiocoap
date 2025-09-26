@@ -4,7 +4,6 @@
 
 import asyncio
 import aiocoap
-import unittest
 
 from .test_server import WithTestServer, WithClient, no_warnings
 
@@ -23,8 +22,7 @@ class TestClientWithSetHost(WithTestServer, WithClient):
         # format
         self.assertEqual(response.opt.content_format, 40)
 
-    @unittest.expectedFailure
-    # So far, this is only supported on the server, not on the client
+    @no_warnings
     async def test_uri_path_abbrev_in_request_uri(self):
         request = aiocoap.Message(
             code=aiocoap.GET, uri="coap://" + self.servernetloc, uri_path_abbrev=0

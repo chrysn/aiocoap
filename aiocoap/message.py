@@ -17,6 +17,7 @@ from . import error, optiontypes
 from .numbers.codes import Code, CHANGED
 from .numbers.types import Type
 from .numbers.constants import TransportTuning, MAX_REGULAR_BLOCK_SIZE_EXP
+from .numbers import uri_path_abbrev
 from .options import Options
 from .util import hostportjoin, hostportsplit, Sentinel, quote_nonascii
 from .util.uri import quote_factory, unreserved, sub_delims
@@ -612,7 +613,19 @@ class Message:
 
         scheme = refmsg.opt.proxy_scheme or refmsg.remote.scheme
         query = refmsg.opt.uri_query or ()
-        path = refmsg.opt.uri_path
+        if refmsg.opt.uri_path_abbrev is not None:
+            if refmsg.opt.uri_path:
+                raise ValueError(
+                    "Conflicting information about the path (Uri-Path and Uri-Path-Abbrev)"
+                )
+            try:
+                path = uri_path_abbrev._map[refmsg.opt.uri_path_abbrev]
+            except KeyError:
+                raise ValueError(
+                    f"Path could not be determined: Unknown Uri-Path-Abbrev value {refmsg.opt.uri_path!r}"
+                ) from None
+        else:
+            path = refmsg.opt.uri_path
 
         if multicast_netloc_override is not None:
             netloc = multicast_netloc_override
