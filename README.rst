@@ -5,8 +5,8 @@
 |documentation| |git sources on codeberg| |on PyPI| |CI status| |coverage report| |following OpenSSF Best Practices|
 
 
-aiocoap -- The Python CoAP library
-==================================
+aiocoap – The Python CoAP library
+=================================
 
 The aiocoap package is an implementation of CoAP, the `Constrained Application
 Protocol`_. It facilitates writing applications that talk to
