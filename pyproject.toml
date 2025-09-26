@@ -108,3 +108,11 @@ module = [
 # will even never all be together at the same time (pyodide only exists in the
 # browser, DTLSSocket might not even build there)
 ignore_missing_imports = true
+
+[tool.coverage.run]
+data_file = ".coverage/cov"
+parallel = true
+source_pkgs = ["aiocoap"]
+
+[tool.coverage.paths]
+aiocoap = ["aiocoap/", ".tox/*/lib/*/site-packages/aiocoap/"]

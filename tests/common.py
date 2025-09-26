@@ -15,7 +15,7 @@ import aiocoap.defaults
 os.environ["AIOCOAP_DTLSSERVER_ENABLED"] = "1"
 
 if "coverage" in sys.modules:
-    PYTHON_PREFIX = [sys.executable, "-m", "coverage", "run", "--parallel-mode"]
+    PYTHON_PREFIX = [sys.executable, "-m", "coverage", "run"]
 else:
     PYTHON_PREFIX = [sys.executable]
 
