@@ -2,8 +2,11 @@
   :copyright: SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
   :copyright: SPDX-License-Identifier: MIT
 
-aiocoap -- The Python CoAP library
-==================================
+|documentation| |git sources on codeberg| |on PyPI| |CI status| |coverage report| |following OpenSSF Best Practices|
+
+
+aiocoap – The Python CoAP library
+=================================
 
 The aiocoap package is an implementation of CoAP, the `Constrained Application
 Protocol`_. It facilitates writing applications that talk to
@@ -156,9 +159,35 @@ The full list of aiocoap contributors can be obtained from the version control h
 
 .. Any filtering by a mailmap would apply, but no need to state that unless we do get a mailmap.
 
+.. Links:
+
 .. _guidedtour: http://aiocoap.readthedocs.io/en/latest/guidedtour.html
 .. _examples: http://aiocoap.readthedocs.io/en/latest/examples.html
 .. _tools: http://aiocoap.readthedocs.io/en/latest/tools.html
 .. _installation: http://aiocoap.readthedocs.io/en/latest/installation.html
 .. _reuse.software: https://reuse.software/
 .. _txThings: https://github.com/siskin/txThings
+
+.. Badges:
+
+.. |documentation| image:: https://app.readthedocs.org/projects/aiocoap/badge/?version=latest
+   :target: https://aiocoap.readthedocs.io/
+
+.. |git sources on codeberg| image:: https://badgen.net/static/git/on%20codeberg
+   :target: https://codeberg.org/aiocoap/aiocoap/
+
+.. |on PyPI| image:: https://badgen.net/pypi/v/aiocoap
+   :target: https://pypi.org/project/aiocoap/
+
+.. The "?" at the end keeps the HTML renderer from recognizing it as an SVG, in
+   which case it'd turn it into an <object>, which doesn't work on that site
+   because of X-Frame-Options sent there.
+
+.. |CI status| image:: https://ci.codeberg.org/api/badges/12879/status.svg?
+   :target: https://ci.codeberg.org/repos/12879
+
+.. |coverage report| image:: https://aiocoap.codeberg.page/aiocoap/badges/coverage.svg?
+   :target: https://aiocoap.codeberg.page/aiocoap/coverage/
+
+.. |following OpenSSF Best Practices| image:: https://www.bestpractices.dev/projects/10010/badge
+   :target: https://www.bestpractices.dev/en/projects/10010
