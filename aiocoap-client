@@ -7,7 +7,8 @@
 entry points have not been installed (eg. when running from the source
 directory)."""
 
-import asyncio
 import aiocoap.cli.client
 
-asyncio.run(aiocoap.cli.client.main())
+# When changing this, beware that the projects.scripts entry points need to be
+# changed as well.
+aiocoap.cli.client.sync_main()

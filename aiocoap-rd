@@ -9,4 +9,6 @@ the source directory)."""
 
 import aiocoap.cli.rd
 
+# When changing this, beware that the projects.scripts entry points need to be
+# changed as well.
 aiocoap.cli.rd.sync_main()

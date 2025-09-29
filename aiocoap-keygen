@@ -8,4 +8,6 @@ points have not been installed (eg. when running from the source directory)."""
 
 import aiocoap.cli.keygen
 
+# When changing this, beware that the projects.scripts entry points need to be
+# changed as well.
 aiocoap.cli.keygen.main()
