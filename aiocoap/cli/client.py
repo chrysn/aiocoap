@@ -670,5 +670,9 @@ async def main(args=None):
         await interactive(globalopts)
 
 
+def sync_main(args=None):
+    asyncio.run(main(args=args))
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    sync_main()
