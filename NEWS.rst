@@ -2,6 +2,34 @@
   :copyright: SPDX-FileCopyrightText: Christian Amsüss
   :copyright: SPDX-License-Identifier: MIT
 
+Version 0.4.16
+--------------
+
+Enhancements
+~~~~~~~~~~~~
+
+* Messages have a ``.direction`` (incoming or outgoing); this is managed by the library.
+
+  This simplifies calls such as ``.get_request_uri()``, which works without an extra ``local_is_server=`` parameter now.
+
+* Message representation is enhanced based on direction.
+
+* The draft option Uri-Path-Abbrev is now processed by server sites.
+
+Bugfixes
+~~~~~~~~
+
+* The aiocoap-client invocation has been fixed for pip installed packages.
+* Transport tuning is now applied to the transport also for OSCORE requests.
+
+Deprecations
+~~~~~~~~~~~~
+
+* Setting the token, MID or message type (mtype, like CON or NON) in a message is deprecated.
+  The message type can now be set using transport_tuning=Reliable/Unreliable instead.
+
+  This serves to decouple CoAP's sub-layers, and prepares the addition of other transports with optional reliability.
+
 Version 0.4.15
 --------------
 
