@@ -9,4 +9,6 @@ directory)."""
 
 import aiocoap.cli.proxy
 
+# When changing this, beware that the projects.scripts entry points need to be
+# changed as well.
 aiocoap.cli.proxy.sync_main()
