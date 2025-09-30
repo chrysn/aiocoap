@@ -1,0 +1,19 @@
+# SPDX-FileCopyrightText: Christian Amsüss and the aiocoap contributors
+# SPDX-License-Identifier: MIT
+
+cff-version: 1.2.0
+title: aiocoap
+message: The Python CoAP library
+type: software
+authors:
+  - given-names: Christian
+    family-names: Amsüss
+    orcid: 'https://orcid.org/0000-0001-5168-5861'
+  - name: the aiocoap contributors
+url: 'https://christian.amsuess.com/tools/aiocoap/'
+keywords:
+  - CoAP
+  - asyncio
+  - IoT
+  - OSCORE
+  - EDHOC

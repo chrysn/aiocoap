@@ -149,8 +149,7 @@ Licensing
 aiocoap is published under the MIT License, and follows the best practice of `reuse.software`_.
 Files in ``aiocoap/util/vendored/`` may have different (but compatible and OSI approved) licenses.
 
-When using aiocoap for a publication, please cite it according to the output of
-``./setup.py cite [--bibtex]``.
+When using aiocoap for a publication, please cite it according to `CITATION.cff`_.
 
 Copyright Christian Amsüss and the aiocoap contributors.
 
@@ -167,6 +166,7 @@ The full list of aiocoap contributors can be obtained from the version control h
 .. _installation: http://aiocoap.readthedocs.io/en/latest/installation.html
 .. _reuse.software: https://reuse.software/
 .. _txThings: https://github.com/siskin/txThings
+.. _`CITATION.cff`: https://codeberg.org/aiocoap/aiocoap/src/branch/main/CITATION.cff
 
 .. Badges:
 
