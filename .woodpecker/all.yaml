@@ -94,7 +94,7 @@ steps:
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^3]'"
 
   test:3.14:
-    image: docker.io/python:3.14-rc
+    image: docker.io/python:3.14
     depends_on: [test:3.13-minimal]
     environment:
       # Possibly necessary because the image uses some Debian as a base might have another Python installed
