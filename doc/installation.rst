@@ -63,8 +63,8 @@ When upstream libraries change, or when dependencies of used libraries are not
 there (eg. no C compiler, C libraries missing), the installation process can fail.
 
 On Debian based systems, it helps to install the packages ``python3-dev``,
-``build-essential`` and ``autoconf``; generally, the error output will contain
-some hints as to what is missing.
+``build-essential``, ``autoconf`` and ``automake``; generally, the error output will
+contain some hints as to what is missing.
 
 As a workaround, it can be helpful to not install with all extras, but replace the
 ``all`` with the extras you actually want from the list below. For example, if
