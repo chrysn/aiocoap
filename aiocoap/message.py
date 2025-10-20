@@ -175,7 +175,7 @@ class Message:
             _mid = mid
         if mtype is not None:
             warn(
-                "Initializing messages with an mtype is deprecated. Instead, set transport_tuning=aiocoap.Reliable oraiocoap. Unreliable.",
+                "Initializing messages with an mtype is deprecated. Instead, set transport_tuning=aiocoap.Reliable or aiocoap.Unreliable.",
                 DeprecationWarning,
                 stacklevel=2,
             )
