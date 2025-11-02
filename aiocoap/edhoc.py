@@ -18,6 +18,7 @@ import lakers
 from . import oscore, credentials, error
 from . import Message
 from .numbers import POST
+from .numbers.eaditem import EADLabel
 
 
 def load_cbor_or_edn(filename: Path):
@@ -279,7 +280,15 @@ class EdhocCredentials(credentials._Objectish):
         # requests, we'll have to pick more carefully
         c_i = bytes([random.randint(0, 23)])
         initiator = lakers.EdhocInitiator()
-        message_1 = initiator.prepare_message_1(c_i)
+        message_1 = initiator.prepare_message_1(
+            c_i,
+            # We could also send this depending on our configuration, ie. not
+            # send it if we do expect credentials. But that'll also reveal to
+            # an extent that we are ready to do TOFU, so sending it
+            # unconditionally is a good first step, also because it allows
+            # peers to migrate towards sending by reference as a default.
+            [lakers.EADItem(EADLabel.CRED_BY_VALUE, is_critical=False)],
+        )
 
         msg1 = Message(
             code=POST,
