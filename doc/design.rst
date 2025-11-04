@@ -63,14 +63,14 @@ rather, it highlights some points of how CoAP is expressed in aiocoap.
   is currently still a bit mixed:
   Most resides in custom attributes of the message
   (like :attr:`aiocoap.Message.remote` or :attr:`aiocoap.Message.mtype`);
-  thes are generally treated as hints and not always fully applicable.
+  these are generally treated as hints and not always fully applicable.
   Some properties are also transported in options even though they are not exactly fitting here;
   for example, the No-Response option is used in responses to indicate to the stack that no response should be set.
   The latter should be cleaned up.
 
 * URIs and remotes:
 
-  In generall, aiocoap will aim for good user experience when the user passes in a URI per request,
+  In general, aiocoap will aim for good user experience when the user passes in a URI per request,
   eg. by keeping TCP connections open for a bit.
   As the library can not keep track of URI strings,
   it is sometimes preferable to keep the :attr:`aiocoap.Message.remote` around and build requests based on that.

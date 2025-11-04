@@ -130,7 +130,7 @@ class TestNoncoapTCPClient(WithTestServer):
 
     @no_warnings
     async def test_incomplete_large3(self):
-        # announcing a 269 byte long message, but not even sendin the code
+        # announcing a 269 byte long message, but not even sending the code
         await self.should_idle_quietly(b"\xe0\0\0")
 
     @precise_warnings(["Aborting connection: Overly large message announced"])

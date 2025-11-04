@@ -303,7 +303,7 @@ class FileServer(Resource, aiocoap.interfaces.ObservableResource):
         )
         if block_out.block_number == 0 and block_out.more is False:
             # Didn't find any place in 7959 that says a Block2 must be present
-            # if the full body is sent, but if I mis read that, we might add an
+            # if the full body is sent, but if I misread that, we might add an
             # `or request.opt.block2 is not None`.
             block_out = None
         content_format = None

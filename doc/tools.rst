@@ -32,7 +32,7 @@ the ``--help`` option.
 contrib
 -------
 
-Tools in the ``contrib/`` folder are somewhere inbetween :doc:`examples` and
+Tools in the ``contrib/`` folder are somewhere between :doc:`examples` and
 the tools above; the rough idea is that they should be generally useful but not
 necessarily production tools, and simple enough to be useful as an inspiration
 for writing other tools; none of this is set in stone, though, so that area can

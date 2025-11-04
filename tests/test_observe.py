@@ -38,7 +38,7 @@ class ObservableCounter(ObservableResource):
 
     async def render_post(self, request):
         if request.payload == b"double":
-            # Calling updated_state() twice without yielding inbetween is key
+            # Calling updated_state() twice without yielding in between is key
             # here; this ensures that Futures are not treated carelessly.
             self.count += 1
             # Triggering with explicit value because if left empty, the value

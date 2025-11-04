@@ -74,7 +74,7 @@ def get_default_clienttransports(*, loop=None, use_env=True):
         return
 
     # on android it seems that it's only the AI_V4MAPPED that causes trouble,
-    # that should be managable in udp6 too.
+    # that should be manageable in udp6 too.
     yield "udp6"
     return
 
@@ -128,7 +128,7 @@ def get_default_servertransports(*, loop=None, use_env=True):
         return
 
     # on android it seems that it's only the AI_V4MAPPED that causes trouble,
-    # that should be managable in udp6 too.
+    # that should be manageable in udp6 too.
     yield "udp6"
     return
 
@@ -252,7 +252,7 @@ def prettyprint_missing_modules():
     except ImportError:
         missing.append("cbor-diag")
     # explicitly not covering colorlog: They are bundled to keep the number of
-    # externally visible optional dependency groups managable, but the things
+    # externally visible optional dependency groups manageable, but the things
     # that depend on `prettyprint_missing_modules` work no matter whether
     # colorlog is in or not.
     return missing

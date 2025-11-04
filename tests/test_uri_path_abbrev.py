@@ -13,7 +13,7 @@ class TestClientWithSetHost(WithTestServer, WithClient):
     async def test_uri_path_abbrev_wkc(self):
         request = aiocoap.Message(
             code=aiocoap.GET,
-            # We don't set a path, thus are still free to set an abbrev path isntead
+            # We don't set a path, thus are still free to set an abbrev path instead
             uri="coap://" + self.servernetloc,
             uri_path_abbrev=0,
         )

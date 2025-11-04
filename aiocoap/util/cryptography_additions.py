@@ -54,7 +54,7 @@ def pk_to_curve25519(ed: ed25519.Ed25519PublicKey) -> x25519.X25519PublicKey:
     from fe25519 import fe25519
 
     if ge25519.has_small_order(raw) != 0:
-        raise RuntimeError("Doesn' thave small order")
+        raise RuntimeError("Doesn't thave small order")
 
     # frombytes in libsodium appears to be the same as
     # frombytes_negate_vartime; as ge25519 only implements the from_bytes

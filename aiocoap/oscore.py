@@ -2016,7 +2016,7 @@ class FilesystemSecurityContext(
             )
 
     def _destroy(self):
-        """Release the lock file, and ensure tha he object has become
+        """Release the lock file, and ensure that the object has become
         unusable.
 
         If there is unpersisted state from B.1 operation, the actually used

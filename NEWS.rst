@@ -61,7 +61,7 @@ Building and metadata
 Bugfixes
 ~~~~~~~~
 
-* aiocoap-client now propertly reports file access errors.
+* aiocoap-client now properly reports file access errors.
 * A reference cycle in WebSockets transports was resolved.
 * Various tests were fixed or added (including coverage of aiocoap-client --interactive).
 * Missing dependencies (EDHOC requires cbor-diag for loading credentials) were declared.
