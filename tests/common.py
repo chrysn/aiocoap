@@ -89,6 +89,13 @@ dtls_disabled = "dtls" not in os.environ.get(
     "AIOCOAP_SERVER_TRANSPORT", "dtls is default"
 )
 
+# This is relevant when some tests don't quite work with woodpecker's network
+# setup; use this sparingly.
+in_woodpecker = (
+    os.environ.get("__TOX_ENVIRONMENT_VARIABLE_ORIGINAL_CI") == "woodpecker"
+    or os.environ.get("CI") == "woodpecker"
+)
+
 
 class CapturingSubprocess(asyncio.SubprocessProtocol):
     """This protocol just captures stdout and stderr into properties of the
