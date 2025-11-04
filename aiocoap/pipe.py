@@ -27,7 +27,7 @@ class Pipe:
     eventually lets the server implementation populate it with responses).
 
     This currently follows a callback dispatch style. (It may be developed into
-    something where only awaiting a response drives the proces, though).
+    something where only awaiting a response drives the process, though).
 
     Currently, the requester sets up the object, connects callbacks, and then
     passes the Pipe on to whatever creates the response.
@@ -221,7 +221,7 @@ def run_driving_pipe(pipe, coroutine, name=None):
         except Exception as e:
             pipe.add_exception(e)
         # Not doing anything special about cancellation: it indicates the
-        # peer's loss of interest, so there's no use in sending anythign out to
+        # peer's loss of interest, so there's no use in sending anything out to
         # someone not listening any more
 
     task = asyncio.create_task(
@@ -250,7 +250,7 @@ def error_to_message(old_pr, log):
         e = event.exception
 
         if isinstance(e, error.RenderableError):
-            # the repr() here is quite imporant for garbage collection
+            # the repr() here is quite important for garbage collection
             log.info(
                 "Render request raised a renderable error (%s), responding accordingly.",
                 repr(e),

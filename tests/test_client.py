@@ -137,7 +137,7 @@ class TestClientOther(WithTestServer, WithClient):
         )
 
         request = aiocoap.Message(
-            code=aiocoap.GET, uri="coap://cant.resolve.this.example./empty"
+            code=aiocoap.GET, uri="coap://can.not.resolve.this.example./empty"
         )
         response = await self.client.request(request).response_nonraising
         self.assertEqual(response.code, aiocoap.INTERNAL_SERVER_ERROR)
@@ -151,7 +151,7 @@ class TestClientOther(WithTestServer, WithClient):
         # FIXME Currently, this *only* checks for whether later responses are
         # rejected, it does *not* check for whether the response runner is
         # freed as well (primarily because that'd need _del_to_be_sure to be
-        # useable in an async context).
+        # usable in an async context).
 
         # With immediate cancellation, nothing is sent. Note that we don't
         # ensure this per documentation, but still it's good to see when this
@@ -171,7 +171,7 @@ class TestClientOther(WithTestServer, WithClient):
 
         # FIXME: What is slightly weird here is that on uvloop, something
         # *does* get sent -- but it appears that that happens even after the
-        # cancellation. That behavior oly gets apparent when test_freeoncancel
+        # cancellation. That behavior only gets apparent when test_freeoncancel
         # and test_freeoncancel_non were run in a single test, because then the
         # ACK Content from the prior test also got counted.
 

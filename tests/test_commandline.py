@@ -275,7 +275,7 @@ class TestCommandlineClient(WithTestServer):
     @no_warnings
     async def test_erroneous(self):
         with self.assertRaises(subprocess.CalledProcessError):
-            # non-existant method
+            # non-existent method
             await check_output(
                 AIOCOAP_CLIENT + ["coap://" + self.servernetloc + "/empty", "-mSPAM"],
                 stderr=subprocess.STDOUT,
@@ -293,7 +293,7 @@ class TestCommandlineClient(WithTestServer):
             await check_output(AIOCOAP_CLIENT + ["/empty"], stderr=subprocess.STDOUT)
 
         with self.assertRaises(subprocess.CalledProcessError):
-            # non-existant mime type
+            # non-existent mime type
             await check_output(
                 AIOCOAP_CLIENT
                 + ["coap://" + self.servernetloc + "/empty", "--accept", "spam/eggs"],

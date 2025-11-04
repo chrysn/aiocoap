@@ -25,7 +25,7 @@ from . import interfaces
 
 __all__ = ["Message", "NoResponse"]
 
-# FIXME there should be a proper inteface for this that does all the urllib
+# FIXME there should be a proper interface for this that does all the urllib
 # patching possibly required and works with pluggable transports. urls qualify
 # if they can be parsed into the Proxy-Scheme / Uri-* structure.
 coap_schemes = ["coap", "coaps", "coap+tcp", "coaps+tcp", "coap+ws", "coaps+ws"]
@@ -881,6 +881,6 @@ class Direction(enum.Enum):
 #: all. Note that per RFC7967 section 2, an ACK is still sent to a CON
 #: request.
 #:
-#: Depercated; set the no_response option on a regular response instead (see
+#: Deprecated; set the no_response option on a regular response instead (see
 #: :meth:`.interfaces.Resource.render` for details).
 NoResponse = Sentinel("NoResponse")

@@ -94,7 +94,7 @@ class SeparateLargeResource(resource.Resource):
 
 class TimeResource(resource.ObservableResource):
     """Example resource that can be observed. The `notify` method keeps
-    scheduling itself, and calles `update_state` to trigger sending
+    scheduling itself, and calls `update_state` to trigger sending
     notifications."""
 
     def __init__(self):

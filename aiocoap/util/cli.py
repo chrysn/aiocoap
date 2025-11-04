@@ -117,7 +117,7 @@ class AsyncCLIDaemon:
             # <https://unix.stackexchange.com/questions/10231/when-does-the-system-send-a-sigterm-to-a-process>)
             exitcode = await main.__exitcode
         except KeyboardInterrupt:
-            logging.info("Keyboard interupt received, shutting down")
+            logging.info("Keyboard interrupt received, shutting down")
             sys.exit(3)
         else:
             sys.exit(exitcode)

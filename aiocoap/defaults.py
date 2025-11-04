@@ -74,7 +74,7 @@ def get_default_clienttransports(*, loop=None, use_env=True):
         return
 
     # on android it seems that it's only the AI_V4MAPPED that causes trouble,
-    # that should be managable in udp6 too.
+    # that should be manageable in udp6 too.
     yield "udp6"
     return
 
@@ -128,7 +128,7 @@ def get_default_servertransports(*, loop=None, use_env=True):
         return
 
     # on android it seems that it's only the AI_V4MAPPED that causes trouble,
-    # that should be managable in udp6 too.
+    # that should be manageable in udp6 too.
     yield "udp6"
     return
 
@@ -154,7 +154,7 @@ def use_ai_v4mapped_emulation():
     return False
 
 
-# FIXME: If there were a way to check for the extras defined in pyprojec.toml, or to link these lists to what is descibed there, that'd be great.
+# FIXME: If there were a way to check for the extras defined in pyprojec.toml, or to link these lists to what is described there, that'd be great.
 
 
 def dtls_missing_modules():
@@ -226,8 +226,8 @@ def ws_missing_modules():
 
 
 def linkheader_missing_modules():
-    """Return a list of moudles that are missing in order to use link_header
-    functionaity (eg. running a resource directory), of a false value if
+    """Return a list of modules that are missing in order to use link_header
+    functionality (eg. running a resource directory), of a false value if
     everything is present."""
     missing = []
     # The link_header module is now provided in-tree
@@ -252,7 +252,7 @@ def prettyprint_missing_modules():
     except ImportError:
         missing.append("cbor-diag")
     # explicitly not covering colorlog: They are bundled to keep the number of
-    # externally visible optional dependency groups managable, but the things
+    # externally visible optional dependency groups manageable, but the things
     # that depend on `prettyprint_missing_modules` work no matter whether
     # colorlog is in or not.
     return missing

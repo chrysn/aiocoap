@@ -58,7 +58,7 @@ def _find_loopbacknames():
             # name), that would come up empty when no route is availasble.
             #
             # (An alternative here would be to query V6 in the first place,
-            # check `all` instead of `any` againt com and before appending do
+            # check `all` instead of `any` against com and before appending do
             # another check on whether it still returns something to an
             # unspecified query)
             results = socket.getaddrinfo(c, 1234)

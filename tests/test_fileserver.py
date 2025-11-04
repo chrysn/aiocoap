@@ -150,7 +150,7 @@ async def work_fileserver(ctx, base_uri, assert_):
     assert_(not res.payload)
     assert_(res.opt.etag == etag1)
 
-    file2_body = b"It is diffrent now."
+    file2_body = b"It is different now."
     req = Message(
         code=PUT, uri=base_uri + "file", payload=file2_body, if_none_match=True
     )

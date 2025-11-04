@@ -16,7 +16,7 @@ rather, it highlights some points of how CoAP is expressed in aiocoap.
   This shapes what the library can do, and makes guidance on how to do it accessible --
   for CoAP specification describe what proxies may do but say nothing on APIs.
 
-  For example, splitting up large messages into block-wise chunks is something aiocoap does unless asked specificially not to;
+  For example, splitting up large messages into block-wise chunks is something aiocoap does unless asked specifically not to;
   in its operation, it follows the guidance set out for proxies in RFC7959.
   Likewise, this is what justifies that aiocoap intermittently drops observe notifications.
   (Future releases might even take on intermediate proxies due to discovered alternative protocols).
@@ -24,7 +24,7 @@ rather, it highlights some points of how CoAP is expressed in aiocoap.
   On the flip side, going all the way with this would mean that
   the application gets no choice in properties lost across proxies:
   The application could not decide whether reliable transport should be used.
-  Furthermore, applied in full, the application could not use any proxy-unsafe options not suported by the library.
+  Furthermore, applied in full, the application could not use any proxy-unsafe options not supported by the library.
 
   In aiocoap, a balance is attempted.
   It behaves like a proxy for some convenience operations,
@@ -50,7 +50,7 @@ rather, it highlights some points of how CoAP is expressed in aiocoap.
 
   In combination with the abovementioned proxy paradigm,
   this can lead to some weirdness when messages are represented differently on different transports.
-  The general approach currenlty taken is to build the application level messages
+  The general approach currently taken is to build the application level messages
   like a CoAP-over-UDP message was treated if UDP messages could be arbitrarily long
   (or possibly, with future changes to the internal block-wise mechanisms, using BERT).
   Notably, this means that applications that set Observe numbers manually should pack them into a 4-byte integer
@@ -63,16 +63,16 @@ rather, it highlights some points of how CoAP is expressed in aiocoap.
   is currently still a bit mixed:
   Most resides in custom attributes of the message
   (like :attr:`aiocoap.Message.remote` or :attr:`aiocoap.Message.mtype`);
-  thes are generally treated as hints and not always fully applicable.
+  these are generally treated as hints and not always fully applicable.
   Some properties are also transported in options even though they are not exactly fitting here;
   for example, the No-Response option is used in responses to indicate to the stack that no response should be set.
   The latter should be cleaned up.
 
 * URIs and remotes:
 
-  In generall, aiocoap will aim for good user experience when the user passes in a URI per request,
+  In general, aiocoap will aim for good user experience when the user passes in a URI per request,
   eg. by keeping TCP connections open for a bit.
   As the library can not keep track of URI strings,
-  it is sometimes preferrable to keep the :attr:`aiocoap.Message.remote` around and build requests based on that.
+  it is sometimes preferable to keep the :attr:`aiocoap.Message.remote` around and build requests based on that.
   This will ensure that aiocoap makes all efforts to keep established security contexts and connections around
   for as long as possible.

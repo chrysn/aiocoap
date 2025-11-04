@@ -26,7 +26,7 @@ class TestMessage(unittest.TestCase):
 
     # These do not map URIs to their fully normalzied form, just to another
     # (possibly normalized) form that is equivalent under normalization rules.
-    # Thus, it might be perfectly OK for an implemention change to require
+    # Thus, it might be perfectly OK for an implementation change to require
     # changing the test case -- as long as the new result sill has the same
     # normal URI.
     denormal_uris = {

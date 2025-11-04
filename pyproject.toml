@@ -116,3 +116,9 @@ source_pkgs = ["aiocoap"]
 
 [tool.coverage.paths]
 aiocoap = ["aiocoap/", ".tox/*/lib/*/site-packages/aiocoap/"]
+
+[tool.codespell]
+ignore-words-list = [
+    "EDN",
+    "AFAIR", # As Far As I Remember
+    ]

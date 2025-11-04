@@ -7,10 +7,10 @@
 pyodide_'s JavaScript adapter towards the WebSocket module of the hosting
 browser. It aims to be a drop-in replacement that provides the parts that can
 be implemented in the browser, and to provide practical errors on the used
-entry points. It will not go out of its way to mimick every aspect of the
+entry points. It will not go out of its way to mimic every aspect of the
 websockets module, but restrain itself to what ``.ws`` needs.
 
-**Future developement:** The module can probably be extended to cover all the
+**Future development:** The module can probably be extended to cover all the
 implementable functionality of websockets, and provide meaningful errors on all
 its items. When that happens, it should be split out of aiocoap.
 

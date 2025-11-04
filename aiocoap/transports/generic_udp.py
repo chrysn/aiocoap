@@ -8,7 +8,7 @@ from aiocoap import COAP_PORT, Message
 
 class GenericMessageInterface(interfaces.MessageInterface):
     """GenericMessageInterface is not a standalone implementation of a
-    message inteface. It does implement everything between the MessageInterface
+    message interface. It does implement everything between the MessageInterface
     and a not yet fully specified interface of "bound UDP sockets".
 
     It delegates sending through the address objects (which persist through

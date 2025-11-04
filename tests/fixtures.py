@@ -21,7 +21,7 @@ import weakref
 # causes per-fixture delays.
 CLEANUPTIME = 0.01
 
-# This is chosen quite losely to avoid false positives -- but having a timeout
+# This is chosen quite loosely to avoid false positives -- but having a timeout
 # prevents any test runnier engine (like gitlab runners) from triggering its
 # timeout. Thus, the rest of the suite has a chance of running, and we get the
 # debug log from the fixture rather than losing the logs to a brutal
@@ -216,7 +216,7 @@ class WithLogMonitoring(IsolatedAsyncioTestCase):
         """Assert that there was a warning with the given message.
 
         This function also removes the warning from the log, so an enclosing
-        @no_warnings (or @precise_warnings) can succed."""
+        @no_warnings (or @precise_warnings) can succeed."""
         for entry in self.handler.list:
             if entry.msg == message and entry.levelno == logging.WARNING:
                 self.handler.list.remove(entry)

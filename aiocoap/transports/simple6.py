@@ -182,7 +182,7 @@ class _DatagramClientSocketpoolSimple6:
     Assume there were a socket variety that had UDP messages (ie. unreliable,
     unordered, boundary-preserving) but that can do an accept() like a TCP
     listening socket can, and can create outgoing connection-ish sockets from
-    the listeing port.
+    the listening port.
 
     That interface would be usable for all UDP-based CoAP transport
     implementations; this particular implementation, due to limitations of

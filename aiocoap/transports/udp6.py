@@ -19,7 +19,7 @@ membership management and ``recvmsg`` to obtain data configured with the above
 options. The need for ``AI_V4MAPPED`` and ``AI_ADDRCONFIG`` is not manifest
 in the code because the latter on its own is insufficient to enable seamless
 interoperability with IPv4+IPv6 servers on IPv4-only hosts; instead,
-short-lived sockets are crated to assess which addresses are routable. This
+short-lived sockets are created to assess which addresses are routable. This
 should correctly deal with situations in which a client has an IPv6 ULA
 assigned but no route, no matter whether the server advertises global IPv6
 addresses or addresses inside that ULA. It can not deal with situations in
@@ -151,7 +151,7 @@ class UDP6EndpointAddress(interfaces.EndpointAddress):
         return str(address)
 
     def _plainaddress(self):
-        """Return the IP adress part of the sockaddr in IPv4 notation if it is
+        """Return the IP address part of the sockaddr in IPv4 notation if it is
         mapped, otherwise the plain v6 address including the interface
         identifier if set."""
 
@@ -269,7 +269,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             None  #: Future created and used in the .shutdown() method.
         )
 
-        self.ready = asyncio.get_running_loop().create_future()  #: Future that gets fullfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
+        self.ready = asyncio.get_running_loop().create_future()  #: Future that gets fulfilled by connection_made (ie. don't send before this is done; handled by ``create_..._context``
 
         # This is set while a send is underway to determine in the
         # error_received call site whom we were actually sending something to.
@@ -592,7 +592,7 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             )
             if cmsg_type == socknumbers.IPV6_RECVERR:
                 extended_err = SockExtendedErr.load(cmsg_data)
-                self.log.debug("Socket error recevied, details: %s", extended_err)
+                self.log.debug("Socket error received, details: %s", extended_err)
                 errno_value = extended_err.ee_errno
             elif cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == socket.IPV6_PKTINFO:
                 pktinfo = cmsg_data

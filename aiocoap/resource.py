@@ -49,7 +49,7 @@ def hashing_etag(request: message.Message, response: message.Message):
 
     Note that this method is not ideal from a server performance point of view
     (a file server, for example, might want to hash only the stat() result of a
-    file instead of reading it in full), but it saves bandwith for the simple
+    file instead of reading it in full), but it saves bandwidth for the simple
     cases.
 
     >>> from aiocoap import *
@@ -192,7 +192,7 @@ def link_format_to_message(
     default_ct=ContentFormat.LINKFORMAT,
 ) -> message.Message:
     """Given a LinkFormat object, render it to a response message, picking a
-    suitable conent format from a given request.
+    suitable content format from a given request.
 
     It returns a Not Acceptable response if something unsupported was queried.
 

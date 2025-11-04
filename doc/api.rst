@@ -16,7 +16,7 @@ aiocoap are described as stable.
 
 The library does not try to map the distinction between "public API" and
 internal components in the sense of semantic versioning to Python's "public"
-and "private" (``_``-prefixed) interaces -- tying those together would mean
+and "private" (``_``-prefixed) interfaces -- tying those together would mean
 intrusive refactoring every time a previously internal mechanism is stabilized.
 
 Neither does it only document the public API, as that would mean that library

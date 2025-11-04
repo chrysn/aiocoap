@@ -56,7 +56,7 @@ class WithAssertNofaillines(unittest.TestCase):
         lines = (
             l
             # "failed" and "error" are always legitimate in this position
-            # as they happen by design; whereever they are unexpected,
+            # as they happen by design; wherever they are unexpected,
             # they're caught by the regular plug test operation
             .replace("Precondition Failed", "Precondition @@@led").replace(
                 "Internal Server Error", "Internal Server @@@or"
@@ -232,7 +232,7 @@ for x in range(0, 17):
             t = unittest.expectedFailure(t)
         if x == 7:
             # That test fails because there is no proper observation cancellation
-            # aroun yet, see https://github.com/chrysn/aiocoap/issues/104
+            # around yet, see https://github.com/chrysn/aiocoap/issues/104
             #
             # Not making a statement on whether this is ecpected to work or
             # not, because it is highly irregular (it works with setup.py test

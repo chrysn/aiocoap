@@ -27,7 +27,7 @@ class Link(link_header.Link):
         def str_pair(key, value):
             if value is None:
                 return key
-            # workaround to accomodate copper
+            # workaround to accommodate copper
             #            elif RE_ONLY_TOKEN.match(value) or key.endswith('*'):
             #                return '%s=%s' % (key, value)
             else:

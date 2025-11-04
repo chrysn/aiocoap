@@ -15,7 +15,7 @@ from aiocoap.message import Direction
 
 
 def _extract_message_size(data: bytes):
-    """Read out the full length of a CoAP messsage represented by data.
+    """Read out the full length of a CoAP message represented by data.
 
     Returns None if data is too short to read the (full) length.
 

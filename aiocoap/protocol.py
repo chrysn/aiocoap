@@ -137,7 +137,7 @@ class Context(interfaces.RequestProvider):
         self.server_credentials = server_credentials or CredentialsMap()
 
     #
-    # convenience methods for class instanciation
+    # convenience methods for class instantiation
     #
 
     async def _append_tokenmanaged_messagemanaged_transport(
@@ -912,7 +912,7 @@ class BlockwiseRequest(BaseUnicastRequest, interfaces.Request):
                 if not blockresponse.code.is_successful():
                     break
                 else:
-                    # ignoring (discarding) the successul intermediate result, waiting for a final one
+                    # ignoring (discarding) the successful intermediate result, waiting for a final one
                     continue
 
         lower_observation = None
@@ -1141,7 +1141,7 @@ class ClientObservation:
         interface instead."""
         if not _suppress_deprecation:
             warnings.warn(
-                "register_callback on observe results is deprected: Use `async for notify in request.observation` instead.",
+                "register_callback on observe results is deprecated: Use `async for notify in request.observation` instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -1161,7 +1161,7 @@ class ClientObservation:
         interface instead."""
         if not _suppress_deprecation:
             warnings.warn(
-                "register_errback on observe results is deprected: Use `async for notify in request.observation` instead.",
+                "register_errback on observe results is deprecated: Use `async for notify in request.observation` instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )

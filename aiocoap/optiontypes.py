@@ -32,7 +32,7 @@ class OptionType(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def encode(self):
-        """Return the option's value in serialzied form"""
+        """Return the option's value in serialized form"""
 
     @abc.abstractmethod
     def decode(self, rawdata):
@@ -160,7 +160,7 @@ class BlockOption(TypedOption):
 
     That structure (BlockwiseTuple) covers not only the block options of
     RFC7959, but also the BERT extension of RFC8323. If the reserved size
-    exponent 7 is used for purposes incompatible with BERT, the implementor
+    exponent 7 is used for purposes incompatible with BERT, the implementer
     might want to look at the context dependent option number
     interpretations which will hopefully be in place for Signaling (7.xx)
     messages by then."""

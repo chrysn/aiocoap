@@ -145,8 +145,8 @@ class PlugtestClientProgram:
         response = await self.ctx.request(request).response
 
         print("Response:", response)
-        additional_verify("Responde had correct code", response.code, CONTENT)
-        additional_verify("Responde had correct payload", response.payload, b"Hello World!")
+        additional_verify("Response had correct code", response.code, CONTENT)
+        additional_verify("Response had correct payload", response.payload, b"Hello World!")
         additional_verify("Options as expected", response.opt, Message(content_format=0).opt)
 
     @__implements_tests([1, 2])
@@ -381,7 +381,7 @@ class PlugtestClientProgram:
         response = await self.ctx.request(request).response
 
         print("Response:", response, response.payload)
-        additional_verify("Responde had correct code", response.code, UNAUTHORIZED)
+        additional_verify("Response had correct code", response.code, UNAUTHORIZED)
 
 #     # unofficial blockwise tests start here
 # 

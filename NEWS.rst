@@ -61,7 +61,7 @@ Building and metadata
 Bugfixes
 ~~~~~~~~
 
-* aiocoap-client now propertly reports file access errors.
+* aiocoap-client now properly reports file access errors.
 * A reference cycle in WebSockets transports was resolved.
 * Various tests were fixed or added (including coverage of aiocoap-client --interactive).
 * Missing dependencies (EDHOC requires cbor-diag for loading credentials) were declared.
@@ -461,7 +461,7 @@ Minor enhancements
 Internal refactoring
 ~~~~~~~~~~~~~~~~~~~~
 
-* Pipes (channels for asynchronously producing resposnes, previously called
+* Pipes (channels for asynchronously producing responses, previously called
   PlumbingResponse) are now used also for resource rendering. Block-wise and
   observation handling could thus be moved away from the core protocol and into
   the resource implementations.
@@ -542,7 +542,7 @@ Version 0.4.1
   everywhere.
 
   A Python requirement of ">= 3.6.9" was left over in the previous release's
-  metadata from earlier intermediate steps that accomodated PyPy's pre-3.7
+  metadata from earlier intermediate steps that accommodated PyPy's pre-3.7
   version.
 
 Version 0.4
@@ -627,7 +627,7 @@ Dependencies
 Portability
 ~~~~~~~~~~~
 
-* Several small adjustments were made to accomodate execution on Windows.
+* Several small adjustments were made to accommodate execution on Windows.
 * FreeBSD was added to the list of supported systems (without any need for changes).
 
 Fixes possibly breaking applications
@@ -687,7 +687,7 @@ Portability
 * All uses of SO_REUSEPORT were changed to SO_REUSEADDR, as REUSEPORT is
   considered dangerous by some and removed from newer Python versions.
 
-  On platoforms without support for that option, it is not set. Automatic
+  On platforms without support for that option, it is not set. Automatic
   load-balancing by running parallel servers is not supported there.
 
 * The udp6 module is now usable on platforms without MSG_ERRQUEUE (ie. anything
@@ -808,7 +808,7 @@ Breaking changes
 
 * 17d1de5a: Handling of the various components of a remote was unified into the
   .remote property of messages. If you were previously setting unresolved
-  addresses or even a tuple-based remote manualy, please set them using the
+  addresses or even a tuple-based remote manually, please set them using the
   ``uri`` pseudo-option now.
 
 * 47863a29: Re-raise transport specific errors as aiocoap errors as
@@ -978,7 +978,7 @@ Possibly breaking changes
 * ab5b88a: Site nesting means that server resources do not get their original
   Uri-Path any more
 * bc76a7c: Location-{Path,Query} were opaque (bytes) objects instead of
-  strings; disctinction between accidental and intentional opaque options is
+  strings; distinction between accidental and intentional opaque options is
   now clarified
 
 Small features

@@ -74,7 +74,7 @@ class PressState(BooleanResource, KivyPropertyBacked):
     widget_property = "state"
 
     # This is no good modelling (for a button modelled as press-release is hard
-    # to observe with eventualy consistent semantics only), but it works for a
+    # to observe with eventually consistent semantics only), but it works for a
     # first demo.
 
     def __init__(self, kivy_backend):
