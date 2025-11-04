@@ -8,7 +8,7 @@ Known Caveats:
 
     * It is very permissive. Not only is no security implemented.
 
-    * This may and will make exotic choices about discoverable paths whereever
+    * This may and will make exotic choices about discoverable paths wherever
       it can (see StandaloneResourceDirectory documentation)
 
     * Split-horizon is not implemented correctly
@@ -299,7 +299,7 @@ class CommonRD:
 
     def _new_pathtail(self):
         for i in itertools.count(1):
-            # In the spirit of making legal but unconvential choices (see
+            # In the spirit of making legal but unconventional choices (see
             # StandaloneResourceDirectory documentation): Whoever strips or
             # ignores trailing slashes shall have a hard time keeping
             # registrations alive.
@@ -369,7 +369,7 @@ class CommonRD:
 
         # this was the brutal way towards idempotency (delete and re-create).
         # if any actions based on that are implemented here, they have yet to
-        # decide wheter they'll treat idempotent recreations like deletions or
+        # decide whether they'll treat idempotent recreations like deletions or
         # just ignore them unless something otherwise unchangeable (ep, d)
         # changes.
 
@@ -836,7 +836,7 @@ def build_parser():
     )
     p.add_argument(
         "--no-lwm2m-compat",
-        help="Disable all compativility with LwM2M clients that can not perform some discovery steps (not even accepting registrations at `/rd` with warnings)",
+        help="Disable all compatibility with LwM2M clients that can not perform some discovery steps (not even accepting registrations at `/rd` with warnings)",
         action="store_false",
         dest="lwm2m_compat",
     )

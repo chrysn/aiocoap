@@ -22,7 +22,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
         """Unfinished incoming requests.
 
         ``(token, remote): (Pipe, stopper)`` where stopper is a
-        function unregistes the Pipe event handler and thus
+        function unregisters the Pipe event handler and thus
         indicates to the server the discontinued interest"""
 
         self.log = self.context.log
@@ -269,7 +269,7 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
             # to be an exception, but that generally needs handling here.
             #
             # It may be that it'd be wise to reduce the use of send_canceller
-            # to situations when the request is actualy cancelled, and pass
+            # to situations when the request is actually cancelled, and pass
             # some information to the token_interface about whether it should
             # keep an eye out for responses on that token and cancel
             # transmission accordingly.

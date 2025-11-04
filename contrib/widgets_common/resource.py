@@ -57,7 +57,7 @@ class ContenttypeRendered(
         The method has some freedom in the types it may return (None is treated
         as an empty payload, strings are encoded in UTF-8). It is unclear yet
         whether more complex conversions (eg. JSON, CBOR) will be supported by
-        this or need additonal decorators."""
+        this or need additional decorators."""
 
         def wrapper(func):
             cf = numbers.media_types_rev[accept]
@@ -120,7 +120,7 @@ class ContenttypeRendered(
         if request.payload and "payload" not in parameters:
             raise BadRequest("Unexpected payload")
         if request.opt.uri_query and "query" not in parameters:
-            raise BadRequest("Unexepcted query arguments")
+            raise BadRequest("Unexpected query arguments")
 
         for p in parameters:
             if p == "payload":
@@ -177,7 +177,7 @@ class SenmlResource(ObservableContenttypeRendered):
     """A resource that has its state in .value; this class implements SenML
     getters and setters as well as plain text.
 
-    Implementors need to provide a .value instance property as well as
+    Implementers need to provide a .value instance property as well as
     .jsonsenml_key / .cborsenml_key class properties for picking the right
     value key in the respective SenML serialization, and a .valuetype type that
     is used both for converting any text/plain'ly PUT string as well as for

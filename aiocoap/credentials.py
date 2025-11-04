@@ -143,7 +143,7 @@ def _call_from_structureddata(constructor, name, init_data):
 
         if isinstance(v, dict) and "ascii" in v:
             if len(v) != 1:
-                raise CredentialsLoadError("ASCII objects can only have one elemnt.")
+                raise CredentialsLoadError("ASCII objects can only have one element.")
             try:
                 v = v["ascii"].encode("ascii")
             except UnicodeEncodeError:
@@ -153,7 +153,7 @@ def _call_from_structureddata(constructor, name, init_data):
 
         if isinstance(v, dict) and "hex" in v:
             if len(v) != 1:
-                raise CredentialsLoadError("Hex objects can only have one elemnt.")
+                raise CredentialsLoadError("Hex objects can only have one element.")
             try:
                 v = bytes.fromhex(
                     v["hex"].replace("-", "").replace(" ", "").replace(":", "")
@@ -215,7 +215,7 @@ class TLSCert(_Objectish):
 
     def as_ssl_params(self):
         """Generate parameters suitable for passing via ** to
-        ssl.create_default_context when purpose is alreay set"""
+        ssl.create_default_context when purpose is already set"""
         return {"cafile": self.certfile}
 
 

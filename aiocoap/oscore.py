@@ -204,8 +204,8 @@ def _xor_bytes(a, b):
 class SymmetricEncryptionAlgorithm(metaclass=abc.ABCMeta):
     """A symmetric algorithm
 
-    The algorithm's API is the AEAD API with addtional authenticated data: The
-    algorihm may or may not verify that data. Algorithms that actually do
+    The algorithm's API is the AEAD API with additional authenticated data: The
+    algorithm may or may not verify that data. Algorithms that actually do
     verify the data are recognized by also being AeadAlgorithm.
     """
 
@@ -238,7 +238,7 @@ class AeadAlgorithm(SymmetricEncryptionAlgorithm, metaclass=abc.ABCMeta):
 
 
 class AES_CBC(SymmetricEncryptionAlgorithm, metaclass=abc.ABCMeta):
-    """AES in CBC mode using tthe Python cryptography library"""
+    """AES in CBC mode using the Python cryptography library"""
 
     tag_bytes = 0
     # This introduces padding -- this library doesn't need to care because
@@ -439,7 +439,7 @@ class AlgorithmCountersign(metaclass=abc.ABCMeta):
     """A fully parameterized COSE countersign algorithm
 
     An instance is able to provide all the alg_signature, par_countersign and
-    par_countersign_key parameters taht go into the Group OSCORE algorithms
+    par_countersign_key parameters that go into the Group OSCORE algorithms
     field.
     """
 
@@ -522,7 +522,7 @@ def _from_kccs_common(ccs: bytes) -> dict:
 
 class Ed25519(AlgorithmCountersign):
     def sign(self, body, aad, private_key):
-        _alglog.debug("Perfoming signature:")
+        _alglog.debug("Performing signature:")
         _alglog.debug("* body: %s", body.hex())
         _alglog.debug("* AAD: %s", aad.hex())
         private_key = asymmetric.ed25519.Ed25519PrivateKey.from_private_bytes(
@@ -545,7 +545,7 @@ class Ed25519(AlgorithmCountersign):
         key = asymmetric.ed25519.Ed25519PrivateKey.generate()
         # FIXME: We could avoid handing the easy-to-misuse bytes around if the
         # current algorithm interfaces did not insist on passing the
-        # exchangable representations -- and generally that should be more
+        # exchangeable representations -- and generally that should be more
         # efficient.
         return key.private_bytes(
             encoding=serialization.Encoding.Raw,
@@ -908,7 +908,7 @@ class ContextWhereExternalAadIsGroup(BaseSecurityContext):
 
 # FIXME pull interface components from SecurityContext up here
 class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
-    # The protection function will add a signature acccording to the context's
+    # The protection function will add a signature according to the context's
     # alg_signature attribute if this is true
     is_signing = False
 
@@ -1168,7 +1168,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
             outer_code = request_id.code_style.response
 
-        # no max-age because these are always successsful responses
+        # no max-age because these are always successful responses
         outer_message = Message(
             code=outer_code,
             uri_host=outer_host,
@@ -1225,7 +1225,7 @@ class CanProtect(BaseSecurityContext, metaclass=abc.ABCMeta):
 
         This allow picking the right security context in a group response, and
         helps getting a new short-lived context for B.2 mode. The default
-        behaivor is returning self.
+        behavior is returning self.
         """
 
         # FIXME justify by moving into a mixin for CanProtectAndUnprotect
@@ -1277,7 +1277,7 @@ class CanUnprotect(BaseSecurityContext):
             if not is_response:
                 raise ProtectionInvalid("No sequence number provided in request")
 
-            seqno = None  # sentinel for not striking out anyting
+            seqno = None  # sentinel for not striking out anything
             partial_iv_short = request_id.partial_iv
             partial_iv_generated_by = request_id.kid
         else:
@@ -1290,7 +1290,7 @@ class CanUnprotect(BaseSecurityContext):
                 if not self.recipient_replay_window.is_initialized():
                     replay_error = ReplayError("Sequence number check unavailable")
                 elif not self.recipient_replay_window.is_valid(seqno):
-                    replay_error = ReplayError("Sequence number was re-used")
+                    replay_error = ReplayError("Sequence number was reused")
 
                 if replay_error is not None and self.echo_recovery is None:
                     # Don't even try decoding if there is no reason to
@@ -1715,7 +1715,7 @@ class ReplayWindow:
     later uses, it needs to be persisted by storing the output of
     self.persist() somewhere and loaded from that persisted data.
 
-    It is acceptable to store persistance data in the strike_out_callback, but
+    It is acceptable to store persistence data in the strike_out_callback, but
     that must then ensure that the data is written (flushed to a file or
     committed to a database), but that is usually inefficient.
 
@@ -1823,7 +1823,7 @@ class FilesystemSecurityContext(
 
     Writes due to sent sequence numbers are reduced by applying a variation on
     the mechanism of RFC8613 Appendix B.1.1 (incrementing the persisted sender
-    seqence number in steps of `k`). That value is automatically grown from
+    sequence number in steps of `k`). That value is automatically grown from
     sequence_number_chunksize_start up to sequence_number_chunksize_limit.
     At runtime, the receive window is not stored but kept indeterminate. In
     case of an abnormal shutdown, the server uses the mechanism described in
@@ -2509,7 +2509,7 @@ class _DeterministicProtectProtoAspect(
 ):
     """This implements the sending side of Deterministic Requests.
 
-    While simialr to a _PairwiseContextAspect, it only derives the key at
+    While similar to a _PairwiseContextAspect, it only derives the key at
     protection time, as the plain text is hashed into the key."""
 
     deterministic_hashfun = hashes.SHA256()
@@ -2550,7 +2550,7 @@ class _DeterministicProtectProtoAspect(
         if COSE_COUNTERSIGNATURE0 not in unprotected_bag:
             # Could just as well pass and later barf when the group context doesn't find a signature
             raise DecodeError(
-                "Response to deterministic request came from unsecure pairwise context"
+                "Response to deterministic request came from insecure pairwise context"
             )
 
         return _GroupContextAspect(
@@ -2630,7 +2630,7 @@ class _DeterministicUnprotectProtoAspect(
 ):
     """This implements the sending side of Deterministic Requests.
 
-    While simialr to a _PairwiseContextAspect, it only derives the key at
+    While similar to a _PairwiseContextAspect, it only derives the key at
     unprotection time, based on information given as Request-Hash."""
 
     # Unless None, this is the value by which the running process recognizes

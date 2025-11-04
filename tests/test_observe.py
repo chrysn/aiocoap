@@ -164,7 +164,7 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         response = await self.client.request(request).response
         self.assertEqual(
-            response.code, aiocoap.CONTENT, "Normal request did not succede"
+            response.code, aiocoap.CONTENT, "Normal request did not succeed"
         )
         self.assertEqual(
             response.payload, b"0", "Normal request gave unexpected result"
@@ -203,7 +203,7 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         response = await requester.response
         self.assertEqual(
-            response.code, aiocoap.CONTENT, "Unobservable base request did not succede"
+            response.code, aiocoap.CONTENT, "Unobservable base request did not succeed"
         )
         self.assertEqual(
             response.payload, b"", "Unobservable base request gave unexpected result"
@@ -231,7 +231,7 @@ class TestObserve(WithObserveTestServer, WithClient):
 
         response = await requester.response
         self.assertEqual(
-            response.code, aiocoap.CONTENT, "Observe base request did not succede"
+            response.code, aiocoap.CONTENT, "Observe base request did not succeed"
         )
         self.assertEqual(
             response.payload,
@@ -298,7 +298,7 @@ class TestObserve(WithObserveTestServer, WithClient):
         )
         response = await requester.response
         self.assertEqual(
-            response.code, aiocoap.CONTENT, "Observe base request did not succede"
+            response.code, aiocoap.CONTENT, "Observe base request did not succeed"
         )
         self.assertEqual(
             response.payload,
@@ -338,7 +338,9 @@ class TestObserve(WithObserveTestServer, WithClient):
     @no_warnings
     async def test_unknownhost(self):
         request = aiocoap.Message(
-            code=aiocoap.GET, uri="coap://cant.resolve.this.example./empty", observe=0
+            code=aiocoap.GET,
+            uri="coap://can.not.resolve.this.example./empty",
+            observe=0,
         )
         requester = self.client.request(request)
 

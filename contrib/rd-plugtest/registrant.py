@@ -4,10 +4,10 @@
 #
 # SPDX-License-Identifier: MIT
 
-"""A very limited registrant-ep for Resorce Directory plugtests.
+"""A very limited registrant-ep for Resource Directory plugtests.
 
 It largely utilizes the client registration features already built into
-aiocoap, but also offers a --simple optiion to run the simple registration
+aiocoap, but also offers a --simple option to run the simple registration
 that's otherwise not needed in aiocoap as the clients are featureful enough to
 be able to do (and need features of) full registration.
 

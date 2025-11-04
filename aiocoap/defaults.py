@@ -154,7 +154,7 @@ def use_ai_v4mapped_emulation():
     return False
 
 
-# FIXME: If there were a way to check for the extras defined in pyprojec.toml, or to link these lists to what is descibed there, that'd be great.
+# FIXME: If there were a way to check for the extras defined in pyprojec.toml, or to link these lists to what is described there, that'd be great.
 
 
 def dtls_missing_modules():
@@ -226,8 +226,8 @@ def ws_missing_modules():
 
 
 def linkheader_missing_modules():
-    """Return a list of moudles that are missing in order to use link_header
-    functionaity (eg. running a resource directory), of a false value if
+    """Return a list of modules that are missing in order to use link_header
+    functionality (eg. running a resource directory), of a false value if
     everything is present."""
     missing = []
     # The link_header module is now provided in-tree

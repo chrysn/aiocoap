@@ -280,7 +280,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
             )
 
     async def render(self, request):
-        # FIXME this is evaulated twice in the implementation (once here, but
+        # FIXME this is evaluated twice in the implementation (once here, but
         # unless it's an observation what matters is inside the super call),
         # maybe this needs to hook in differently than by subclassing and
         # calling super.
@@ -389,7 +389,7 @@ class ReverseProxy(Proxy):
 
         warnings.warn(
             "ReverseProxy has become moot due to proxy operation "
-            "changes, just instanciate Proxy and set the appropriate "
+            "changes, just instantiate Proxy and set the appropriate "
             "redirectors",
             DeprecationWarning,
             stacklevel=1,

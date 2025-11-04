@@ -48,7 +48,7 @@ def pk_to_curve25519(ed: ed25519.Ed25519PublicKey) -> x25519.X25519PublicKey:
     )
 
     # This is libsodium's crypto_sign_ed25519_pk_to_curve25519 translated into
-    # the Pyton module ge25519.
+    # the Python module ge25519.
 
     from ge25519 import ge25519, ge25519_p3
     from fe25519 import fe25519

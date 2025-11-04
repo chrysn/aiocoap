@@ -30,7 +30,7 @@ def _set_result_unless_cancelled(fut, result):
 
 
 class RecvmsgSelectorDatagramTransport(BaseTransport):
-    """A simple loop-independent transport that largely mimicks
+    """A simple loop-independent transport that largely mimics
     DatagramTransport but interfaces a RecvmsgSelectorDatagramProtocol.
 
     This does not implement any flow control, based on the assumption that it's

@@ -18,12 +18,12 @@ See :ref:`the pyodide section in the installation instructions <installation-pyo
 for how to install in those environments.
 
 Beware that when running in a web browser,
-no general purpose UDP or TCP connectins can be created.
+no general purpose UDP or TCP connections can be created.
 The only transport that is available is the client role of :mod:`CoAP over WebSockets <aiocoap.transports.ws>`;
 any attempt to send requests to ``coap://``, ``coaps+tcp://`` or similar will fail
 with "RuntimeError: No request interface could route message" (or a NotImplementedError).
 Also, browsers are picky about when they allow unencrypted HTTP connections,
-so the unsecure ``coap+ws://`` may be unavailable as well, leaving only ``coaps+ws://``.
+so the unsecured ``coap+ws://`` may be unavailable as well, leaving only ``coaps+ws://``.
 When going through the guided tour,
 it is suggested to just use ``coaps+ws://demo.coap.amsuess.com/`` as a server,
 as that is available without further setup.

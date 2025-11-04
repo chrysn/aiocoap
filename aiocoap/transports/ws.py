@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 """
-This moduel implements a TokenInterface for `CoAP over WebSockets`_.
+This module implements a TokenInterface for `CoAP over WebSockets`_.
 
 .. _`CoAP over WebSockets`: https://tools.ietf.org/html/rfc8323#section-4
 

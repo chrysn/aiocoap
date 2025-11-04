@@ -33,11 +33,11 @@ class HelpfulError(Error):
         error message itself may be insufficient to point the user in the right
         direction
 
-        The `hints` dictonary may be populated with context that the caller
+        The `hints` dictionary may be populated with context that the caller
         has; the implementation must tolerate their absence. Currently
         established keys:
 
-        * original_uri (str): URI that was attemted to access
+        * original_uri (str): URI that was attempted to access
         * request (Message): Request that was assembled to be sent
         """
         return None

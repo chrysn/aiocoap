@@ -162,7 +162,7 @@ class TestNoncoapClient(WithTestServer, WithMockSock):
 @_skip_unless_defaultmcif
 class TestNoncoapMulticastClient(WithTestServer, WithMockSock):
     # This exposes the test server to traffic from the environment system for
-    # some time; it's only run if a default multicast inteface is given
+    # some time; it's only run if a default multicast interface is given
     # explicitly, though.
     serveraddress = "::"
 

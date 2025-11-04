@@ -150,7 +150,7 @@ class _DatagramServerSocketSimple(asyncio.DatagramProtocol):
             "Sending initial messages via a server socket is not recommended"
         )
         # A legitimate case is when something stores return addresses as
-        # URI(part)s and not as remotes. (In similar transports this'd also be
+        # URI(part)s and not as remotes. (In similar transports this would also be
         # the case if the address's connection is dropped from the pool, but
         # that doesn't happen here since there is no pooling as there is no
         # per-connection state).

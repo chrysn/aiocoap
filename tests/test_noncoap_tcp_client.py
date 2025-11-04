@@ -135,7 +135,7 @@ class TestNoncoapTCPClient(WithTestServer):
 
     @precise_warnings(["Aborting connection: Overly large message announced"])
     async def test_incomplete_large4(self):
-        # announcing the longest possible message, this should excede
+        # announcing the longest possible message, this should exceed
         # everyone's max-message-size.
         #
         # blocking to read more would be acceptable behavior as well.
