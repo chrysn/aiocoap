@@ -493,7 +493,7 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
                 message.mtype = NON
 
         if message.mtype == CON and message.remote.is_multicast:
-            raise ValueError("Refusing to send CON message to multicast address")
+            raise error.ConToMulticast
 
         if message.mid is None:
             message.mid = self._next_message_id()

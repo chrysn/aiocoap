@@ -358,6 +358,22 @@ class WaitingForClientTimedOut(TimeoutError):
     """
 
 
+class ConToMulticast(ValueError, HelpfulError):
+    # This could become a RenderableError if a proxy gains the capability to
+    # influence whether or not a message is sent reliably strongly (ie. beyond
+    # hints), and reliable transport is required in a request sent to
+    # multicast.
+    """
+    Raised when attempting to send a confirmable message to a multicast address.
+    """
+
+    def __str__(self):
+        return "Refusing to send CON message to multicast address"
+
+    def extra_help(self, hints={}):
+        return "Requests over UDP can only be sent to unicast addresses as per RFC7252; pick a concrete peer or configure a NON request instead."
+
+
 class ResourceChanged(Error):
     """
     The requested resource was modified during the request and could therefore
