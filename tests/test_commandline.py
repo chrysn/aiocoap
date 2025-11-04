@@ -25,16 +25,26 @@ AIOCOAP_CLIENT = PYTHON_PREFIX + ["./aiocoap-client"]
 AIOCOAP_RD = PYTHON_PREFIX + ["./aiocoap-rd"]
 
 
-async def check_output(args, *, stdin_buffer=None, stderr=None, env=None):
+async def check_output(*args, **kwargs):
+    return (await check_both(*args, **kwargs))[0]
+
+
+async def check_stderr(*args, **kwargs):
+    return (await check_both(*args, **kwargs))[1]
+
+
+async def check_both(
+    args, *, stdin_buffer=None, stderr=subprocess.PIPE, env=None, expected_returncode=0
+):
     proc = await asyncio.create_subprocess_exec(
         *args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr, env=env
     )
-    (stdout, _) = await proc.communicate(stdin_buffer)
-    if proc.returncode != 0:
+    (stdout, stderr) = await proc.communicate(stdin_buffer)
+    if proc.returncode != expected_returncode:
         raise subprocess.CalledProcessError(
-            cmd=args, returncode=proc.returncode, output=stdout
+            cmd=args, returncode=proc.returncode, output=stdout, stderr=stderr
         )
-    return stdout
+    return (stdout, stderr)
 
 
 class TestCommandlineClient(WithTestServer):
@@ -358,6 +368,39 @@ class TestCommandlineClient(WithTestServer):
         )
 
         self.assertEqual(stdout, b"This is no proxy")
+
+    @no_warnings
+    async def test_blame_connectivity(self):
+        # None of the errors have to be verbatim, but the gist should be there.
+
+        stderr = await check_stderr(
+            AIOCOAP_CLIENT + ["coap://255.255.255.255"], expected_returncode=1
+        )
+        self.assertTrue(
+            b"For example, this can occur when attempting to send broadcast requests instead of multicast requests."
+            in stderr,
+            f"Expected error about broadcast traffic but got {stderr!r}",
+        )
+
+        # Conveniently, on Linux this behaves indistinguishable from not having
+        # v6 connectivity, and we don't have to create a v4-only test setup.
+        stderr = await check_stderr(
+            AIOCOAP_CLIENT + ["coap://[64:ff9b::]"], expected_returncode=1
+        )
+        self.assertTrue(
+            b"This may be due to lack of IPv6 connectivity" in stderr,
+            f"Expected error about IPv6 connectivity but got {stderr!r}",
+        )
+
+        # Conveniently, on Linux this behaves indistinguishable from not having
+        # v4 connectivity, and we don't have to create a v6-only test setup.
+        stderr = await check_stderr(
+            AIOCOAP_CLIENT + ["coap://100.64.0.0"], expected_returncode=1
+        )
+        self.assertTrue(
+            b"This may be due to lack of IPv4 connectivity" in stderr,
+            f"Expected error about IPv4 connectivity but got {stderr!r}",
+        )
 
 
 class TestCommandlineRD(unittest.TestCase):
