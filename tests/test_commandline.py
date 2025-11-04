@@ -416,6 +416,28 @@ class TestCommandlineClient(WithTestServer):
             f"Expected error about IPv4 connectivity but got {stderr!r}",
         )
 
+    @no_warnings
+    @unittest.skipIf(
+        using_simple6,
+        """Needs decision on whether simple6 should be really unicast-only (and reject multicast addresses outright, leading to a different error) or should retain its current behavior of "multicast may work in some ways but we don't have a good understanding of when it does".""",
+    )
+    async def test_blame_multicast_con(self):
+        stderr = await check_stderr(
+            AIOCOAP_CLIENT + ["coap://[ff02::1]"], expected_returncode=1
+        )
+        self.assertTrue(
+            b"can only be sent to unicast addresses" in stderr,
+            f"Expected error about multicast CON but got {stderr!r}",
+        )
+
+        stderr = await check_stderr(
+            AIOCOAP_CLIENT + ["coap://224.0.0.0"], expected_returncode=1
+        )
+        self.assertTrue(
+            b"can only be sent to unicast addresses" in stderr,
+            f"Expected error about multicast CON but got {stderr!r}",
+        )
+
 
 class TestCommandlineRD(unittest.TestCase):
     @unittest.skipIf(
