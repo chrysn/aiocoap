@@ -10,6 +10,7 @@ import warnings
 import abc
 import errno
 from typing import Optional
+import ipaddress
 
 from .numbers import codes
 from . import util
@@ -263,8 +264,24 @@ class NetworkError(HelpfulError):
                 # seen trying to reach any unused local address
                 return "No way of contacting the remote host could be found. This could be because a host on the local network is offline or firewalled. Tools for debugging in the next step could be ping or traceroute."
             if self.__cause__.errno == errno.ENETUNREACH:
-                # seen trying to reach an IPv6 host through an IP literal from a v4-only system, or trying to reach 2001:db8::1
-                return "No way of contacting the remote network could be found. This may be due to lack of IPv6 connectivity, lack of a concrete route (eg. trying to reach a private use network which there is no route to). Tools for debugging in the next step could be ping or traceroute."
+                connectivity_text = ""
+                try:
+                    host, _ = util.hostportsplit(hints["request"].remote.hostinfo)
+                    ip = ipaddress.ip_address(host)
+                    if isinstance(ip, ipaddress.IPv4Address):
+                        connectivity_text = "IPv4 "
+                    if isinstance(ip, ipaddress.IPv6Address):
+                        connectivity_text = "IPv6 "
+
+                    # Else, we can't help because we don't have access to the
+                    # name resolution result. This could all still be enhanced
+                    # by threading along the information somewhere.
+                except Exception:
+                    # This is not the point to complain about bugs, just give a more generic error.
+                    pass
+
+                # seen trying to reach an IPv6 host through an IP literal from a v4-only system, or trying to reach 2001:db8::1, or 192.168.254.254
+                return f"No way of contacting the remote network could be found. This may be due to lack of {connectivity_text}connectivity, or lack of a concrete route (eg. trying to reach a private use network which there is no route to). Tools for debugging in the next step could be ping or traceroute."
             if self.__cause__.errno == errno.EACCES:
                 # seen trying to reach the broadcast address of a local network
                 return "The operating system refused to send the request. For example, this can occur when attempting to send broadcast requests instead of multicast requests."
