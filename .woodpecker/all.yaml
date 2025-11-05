@@ -78,15 +78,13 @@ steps:
       FORCE_COLOR: "1"
     commands:
       - pip install tox
-      - tox --notest --skip-env '^py31[^3]'
-      - tox --skip-env '^py31[^3]'
+      - tox --notest
+      - tox
 
   test:3.13:
     image: docker.io/python:3.13
     depends_on: [test:3.13-minimal]
     environment:
-      # Possibly necessary because the image uses some Debian as a base might have another Python installed
-      TOXENV: "py313-allextras"
       FORCE_COLOR: "1"
     commands:
       - apt-get update
@@ -94,14 +92,12 @@ steps:
       - pip install tox
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest --skip-env '^py31[^3]'
-      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^3]'"
+      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^3]|py313-noextras'"
 
   test:3.14:
     image: docker.io/python:3.14
     depends_on: [test:3.13-minimal]
     environment:
-      # Possibly necessary because the image uses some Debian as a base might have another Python installed
-      TOXENV: "py314-allextras"
       FORCE_COLOR: "1"
     commands:
       - apt-get update
