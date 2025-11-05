@@ -417,7 +417,6 @@ async def single_request(args, context, globalopts=None):
 
         if options.observe:
             request.opt.observe = 0
-            observation_is_over = asyncio.get_event_loop().create_future()
 
         if options.content_format:
             try:
@@ -495,19 +494,7 @@ async def single_request(args, context, globalopts=None):
 
         requester = interface.request(request)
 
-        if options.observe:
-            requester.observation.register_errback(observation_is_over.set_result)
-            requester.observation.register_callback(
-                lambda data, options=options: incoming_observation(options, data)
-            )
-
-        try:
-            response_data = await requester.response
-        finally:
-            if not requester.response.done():
-                requester.response.cancel()
-            if options.observe and not requester.observation.cancelled:
-                requester.observation.cancel()
+        response_data = await requester.response
 
         log.info("Received response:")
         for line in message_to_text(response_data, "from"):
@@ -534,8 +521,11 @@ async def single_request(args, context, globalopts=None):
             sys.exit(1)
 
         if options.observe:
-            exit_reason = await observation_is_over
-            print("Observation is over: %r" % (exit_reason,), file=sys.stderr)
+            try:
+                async for notification in requester.observation:
+                    incoming_observation(options, notification)
+            except Exception as exit_reason:
+                print("Observation is over: %r" % (exit_reason,), file=sys.stderr)
     except aiocoap.error.HelpfulError as e:
         print(str(e), file=sys.stderr)
         extra_help = e.extra_help(
