@@ -2,6 +2,46 @@
   :copyright: SPDX-FileCopyrightText: Christian Amsüss
   :copyright: SPDX-License-Identifier: MIT
 
+Version 0.4.17
+--------------
+
+Enhancements
+~~~~~~~~~~~~
+
+* EDHOC requests now send the CRED_BY_VALUE EAD item.
+
+  This allows use of unauthenticated servers
+  (eg. in opportunistic encryption, or when only the client needs to be authenticated)
+  when the server would only send a credential key ID by default.
+
+Compatibility
+~~~~~~~~~~~~~
+
+* aiocoap-client now accepts the ``--no-sec`` option.
+
+  This is currently a no-op, but as the defaults might change,
+  this allows future scripts to use the option also with aiocoap versions starting from now.
+
+* Tests were updated to run on released Python 3.14 images.
+
+Errors and documentation
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+* Errors report unreachable IP versions more precisely.
+* Errors from the simple6 transport now raise ``NetworkError`` like the other transports
+  (following general documentation).
+* The ``ValueError`` from attempting to send CON messages to multicast through the udp6 trnasport
+  is now sublassed to ``ConToMulticast``,
+  and produces more useful error messages.
+* Many spelling fixes.
+
+Packaging
+~~~~~~~~~
+
+* Citation data is now provided in [citation file format](https://citation-file-format.github.io/).
+
+* ``setup.py`` was removed; this was not used any more in any workflow but providing citation data.
+
 Version 0.4.16
 --------------
 
