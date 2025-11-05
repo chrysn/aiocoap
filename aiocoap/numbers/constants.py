@@ -126,17 +126,29 @@ class TransportTuning:
     EMPTY_ACK_DELAY = 0.1
     """After this time protocol sends empty ACK, and separate response"""
 
-    REQUEST_TIMEOUT = MAX_TRANSMIT_WAIT
-    """Time after which server assumes it won't receive any answer.
-       It is not defined by IETF documents.
-       For human-operated devices it might be preferable to set some small value
-       (for example 10 seconds)
-       For M2M it's application dependent."""
+    @property
+    def REQUEST_TIMEOUT(self):
+        """Time after which server assumes it won't receive any answer.
+        It is not defined by IETF documents.
+        For human-operated devices it might be preferable to set some small value
+        (for example 10 seconds)
+        For M2M it's application dependent."""
+        warnings.warn(
+            "parameter is unused; use asyncio mechanisms to time out requests",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.MAX_TRANSMIT_WAIT
 
     DEFAULT_LEISURE = 5
 
     @property
     def MULTICAST_REQUEST_TIMEOUT(self):
+        warnings.warn(
+            "parameter is unused; use asyncio mechanisms to time out requests",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.REQUEST_TIMEOUT + self.DEFAULT_LEISURE
 
     OBSERVATION_RESET_TIME = 128
