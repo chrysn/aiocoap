@@ -216,10 +216,10 @@ def incoming_observation(options, response):
         p.communicate(response.payload)
     else:
         sys.stdout.write(colored("---", options, lambda token: token.Comment.Preproc))
+        sys.stdout.write("\n")
         if response.code.is_successful():
             present(response, options, file=sys.stderr)
         else:
-            sys.stdout.flush()
             print(
                 colored(
                     response.code, options, lambda token: token.Token.Generic.Error
@@ -228,6 +228,7 @@ def incoming_observation(options, response):
             )
             if response.payload:
                 present(response, options, file=sys.stderr)
+        sys.stdout.flush()
 
 
 def apply_credentials(context, credentials, errfn):
