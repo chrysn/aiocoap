@@ -80,7 +80,7 @@ Dependencies
 ------------
 
 Basic aiocoap works out of the box on Python_ 3.10 or newer (also works on
-PyPy3_). For full support (DTLS, OSCORE and link-format handling) follow the
+PyPy3_). For full support (eg. DTLS, OSCORE and pretty-printing) follow the
 installation_ instructions as these require additional libraries.
 
 aiocoap provides different network backends for different platforms. The most
