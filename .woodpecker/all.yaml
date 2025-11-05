@@ -182,7 +182,11 @@ steps:
     environment:
       FORCE_COLOR: "1"
     commands:
-      - python3 -m pip install coverage genbadge[all]
+      - python3 -m pip install tox coverage genbadge[all]
+      - "# Test whether all described tox environments have succeeded"
+      - "# (equivalently: started, for on failure, this step would not be run)"
+      - "# at least once."
+      - tox list --no-desc | sed 's@^@.coverage/success-env-@' | xargs ls
       - ./.woodpecker/build-pages.sh
 
   publish-pages:
