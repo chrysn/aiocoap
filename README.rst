@@ -106,7 +106,7 @@ working on larger changes, please coordinate on the issue tracker.
 
 Security critical bugs may instead be reported in private to <chrysn@fsfe.org>
 (`PGP key`_) for coordinated disclosure; the maintainer reserves the right to
-publish fixes ahead of a planned embargo time at he deems suitable.
+publish fixes ahead of a planned embargo time as he deems suitable.
 
 Documentation is built using sphinx_ with ``python3 -m sphinx doc/ ${TARGET}``;
 hacks used there are described in ``./doc/README.doc``.
