@@ -564,8 +564,6 @@ class BaseUnicastRequest(BaseRequest):
 
 
 class Request(interfaces.Request, BaseUnicastRequest):
-    # FIXME: Implement timing out with REQUEST_TIMEOUT here
-
     def __init__(self, pipe, loop, log):
         self._pipe = pipe
 
