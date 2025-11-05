@@ -71,6 +71,12 @@ LEVEL_WARNING = 1
 LEVEL_FATAL = 2
 CODE_CLOSE_NOTIFY = 0
 
+level_names = {
+    LEVEL_NOALERT: "no alert",
+    LEVEL_WARNING: "warning",
+    LEVEL_FATAL: "fatal",
+}
+
 # tinydtls can not be debugged in the Python way; if you need to get more
 # information out of it, use the following line:
 # dtls.setLogLevel(dtls.DTLS_LOG_DEBUG)

@@ -42,6 +42,7 @@ from .simplesocketserver import _DatagramServerSocketSimple
 from .tinydtls import (
     LEVEL_NOALERT,
     LEVEL_FATAL,
+    level_names,
     DTLS_EVENT_CONNECT,
     DTLS_EVENT_CONNECTED,
     CODE_CLOSE_NOTIFY,
@@ -147,7 +148,12 @@ class _AddressDTLS(interfaces.EndpointAddress):
         elif level == LEVEL_FATAL:
             self._inject_error(FatalDTLSError(code))
         else:
-            self.log.warning("Unhandled alert level %d code %d", level, code)
+            self.log.warning(
+                "Unhandled alert level %d (%s) code %d",
+                level,
+                level_names.get(level, "unknown"),
+                code,
+            )
 
     # own helpers copied and adjusted from tinydtls
 
