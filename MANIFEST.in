@@ -6,4 +6,4 @@ include contrib/*
 include contrib/*/*
 include doc/*
 include LICENSES/*
-include NEWS
+include NEWS.rst
