@@ -37,10 +37,11 @@ dynamic = [ "version" ]
 requires-python = ">=3.10"
 
 [project.urls]
-homepage = "https://christian.amsuess.com/tools/aiocoap/"
-repository = "https://codeberg.org/aiocoap/aiocoap"
-documentation = "https://aiocoap.readthedocs.org/"
-changelog = "https://codeberg.org/aiocoap/aiocoap/src/branch/main/NEWS.rst"
+Homepage = "https://christian.amsuess.com/tools/aiocoap/"
+Repository = "https://codeberg.org/aiocoap/aiocoap"
+Documentation = "https://aiocoap.readthedocs.org/"
+Changelog = "https://codeberg.org/aiocoap/aiocoap/src/branch/main/NEWS.rst"
+Issues = "https://github.com/chrysn/aiocoap/issues/"
 
 [project.scripts]
 aiocoap-client = "aiocoap.cli.client:sync_main"

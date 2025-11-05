@@ -31,7 +31,7 @@ Errors and documentation
 * Errors from the simple6 transport now raise ``NetworkError`` like the other transports
   (following general documentation).
 * The ``ValueError`` from attempting to send CON messages to multicast through the udp6 trnasport
-  is now sublassed to ``ConToMulticast``,
+  is now subclassed to ``ConToMulticast``,
   and produces more useful error messages.
 * Many spelling fixes.
 

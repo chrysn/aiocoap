@@ -80,7 +80,7 @@ Dependencies
 ------------
 
 Basic aiocoap works out of the box on Python_ 3.10 or newer (also works on
-PyPy3_). For full support (DTLS, OSCORE and link-format handling) follow the
+PyPy3_). For full support (eg. DTLS, OSCORE and pretty-printing) follow the
 installation_ instructions as these require additional libraries.
 
 aiocoap provides different network backends for different platforms. The most
@@ -106,7 +106,7 @@ working on larger changes, please coordinate on the issue tracker.
 
 Security critical bugs may instead be reported in private to <chrysn@fsfe.org>
 (`PGP key`_) for coordinated disclosure; the maintainer reserves the right to
-publish fixes ahead of a planned embargo time at he deems suitable.
+publish fixes ahead of a planned embargo time as he deems suitable.
 
 Documentation is built using sphinx_ with ``python3 -m sphinx doc/ ${TARGET}``;
 hacks used there are described in ``./doc/README.doc``.
