@@ -100,7 +100,7 @@ def augment_parser_for_either(p):
 def augment_parser_for_interactive(p, *, prescreen=False):
     p.add_argument(
         "--non",
-        help="Send request as non-confirmable (NON) message",
+        help="Send request without reliable transport (e.g. over UDP: as non-confirmable (NON) message)",
         action="store_true",
     )
     p.add_argument(
@@ -403,7 +403,8 @@ async def single_request(args, context, globalopts=None):
             apply_credentials(context, options.credentials, parser.error)
 
         request = aiocoap.Message(
-            code=code, mtype=aiocoap.NON if options.non else aiocoap.CON
+            code=code,
+            transport_tuning=aiocoap.Unreliable if options.non else aiocoap.Reliable,
         )
         request.set_request_uri(options.url, set_uri_host=options.set_hostname)
 
