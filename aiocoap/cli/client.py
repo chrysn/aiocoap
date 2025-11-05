@@ -311,7 +311,14 @@ def present(message, options, file=sys.stdout):
 
     payload = None
 
-    cf = message.opt.content_format or message.request.opt.content_format
+    cf = message.opt.content_format
+
+    if cf is None:
+        if message.code.is_successful():
+            cf = message.request.opt.content_format
+        else:
+            cf = ContentFormat.TEXT
+
     if cf is not None and cf.is_known():
         mime = cf.media_type
     else:
