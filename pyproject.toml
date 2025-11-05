@@ -41,6 +41,7 @@ homepage = "https://christian.amsuess.com/tools/aiocoap/"
 repository = "https://codeberg.org/aiocoap/aiocoap"
 documentation = "https://aiocoap.readthedocs.org/"
 changelog = "https://codeberg.org/aiocoap/aiocoap/src/branch/main/NEWS.rst"
+issues = "https://github.com/chrysn/aiocoap/issues/"
 
 [project.scripts]
 aiocoap-client = "aiocoap.cli.client:sync_main"
