@@ -34,7 +34,7 @@ classifiers= [
 dynamic = [ "version" ]
 
 # When changing this, also look into doc/faq.rst and README.rst
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 [project.urls]
 Homepage = "https://christian.amsuess.com/tools/aiocoap/"

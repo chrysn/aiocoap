@@ -10,8 +10,8 @@ while it is not clear where to better put them).
 
 * **Which platforms are supported?**
 
-  aiocoap requires Python 3.10
-  (or PyPy 3.10),
+  aiocoap requires Python 3.11
+  (or PyPy 3.11),
   and should run on all operating systems supported by Python.
 
   Development and automated tests run on Linux, and this is where all listed features are supported.
