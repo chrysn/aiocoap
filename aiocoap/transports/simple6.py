@@ -242,6 +242,8 @@ class _DatagramClientSocketpoolSimple6:
             raise error.ResolutionError(
                 "No address information found for requests to %r" % (sockaddr,)
             ) from e
+        except OSError as e:
+            raise error.NetworkError from e
         await ready
 
         #         # Enable this to easily make every connection to localhost a new one

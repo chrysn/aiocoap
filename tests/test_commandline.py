@@ -16,7 +16,7 @@ import os
 import aiocoap.defaults
 
 from .test_server import WithTestServer, no_warnings
-from .common import PYTHON_PREFIX
+from .common import PYTHON_PREFIX, using_simple6, in_woodpecker
 
 linkheader_modules = aiocoap.defaults.linkheader_missing_modules()
 prettyprinting_modules = aiocoap.defaults.prettyprint_missing_modules()
@@ -25,16 +25,26 @@ AIOCOAP_CLIENT = PYTHON_PREFIX + ["./aiocoap-client"]
 AIOCOAP_RD = PYTHON_PREFIX + ["./aiocoap-rd"]
 
 
-async def check_output(args, *, stdin_buffer=None, stderr=None, env=None):
+async def check_output(*args, **kwargs):
+    return (await check_both(*args, **kwargs))[0]
+
+
+async def check_stderr(*args, **kwargs):
+    return (await check_both(*args, **kwargs))[1]
+
+
+async def check_both(
+    args, *, stdin_buffer=None, stderr=subprocess.PIPE, env=None, expected_returncode=0
+):
     proc = await asyncio.create_subprocess_exec(
         *args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr, env=env
     )
-    (stdout, _) = await proc.communicate(stdin_buffer)
-    if proc.returncode != 0:
+    (stdout, stderr) = await proc.communicate(stdin_buffer)
+    if proc.returncode != expected_returncode:
         raise subprocess.CalledProcessError(
-            cmd=args, returncode=proc.returncode, output=stdout
+            cmd=args, returncode=proc.returncode, output=stdout, stderr=stderr
         )
-    return stdout
+    return (stdout, stderr)
 
 
 class TestCommandlineClient(WithTestServer):
@@ -358,6 +368,75 @@ class TestCommandlineClient(WithTestServer):
         )
 
         self.assertEqual(stdout, b"This is no proxy")
+
+    @no_warnings
+    async def test_blame_broadcast(self):
+        # None of the errors have to be verbatim, but the gist should be there.
+
+        stderr = await check_stderr(
+            AIOCOAP_CLIENT + ["coap://255.255.255.255"], expected_returncode=1
+        )
+        self.assertTrue(
+            b"For example, this can occur when attempting to send broadcast requests instead of multicast requests."
+            in stderr,
+            f"Expected error about broadcast traffic but got {stderr!r}",
+        )
+
+    @no_warnings
+    @unittest.skipIf(
+        using_simple6 or in_woodpecker,
+        "Error reporting does not work in this situation for unknown reasons",
+        # but different reasons for simple6 and woodpecker
+    )
+    async def test_blame_connectivity_ipv6(self):
+        # Conveniently, on Linux this behaves indistinguishable from not having
+        # v6 connectivity, and we don't have to create a v4-only test setup.
+        stderr = await check_stderr(
+            AIOCOAP_CLIENT + ["coap://[64:ff9b::]"], expected_returncode=1
+        )
+        self.assertTrue(
+            b"This may be due to lack of IPv6 connectivity" in stderr,
+            f"Expected error about IPv6 connectivity but got {stderr!r}",
+        )
+
+    @no_warnings
+    @unittest.skipIf(
+        using_simple6 or in_woodpecker,
+        "Error reporting does not work in this situation for unknown reasons",
+        # but different reasons for simple6 and woodpecker
+    )
+    async def test_blame_connectivity_ipv4(self):
+        # Conveniently, on Linux this behaves indistinguishable from not having
+        # v4 connectivity, and we don't have to create a v6-only test setup.
+        stderr = await check_stderr(
+            AIOCOAP_CLIENT + ["coap://100.64.0.0"], expected_returncode=1
+        )
+        self.assertTrue(
+            b"This may be due to lack of IPv4 connectivity" in stderr,
+            f"Expected error about IPv4 connectivity but got {stderr!r}",
+        )
+
+    @no_warnings
+    @unittest.skipIf(
+        using_simple6,
+        """Needs decision on whether simple6 should be really unicast-only (and reject multicast addresses outright, leading to a different error) or should retain its current behavior of "multicast may work in some ways but we don't have a good understanding of when it does".""",
+    )
+    async def test_blame_multicast_con(self):
+        stderr = await check_stderr(
+            AIOCOAP_CLIENT + ["coap://[ff02::1]"], expected_returncode=1
+        )
+        self.assertTrue(
+            b"can only be sent to unicast addresses" in stderr,
+            f"Expected error about multicast CON but got {stderr!r}",
+        )
+
+        stderr = await check_stderr(
+            AIOCOAP_CLIENT + ["coap://224.0.0.0"], expected_returncode=1
+        )
+        self.assertTrue(
+            b"can only be sent to unicast addresses" in stderr,
+            f"Expected error about multicast CON but got {stderr!r}",
+        )
 
 
 class TestCommandlineRD(unittest.TestCase):
