@@ -145,7 +145,7 @@ steps:
       FORCE_COLOR: "1"
     commands:
       # synced with .readthedocs.yaml and pyproject.toml
-      - pip install '.[docs,oscore,prettyprint]'
+      - pip install '.[docs,oscore,prettyprint,slipmux]'
       - python3 -m sphinx doc public/doc/
       - python3 -m docutils README.rst --strict > /dev/null
       # codeberg pages redirects from ./index.html to ./ and drops query

@@ -258,6 +258,16 @@ def prettyprint_missing_modules():
     return missing
 
 
+def slipmux_missing_modules():
+    """Return a list of modules that are missing in order to use slipmux"""
+    missing = []
+    try:
+        import serial_asyncio  # noqa: F401
+    except ImportError:
+        missing.append("pyserial-asyncio")
+    return missing
+
+
 def log_secret(secret):
     """Wrapper around secret values that go into log output.
 
@@ -282,6 +292,7 @@ missing_module_functions = {
     "linkheader": linkheader_missing_modules,
     "prettyprint": prettyprint_missing_modules,
     "ws": ws_missing_modules,
+    "slipmux": slipmux_missing_modules,
 }
 
 __all__ = [
@@ -293,5 +304,6 @@ __all__ = [
     "ws_missing_modules",
     "linkheader_missing_modules",
     "prettyprint_missing_modules",
+    "slipmux_missing_modules",
     "missing_module_functions",
 ]

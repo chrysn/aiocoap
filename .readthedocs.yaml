@@ -27,3 +27,4 @@ python:
       - oscore
       - ws
       - prettyprint
+      - slipmux
