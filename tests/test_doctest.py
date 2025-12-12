@@ -55,6 +55,11 @@ def _load_tests():
                 and not aiocoap.defaults.is_pyodide
             ):
                 continue
+            if (
+                p in ("aiocoap.transports.slipmux",)
+                and aiocoap.defaults.slipmux_missing_modules()
+            ):
+                continue
             for t in doctest.DocTestSuite(p):
                 i += 1
 
