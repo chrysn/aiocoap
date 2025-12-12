@@ -102,7 +102,13 @@ _FCS_LOOKUP = (
 def _hostname_to_devicename(hostname: str) -> Optional[str]:
     """Extracts a lower-case device name from a host name in the way described
     in the module documentation. This does not yet attempt to find a suitable
-    device."""
+    device.
+
+    >>> _hostname_to_devicename("ttyacm0.dev.alt")
+    'ttyacm0'
+    >>> _hostname_to_devicename("example.com") is None
+    True
+    """
     if not hostname.endswith(".dev.alt"):
         return None
 
@@ -114,7 +120,11 @@ def _hostname_to_devicename(hostname: str) -> Optional[str]:
 
 def _checksum(data: bytes) -> bytes:
     """Calculates the Control message checksum (16-bit FCS from RFC1662),
-    following its implementation in appendix C.2."""
+    following its implementation in appendix C.2.
+
+    >>> _checksum(b"coap is cool!")
+    b'$&'
+    """
 
     fcs = 0xFFFF
     for byte in data:
@@ -145,6 +155,10 @@ class SlipmuxAddress(interfaces.EndpointAddress):
         return self._host == other._host
 
     def __repr__(self):
+        """
+        >>> SlipmuxAddress("ttyusb0.dev.alt", MessageInterfaceSlipmux(..., ..., ...))
+        <SlipmuxAddress ttyusb0.dev.alt>
+        """
         return "<%s %s>" % (
             type(self).__name__,
             self._host,
