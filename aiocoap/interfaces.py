@@ -46,6 +46,10 @@ class MessageInterface(metaclass=abc.ABCMeta):
         """Send a given :class:`Message` object"""
 
     @abc.abstractmethod
+    async def recognize_remote(self, remote):
+        """Return True if the remote is one belonging to this transport"""
+
+    @abc.abstractmethod
     async def determine_remote(self, message):
         """Return a value suitable for the message's remote property based on
         its .opt.uri_host or .unresolved_remote.
