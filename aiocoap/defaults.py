@@ -63,6 +63,9 @@ def get_default_clienttransports(*, loop=None, use_env=True):
     if not ws_missing_modules():
         yield "ws"
 
+    if not slipmux_missing_modules():
+        yield "slipmux"
+
     if is_pyodide:
         # There, the remaining ones would just raise NotImplementedError all over the place
         return
@@ -119,6 +122,9 @@ def get_default_servertransports(*, loop=None, use_env=True):
     if is_pyodide:
         # There, the remaining ones would just raise NotImplementedError all over the place
         return
+
+    if not slipmux_missing_modules():
+        yield "slipmux"
 
     if sys.platform != "linux":
         # udp6 was never reported to work on anything but linux; would happily

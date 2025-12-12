@@ -240,6 +240,16 @@ class Context(interfaces.RequestProvider):
                     tman, self.log, loop, client_credentials=self.client_credentials
                 )
             )
+        if selected_transports.slipmux:
+            from .transports.slipmux import MessageInterfaceSlipmux
+
+            await self._append_tokenmanaged_messagemanaged_transport(
+                lambda mman: MessageInterfaceSlipmux.create_client_transport_endpoint(
+                    mman,
+                    log=self.log,
+                    loop=self.loop,
+                )
+            )
 
         return self
 
@@ -396,6 +406,16 @@ class Context(interfaces.RequestProvider):
                     client_credentials=self.client_credentials,
                     server_bind=bind or (None, None),
                     server_context=_ssl_context,
+                )
+            )
+        if selected_transports.slipmux:
+            from .transports.slipmux import MessageInterfaceSlipmux
+
+            await self._append_tokenmanaged_messagemanaged_transport(
+                lambda mman: MessageInterfaceSlipmux.create_client_transport_endpoint(
+                    mman,
+                    log=self.log,
+                    loop=self.loop,
                 )
             )
 

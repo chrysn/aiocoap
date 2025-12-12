@@ -81,6 +81,11 @@ class OscoreParameters(LoadStoreClass):
 
 
 @dataclass
+class SlipmuxParameters(LoadStoreClass):
+    """Parameters for setting up a ``slipmux`` transport."""
+
+
+@dataclass
 class TransportParameters(LoadStoreClass):
     """Parameters that guide which transports are selected and how they are
     configured."""
@@ -142,3 +147,4 @@ class TransportParameters(LoadStoreClass):
     tlsserver: TlsServerParameters | None = None
     ws: WsParameters | None = None
     oscore: OscoreParameters | None = None
+    slipmux: SlipmuxParameters | None = None

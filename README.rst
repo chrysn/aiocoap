@@ -59,6 +59,7 @@ This library supports the following standards in full or partially:
   experimentation.)
 * RFC9528_ (EDHOC): Experimental and rudimentary support for configured peers
   using the lakers_ implementation.
+* slipmux-03_: Transporting CoAP over Serial (client-side only).
 
 If something described by one of the standards but not implemented, it is
 considered a bug; please file at the `github issue tracker`_. (If it's not on
@@ -75,6 +76,7 @@ the list or in the excluded items, file a wishlist item at the same location).
 .. _RFC9528: https://tools.ietf.org/html/rfc9528
 .. _draft-ietf-core-oscore-groupcomm-23: https://tools.ietf.org/html/draft-ietf-core-oscore-groupcomm-23
 .. _lakers: https://pypi.org/project/lakers-python/
+.. _slipmux-03: https://datatracker.ietf.org/doc/html/draft-bormann-t2trg-slipmux-03
 
 Dependencies
 ------------
