@@ -211,6 +211,14 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
         if remote in self.__pool:
             return self.__pool[remote]
         devicename = _hostname_to_devicename(remote._host)
+
+        starting_future = self.__loop.create_future()
+        weakself = weakref.ref(self)
+        connlog = self.__log.getChild(f"device-{devicename}")
+
+        def protocol_factory():
+            return SlipmuxProtocol(starting_future, weakself, remote, connlog)
+
         for filename in os.listdir("/dev/"):
             if filename.lower() == devicename:
                 full_devicename = "/dev/" + filename
@@ -218,12 +226,9 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
         else:
             # sensible fallback for Windows, I guess
             full_devicename = filename
-        starting_future = self.__loop.create_future()
-        weakself = weakref.ref(self)
-        connlog = self.__log.getChild(f"device-{devicename}")
         (_, protocol) = await serial_asyncio.create_serial_connection(
             self.__loop,
-            lambda: SlipmuxProtocol(starting_future, weakself, remote, connlog),
+            protocol_factory,
             full_devicename,
             baudrate=115200,
         )
