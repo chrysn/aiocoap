@@ -370,21 +370,21 @@ class Site(interfaces.ObservableResource, PathCapable):
         shortened by the components in the child's path, or raises a
         KeyError.
 
-        While producing stripped messages, this adds a ._original_request_uri
+        While producing stripped messages, this adds a ._original_request_path
         attribute to the messages which holds the request URI before the
         stripping is started. That allows internal components to access the
         original URI until there is a variation of the request API that allows
         accessing this in a better usable way."""
 
-        original_request_uri = getattr(
+        original_request_path = getattr(
             request,
-            "_original_request_uri",
-            request.get_request_uri(),
+            "_original_request_path",
+            request.opt.uri_path,
         )
 
         if request.opt.uri_path in self._resources:
             stripped = request.copy(uri_path=())
-            stripped._original_request_uri = original_request_uri
+            stripped._original_request_path = original_request_path
             return self._resources[request.opt.uri_path], stripped
 
         if not request.opt.uri_path:
@@ -399,7 +399,7 @@ class Site(interfaces.ObservableResource, PathCapable):
                     # sub-sites should see their root resource like sites
                     remainder = []
                 stripped = request.copy(uri_path=remainder)
-                stripped._original_request_uri = original_request_uri
+                stripped._original_request_path = original_request_path
                 return res, stripped
             remainder.insert(0, path[-1])
             path = path[:-1]

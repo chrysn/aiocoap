@@ -34,26 +34,28 @@ class TestClientWithSetHost(WithTestServer, WithClient):
 
     @no_warnings
     async def test_uri_path_abbrev_conflict(self):
+        uri = "coap://" + self.servernetloc + "/path"
         request = aiocoap.Message(
             code=aiocoap.GET,
-            uri="coap://" + self.servernetloc + "/path",
+            uri=uri,
             uri_path_abbrev=0,
         )
         # Hack to get past the credentials dispatch -- otherwise we can't
         # even form the request URI to decide credentials.
-        request._original_request_uri = ""
+        request.get_request_uri = lambda *, _uri=uri: _uri
         response = await self.client.request(request).response
         self.assertEqual(response.code, aiocoap.BAD_OPTION)
 
     @no_warnings
     async def test_uri_path_abbrev_unknown(self):
+        uri = "coap://" + self.servernetloc
         request = aiocoap.Message(
             code=aiocoap.GET,
-            uri="coap://" + self.servernetloc,
+            uri=uri,
             uri_path_abbrev=1234,
         )
         # Hack to get past the credentials dispatch -- otherwise we can't
         # even form the request URI to decide credentials.
-        request._original_request_uri = ""
+        request.get_request_uri = lambda *, _uri=uri: _uri
         response = await self.client.request(request).response
         self.assertEqual(response.code, aiocoap.BAD_OPTION)

@@ -165,10 +165,12 @@ class WhoAmI(aiocoap.resource.Resource):
             hostinfo_local=request.remote.hostinfo_local,
             scheme=request.remote.scheme,
             urihost_option=request.opt.uri_host,
-            # FIXME: The whole get_request_uri is a mess
-            requested_uri=request._original_request_uri,
             claims=request.remote.authenticated_claims,
         )
+        try:
+            p["requested_uri"] = request.get_request_uri()
+        except aiocoap.error.AnonymousHost as e:
+            p["requested_uri"] = "(anonymous host)"
         return aiocoap.Message(
             code=aiocoap.CONTENT,
             content_format=ContentFormat.JSON,

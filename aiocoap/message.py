@@ -571,12 +571,6 @@ class Message:
         # maybe this function does not belong exactly *here*, but it belongs to
         # the results of .request(message), which is currently a message itself.
 
-        if hasattr(self, "_original_request_uri"):
-            # During server-side processing, a message's options may be altered
-            # to the point where its options don't accurately reflect its URI
-            # any more. In that case, this is stored.
-            return self._original_request_uri
-
         inferred_local_is_server = (
             self.direction is Direction.INCOMING
         ) ^ self.code.is_response()
@@ -625,7 +619,13 @@ class Message:
                     f"Path could not be determined: Unknown Uri-Path-Abbrev value {refmsg.opt.uri_path!r}"
                 ) from None
         else:
-            path = refmsg.opt.uri_path
+            if hasattr(self, "_original_request_path"):
+                # During server-side processing, a message's options may be altered
+                # to the point where its options don't accurately reflect its URI
+                # any more. In that case, this is stored.
+                path = self._original_request_path
+            else:
+                path = refmsg.opt.uri_path
 
         if multicast_netloc_override is not None:
             netloc = multicast_netloc_override
