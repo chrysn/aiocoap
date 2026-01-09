@@ -4,6 +4,7 @@
 
 import unittest
 from dataclasses import dataclass
+from typing import Optional
 
 from aiocoap.util.dataclass_data import LoadStoreClass
 
@@ -23,8 +24,8 @@ class Inner1(LoadStoreClass):
 
 @dataclass
 class Outer(LoadStoreClass):
-    label: str
     inner: Inner1
+    label: Optional[str] = None
 
 
 class TestDataclassData(unittest.TestCase):
@@ -42,6 +43,22 @@ class TestDataclassData(unittest.TestCase):
             ),
             Outer(
                 label="hello",
+                inner=Inner1(x=Inner2(a=1, b="x"), y=Inner2(a=2, b="X"), z=1.5),
+            ),
+        )
+
+    def test_valid_and_optional_not_used(self):
+        self.assertEqual(
+            Outer.load(
+                {
+                    "inner": {
+                        "x": {"b": "x"},
+                        "y": {"a": 2, "b": "X"},
+                        "z": 1.5,
+                    },
+                }
+            ),
+            Outer(
                 inner=Inner1(x=Inner2(a=1, b="x"), y=Inner2(a=2, b="X"), z=1.5),
             ),
         )

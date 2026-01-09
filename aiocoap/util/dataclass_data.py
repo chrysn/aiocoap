@@ -49,7 +49,8 @@ class LoadStoreClass:
         the top-level item the trouble was. For data loaded from files, it is
         prudent to give the file name in this argument.
 
-        This reliably raises ``ValueError`` or its subtypes on unacceptable data.
+        This reliably raises ``ValueError`` or its subtypes on unacceptable
+        data as long as the class is set up in a supported way.
         """
 
         assert dataclasses.is_dataclass(cls)
@@ -64,7 +65,14 @@ class LoadStoreClass:
             keyprefix = f"{prefix}{key}"
             f = key.replace("-", "_")
             fieldtype = fields[f].type
-            if issubclass(fieldtype, LoadStoreClass):
+            if isinstance(value, fieldtype):
+                pass
+            elif isinstance(fieldtype, type) and issubclass(fieldtype, LoadStoreClass):
+                # The isinstance check is needed for issubclass to work in the
+                # first place; FIXME: rather than assuming it's the top-level
+                # item, get a list of candidate LoadStoreClass subclasses, so
+                # that we can also process Optional[Foo] or even Foo | Bar.
+
                 # FIXME: allow annotating single distinct non-dict-value, eg.
                 # like Cargo.toml's implicit version in dependencies
                 if not isinstance(value, dict):
@@ -83,10 +91,9 @@ class LoadStoreClass:
                 # - Special treatment for Path (probably with new filename argument)
                 # - Handle Optional
                 # - Handle unions, possibly fanning out by disambiguator keys?
-                if not isinstance(value, fieldtype):
-                    raise ValueError(
-                        f"Type mismatch on {keyprefix}: Expected {fieldtype.__name__}, found {type(value).__name__}"
-                    )
+                raise ValueError(
+                    f"Type mismatch on {keyprefix}: Expected {fieldtype.__name__}, found {type(value).__name__}"
+                )
             kwargs[f] = value
 
         try:
