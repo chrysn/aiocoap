@@ -52,6 +52,7 @@ Modules with stable components
    module/aiocoap.pipe
 
    module/aiocoap.defaults
+   module/aiocoap.config
    module/aiocoap.transports
    module/aiocoap.proxy
    module/aiocoap.proxy.client
