@@ -10,8 +10,8 @@ from aiocoap.util.dataclass_data import LoadStoreClass
 
 @dataclass
 class Inner2(LoadStoreClass):
-    a: int
     b: str
+    a: int = 1
 
 
 @dataclass
@@ -34,7 +34,7 @@ class TestDataclassData(unittest.TestCase):
                 {
                     "label": "hello",
                     "inner": {
-                        "x": {"a": 1, "b": "x"},
+                        "x": {"b": "x"},
                         "y": {"a": 2, "b": "X"},
                         "z": 1.5,
                     },
@@ -52,7 +52,7 @@ class TestDataclassData(unittest.TestCase):
                 {
                     "label": "hello",
                     "inner": {
-                        "x": {"a": 1, "b": "x"},
+                        "x": {"b": "x"},
                         "y": {"a": 2, "b": 42},
                         "z": 1.5,
                     },
@@ -72,7 +72,7 @@ class TestDataclassData(unittest.TestCase):
                 {
                     "label": "hello",
                     "inner": {
-                        "x": {"a": 1, "b": "x"},
+                        "x": {"b": "x"},
                         "y": {"a": 2},  # no "b"
                         "z": 1.5,
                     },
