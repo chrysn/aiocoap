@@ -18,8 +18,8 @@ class Inner2(LoadStoreClass):
 @dataclass
 class Inner1(LoadStoreClass):
     x: Inner2
-    y: Inner2
     z: float
+    y: Inner2 | str | None = None
 
 
 @dataclass
@@ -53,13 +53,28 @@ class TestDataclassData(unittest.TestCase):
                 {
                     "inner": {
                         "x": {"b": "x"},
-                        "y": {"a": 2, "b": "X"},
                         "z": 1.5,
                     },
                 }
             ),
             Outer(
-                inner=Inner1(x=Inner2(a=1, b="x"), y=Inner2(a=2, b="X"), z=1.5),
+                inner=Inner1(x=Inner2(a=1, b="x"), z=1.5),
+            ),
+        )
+
+    def test_valid_and_alternative_type(self):
+        self.assertEqual(
+            Outer.load(
+                {
+                    "inner": {
+                        "x": {"b": "x"},
+                        "y": "hi",
+                        "z": 1.5,
+                    },
+                }
+            ),
+            Outer(
+                inner=Inner1(x=Inner2(a=1, b="x"), y="hi", z=1.5),
             ),
         )
 

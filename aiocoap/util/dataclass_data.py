@@ -8,24 +8,33 @@ Unlike what is in the aiocoap.credentials module, this works from the fixed
 assumption that the item is a dataclass (as opposed to having an arbitrary
 constructor), which should ease things.
 
-**Caveats**: The module expects the data classes' annotations to be types and
-not strings, and therefore can't be used with types defined under `from
-__future__ import annotations`.
+**Caveats**:
+
+* The module expects the data classes' annotations to be types and
+  not strings, and therefore can't be used with types defined under `from
+  __future__ import annotations`.
+
+* While ``Optional[str]`` and other primitives are supported, child load-store
+  classes need to be dressed as ``| None`` (i.e., a ``Union``). This can be
+  simplified when support for Python 3.13 is dropped, as both versions
+  have the type ``typing.Union`` starting with Python 3.14.
 
 >>> from dataclasses import dataclass
+>>> from typing import Optional
 >>> @dataclass
 ... class Inner(LoadStoreClass):
 ...     some_text: str
-...     some_number: int
+...     some_number: Optional[int]
 >>> @dataclass
 ... class Top(LoadStoreClass):
 ...     x: str
-...     y: Inner
+...     y: Inner | None
 >>> Top.load({"x": "test", "y": {"some-text": "one", "some-number": 42}})
 Top(x='test', y=Inner(some_text='one', some_number=42))
 """
 
 import dataclasses
+import types
 
 
 class LoadStoreClass:
@@ -67,21 +76,42 @@ class LoadStoreClass:
             fieldtype = fields[f].type
             if isinstance(value, fieldtype):
                 pass
-            elif isinstance(fieldtype, type) and issubclass(fieldtype, LoadStoreClass):
+            elif (
+                # The simple case: It *is* that type.
+                isinstance(fieldtype, type)
+                and issubclass(load_as := fieldtype, LoadStoreClass)
+            ) or (
+                # The complex case: It is a union, and we can find out which
+                # one is the one we can use; stored in load_as right away.
+                #
+                # When Python 3.13 support is dropped, types.UnionType can
+                # become types.Union, and we'll gain support for Optioinal too
+                isinstance(fieldtype, types.UnionType)
+                and len(
+                    [
+                        load_as := x
+                        for x in fieldtype.__args__
+                        if issubclass(x, LoadStoreClass)
+                    ]
+                )
+                == 1
+            ):
                 # The isinstance check is needed for issubclass to work in the
                 # first place; FIXME: rather than assuming it's the top-level
                 # item, get a list of candidate LoadStoreClass subclasses, so
                 # that we can also process Optional[Foo] or even Foo | Bar.
 
                 # FIXME: allow annotating single distinct non-dict-value, eg.
-                # like Cargo.toml's implicit version in dependencies
+                # like Cargo.toml's implicit version in dependencies. (Right
+                # now we can do this can be done at the parent level, maybe
+                # that suffices?).
                 if not isinstance(value, dict):
                     raise ValueError(
-                        f"Type mismatch on {keyprefix}: Expected dictionary to populate {fieldtype.__name__} with, found {type(value).__name__}"
+                        f"Type mismatch on {keyprefix}: Expected dictionary to populate {load_as.__name__} with, found {type(value).__name__}"
                     )
                 if depth_limit == 0:
                     raise ValueError("Nesting exceeded limit in {keyprefix}")
-                value = fieldtype.load(
+                value = load_as.load(
                     value, prefix=keyprefix, depth_limit=depth_limit - 1
                 )
             else:
@@ -89,10 +119,12 @@ class LoadStoreClass:
                 # - For lists and dicts, evaluate items (can be deferred until we actually have any)
                 # - Special treatment for bytes: Accept {"acii": "hello"} and {"hex": "001122"}
                 # - Special treatment for Path (probably with new filename argument)
-                # - Handle Optional
-                # - Handle unions, possibly fanning out by disambiguator keys?
+                # - In union handling, support multiple, possibly fanning out by disambiguator keys?
+
+                # For regular types "__name__ works, but unions and similar don't have one
+                fieldtypename = getattr(fieldtype, "__name__", str(fieldtype))
                 raise ValueError(
-                    f"Type mismatch on {keyprefix}: Expected {fieldtype.__name__}, found {type(value).__name__}"
+                    f"Type mismatch on {keyprefix}: Expected {fieldtypename}, found {type(value).__name__}"
                 )
             kwargs[f] = value
 
@@ -107,7 +139,7 @@ class LoadStoreClass:
             if missing:
                 # The likely case -- what else might go wrong?
                 raise ValueError(
-                    f"Construcintg an instance of {cls.__name__} at {keyprefix}, these items are missing: {', '.join(m.replace('_', '-') for m in missing)}"
+                    f"Construcintg an instance of {cls.__name__} at {prefix}, these items are missing: {', '.join(m.replace('_', '-') for m in missing)}"
                 )
             else:
                 raise ValueError(
