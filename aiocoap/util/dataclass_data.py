@@ -35,13 +35,12 @@ Top(x='test', y=Inner(some_text='one', some_number=42))
 
 import dataclasses
 import types
+from typing import Self
 
 
 class LoadStoreClass:
     @classmethod
-    def load(
-        cls, data: dict, prefix: str = "", depth_limit: int = 16
-    ) -> "LoadStoreClass":
+    def load(cls, data: dict, prefix: str = "", depth_limit: int = 16) -> Self:
         """Creates an instance from the given data dictionary.
 
         Keys are used to populate fields like in the initializer; dashes ("-")
