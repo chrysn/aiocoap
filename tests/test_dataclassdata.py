@@ -111,7 +111,7 @@ class TestDataclassData(unittest.TestCase):
                 }
             )
         except ValueError as e:
-            if "inner/y" in str(e) and "missing: b":
+            if "inner/y" in str(e) and "missing: b" in str(e):
                 pass
             else:
                 raise Exception("Path to missing field was not shown") from e
