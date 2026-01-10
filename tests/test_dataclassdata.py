@@ -26,6 +26,7 @@ class Inner1(LoadStoreClass):
 class Outer(LoadStoreClass):
     inner: Inner1
     label: Optional[str] = None
+    items2: str | dict[str, Inner2] = "default"
 
 
 class TestDataclassData(unittest.TestCase):
@@ -39,11 +40,13 @@ class TestDataclassData(unittest.TestCase):
                         "y": {"a": 2, "b": "X"},
                         "z": 1.5,
                     },
+                    "items2": "hello",
                 }
             ),
             Outer(
                 label="hello",
                 inner=Inner1(x=Inner2(a=1, b="x"), y=Inner2(a=2, b="X"), z=1.5),
+                items2="hello",
             ),
         )
 
@@ -71,10 +74,12 @@ class TestDataclassData(unittest.TestCase):
                         "y": "hi",
                         "z": 1.5,
                     },
+                    "items2": {"a": {"b": "2a"}},
                 }
             ),
             Outer(
                 inner=Inner1(x=Inner2(a=1, b="x"), y="hi", z=1.5),
+                items2={"a": Inner2(b="2a")},
             ),
         )
 

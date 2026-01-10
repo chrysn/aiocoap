@@ -24,11 +24,13 @@ constructor), which should ease things.
 ... class Top(LoadStoreClass):
 ...     x: str | bytes
 ...     y: Optional[Inner]
->>> Top.load({"x": "test", "y": {"some-text": "one", "some-number": 42}})
-Top(x='test', y=Inner(some_text='one', some_number=42))
+...     z: dict[str, int]
+>>> Top.load({"x": "test", "y": {"some-text": "one", "some-number": 42}, "z": {"a": 1}})
+Top(x='test', y=Inner(some_text='one', some_number=42), z={'a': 1})
 """
 
 import dataclasses
+import types
 from typing import Self, Union
 import sys
 
@@ -99,6 +101,9 @@ class LoadStoreClass:
 
 
 def _load(value, fieldtype, keyprefix, depth_limit):
+    if depth_limit == 0:
+        raise ValueError("Nesting exceeded limit in {keyprefix}")
+
     # FIXME: isinstance(value, fieldtype) requires a pre-check because it can't
     # do dict[str, int] -- but we can't just check for being a type either,
     # because Optional[str] or SomeType | None works well with isinstance
@@ -115,9 +120,38 @@ def _load(value, fieldtype, keyprefix, depth_limit):
 
     # As we have a list, we try to match it greedily.
     for fieldtype in fieldtypes:
+        if isinstance(fieldtype, types.GenericAlias):
+            if fieldtype.__origin__ is dict and len(fieldtype.__args__) == 2:
+                if fieldtype.__args__[0] is not str:
+                    raise TypeError(
+                        "Annotations of dict are limited to using str as key."
+                    )
+                if not isinstance(value, dict):
+                    # Clear mismatch, continue searching
+                    continue
+                # Locking in now: At this point, a dict was promised, and we
+                # expect it to be. (Might revisit if this is impractical, but I
+                # guess that alternatives would be more specific and just
+                # picked before the generic option).
+                non_string_keys = [k for k in value.keys() if not isinstance(k, str)]
+                if non_string_keys:
+                    raise ValueError(
+                        f"Non-string key(s) found at {keyprefix}: {non_string_keys}"
+                    )
+                return {
+                    k: _load(
+                        v, fieldtype.__args__[1], f"{keyprefix}[{k}]", depth_limit - 1
+                    )
+                    for (k, v) in value.items()
+                }
+            else:
+                raise TypeError(
+                    "Annotations of generic aliases are limited to the shape dict[K, V]."
+                )
+
         if not isinstance(fieldtype, type):
             raise TypeError(
-                "Annotation can not be processed: Can only process unions over types"
+                "Annotation can not be processed: Can only process unions over types and some generic aliases (eg. dict[str, str])"
             )
 
         if isinstance(value, fieldtype):
@@ -136,8 +170,6 @@ def _load(value, fieldtype, keyprefix, depth_limit):
             # like Cargo.toml's implicit version in dependencies. (Right
             # now we can do this can be done at the parent level, maybe
             # that suffices?).
-            if depth_limit == 0:
-                raise ValueError("Nesting exceeded limit in {keyprefix}")
             return fieldtype.load(value, prefix=keyprefix, depth_limit=depth_limit - 1)
 
         # FIXME:
