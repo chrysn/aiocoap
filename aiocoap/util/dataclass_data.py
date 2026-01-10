@@ -31,13 +31,21 @@ Top(x='test', y=Inner(some_text='one', some_number=42), z={'a': 1})
 
 import dataclasses
 import types
-from typing import Self, Union
+from typing import Self, Union, Optional
+from pathlib import Path
 import sys
 
 
 class LoadStoreClass:
     @classmethod
-    def load(cls, data: dict, prefix: str = "", depth_limit: int = 16) -> Self:
+    def load(
+        cls,
+        data: dict,
+        *,
+        depth_limit: int = 16,
+        basefile: Optional[Path] = None,
+        _prefix: Optional[str] = None,
+    ) -> Self:
         """Creates an instance from the given data dictionary.
 
         Keys are used to populate fields like in the initializer; dashes ("-")
@@ -49,10 +57,13 @@ class LoadStoreClass:
         disallowed. When annotations indicate another ``LoadStoreClass``,
         initialization recurses into that type up to a depth limit.
 
-        The ``prefix`` is used for error messages: It builds up in the recursive
-        build process and thus gives the user concrete guidance as to where in
-        the top-level item the trouble was. For data loaded from files, it is
-        prudent to give the file name in this argument.
+        The ``basefile`` is used for error messages, and to construct ``Path``
+        items as relative to the file name given there. (For example, if
+        ``basefile=Path("config.d/test.json")``, a value of ``"test2.json"``
+        will be represented as ``Path("config.d/test2.json")``). It also serves
+        as a starting point for the error location indication, which is built
+        into ``_prefix`` in recursion as a vague path-like expression like
+        ``test.json key/key[key]``.
 
         This reliably raises ``ValueError`` or its subtypes on unacceptable
         data as long as the class is set up in a supported way.
@@ -60,7 +71,13 @@ class LoadStoreClass:
 
         assert dataclasses.is_dataclass(cls)
 
-        prefix = f"{prefix}/" if prefix else prefix
+        if _prefix is None:
+            if basefile is not None:
+                prefix = f"{basefile} "
+            else:
+                prefix = ""
+        else:
+            prefix = f"{_prefix}/"
 
         fields = {f.name: f for f in dataclasses.fields(cls)}
 
@@ -76,7 +93,7 @@ class LoadStoreClass:
                     f"Item {key!r} not recognized inside {cls.__name__} at {prefix}"
                 ) from None
 
-            kwargs[f] = _load(value, fieldtype, keyprefix, depth_limit)
+            kwargs[f] = _load(value, fieldtype, keyprefix, depth_limit, basefile)
 
         try:
             return cls(**kwargs)
@@ -100,7 +117,7 @@ class LoadStoreClass:
                 ) from e
 
 
-def _load(value, fieldtype, keyprefix, depth_limit):
+def _load(value, fieldtype, keyprefix, depth_limit, basefile):
     if depth_limit == 0:
         raise ValueError("Nesting exceeded limit in {keyprefix}")
 
@@ -140,7 +157,11 @@ def _load(value, fieldtype, keyprefix, depth_limit):
                     )
                 return {
                     k: _load(
-                        v, fieldtype.__args__[1], f"{keyprefix}[{k}]", depth_limit - 1
+                        v,
+                        fieldtype.__args__[1],
+                        f"{keyprefix}[{k}]",
+                        depth_limit - 1,
+                        basefile,
                     )
                     for (k, v) in value.items()
                 }
@@ -153,6 +174,12 @@ def _load(value, fieldtype, keyprefix, depth_limit):
             raise TypeError(
                 "Annotation can not be processed: Can only process unions over types and some generic aliases (eg. dict[str, str])"
             )
+
+        if fieldtype is Path and isinstance(value, str):
+            if basefile is None:
+                return Path(value)
+            else:
+                return basefile.parent / value
 
         if isinstance(value, fieldtype):
             # This case covers
@@ -170,7 +197,9 @@ def _load(value, fieldtype, keyprefix, depth_limit):
             # like Cargo.toml's implicit version in dependencies. (Right
             # now we can do this can be done at the parent level, maybe
             # that suffices?).
-            return fieldtype.load(value, prefix=keyprefix, depth_limit=depth_limit - 1)
+            return fieldtype.load(
+                value, _prefix=keyprefix, depth_limit=depth_limit - 1, basefile=basefile
+            )
 
         # FIXME:
         # - For lists and dicts, evaluate items (can be deferred until we actually have any)

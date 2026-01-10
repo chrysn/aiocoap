@@ -4,6 +4,7 @@
 
 import unittest
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 from aiocoap.util.dataclass_data import LoadStoreClass
@@ -164,3 +165,26 @@ class TestDataclassData(unittest.TestCase):
                 raise Exception("Type error did not point to legal options") from e
         else:
             raise Exception("Erroneous data was loaded")
+
+    def test_path(self):
+        @dataclass
+        class HasPath(LoadStoreClass):
+            p: Path
+
+        self.assertEqual(
+            HasPath.load({"p": "../up.file"}, basefile=Path("config.d/test.json")).p,
+            # Must not be shortened: config.d might be a symlink.
+            Path("config.d/../up.file"),
+        )
+        self.assertEqual(
+            HasPath.load(
+                {"p": "/absolute.file"}, basefile=Path("config.d/test.json")
+            ).p,
+            Path("/absolute.file"),
+        )
+        self.assertEqual(
+            HasPath.load(
+                {"p": "local.file"},
+            ).p,
+            Path("local.file"),
+        )
