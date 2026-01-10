@@ -14,11 +14,6 @@ constructor), which should ease things.
   not strings, and therefore can't be used with types defined under `from
   __future__ import annotations`.
 
-* While ``Optional[str]`` and other primitives are supported, child load-store
-  classes need to be dressed as ``| None`` (i.e., a ``Union``). This can be
-  simplified when support for Python 3.13 is dropped, as both versions
-  have the type ``typing.Union`` starting with Python 3.14.
-
 >>> from dataclasses import dataclass
 >>> from typing import Optional
 >>> @dataclass
@@ -27,15 +22,15 @@ constructor), which should ease things.
 ...     some_number: Optional[int]
 >>> @dataclass
 ... class Top(LoadStoreClass):
-...     x: str
-...     y: Inner | None
+...     x: str | bytes
+...     y: Optional[Inner]
 >>> Top.load({"x": "test", "y": {"some-text": "one", "some-number": 42}})
 Top(x='test', y=Inner(some_text='one', some_number=42))
 """
 
 import dataclasses
-import types
-from typing import Self
+from typing import Self, Union
+import sys
 
 
 class LoadStoreClass:
@@ -108,54 +103,80 @@ def _load(value, fieldtype, keyprefix, depth_limit):
     # do dict[str, int] -- but we can't just check for being a type either,
     # because Optional[str] or SomeType | None works well with isinstance
 
-    if isinstance(value, fieldtype):
-        # This case covers
-        # * "hello" for str
-        # * 52 for Optional[int]
-        # * None for MyLoadable | None
-        # * MyLoadable(…) for MyLoadable | None (which is something odd but allowed)
-        return value
+    # Things would be much easier if we could do `isinstance(value, fieldtype)`
+    # not just for the working (42, int) and (42, Optional[int]) and ({}, dict
+    # | list), but also for the non-working ({"x":1}, dict[str, int]) and more
+    # complex cases of that style: "isinstance() argument 2 cannot be a
+    # parameterized generic".
+    #
+    # As the offending parameterized generics can not be just the top-level
+    # annotation but also part of a union, we have to dissect them:
+    fieldtypes = _unpack_union(fieldtype)
 
-    if (
-        # The simple case: The annotation *is* a loadable type.
-        isinstance(fieldtype, type) and issubclass(load_as := fieldtype, LoadStoreClass)
-    ) or (
-        # The complex case: The annotation is a union, and we can find out
-        # which one is the one we can use; stored in load_as right away.
-        #
-        # When Python 3.13 support is dropped, types.UnionType can
-        # become types.Union, and we'll gain support for Optioinal too
-        #
-        # The isinstance check is needed for issubclass to work in the
-        # first place; FIXME: rather than assuming it's the top-level
-        # item, get a list of candidate LoadStoreClass subclasses, so
-        # that we can also process Optional[Foo] or even Foo | Bar.
-        isinstance(fieldtype, types.UnionType)
-        and len(
-            [load_as := x for x in fieldtype.__args__ if issubclass(x, LoadStoreClass)]
-        )
-        == 1
-    ):
-        # FIXME: allow annotating single distinct non-dict-value, eg.
-        # like Cargo.toml's implicit version in dependencies. (Right
-        # now we can do this can be done at the parent level, maybe
-        # that suffices?).
-        if not isinstance(value, dict):
-            raise ValueError(
-                f"Type mismatch on {keyprefix}: Expected dictionary to populate {load_as.__name__} with, found {type(value).__name__}"
+    # As we have a list, we try to match it greedily.
+    for fieldtype in fieldtypes:
+        if not isinstance(fieldtype, type):
+            raise TypeError(
+                "Annotation can not be processed: Can only process unions over types"
             )
-        if depth_limit == 0:
-            raise ValueError("Nesting exceeded limit in {keyprefix}")
-        return load_as.load(value, prefix=keyprefix, depth_limit=depth_limit - 1)
 
-    # FIXME:
-    # - For lists and dicts, evaluate items (can be deferred until we actually have any)
-    # - Special treatment for bytes: Accept {"acii": "hello"} and {"hex": "001122"}
-    # - Special treatment for Path (probably with new filename argument)
-    # - In union handling, support multiple, possibly fanning out by disambiguator keys?
+        if isinstance(value, fieldtype):
+            # This case covers
+            # * "hello" for str
+            # * MyLoadable(…) for MyLoadable (which is something odd but allowed)
+            #
+            # It'd also tolerate
+            # * 52 for Optional[int]
+            # * None for MyLoadable | None
+            # but those are taken care of already by _unpack_union
+            return value
 
-    # For regular types "__name__ works, but unions and similar don't have one
-    fieldtypename = getattr(fieldtype, "__name__", str(fieldtype))
-    raise ValueError(
-        f"Type mismatch on {keyprefix}: Expected {fieldtypename}, found {type(value).__name__}"
+        if isinstance(value, dict) and issubclass(fieldtype, LoadStoreClass):
+            # FIXME: allow annotating single distinct non-dict-value, eg.
+            # like Cargo.toml's implicit version in dependencies. (Right
+            # now we can do this can be done at the parent level, maybe
+            # that suffices?).
+            if depth_limit == 0:
+                raise ValueError("Nesting exceeded limit in {keyprefix}")
+            return fieldtype.load(value, prefix=keyprefix, depth_limit=depth_limit - 1)
+
+        # FIXME:
+        # - For lists and dicts, evaluate items (can be deferred until we actually have any)
+        # - Special treatment for bytes: Accept {"acii": "hello"} and {"hex": "001122"}
+        # - Special treatment for Path (probably with new filename argument)
+        # - In union handling, support multiple, possibly fanning out by disambiguator keys?
+
+    expected = " or ".join(
+        f"dict (representing {t.__name__})"
+        if issubclass(t, LoadStoreClass)
+        else t.__name__
+        for t in fieldtypes
     )
+    raise ValueError(
+        f"Type mismatch on {keyprefix}: Expected {expected}, found {type(value).__name__}"
+    )
+
+
+def _unpack_union(annotation) -> tuple:
+    """If the annotation is a Union (including Optional), this returns a tuple
+    of union'd types; otherwise a tuple containing only the annotation.
+
+    When Python 3.13 support is dropped, this can be simplified based on
+    type(Optional[str]) being Union.
+
+
+    >>> from typing import *
+    >>> _unpack_union(str) == (str,)
+    True
+    >>> _unpack_union(str | None) == (str, type(None))
+    True
+    >>> _unpack_union(Optional[dict[str, str]]) == (dict[str, str], type(None))
+    True
+    """
+    if sys.version_info >= (3, 14):
+        if isinstance(annotation, Union):
+            return annotation.__args__
+    else:
+        if type(annotation).__name__ in ("_UnionGenericAlias", "UnionType"):
+            return annotation.__args__
+    return (annotation,)
