@@ -135,3 +135,27 @@ class TestDataclassData(unittest.TestCase):
                 raise Exception("Extra element was not pointed to") from e
         else:
             raise Exception("Incomplete data was loaded")
+
+    def test_unsupported_alternative(self):
+        try:
+            Outer.load(
+                {
+                    "inner": {
+                        "x": {"b": "x"},
+                        "z": 1.5,
+                        "y": 1.1,  # should be string or dict
+                    },
+                }
+            )
+        except ValueError as e:
+            # or something to that effect
+            if (
+                "inner/y" in str(e)
+                and "Expected dict (representing Inner2) or str or NoneType, found float"
+                in str(e)
+            ):
+                pass
+            else:
+                raise Exception("Type error did not point to legal options") from e
+        else:
+            raise Exception("Erroneous data was loaded")
