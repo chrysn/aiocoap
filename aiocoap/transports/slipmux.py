@@ -225,7 +225,7 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
                 break
         else:
             # sensible fallback for Windows, I guess
-            full_devicename = filename
+            full_devicename = devicename
         (_, protocol) = await serial_asyncio.create_serial_connection(
             self.__loop,
             protocol_factory,
