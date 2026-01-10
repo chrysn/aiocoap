@@ -78,59 +78,8 @@ class LoadStoreClass:
                 raise ValueError(
                     f"Item {key!r} not recognized inside {cls.__name__} at {prefix}"
                 ) from None
-            if isinstance(value, fieldtype):
-                pass
-            elif (
-                # The simple case: It *is* that type.
-                isinstance(fieldtype, type)
-                and issubclass(load_as := fieldtype, LoadStoreClass)
-            ) or (
-                # The complex case: It is a union, and we can find out which
-                # one is the one we can use; stored in load_as right away.
-                #
-                # When Python 3.13 support is dropped, types.UnionType can
-                # become types.Union, and we'll gain support for Optioinal too
-                isinstance(fieldtype, types.UnionType)
-                and len(
-                    [
-                        load_as := x
-                        for x in fieldtype.__args__
-                        if issubclass(x, LoadStoreClass)
-                    ]
-                )
-                == 1
-            ):
-                # The isinstance check is needed for issubclass to work in the
-                # first place; FIXME: rather than assuming it's the top-level
-                # item, get a list of candidate LoadStoreClass subclasses, so
-                # that we can also process Optional[Foo] or even Foo | Bar.
 
-                # FIXME: allow annotating single distinct non-dict-value, eg.
-                # like Cargo.toml's implicit version in dependencies. (Right
-                # now we can do this can be done at the parent level, maybe
-                # that suffices?).
-                if not isinstance(value, dict):
-                    raise ValueError(
-                        f"Type mismatch on {keyprefix}: Expected dictionary to populate {load_as.__name__} with, found {type(value).__name__}"
-                    )
-                if depth_limit == 0:
-                    raise ValueError("Nesting exceeded limit in {keyprefix}")
-                value = load_as.load(
-                    value, prefix=keyprefix, depth_limit=depth_limit - 1
-                )
-            else:
-                # FIXME:
-                # - For lists and dicts, evaluate items (can be deferred until we actually have any)
-                # - Special treatment for bytes: Accept {"acii": "hello"} and {"hex": "001122"}
-                # - Special treatment for Path (probably with new filename argument)
-                # - In union handling, support multiple, possibly fanning out by disambiguator keys?
-
-                # For regular types "__name__ works, but unions and similar don't have one
-                fieldtypename = getattr(fieldtype, "__name__", str(fieldtype))
-                raise ValueError(
-                    f"Type mismatch on {keyprefix}: Expected {fieldtypename}, found {type(value).__name__}"
-                )
-            kwargs[f] = value
+            kwargs[f] = _load(value, fieldtype, keyprefix, depth_limit)
 
         try:
             return cls(**kwargs)
@@ -152,3 +101,61 @@ class LoadStoreClass:
                 raise ValueError(
                     f"Constructing instance of {cls.__name__} at {keyprefix} failed for unexpected reasons"
                 ) from e
+
+
+def _load(value, fieldtype, keyprefix, depth_limit):
+    # FIXME: isinstance(value, fieldtype) requires a pre-check because it can't
+    # do dict[str, int] -- but we can't just check for being a type either,
+    # because Optional[str] or SomeType | None works well with isinstance
+
+    if isinstance(value, fieldtype):
+        # This case covers
+        # * "hello" for str
+        # * 52 for Optional[int]
+        # * None for MyLoadable | None
+        # * MyLoadable(…) for MyLoadable | None (which is something odd but allowed)
+        return value
+
+    if (
+        # The simple case: The annotation *is* a loadable type.
+        isinstance(fieldtype, type) and issubclass(load_as := fieldtype, LoadStoreClass)
+    ) or (
+        # The complex case: The annotation is a union, and we can find out
+        # which one is the one we can use; stored in load_as right away.
+        #
+        # When Python 3.13 support is dropped, types.UnionType can
+        # become types.Union, and we'll gain support for Optioinal too
+        #
+        # The isinstance check is needed for issubclass to work in the
+        # first place; FIXME: rather than assuming it's the top-level
+        # item, get a list of candidate LoadStoreClass subclasses, so
+        # that we can also process Optional[Foo] or even Foo | Bar.
+        isinstance(fieldtype, types.UnionType)
+        and len(
+            [load_as := x for x in fieldtype.__args__ if issubclass(x, LoadStoreClass)]
+        )
+        == 1
+    ):
+        # FIXME: allow annotating single distinct non-dict-value, eg.
+        # like Cargo.toml's implicit version in dependencies. (Right
+        # now we can do this can be done at the parent level, maybe
+        # that suffices?).
+        if not isinstance(value, dict):
+            raise ValueError(
+                f"Type mismatch on {keyprefix}: Expected dictionary to populate {load_as.__name__} with, found {type(value).__name__}"
+            )
+        if depth_limit == 0:
+            raise ValueError("Nesting exceeded limit in {keyprefix}")
+        return load_as.load(value, prefix=keyprefix, depth_limit=depth_limit - 1)
+
+    # FIXME:
+    # - For lists and dicts, evaluate items (can be deferred until we actually have any)
+    # - Special treatment for bytes: Accept {"acii": "hello"} and {"hex": "001122"}
+    # - Special treatment for Path (probably with new filename argument)
+    # - In union handling, support multiple, possibly fanning out by disambiguator keys?
+
+    # For regular types "__name__ works, but unions and similar don't have one
+    fieldtypename = getattr(fieldtype, "__name__", str(fieldtype))
+    raise ValueError(
+        f"Type mismatch on {keyprefix}: Expected {fieldtypename}, found {type(value).__name__}"
+    )
