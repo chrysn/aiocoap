@@ -43,6 +43,8 @@ from .. import error, interfaces
 # circular but allows matching on constants
 from . import slipmux
 
+from ..transport_params import SlipmuxParameters, SlipmuxDevice
+
 # from RFC1055
 ESC = 0o333
 END = 0o300
@@ -156,7 +158,7 @@ class SlipmuxAddress(interfaces.EndpointAddress):
 
     def __repr__(self):
         """
-        >>> SlipmuxAddress("ttyusb0.dev.alt", MessageInterfaceSlipmux(..., ..., ...))
+        >>> SlipmuxAddress("ttyusb0.dev.alt", MessageInterfaceSlipmux(..., ..., ..., ...))
         <SlipmuxAddress ttyusb0.dev.alt>
         """
         return "<%s %s>" % (
@@ -198,11 +200,14 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
     than any RAM limits.
     """
 
-    def __init__(self, ctx: interfaces.MessageManager, log, loop):
+    def __init__(
+        self, params: SlipmuxParameters, ctx: interfaces.MessageManager, log, loop
+    ):
         self.__ctx = ctx
         self.__log = log
         self.__pool: dict[SlipmuxAddress, SlipmuxProtocol] = {}
         self.__loop = loop
+        self.__params = params
 
     async def shutdown(self):
         return
@@ -273,15 +278,21 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
 
     @classmethod
     async def create_client_transport_endpoint(
-        cls, ctx: interfaces.MessageManager, log, loop
+        cls, params: SlipmuxParameters, ctx: interfaces.MessageManager, log, loop
     ):
-        return cls(ctx, log, loop)
+        return cls(params, ctx, log, loop)
 
     @classmethod
     async def create_server_transport_endpoint(
-        cls, ctx: interfaces.MessageManager, log, loop, bind, multicast
+        cls,
+        params: SlipmuxParameters,
+        ctx: interfaces.MessageManager,
+        log,
+        loop,
+        bind,
+        multicast,
     ):
-        return cls(ctx, log, loop)
+        return cls(params, ctx, log, loop)
 
     # provided for SlipmuxProtocol
 
