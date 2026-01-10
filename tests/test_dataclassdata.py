@@ -117,3 +117,21 @@ class TestDataclassData(unittest.TestCase):
                 raise Exception("Path to missing field was not shown") from e
         else:
             raise Exception("Incomplete data was loaded")
+
+    def test_unknown_item(self):
+        try:
+            Outer.load(
+                {
+                    "inner": {
+                        "y": {"b": "y", "unknown": 42},  # "unknown" is not recognized
+                        "z": 1.5,
+                    },
+                }
+            )
+        except ValueError as e:
+            if "inner/y" in str(e) and "Item 'unknown' not recognized" in str(e):
+                pass
+            else:
+                raise Exception("Extra element was not pointed to") from e
+        else:
+            raise Exception("Incomplete data was loaded")

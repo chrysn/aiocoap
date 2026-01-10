@@ -72,7 +72,12 @@ class LoadStoreClass:
         for key, value in data.items():
             keyprefix = f"{prefix}{key}"
             f = key.replace("-", "_")
-            fieldtype = fields[f].type
+            try:
+                fieldtype = fields[f].type
+            except KeyError:
+                raise ValueError(
+                    f"Item {key!r} not recognized inside {cls.__name__} at {prefix}"
+                ) from None
             if isinstance(value, fieldtype):
                 pass
             elif (
