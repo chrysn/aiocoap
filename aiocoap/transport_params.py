@@ -21,13 +21,13 @@ class Udp6Parameters(LoadStoreClass):
     # Not managing any details yet; those will come as things are being wired up.
 
 
-#     ## Address and port to bind to.
-#     ##
-#     ## The practical value when nothing is given explicitly depends on whether
-#     ## a server is run (then it's ``[::]:5683``) or not (then it's effectively
-#     ## ``[::]:0``, which binds to an ephemeral port, although the `bind`
-#     ## syscall may be elided in that case).
 #     bind: Optional[str] = None
+#     """Address and port to bind to.
+#
+#     The practical value when nothing is given explicitly depends on whether
+#     a server is run (then it's ``[::]:5683``) or not (then it's effectively
+#     ``[::]:0``, which binds to an ephemeral port, although the `bind`
+#     syscall may be elided in that case)."""
 
 
 @dataclass
@@ -118,23 +118,23 @@ class TransportParameters(LoadStoreClass):
                 "Transports needs to bei either TransportParameters, or a dict that can be loaded as one, or None, or (deprecated) a list of transport names."
             )
 
-    ## If True, in any place it applies, parameters for server operation are
-    ## set. (For example, the UDP and TCP ports bind to the default port rather
-    ## than an ephemeral port, and the default transports selection may be
-    ## different).
-    ##
-    ## Leaving this unset allows the parameters to be set when creating the
-    ## context.
     is_server: Optional[bool] = None
+    """If True, in any place it applies, parameters for server operation are
+    set. (For example, the UDP and TCP ports bind to the default port rather
+    than an ephemeral port, and the default transports selection may be
+    different).
 
-    ## If True, all transports that are on by default (or selected by the
-    ## environment) are enabled.
-    ##
-    ## Note that this is False by default: If TransportParameters are given
-    ## explicitly (by construction or by loading from JSON/CBOR/TOML style
-    ## files), all transports are opt-in, and only when not specifying
-    ## anything (or a legacy format) to the Context constructor, this gets set.
+    Leaving this unset allows the parameters to be set when creating the
+    context."""
+
     default_transports: bool = False
+    """If True, all transports that are on by default (or selected by the
+    environment) are enabled.
+
+    Note that this is False by default: If TransportParameters are given
+    explicitly (by construction or by loading from JSON/CBOR/TOML style files),
+    all transports are opt-in, and only when not specifying anything (or a
+    legacy format) to the Context constructor, this gets set."""
 
     udp6: Udp6Parameters | None = None
     simple6: Simple6Parameters | None = None
