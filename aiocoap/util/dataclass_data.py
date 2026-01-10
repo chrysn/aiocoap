@@ -138,7 +138,10 @@ class LoadStoreClass:
             missing = [
                 f.name
                 for f in dataclasses.fields(cls)
-                if f.name not in kwargs and f.default is dataclasses.MISSING
+                if f.name not in kwargs
+                and f.default is dataclasses.MISSING
+                and f.default_factory is dataclasses.MISSING
+                and f.init
             ]
             if missing:
                 # The likely case -- what else might go wrong?
