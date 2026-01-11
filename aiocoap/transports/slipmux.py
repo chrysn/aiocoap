@@ -43,7 +43,7 @@ from .. import error, interfaces
 # circular but allows matching on constants
 from . import slipmux
 
-from ..transport_params import SlipmuxParameters, SlipmuxDevice
+from ..transport_params import TransportParameters, SlipmuxDevice
 
 # from RFC1055
 ESC = 0o333
@@ -201,7 +201,7 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
     """
 
     def __init__(
-        self, params: SlipmuxParameters, ctx: interfaces.MessageManager, log, loop
+        self, params: TransportParameters, ctx: interfaces.MessageManager, log, loop
     ):
         self.__ctx = ctx
         self.__log = log
@@ -225,7 +225,8 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
         def protocol_factory():
             return SlipmuxProtocol(starting_future, weakself, remote, connlog)
 
-        devparams = self.__params.devices.get(devicename, SlipmuxDevice())
+        assert self.__params.slipmux is not None
+        devparams = self.__params.slipmux.devices.get(devicename, SlipmuxDevice())
         if devparams.unix_connect is not None:
             (_, protocol) = await asyncio.get_event_loop().create_unix_connection(
                 protocol_factory,
@@ -288,22 +289,18 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
             return address
 
     @classmethod
-    async def create_client_transport_endpoint(
-        cls, params: SlipmuxParameters, ctx: interfaces.MessageManager, log, loop
-    ):
-        return cls(params, ctx, log, loop)
-
-    @classmethod
-    async def create_server_transport_endpoint(
+    async def create_transport_endpoint(
         cls,
-        params: SlipmuxParameters,
+        params: TransportParameters,
         ctx: interfaces.MessageManager,
         log,
         loop,
     ):
         slef = cls(params, ctx, log, loop)
-        for key in params.devices:
-            await slef._get(SlipmuxAddress(f"{key}.dev.alt", slef))
+        if params.is_server:
+            assert params.slipmux is not None
+            for key in params.slipmux.devices:
+                await slef._get(SlipmuxAddress(f"{key}.dev.alt", slef))
         return slef
 
     # provided for SlipmuxProtocol

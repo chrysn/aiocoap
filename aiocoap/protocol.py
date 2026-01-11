@@ -187,6 +187,8 @@ class Context(interfaces.RequestProvider):
             defaults.get_default_clienttransports(loop=loop)
         )
         selected_transports = TransportParameters._compat_create(selected_transports)
+        if selected_transports.is_server is None:
+            selected_transports.is_server = False
 
         # FIXME make defaults overridable (postponed until they become configurable too)
         if selected_transports.oscore:
@@ -244,8 +246,8 @@ class Context(interfaces.RequestProvider):
             from .transports.slipmux import MessageInterfaceSlipmux
 
             await self._append_tokenmanaged_messagemanaged_transport(
-                lambda mman: MessageInterfaceSlipmux.create_client_transport_endpoint(
-                    selected_transports.slipmux,
+                lambda mman: MessageInterfaceSlipmux.create_transport_endpoint(
+                    selected_transports,
                     mman,
                     log=self.log,
                     loop=self.loop,
@@ -313,6 +315,8 @@ class Context(interfaces.RequestProvider):
             defaults.get_default_servertransports(loop=loop)
         )
         selected_transports = TransportParameters._compat_create(selected_transports)
+        if selected_transports.is_server is None:
+            selected_transports.is_server = True
 
         if selected_transports.oscore:
             from .transports.oscore import TransportOSCORE
@@ -413,8 +417,8 @@ class Context(interfaces.RequestProvider):
             from .transports.slipmux import MessageInterfaceSlipmux
 
             await self._append_tokenmanaged_messagemanaged_transport(
-                lambda mman: MessageInterfaceSlipmux.create_server_transport_endpoint(
-                    selected_transports.slipmux,
+                lambda mman: MessageInterfaceSlipmux.create_transport_endpoint(
+                    selected_transports,
                     mman,
                     log=self.log,
                     loop=self.loop,
