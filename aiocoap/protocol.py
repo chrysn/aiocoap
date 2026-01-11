@@ -413,7 +413,7 @@ class Context(interfaces.RequestProvider):
             from .transports.slipmux import MessageInterfaceSlipmux
 
             await self._append_tokenmanaged_messagemanaged_transport(
-                lambda mman: MessageInterfaceSlipmux.create_client_transport_endpoint(
+                lambda mman: MessageInterfaceSlipmux.create_server_transport_endpoint(
                     selected_transports.slipmux,
                     mman,
                     log=self.log,

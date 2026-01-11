@@ -103,6 +103,11 @@ class SlipmuxParameters(LoadStoreClass):
 
     The keys are the "devname" part of the ``coap://devname.dev.alt`` origins
     used with slimux.
+
+    Setting an item is done for two practical effects:
+        * It allows overriding properties (see :class:`SlipmuxParameters`).
+        * When configured as a server, these are the ports that get connected
+          at startup.
     """
 
 

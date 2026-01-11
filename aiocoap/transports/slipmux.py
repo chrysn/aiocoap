@@ -300,10 +300,11 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
         ctx: interfaces.MessageManager,
         log,
         loop,
-        bind,
-        multicast,
     ):
-        return cls(params, ctx, log, loop)
+        slef = cls(params, ctx, log, loop)
+        for key in params.devices:
+            await slef._get(SlipmuxAddress(f"{key}.dev.alt", slef))
+        return slef
 
     # provided for SlipmuxProtocol
 
