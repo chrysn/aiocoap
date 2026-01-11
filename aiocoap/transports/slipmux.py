@@ -216,6 +216,7 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
         if remote in self.__pool:
             return self.__pool[remote]
         devicename = _hostname_to_devicename(remote._host)
+        assert devicename is not None, "Checked at construction at recognition"
 
         starting_future = self.__loop.create_future()
         weakself = weakref.ref(self)
@@ -224,19 +225,29 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
         def protocol_factory():
             return SlipmuxProtocol(starting_future, weakself, remote, connlog)
 
-        for filename in os.listdir("/dev/"):
-            if filename.lower() == devicename:
-                full_devicename = "/dev/" + filename
-                break
+        devparams = self.__params.devices.get(devicename, SlipmuxDevice())
+        if devparams.unix_connect is not None:
+            (_, protocol) = await asyncio.get_event_loop().create_unix_connection(
+                protocol_factory,
+                # Type is ignored because mypy seems not to know that event
+                # loops *do* accept paths.
+                devparams.unix_connect,  # type: ignore
+            )
         else:
-            # sensible fallback for Windows, I guess
-            full_devicename = devicename
-        (_, protocol) = await serial_asyncio.create_serial_connection(
-            self.__loop,
-            protocol_factory,
-            full_devicename,
-            baudrate=115200,
-        )
+            for filename in os.listdir("/dev/"):
+                if filename.lower() == devicename:
+                    full_devicename = "/dev/" + filename
+                    break
+            else:
+                # sensible fallback for Windows, I guess
+                full_devicename = devicename
+            (_, protocol) = await serial_asyncio.create_serial_connection(
+                self.__loop,
+                protocol_factory,
+                full_devicename,
+                baudrate=115200,
+            )
+
         self.__pool[remote] = protocol
         startup_error = await starting_future
         if startup_error is not None:

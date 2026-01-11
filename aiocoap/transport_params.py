@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: MIT
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional, Self
 
 from .util.dataclass_data import LoadStoreClass
@@ -81,8 +82,28 @@ class OscoreParameters(LoadStoreClass):
 
 
 @dataclass
+class SlipmuxDevice(LoadStoreClass):
+    """Parameters for a single slipmux device.
+
+    By default, establishes a connection by looking up the name
+    case-insensitively in ``/dev/`` (which works for UNIXes), falling back to
+    opening the device by its name (which probably works on Windows)"""
+
+    unix_connect: Optional[Path] = None
+    """If set, connection is not made through a serial port but rather by
+    connecting to a UNIX socket at that file name."""
+
+
+@dataclass
 class SlipmuxParameters(LoadStoreClass):
     """Parameters for setting up a ``slipmux`` transport."""
+
+    devices: dict[str, SlipmuxDevice] = field(default_factory=dict)
+    """Details of known slipmux devices.
+
+    The keys are the "devname" part of the ``coap://devname.dev.alt`` origins
+    used with slimux.
+    """
 
 
 @dataclass
