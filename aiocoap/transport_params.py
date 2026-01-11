@@ -89,9 +89,22 @@ class SlipmuxDevice(LoadStoreClass):
     case-insensitively in ``/dev/`` (which works for UNIXes), falling back to
     opening the device by its name (which probably works on Windows)"""
 
+    device: Optional[Path] = None
+    """Overrides the path at which the device file is expected.
+
+    This can be useful when catering for device path renames, or when devices
+    contain characters that are not trivially encoded in the Hostname component
+    of a URI."""
+
     unix_connect: Optional[Path] = None
     """If set, connection is not made through a serial port but rather by
     connecting to a UNIX socket at that file name."""
+
+    def __post_init__(self):
+        if sum(f is not None for f in (self.device, self.unix_connect)) > 1:
+            raise ValueError(
+                "Only one (or none) of the 'device' and 'unix-connect' fields can be set."
+            )
 
 
 @dataclass

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from pathlib import Path
 import string
 from typing import Optional
 import weakref
@@ -235,13 +236,15 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
                 devparams.unix_connect,  # type: ignore
             )
         else:
-            for filename in os.listdir("/dev/"):
-                if filename.lower() == devicename:
-                    full_devicename = "/dev/" + filename
-                    break
-            else:
-                # sensible fallback for Windows, I guess
-                full_devicename = devicename
+            full_devicename: Path | str | None = devparams.device
+            if full_devicename is None:
+                for filename in os.listdir("/dev/"):
+                    if filename.lower() == devicename:
+                        full_devicename = "/dev/" + filename
+                        break
+                else:
+                    # sensible fallback for Windows, I guess
+                    full_devicename = devicename
             (_, protocol) = await serial_asyncio.create_serial_connection(
                 self.__loop,
                 protocol_factory,

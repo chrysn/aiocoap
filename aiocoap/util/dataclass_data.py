@@ -97,6 +97,10 @@ class LoadStoreClass:
 
         try:
             return cls(**kwargs)
+        except ValueError as e:
+            raise ValueError(
+                f"Error constructing {cls.__name__} at {prefix}: {e}"
+            ) from e
         except TypeError as e:
             missing = [
                 f.name
