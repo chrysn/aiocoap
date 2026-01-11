@@ -16,8 +16,7 @@ from .util.dataclass_data import LoadStoreClass
 
 @dataclass
 class Udp6Parameters(LoadStoreClass):
-    """Parameters for setting up a ``udp6`` transport (see :mod:`..transport_params`
-    for context)."""
+    """Parameters for setting up a :mod:`udp6 <aiocoap.transports.udp6>` transport."""
 
     # Not managing any details yet; those will come as things are being wired up.
 
@@ -33,52 +32,52 @@ class Udp6Parameters(LoadStoreClass):
 
 @dataclass
 class Simple6Parameters(LoadStoreClass):
-    """Parameters for setting up a ``simple6`` transport."""
+    """Parameters for setting up a :mod:`simple6 <aiocoap.transports.simple6>` transport."""
 
 
 @dataclass
 class SimpleSocketServerParameters(LoadStoreClass):
-    """Parameters for setting up a ``simplesocketserver`` transport."""
+    """Parameters for setting up a :mod:`simplesocketserver <aiocoap.transports.simplesocketserver>` transport."""
 
 
 @dataclass
 class TinyDTLSParameters(LoadStoreClass):
-    """Parameters for setting up a ``tinydtls`` transport."""
+    """Parameters for setting up a :mod:`tinydtls <aiocoap.transports.tinydtls>` transport."""
 
 
 @dataclass
 class TinyDTLSServerParameters(LoadStoreClass):
-    """Parameters for setting up a ``tinydtls_server`` transport."""
+    """Parameters for setting up a :mod:`tinydtls_server <aiocoap.transports.tinydtls_server>` transport."""
 
 
 @dataclass
 class TcpClientParameters(LoadStoreClass):
-    """Parameters for setting up a ``tcpclient`` transport."""
+    """Parameters for setting up a :mod:`tcpclient <aiocoap.transports.tcpclient>` transport."""
 
 
 @dataclass
 class TcpServerParameters(LoadStoreClass):
-    """Parameters for setting up a ``tcpserver`` transport."""
+    """Parameters for setting up a :mod:`tcpserver <aiocoap.transports.tcpserver>` transport."""
 
 
 @dataclass
 class TlsClientParameters(LoadStoreClass):
-    """Parameters for setting up a ``tlsclient`` transport."""
+    """Parameters for setting up a :mod:`tlsclient <aiocoap.transports.tlsclient>` transport."""
 
 
 @dataclass
 class TlsServerParameters(LoadStoreClass):
-    """Parameters for setting up a ``tlsserver`` transport."""
+    """Parameters for setting up a :mod:`tlsserver <aiocoap.transports.tlsserver>` transport."""
 
 
 @dataclass
 class WsParameters(LoadStoreClass):
-    """Parameters for setting up a ``ws`` transport."""
+    """Parameters for setting up a :mod:`ws <aiocoap.transports.ws>` transport."""
 
 
 @dataclass
 class OscoreParameters(LoadStoreClass):
-    """Parameters for setting up an ``oscore`` transport."""
+    """Parameters for setting up an :mod:`oscore <aiocoap.transports.oscore>` transport."""
 
 
 @dataclass
@@ -119,7 +118,7 @@ class SlipmuxDevice(LoadStoreClass):
 
 @dataclass
 class SlipmuxParameters(LoadStoreClass):
-    """Parameters for setting up a ``slipmux`` transport."""
+    """Parameters for setting up a :mod:`slipmux <aiocoap.transports.slipmux>` transport."""
 
     devices: dict[str, SlipmuxDevice] = field(default_factory=dict)
     """Details of known slipmux devices.
