@@ -100,10 +100,20 @@ class SlipmuxDevice(LoadStoreClass):
     """If set, connection is not made through a serial port but rather by
     connecting to a UNIX socket at that file name."""
 
+    unix_listen: Optional[Path] = None
+    """If set, connection is not made through a serial port but rather by
+    creating and listening at a UNIX socket at that file name."""
+
     def __post_init__(self):
-        if sum(f is not None for f in (self.device, self.unix_connect)) > 1:
+        if (
+            sum(
+                f is not None
+                for f in (self.device, self.unix_connect, self.unix_listen)
+            )
+            > 1
+        ):
             raise ValueError(
-                "Only one (or none) of the 'device' and 'unix-connect' fields can be set."
+                "Only one (or none) of the 'device', 'unix-connect' and 'unix-listen' fields can be set per device."
             )
 
 

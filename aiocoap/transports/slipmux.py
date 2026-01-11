@@ -235,6 +235,25 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
                 # loops *do* accept paths.
                 devparams.unix_connect,  # type: ignore
             )
+        elif devparams.unix_listen is not None:
+            # FIXME: This is a rather hackish way to listen once -- it works in
+            # few local lines of code, but it blocks at startup (kind'a
+            # desirable in a few situations, maybe? but probably not), and what
+            # I think we'd rather want is to accept multiple peers one after
+            # another. That'd probably work best if we also did some
+            # retry/establish-when-present logic for devices.
+            protofut: asyncio.Future[SlipmuxProtocol] = asyncio.Future()
+
+            def server_protocol_factory():
+                protocol = protocol_factory()
+                protofut.set_result(protocol)
+                return protocol
+
+            await asyncio.get_event_loop().create_unix_server(
+                server_protocol_factory,
+                devparams.unix_listen,
+            )
+            protocol = await protofut
         else:
             full_devicename: Path | str | None = devparams.device
             if full_devicename is None:
