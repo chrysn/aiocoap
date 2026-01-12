@@ -60,7 +60,7 @@ from .pipe import Pipe, run_driving_pipe, error_to_message
 from . import interfaces
 from . import error
 from .numbers import INTERNAL_SERVER_ERROR, NOT_FOUND, CONTINUE, SHUTDOWN_TIMEOUT
-from .transport_params import TransportParameters
+from .config import TransportParameters
 
 import warnings
 import logging

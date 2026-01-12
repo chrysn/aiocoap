@@ -44,7 +44,7 @@ from .. import error, interfaces
 # circular but allows matching on constants
 from . import slipmux
 
-from ..transport_params import TransportParameters, SlipmuxDevice
+from ..config import TransportParameters, SlipmuxDevice
 
 # from RFC1055
 ESC = 0o333
