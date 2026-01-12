@@ -196,3 +196,16 @@ class TransportParameters(LoadStoreClass):
     ws: WsParameters | None = None
     oscore: OscoreParameters | None = None
     slipmux: SlipmuxParameters | None = None
+
+
+@dataclass
+class Config(LoadStoreClass):
+    """Configuration for aiocoap
+
+    An instance of this type covers aspects of aiocoap's behavior that are
+    orthogonal to typical CoAP server or client applications, or for which an
+    application would typically only forward configuration settings to."""
+
+    transport: TransportParameters = field(
+        default_factory=lambda: TransportParameters._compat_create(None)
+    )
