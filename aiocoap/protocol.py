@@ -51,7 +51,6 @@ import asyncio
 import weakref
 import time
 
-from . import defaults
 from .credentials import CredentialsMap
 from .message import Message
 from .messagemanager import MessageManager
@@ -183,12 +182,10 @@ class Context(interfaces.RequestProvider):
 
         self = cls(loop=loop, serversite=None, loggername=loggername)
 
-        selected_transports = transports or list(
-            defaults.get_default_clienttransports(loop=loop)
-        )
-        selected_transports = TransportParameters._compat_create(selected_transports)
+        selected_transports = TransportParameters._compat_create(transports)
         if selected_transports.is_server is None:
             selected_transports.is_server = False
+        selected_transports._apply_defaults()
 
         # FIXME make defaults overridable (postponed until they become configurable too)
         if selected_transports.oscore:
@@ -311,12 +308,10 @@ class Context(interfaces.RequestProvider):
 
         multicast_done = not multicast
 
-        selected_transports = transports or list(
-            defaults.get_default_servertransports(loop=loop)
-        )
-        selected_transports = TransportParameters._compat_create(selected_transports)
+        selected_transports = TransportParameters._compat_create(transports)
         if selected_transports.is_server is None:
             selected_transports.is_server = True
+        selected_transports._apply_defaults()
 
         if selected_transports.oscore:
             from .transports.oscore import TransportOSCORE

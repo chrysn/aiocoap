@@ -166,6 +166,31 @@ class TransportParameters(LoadStoreClass):
                 "Transports needs to bei either TransportParameters, or a dict that can be loaded as one, or None, or (deprecated) a list of transport names."
             )
 
+    def _apply_defaults(self):
+        """Modifies self to enable all transports from the
+        :mod:`aiocoap.defaults` settings (which pulls in environment variables
+        and installed modules).
+
+        This only applies any changes if ``.default_transports`` is present. It
+        expects ``.is_server`` to be decided already."""
+
+        from . import defaults
+
+        if not self.default_transports:
+            return
+
+        if self.is_server:
+            transports = defaults.get_default_servertransports()
+        else:
+            transports = defaults.get_default_clienttransports()
+
+        add_transports = [t for t in transports if getattr(self, t) is None]
+        # We don't have good APIs to incrementally load, so we just create
+        # something to splice into self
+        empty_transports = self.load({k: {} for k in add_transports})
+        for t in add_transports:
+            setattr(self, t, getattr(empty_transports, t))
+
     is_server: Optional[bool] = None
     """If True, in any place it applies, parameters for server operation are
     set. (For example, the UDP and TCP ports bind to the default port rather
