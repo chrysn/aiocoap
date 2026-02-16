@@ -30,6 +30,15 @@ class Outer(LoadStoreClass):
     items2: str | dict[str, Inner2] = "default"
 
 
+FILE_DIR = Path(__file__).parent / "test_dataclassdata_data"
+
+FILE_REFERENCE = Outer(
+    inner=Inner1(x=Inner2(b="via inner", a=1), z=0.0, y=None),
+    label="hello",
+    items2={"one": Inner2(b="one", a=1)},
+)
+
+
 class TestDataclassData(unittest.TestCase):
     def test_valid(self):
         self.assertEqual(
@@ -65,6 +74,22 @@ class TestDataclassData(unittest.TestCase):
                 inner=Inner1(x=Inner2(a=1, b="x"), z=1.5),
             ),
         )
+
+    def test_fileload_toml(self):
+        loaded = Outer.load_from_file(FILE_DIR / "outer.toml")
+        self.assertEqual(loaded, FILE_REFERENCE)
+
+    def test_fileload_json(self):
+        loaded = Outer.load_from_file(FILE_DIR / "outer.json")
+        self.assertEqual(loaded, FILE_REFERENCE)
+
+    def test_fileload_yaml(self):
+        loaded = Outer.load_from_file(FILE_DIR / "outer.yaml")
+        self.assertEqual(loaded, FILE_REFERENCE)
+
+    def test_fileload_yaml(self):
+        loaded = Outer.load_from_file(FILE_DIR / "outer.edn")
+        self.assertEqual(loaded, FILE_REFERENCE)
 
     def test_valid_and_alternative_type(self):
         self.assertEqual(

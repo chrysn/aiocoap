@@ -120,6 +120,56 @@ class LoadStoreClass:
                     f"Constructing instance of {cls.__name__} at {keyprefix} failed for unexpected reasons"
                 ) from e
 
+    @classmethod
+    def load_from_file(cls, file: Path | str) -> Self:
+        """Loads an item from a file.
+
+        The file is opened, and the file type is determined from the extension.
+        The set of supported file types may vary by installed packages and
+        Python version.
+        """
+        file = Path(file)
+
+        match file.suffix:
+            # Cases don't need error handling if they raise ValueError type
+            # exceptions, and if imports are from the standard library in the
+            # supported Python versions
+            case ".json":
+                import json
+
+                data = json.load(file.open("rb"))
+            case ".toml":
+                import tomllib
+
+                data = tomllib.load(file.open("rb"))
+            case ".yaml" | ".yml":
+                try:
+                    import yaml
+                except ImportError:
+                    raise ValueError(
+                        "Loading configuration from YAML files requires the `pyyaml` package installed."
+                    )
+                else:
+                    data = yaml.safe_load(file.open("rb"))
+            case ".diag" | ".edn":
+                try:
+                    import cbor_diag
+                    import cbor2
+                except ImportError:
+                    raise ValueError(
+                        "Loading configuration from CBOR EDN (Diagnostic Notation) files requires the `cbor-diag` and `cbor2` packages installed."
+                    )
+                else:
+                    data = cbor2.loads(
+                        cbor_diag.diag2cbor(file.read_text(encoding="utf-8"))
+                    )
+            case extension:
+                raise ValueError(
+                    f"Unsupported extension {extension!r}. Supported are .toml, .json and (depending on installed modules) .yml / .yaml and .edn / .diag"
+                )
+
+        return cls.load(data, basefile=file)
+
 
 def _load(value, fieldtype, keyprefix, depth_limit, basefile):
     if depth_limit == 0:

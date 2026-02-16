@@ -1,0 +1,8 @@
+label = "hello"
+
+[inner]
+x.b = "via inner"
+z = 0.0
+
+[items2.one]
+b = "one"
