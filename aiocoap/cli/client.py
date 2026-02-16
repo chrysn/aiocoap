@@ -23,6 +23,7 @@ except ImportError:
     pass  # that's normal on some platforms, and ok since it's just a usability enhancement
 
 import aiocoap
+import aiocoap.config
 import aiocoap.defaults
 import aiocoap.meta
 import aiocoap.proxy.client
@@ -34,6 +35,11 @@ log = logging.getLogger("coap.aiocoap-client")
 
 
 def augment_parser_for_global(p, *, prescreen=False):
+    p.add_argument(
+        "--config",
+        help="Configuration file to load",
+        type=Path,
+    )
     p.add_argument(
         "-v",
         "--verbose",
@@ -569,10 +575,10 @@ async def single_request(args, context, globalopts=None):
         sys.exit(1)
 
 
-async def single_request_with_context(args):
+async def single_request_with_context(args, config):
     """Wrapper around single_request until sync_main gets made fully async, and
     async context managers are used to manage contexts."""
-    context = await aiocoap.Context.create_client_context()
+    context = await aiocoap.Context.create_client_context(transports=config.transport)
     try:
         await single_request(args, context)
     finally:
@@ -582,11 +588,11 @@ async def single_request_with_context(args):
 interactive_expecting_keyboard_interrupt = None
 
 
-async def interactive(globalopts):
+async def interactive(globalopts, config):
     global interactive_expecting_keyboard_interrupt
     interactive_expecting_keyboard_interrupt = asyncio.get_event_loop().create_future()
 
-    context = await aiocoap.Context.create_client_context()
+    context = await aiocoap.Context.create_client_context(transports=config.transport)
 
     while True:
         try:
@@ -656,9 +662,17 @@ async def main(args=None):
         (first_args.verbose or 0) - (first_args.quiet or 0), first_args.color
     )
 
+    if first_args.config is not None:
+        try:
+            config = aiocoap.config.Config.load_from_file(first_args.config)
+        except ValueError as e:
+            first_parser.error(f"Error loading file {first_args.config!r}: {e}")
+    else:
+        config = aiocoap.config.Config()
+
     if not first_args.interactive:
         try:
-            await single_request_with_context(args)
+            await single_request_with_context(args, config)
         except asyncio.exceptions.CancelledError:
             sys.exit(3)
     else:
@@ -676,7 +690,7 @@ async def main(args=None):
 
         loop.add_signal_handler(signal.SIGINT, ctrl_c)
 
-        await interactive(globalopts)
+        await interactive(globalopts, config)
 
 
 def sync_main(args=None):
