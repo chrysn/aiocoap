@@ -8,11 +8,12 @@ devices named /dev/{NAME}, which are treated case-insensitively.
 
 # Caveats
 
-Even servers currently do not "bind" to slipmux ports, as that'd require an
-explicit list of serial ports where slipmux should be run (and our server
-startup does not yet have the tools to list them explicitly). However, once a
-connection is open (and it will stay open once connected until the device
-becomes unavailable), clients there *can* send requests.
+While servers do connect automatically to any configured slipmux endpoint, they
+do not reconnect automatically when that device goes away or is replaced (as
+may happen when resetting a development board, depending on its USB UART
+implementation). The same is true for UNIX sockets.
+
+Error handing is generally incomplete when it comes to I/O errors.
 
 This transport is currently not tested automatically, as only the client side
 is implemented, with no mechanism for acting on (eg.) a UNIX socket instead.
@@ -448,6 +449,8 @@ class SlipmuxProtocol(asyncio.Protocol):
         else:
             instance.terminated(self.__remote_handle, exc)
 
-    # FIXME: implement pause_writing / resume_writing, but the message
-    # interface has no backpressure, so we'll just fill up the buffer, and rely
-    # on CoAP flow control.
+    # We do not implement pause_writing / resume_writing: the message interface
+    # has no backpressure, so we'll just fill up the buffer, but given that
+    # CoAP's flow control applies anyway (and it is way more conservative than
+    # any actual UART's baud rate), there is little risk of excessive buffer
+    # build-up.
