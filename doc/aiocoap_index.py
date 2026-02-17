@@ -145,7 +145,7 @@ def build_moduledocs(app):
 
     for f in os.listdir(moddir):
         if f.endswith(".rst") and f.removesuffix(".rst") not in docs:
-            os.unlink(moddir + "/" + f)
+            os.unlink(moddir / f)
 
 
 def setup(app):
