@@ -137,11 +137,13 @@ class LoadStoreClass:
             case ".json":
                 import json
 
-                data = json.load(file.open("rb"))
+                with file.open("rb") as opened:
+                    data = json.load(opened)
             case ".toml":
                 import tomllib
 
-                data = tomllib.load(file.open("rb"))
+                with file.open("rb") as opened:
+                    data = tomllib.load(opened)
             case ".yaml" | ".yml":
                 try:
                     import yaml
@@ -149,8 +151,9 @@ class LoadStoreClass:
                     raise ValueError(
                         "Loading configuration from YAML files requires the `pyyaml` package installed."
                     )
-                else:
-                    data = yaml.safe_load(file.open("rb"))
+
+                with file.open("rb") as opened:
+                    data = yaml.safe_load(opened)
             case ".diag" | ".edn":
                 try:
                     import cbor_diag
@@ -159,10 +162,10 @@ class LoadStoreClass:
                     raise ValueError(
                         "Loading configuration from CBOR EDN (Diagnostic Notation) files requires the `cbor-diag` and `cbor2` packages installed."
                     )
-                else:
-                    data = cbor2.loads(
-                        cbor_diag.diag2cbor(file.read_text(encoding="utf-8"))
-                    )
+
+                data = cbor2.loads(
+                    cbor_diag.diag2cbor(file.read_text(encoding="utf-8"))
+                )
             case extension:
                 raise ValueError(
                     f"Unsupported extension {extension!r}. Supported are .toml, .json and (depending on installed modules) .yml / .yaml and .edn / .diag"
