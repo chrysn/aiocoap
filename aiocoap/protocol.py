@@ -193,6 +193,17 @@ class Context(interfaces.RequestProvider):
 
             oscoretransport = TransportOSCORE(self, self)
             self.request_interfaces.append(oscoretransport)
+        if selected_transports.slipmux:
+            from .transports.slipmux import MessageInterfaceSlipmux
+
+            await self._append_tokenmanaged_messagemanaged_transport(
+                lambda mman: MessageInterfaceSlipmux.create_transport_endpoint(
+                    selected_transports,
+                    mman,
+                    log=self.log,
+                    loop=self.loop,
+                )
+            )
         if selected_transports.udp6:
             from .transports.udp6 import MessageInterfaceUDP6
 
@@ -237,17 +248,6 @@ class Context(interfaces.RequestProvider):
             await self._append_tokenmanaged_transport(
                 lambda tman: WSPool.create_transport(
                     tman, self.log, loop, client_credentials=self.client_credentials
-                )
-            )
-        if selected_transports.slipmux:
-            from .transports.slipmux import MessageInterfaceSlipmux
-
-            await self._append_tokenmanaged_messagemanaged_transport(
-                lambda mman: MessageInterfaceSlipmux.create_transport_endpoint(
-                    selected_transports,
-                    mman,
-                    log=self.log,
-                    loop=self.loop,
                 )
             )
 
@@ -318,6 +318,17 @@ class Context(interfaces.RequestProvider):
 
             oscoretransport = TransportOSCORE(self, self)
             self.request_interfaces.append(oscoretransport)
+        if selected_transports.slipmux:
+            from .transports.slipmux import MessageInterfaceSlipmux
+
+            await self._append_tokenmanaged_messagemanaged_transport(
+                lambda mman: MessageInterfaceSlipmux.create_transport_endpoint(
+                    selected_transports,
+                    mman,
+                    log=self.log,
+                    loop=self.loop,
+                )
+            )
         if selected_transports.udp6:
             from .transports.udp6 import MessageInterfaceUDP6
 
@@ -406,17 +417,6 @@ class Context(interfaces.RequestProvider):
                     client_credentials=self.client_credentials,
                     server_bind=bind or (None, None),
                     server_context=_ssl_context,
-                )
-            )
-        if selected_transports.slipmux:
-            from .transports.slipmux import MessageInterfaceSlipmux
-
-            await self._append_tokenmanaged_messagemanaged_transport(
-                lambda mman: MessageInterfaceSlipmux.create_transport_endpoint(
-                    selected_transports,
-                    mman,
-                    log=self.log,
-                    loop=self.loop,
                 )
             )
 

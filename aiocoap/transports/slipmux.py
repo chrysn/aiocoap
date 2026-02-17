@@ -49,11 +49,11 @@ argument to connect to (because it operates on URIs' host components), some
 configuration is necessary. Store this in ``config-unix-connect.toml``::
 
     [transport.slipmux.devices]
-    my-connection = { unix-connext = "/tmp/coap.socket" }
+    my-connection = { unix-connect = "/tmp/coap.socket" }
 
 Then run::
 
-    $ aiocoap-client coap://my-connection/.well-known/core --config config-unix-connect.toml
+    $ aiocoap-client coap://my-connection.dev.alt/.well-known/core --config config-unix-connect.toml
 
 Caveats
 =======
