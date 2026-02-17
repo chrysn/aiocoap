@@ -6,7 +6,57 @@
 taken from transport-indication_: It chooses the pattern `{NAME}.dev.alt` for
 devices named /dev/{NAME}, which are treated case-insensitively.
 
-# Caveats
+Usage example
+=============
+
+Client with physical hardware
+-----------------------------
+
+Assuming you have a constrained device that suports slipmux connected to a PC
+as ``/dev/ttyACM0``, you can run::
+
+    $ aiocoap-client coap://ttyacm0.dev.alt/.well-known/core
+
+and interact with resources as found there; no further configuration is needed.
+
+Server with test peer
+---------------------
+
+To mock slipmux without a real serial connection, you can configure a slipmux
+host name to open up a UNIX socket instead. Write this configuration into
+``config-unix-listen.toml``::
+
+    [transport.slipmux.devices]
+    my-listener = { unix-listen = "/tmp/coap.socket" }
+
+Then run a server such as the file server::
+
+    $ aiocoap-fileserver --server-config config-unix-listen.toml
+
+You can then run a client such as Jelly intreactively with that server::
+
+    $ cargo install Jelly
+    $ Jelly /tmp/coap.socket
+
+Beware that the aiocoap based server needs to be restarted when the client
+disconnects (see Caveats below).
+
+Client with test peer
+---------------------
+
+You can also run aiocoap as a test client, but as that doesn't take a file name
+argument to connect to (because it operates on URIs' host components), some
+configuration is necessary. Store this in ``config-unix-connect.toml``::
+
+    [transport.slipmux.devices]
+    my-connection = { unix-connext = "/tmp/coap.socket" }
+
+Then run::
+
+    $ aiocoap-client coap://my-connection/.well-known/core --config config-unix-connect.toml
+
+Caveats
+=======
 
 While servers do connect automatically to any configured slipmux endpoint, they
 do not reconnect automatically when that device goes away or is replaced (as
@@ -20,6 +70,8 @@ is implemented, with no mechanism for acting on (eg.) a UNIX socket instead.
 
 .. _slipmux-03: https://datatracker.ietf.org/doc/draft-bormann-t2trg-slipmux/03/
 .. _transport-indication: https://datatracker.ietf.org/doc/draft-ietf-core-transport-indication
+
+------
 """
 
 from __future__ import annotations
