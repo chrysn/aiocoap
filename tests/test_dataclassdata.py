@@ -9,6 +9,21 @@ from typing import Optional
 
 from aiocoap.util.dataclass_data import LoadStoreClass
 
+try:
+    import pyyaml
+
+    HAS_PYYAML = True
+except ImportError:
+    HAS_PYYAML = False
+
+try:
+    import cbor_diag
+    import cbor2
+
+    HAS_EDN = True
+except ImportError:
+    HAS_EDN = False
+
 
 @dataclass
 class Inner2(LoadStoreClass):
@@ -83,11 +98,13 @@ class TestDataclassData(unittest.TestCase):
         loaded = Outer.load_from_file(FILE_DIR / "outer.json")
         self.assertEqual(loaded, FILE_REFERENCE)
 
+    @unittest.skipIf(not HAS_PYYAML, "cbor_diag/cbor2 modules not available")
     def test_fileload_yaml(self):
         loaded = Outer.load_from_file(FILE_DIR / "outer.yaml")
         self.assertEqual(loaded, FILE_REFERENCE)
 
-    def test_fileload_yaml(self):
+    @unittest.skipIf(not HAS_EDN, "pyyaml module not available")
+    def test_fileload_edn(self):
         loaded = Outer.load_from_file(FILE_DIR / "outer.edn")
         self.assertEqual(loaded, FILE_REFERENCE)
 
