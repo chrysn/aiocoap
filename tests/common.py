@@ -88,12 +88,17 @@ ws_disabled = "ws" not in os.environ.get("AIOCOAP_SERVER_TRANSPORT", "ws is defa
 dtls_disabled = "dtls" not in os.environ.get(
     "AIOCOAP_SERVER_TRANSPORT", "dtls is default"
 )
+slipmux_disabled = "slipmux" not in os.environ.get(
+    "AIOCOAP_SERVER_TRANSPORT", "slipmux is default"
+)
 
 # This is relevant when some tests don't quite work with woodpecker's network
-# setup; use this sparingly.
+# setup; use this sparingly. With crow being a fork of woodpecker, it is
+# counted the same.
+_woodpecker_like = ("woodpecker", "crow")
 in_woodpecker = (
-    os.environ.get("__TOX_ENVIRONMENT_VARIABLE_ORIGINAL_CI") == "woodpecker"
-    or os.environ.get("CI") == "woodpecker"
+    os.environ.get("__TOX_ENVIRONMENT_VARIABLE_ORIGINAL_CI") in _woodpecker_like
+    or os.environ.get("CI") in _woodpecker_like
 )
 
 
