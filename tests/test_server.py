@@ -238,6 +238,10 @@ class WithTestServer(Destructing):
         """Override hook for subclasses that want to populate _ssl_context at construction"""
         return None
 
+    def server_transports(self):
+        """Override hook for subclasses that need control over transports"""
+        return None
+
     async def asyncSetUp(self):
         await super().asyncSetUp()
 
@@ -252,6 +256,7 @@ class WithTestServer(Destructing):
             bind=(self.serveraddress, None),
             multicast=multicastif,
             _ssl_context=self.get_server_ssl_context(),
+            transports=self.server_transports(),
         )
 
     async def asyncTearDown(self):
@@ -282,12 +287,18 @@ class WithTestServer(Destructing):
 
 
 class WithClient(Destructing):
+    def client_transports(self):
+        """Override hook for subclasses that need control over transports"""
+        return None
+
     async def asyncSetUp(self):
         await super().asyncSetUp()
 
         self.test_did_shut_down_client = False
 
-        self.client = await aiocoap.Context.create_client_context()
+        self.client = await aiocoap.Context.create_client_context(
+            transports=self.client_transports()
+        )
 
     async def asyncTearDown(self):
         await super().asyncTearDown()
@@ -616,6 +627,47 @@ class TestServerWS(TestServer):
         request.unresolved_remote += ":8683"
         request.requested_scheme = "coap+ws"
         return request
+
+
+@unittest.skipIf(
+    (slipmux_missing_modules := aiocoap.defaults.slipmux_missing_modules())
+    or common.slipmux_disabled,
+    "Slipmux missing modules (%s) or disabled in this environment"
+    % (slipmux_missing_modules,),
+)
+class TestServerSlipmux(TestServer):
+    servernetloc = "serversocket.dev.alt"
+
+    async def asyncSetUp(self):
+        import tempfile
+        from pathlib import Path
+
+        self.dtemp = tempfile.TemporaryDirectory(suffix="-slipmuxsockets")
+        self.filename = Path(self.dtemp.name) / "slipmux.socket"
+        await super().asyncSetUp()
+
+    async def asyncTearDown(self):
+        await super().asyncTearDown()
+        # It'd do that at drop time too, but it'd be loud about it in warnings.
+        self.dtemp.cleanup()
+
+    def client_transports(self):
+        from aiocoap.config import TransportParameters, SlipmuxParameters, SlipmuxDevice
+
+        return TransportParameters(
+            slipmux=SlipmuxParameters(
+                devices={"serversocket": SlipmuxDevice(unix_connect=self.filename)}
+            )
+        )
+
+    def server_transports(self):
+        from aiocoap.config import TransportParameters, SlipmuxParameters, SlipmuxDevice
+
+        return TransportParameters(
+            slipmux=SlipmuxParameters(
+                devices={"client": SlipmuxDevice(unix_listen=self.filename)}
+            )
+        )
 
 
 if __name__ == "__main__":
