@@ -262,8 +262,11 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
         self.__pool: dict[SlipmuxAddress, SlipmuxProtocol] = {}
         self.__loop = loop
         self.__params = params
+        self.__unixlisten_states: dict[SlipmuxAddress, _UnixListenState] = {}
 
     async def shutdown(self):
+        for t in self.__unixlisten_states.values():
+            t.shutdown()
         return
 
     async def _get(self, remote: SlipmuxAddress) -> SlipmuxProtocol:
@@ -289,24 +292,15 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
                 devparams.unix_connect,  # type: ignore
             )
         elif devparams.unix_listen is not None:
-            # FIXME: This is a rather hackish way to listen once -- it works in
-            # few local lines of code, but it blocks at startup (kind'a
-            # desirable in a few situations, maybe? but probably not), and what
-            # I think we'd rather want is to accept multiple peers one after
-            # another. That'd probably work best if we also did some
-            # retry/establish-when-present logic for devices.
-            protofut: asyncio.Future[SlipmuxProtocol] = asyncio.Future()
-
-            def server_protocol_factory():
-                protocol = protocol_factory()
-                protofut.set_result(protocol)
-                return protocol
-
-            await asyncio.get_event_loop().create_unix_server(
-                server_protocol_factory,
-                devparams.unix_listen,
-            )
-            protocol = await protofut
+            # We only reach this when a request is sent there. Then
+            # async-blocking on sending that request makes some sense: UNIX
+            # sockets are used mostly in testing, and both sides need to be
+            # ready to start talking. Suspending execution at the ._get() (and
+            # thus recognizing the remote) will create some unexpected delays
+            # when a process sends a request and then expects waiting for a
+            # response to take long (rather than the initial recognition), but
+            # that is probably fine.
+            protocol = await self.__unixlisten_states[remote].get_waiting()
         else:
             full_devicename: Path | str | None = devparams.device
             if full_devicename is None:
@@ -374,9 +368,27 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
         slef = cls(params, ctx, log, loop)
         if params.is_server:
             assert params.slipmux is not None
-            for key in params.slipmux.devices:
-                await slef._get(SlipmuxAddress(f"{key}.dev.alt", slef))
+            for key, value in params.slipmux.devices.items():
+                remote = SlipmuxAddress(f"{key}.dev.alt", slef)
+                if value.unix_listen:
+                    # _get would async-block, we need to spawn an actual task
+                    # that'll keep working with incoming peers
+                    unixlisten = slef.__unixlisten_states[remote] = _UnixListenState(
+                        slef,
+                        slef.__log.getChild(f"serverdevice-{key}"),
+                        loop,
+                        remote,
+                        value,
+                    )
+                    await unixlisten.start()
+                else:
+                    await slef._get(remote)
         return slef
+
+    # Provided for _UnixListenState
+
+    def unixlisten_available(self, remote, protocol):
+        self.__pool[remote] = protocol
 
     # provided for SlipmuxProtocol
 
@@ -400,6 +412,8 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
             raise
 
     def terminated(self, remote, exception):
+        if state := self.__unixlisten_states.get(remote):
+            state.disconnected()
         self.__ctx.dispatch_error(exception, remote)
 
 
@@ -506,3 +520,74 @@ class SlipmuxProtocol(asyncio.Protocol):
     # CoAP's flow control applies anyway (and it is way more conservative than
     # any actual UART's baud rate), there is little risk of excessive buffer
     # build-up.
+
+
+class _UnixListenState:
+    """Wrapper around a UNIX listening server. Serves one connection at a time."""
+
+    def __init__(self, message_interface, log, loop, remote, transport_params):
+        self.__message_interface = weakref.ref(message_interface)
+        self.__log = log
+        self.__loop = loop
+        self.__remote = remote
+
+        self.__unix_socket_filename = transport_params.unix_listen
+        assert self.__unix_socket_filename is not None, (
+            "_UnixListenState created on non-unix-listen transport config"
+        )
+
+        self.__current_connection = self.__loop.create_future()
+
+    async def start(self):
+        """Runs asynchronous initialization steps (creating the UNIX socket).
+
+        Run this exactly once per instance, after init."""
+
+        self.__server = await self.__loop.create_unix_server(
+            self.protocol_factory,
+            self.__unix_socket_filename,
+        )
+
+    def disconnected(self):
+        self.__current_connection = self.__loop.create_future()
+
+    def shutdown(self):
+        self.__server.close()
+
+    @property
+    def message_interface(self) -> MessageInterfaceSlipmux:
+        mi = self.__message_interface()
+        if mi is None:
+            self.__log.warn("Message interface vanished without a shutdown")
+            raise asyncio.CancelledError
+        return mi
+
+    def protocol_factory(self):
+        if self.__current_connection.done():
+
+            class ShutDownImmediately:
+                def connection_made(self, transport):
+                    transport.write(
+                        b"\xc0\nRefusing connection: a slipmux session is currently ongoing.\n\xc0"
+                    )
+                    transport.close()
+
+                def connection_lost(self, exc):
+                    pass
+
+            return ShutDownImmediately()
+        else:
+            # We're not using it: As a listening UNIX socket we can trust that
+            # when the future factory is called, an connection_made is run
+            # immediately.
+            starting_future = self.__loop.create_future()
+            protocol = SlipmuxProtocol(
+                starting_future, self.__message_interface, self.__remote, self.__log
+            )
+            self.__current_connection.set_result(protocol)
+            self.message_interface.unixlisten_available(self.__remote, protocol)
+            return protocol
+
+    async def get_waiting(self) -> SlipmuxProtocol:
+        """Returns the connected protocol, or waits until one is connected"""
+        return await self.__current_connection
