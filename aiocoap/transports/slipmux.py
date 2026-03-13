@@ -267,6 +267,8 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
     async def shutdown(self):
         for t in self.__unixlisten_states.values():
             t.shutdown()
+        for proto in self.__pool.values():
+            proto.transport.close()
         return
 
     async def _get(self, remote: SlipmuxAddress) -> SlipmuxProtocol:
