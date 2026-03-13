@@ -31,6 +31,7 @@ import sys
 import argparse
 from pathlib import Path
 
+from ..config import Config
 from ..util import hostportsplit
 from ..protocol import Context
 from ..credentials import CredentialsMap
@@ -56,7 +57,7 @@ class _HelpBind(argparse.Action):
 
 
 def add_server_arguments(parser):
-    """Add the --bind option to an argparse parser"""
+    """Add the --bind and similar options to an argparse parser"""
 
     def hostportsplit_helper(arg):
         """Wrapper around hostportsplit that gives better error messages than
@@ -75,6 +76,12 @@ def add_server_arguments(parser):
                 if arg.count(":") >= 2 and "[" not in arg
                 else " See --help-bind for details."
             )
+
+    parser.add_argument(
+        "--server-config",
+        help="Configuration file to load",
+        type=Path,
+    )
 
     parser.add_argument(
         "--bind",
@@ -110,11 +117,13 @@ def extract_server_arguments(namespace):
     from namespace and return them in a separate namespace."""
 
     server_arguments = type(namespace)()
+    server_arguments.server_config = namespace.server_config
     server_arguments.bind = namespace.bind
     server_arguments.tls_server_certificate = namespace.tls_server_certificate
     server_arguments.tls_server_key = namespace.tls_server_key
     server_arguments.credentials = namespace.credentials
 
+    del namespace.server_config
     del namespace.bind
     del namespace.tls_server_certificate
     del namespace.tls_server_key
@@ -130,6 +139,18 @@ async def server_context_from_arguments(site, namespace, **kwargs):
     settings from a namespace returned from an argparse parser that has had
     :func:`add_server_arguments` run on it.
     """
+
+    if namespace.server_config:
+        try:
+            config = Config.load_from_file(namespace.server_config)
+        except ValueError as e:
+            # FIXME: We should pass the argument parser in so that we can err out through that.
+            print(
+                f"Error loading file {namespace.server_config!r}: {e}", file=sys.stderr
+            )
+            sys.exit(1)
+    else:
+        config = Config()
 
     if namespace.tls_server_certificate:
         import ssl
@@ -175,5 +196,6 @@ async def server_context_from_arguments(site, namespace, **kwargs):
         namespace.bind,
         _ssl_context=ssl_context,
         server_credentials=server_credentials,
+        transports=config.transport,
         **kwargs,
     )

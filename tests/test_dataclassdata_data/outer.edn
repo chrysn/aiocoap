@@ -1,0 +1,15 @@
+/ We're using the same content as JSON, but also do comments /
+{
+    "label": "hello",
+    "inner": {
+        "x": {
+            "b": "via inner"
+        },
+        "z": 0.0
+    },
+    "items2": {
+        "one": {
+            "b": "one"
+        }
+    }
+}

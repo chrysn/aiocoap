@@ -4,9 +4,25 @@
 
 import unittest
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 from aiocoap.util.dataclass_data import LoadStoreClass
+
+try:
+    import pyyaml
+
+    HAS_PYYAML = True
+except ImportError:
+    HAS_PYYAML = False
+
+try:
+    import cbor_diag
+    import cbor2
+
+    HAS_EDN = True
+except ImportError:
+    HAS_EDN = False
 
 
 @dataclass
@@ -26,6 +42,16 @@ class Inner1(LoadStoreClass):
 class Outer(LoadStoreClass):
     inner: Inner1
     label: Optional[str] = None
+    items2: str | dict[str, Inner2] = "default"
+
+
+FILE_DIR = Path(__file__).parent / "test_dataclassdata_data"
+
+FILE_REFERENCE = Outer(
+    inner=Inner1(x=Inner2(b="via inner", a=1), z=0.0, y=None),
+    label="hello",
+    items2={"one": Inner2(b="one", a=1)},
+)
 
 
 class TestDataclassData(unittest.TestCase):
@@ -39,11 +65,13 @@ class TestDataclassData(unittest.TestCase):
                         "y": {"a": 2, "b": "X"},
                         "z": 1.5,
                     },
+                    "items2": "hello",
                 }
             ),
             Outer(
                 label="hello",
                 inner=Inner1(x=Inner2(a=1, b="x"), y=Inner2(a=2, b="X"), z=1.5),
+                items2="hello",
             ),
         )
 
@@ -62,6 +90,24 @@ class TestDataclassData(unittest.TestCase):
             ),
         )
 
+    def test_fileload_toml(self):
+        loaded = Outer.load_from_file(FILE_DIR / "outer.toml")
+        self.assertEqual(loaded, FILE_REFERENCE)
+
+    def test_fileload_json(self):
+        loaded = Outer.load_from_file(FILE_DIR / "outer.json")
+        self.assertEqual(loaded, FILE_REFERENCE)
+
+    @unittest.skipIf(not HAS_PYYAML, "cbor_diag/cbor2 modules not available")
+    def test_fileload_yaml(self):
+        loaded = Outer.load_from_file(FILE_DIR / "outer.yaml")
+        self.assertEqual(loaded, FILE_REFERENCE)
+
+    @unittest.skipIf(not HAS_EDN, "pyyaml module not available")
+    def test_fileload_edn(self):
+        loaded = Outer.load_from_file(FILE_DIR / "outer.edn")
+        self.assertEqual(loaded, FILE_REFERENCE)
+
     def test_valid_and_alternative_type(self):
         self.assertEqual(
             Outer.load(
@@ -71,10 +117,12 @@ class TestDataclassData(unittest.TestCase):
                         "y": "hi",
                         "z": 1.5,
                     },
+                    "items2": {"a": {"b": "2a"}},
                 }
             ),
             Outer(
                 inner=Inner1(x=Inner2(a=1, b="x"), y="hi", z=1.5),
+                items2={"a": Inner2(b="2a")},
             ),
         )
 
@@ -111,9 +159,74 @@ class TestDataclassData(unittest.TestCase):
                 }
             )
         except ValueError as e:
-            if "inner/y" in str(e) and "missing: b":
+            if "inner/y" in str(e) and "missing: b" in str(e):
                 pass
             else:
                 raise Exception("Path to missing field was not shown") from e
         else:
             raise Exception("Incomplete data was loaded")
+
+    def test_unknown_item(self):
+        try:
+            Outer.load(
+                {
+                    "inner": {
+                        "y": {"b": "y", "unknown": 42},  # "unknown" is not recognized
+                        "z": 1.5,
+                    },
+                }
+            )
+        except ValueError as e:
+            if "inner/y" in str(e) and "Item 'unknown' not recognized" in str(e):
+                pass
+            else:
+                raise Exception("Extra element was not pointed to") from e
+        else:
+            raise Exception("Incomplete data was loaded")
+
+    def test_unsupported_alternative(self):
+        try:
+            Outer.load(
+                {
+                    "inner": {
+                        "x": {"b": "x"},
+                        "z": 1.5,
+                        "y": 1.1,  # should be string or dict
+                    },
+                }
+            )
+        except ValueError as e:
+            # or something to that effect
+            if (
+                "inner/y" in str(e)
+                and "Expected dict (representing Inner2) or str or NoneType, found float"
+                in str(e)
+            ):
+                pass
+            else:
+                raise Exception("Type error did not point to legal options") from e
+        else:
+            raise Exception("Erroneous data was loaded")
+
+    def test_path(self):
+        @dataclass
+        class HasPath(LoadStoreClass):
+            p: Path
+
+        self.assertEqual(
+            HasPath.load({"p": "../up.file"}, basefile=Path("config.d/test.json")).p,
+            # Must not be shortened: config.d might be a symlink.
+            Path("config.d/../up.file"),
+        )
+        self.assertEqual(
+            HasPath.load(
+                {"p": "/absolute.file"}, basefile=Path("config.d/test.json")
+            ).p,
+            Path("/absolute.file"),
+        )
+        self.assertEqual(
+            HasPath.load(
+                {"p": "local.file"},
+            ).p,
+            Path("local.file"),
+        )

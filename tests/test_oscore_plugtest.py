@@ -102,9 +102,9 @@ class WithPlugtestServer(WithAssertNofaillines):
             self.run_server(ready, self.__done)
         )
         self.__task.add_done_callback(
-            lambda _: None
-            if ready.done()
-            else ready.set_exception(self.__task.exception())
+            lambda _: (
+                None if ready.done() else ready.set_exception(self.__task.exception())
+            )
         )
         await ready
 

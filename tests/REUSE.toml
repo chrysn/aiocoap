@@ -4,6 +4,10 @@ version = 1
 path = [
   "test_credentials_oscore_context/sequence.json",
   "test_credentials_oscore_context/settings.json",
+  "test_dataclassdata_data/outer.edn",
+  "test_dataclassdata_data/outer.json",
+  "test_dataclassdata_data/outer.toml",
+  "test_dataclassdata_data/outer.yaml",
 ]
 SPDX-FileCopyrightText = "Christian Amsüss and the aiocoap contributors"
 SPDX-License-Identifier = "MIT"

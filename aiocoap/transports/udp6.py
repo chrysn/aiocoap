@@ -312,9 +312,9 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         for address_string, interface_string in sum(
             map(
                 # Expand shortcut of "interface name means default CoAP all-nodes addresses"
-                lambda i: [(a, i) for a in constants.MCAST_ALL]
-                if isinstance(i, str)
-                else [i],
+                lambda i: (
+                    [(a, i) for a in constants.MCAST_ALL] if isinstance(i, str) else [i]
+                ),
                 multicast,
             ),
             [],

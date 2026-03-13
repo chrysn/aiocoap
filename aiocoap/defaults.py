@@ -63,6 +63,9 @@ def get_default_clienttransports(*, loop=None, use_env=True):
     if not ws_missing_modules():
         yield "ws"
 
+    if not slipmux_missing_modules():
+        yield "slipmux"
+
     if is_pyodide:
         # There, the remaining ones would just raise NotImplementedError all over the place
         return
@@ -119,6 +122,9 @@ def get_default_servertransports(*, loop=None, use_env=True):
     if is_pyodide:
         # There, the remaining ones would just raise NotImplementedError all over the place
         return
+
+    if not slipmux_missing_modules():
+        yield "slipmux"
 
     if sys.platform != "linux":
         # udp6 was never reported to work on anything but linux; would happily
@@ -258,6 +264,16 @@ def prettyprint_missing_modules():
     return missing
 
 
+def slipmux_missing_modules():
+    """Return a list of modules that are missing in order to use slipmux"""
+    missing = []
+    try:
+        import serial_asyncio  # noqa: F401
+    except ImportError:
+        missing.append("pyserial-asyncio")
+    return missing
+
+
 def log_secret(secret):
     """Wrapper around secret values that go into log output.
 
@@ -282,6 +298,7 @@ missing_module_functions = {
     "linkheader": linkheader_missing_modules,
     "prettyprint": prettyprint_missing_modules,
     "ws": ws_missing_modules,
+    "slipmux": slipmux_missing_modules,
 }
 
 __all__ = [
@@ -293,5 +310,6 @@ __all__ = [
     "ws_missing_modules",
     "linkheader_missing_modules",
     "prettyprint_missing_modules",
+    "slipmux_missing_modules",
     "missing_module_functions",
 ]

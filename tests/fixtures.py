@@ -83,6 +83,10 @@ def no_warnings(function, expected_warnings=None):
             # and unless in normal operations where this would be an occasional
             # warning, this would trip up our whole test.
             and m.orig_msg != "Executing %s took %.3f seconds"
+            # PyPy is not always happy with the information available about the CPU when run on ARM64 workers
+            and not m.orig_msg.startswith(
+                "Warning: cannot find your CPU L2 & L3 cache size"
+            )
         ]
         if len(expected_warnings) != len(messages) or not all(
             e == m or (e.endswith("...") and m.startswith(e[:-3]))
