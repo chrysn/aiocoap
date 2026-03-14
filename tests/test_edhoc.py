@@ -164,7 +164,12 @@ class TestEadHandling(TestServerEdhocValueValue):
         c_i = b"a"  # We don't care, won't go through
         initiator = lakers.EdhocInitiator()
         message_1 = initiator.prepare_message_1(
-            c_i, [lakers.EADItem(label=160, is_critical=False)]
+            c_i,
+            [
+                lakers.EADItem(
+                    label=aiocoap.numbers.eaditem.EADLabel.GREASE4, is_critical=False
+                )
+            ],
         )
 
         request.payload = cbor2.dumps(True) + message_1
