@@ -40,7 +40,7 @@ cat > public/index.html <<EOF
         You can install the latest aiocoap using:
         <p><code>$ pip install --extra-index-url https://aiocoap.codeberg.page/aiocoap 'aiocoap[all]'</code>
         <p>or in Pyodide (for which this index also contains some additional binary dependencies in the right versions):
-        <p><code>&gt;&gt;&gt; await micropip.install("aiocoap[all]", index_urls=["https://aiocoap.codeberg.page/aiocoap", "https://pypi.org/simple"])</code>
+        <p><code>&gt;&gt;&gt; await micropip.install("aiocoap[all]", index_urls=["https://aiocoap.codeberg.page/aiocoap", "PYPI"])</code>
 
         <footer>Current version described as ${DESCRIBE}
     </body>
