@@ -35,14 +35,13 @@ cat > public/index.html <<EOF
             <li><a href="doc/">Documentation</a>
             <li><a href="https://raw.codeberg.page/aiocoap/aiocoap/@pages/dist/${WHEEL}">Current wheel</a>
         </ul>
-<!--
-        <p>This URL (but without the trailing slash) also serves as a Python index API entry point (simple HTML index).
 
-        Or "could serve", because in pyodide practice it works neither with the
-        aiocoap.codeberg.page version (for lack of CORS), nor with the
-        raw.codeberg.page version (for lack of non-text/plain content types,
-        and micropip relies on content types)
--->
+        <p>This URL (but without the trailing slash) also serves as a Python index API entry point (simple HTML index):
+        You can install the latest aiocoap using:
+        <p><code>$ pip install --extra-index-url https://aiocoap.codeberg.page/aiocoap 'aiocoap[all]'</code>
+        <p>or in Pyodide (for which this index also contains some additional binary dependencies in the right versions):
+        <p><code>&gt;&gt;&gt; await micropip.install("aiocoap[all]", index_urls=["https://aiocoap.codeberg.page/aiocoap", "https://pypi.org/simple"])</code>
+
         <footer>Current version described as ${DESCRIBE}
     </body>
 </html>
