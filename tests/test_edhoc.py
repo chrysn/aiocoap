@@ -116,6 +116,11 @@ class BaseServerEdhoc(TestServerBase, WithEdhocPair):
         )
 
 
+# FIXME: Those tests are currently not very strong because CRED_BY_VALUE is
+# sent by the client unconditionally, and always respected by the server. (Eg.
+# AnonKid could have the server server set to by-key-id, and it'd still pass).
+
+
 class TestServerEdhocKidKid(BaseServerEdhoc):
     server_style = "by-key-id"
     client_style = "by-key-id"

@@ -233,11 +233,22 @@ class OscoreSiteWrapper(interfaces.Resource):
             cred_r=cbor2.dumps(own_credential_object.own_cred[14], canonical=True),
         )
         c_i, ead_1 = responder.process_message_1(request.payload[1:])
+
+        new_ead = []
+        peer_requested_by_value = False
+        for e in ead_1:
+            if e.label() == EADLabel.CRED_BY_VALUE:
+                peer_requested_by_value = True
+            else:
+                # Removing it from the new list not so much for is_critical,
+                # for this item usually is not, but mostly for the
+                # grease_settings
+                new_ead.append(e)
+        ead_1 = new_ead
+
         if any(e.is_critical() for e in ead_1):
             self.log.error("Aborting EDHOC: Critical EAD1 present")
             raise error.BadRequest
-        # Processing CRED_BY_VALUE silently: we don't process it yet, just emit it.
-        ead_1 = [e for e in ead_1 if e.label() != EADLabel.CRED_BY_VALUE]
 
         grease_settings.update_from_ead(ead_1)
 
@@ -254,7 +265,9 @@ class OscoreSiteWrapper(interfaces.Resource):
             raise error.InternalServerError("Too many contexts")
         c_r = candidates[0]
         message_2 = responder.prepare_message_2(
-            own_credential_object.own_cred_style.as_lakers(),
+            lakers.CredentialTransfer.ByValue
+            if peer_requested_by_value
+            else own_credential_object.own_cred_style.as_lakers(),
             c_r,
             grease_settings.grease_ead([]),
         )

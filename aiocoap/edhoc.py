@@ -350,6 +350,19 @@ class EdhocCredentials(credentials._Objectish):
         msg2 = await wire.request(msg1).response_raising
 
         (c_r, id_cred_r, ead_2) = initiator.parse_message_2(msg2.payload)
+
+        new_ead = []
+        peer_requested_by_value = False
+        for e in ead_2:
+            if e.label() == EADLabel.CRED_BY_VALUE:
+                peer_requested_by_value = True
+            else:
+                # Removing it from the new list not so much for is_critical,
+                # for this item usually is not, but mostly for the
+                # grease_settings
+                new_ead.append(e)
+        ead_2 = new_ead
+
         if any(e.is_critical() for e in ead_2):
             self.log.error("Aborting EDHOC: Critical EAD2 present")
             raise error.BadRequest
@@ -400,7 +413,14 @@ class EdhocCredentials(credentials._Objectish):
         logger.debug("Message 2 was verified")
 
         secctx = EdhocInitiatorContext(
-            initiator, c_i, c_r, self.own_cred_style, logger, grease_settings
+            initiator,
+            c_i,
+            c_r,
+            lakers.CredentialTransfer.ByValue
+            if peer_requested_by_value
+            else self.own_cred_style,
+            logger,
+            grease_settings,
         )
 
         if self.use_combined_edhoc is not False:
