@@ -18,7 +18,7 @@ import lakers
 from . import oscore, credentials, error
 from . import Message
 from .numbers import POST
-from .numbers.eaditem import EADLabel
+from .numbers.eaditem import EADLabel, grease_labels
 
 
 def load_cbor_or_edn(filename: Path):
@@ -163,6 +163,50 @@ class CoseKeyForEdhoc:
         return {14: credential_kccs}
 
 
+class GreaseSettings:
+    """Object that is carried along for an EDHOC exchange to decide whether to
+    apply GREASE.
+
+    Having such an object allows control over how frequently (or even how) to
+    apply GREASE. Currently, it implements just the recommended pattern of
+    I-D.ietf-lake-edhoc-grease-01, which includes applying GREASE whenever an
+    unprocessed option is found.
+    """
+
+    def __init__(self):
+        # 6 bit have the 1/64 chance of being all 0
+        self.bits = 6
+
+    def should_grease(self):
+        """Random function that returns True once every ``2^{self.bits}``
+        times."""
+        return random.getrandbits(self.bits) == 0
+
+    def grease_ead(self, eads: list[lakers.EADItem]):
+        """Perform the limited-fingerprinting pattern of Section 2.1.1 of
+        draft-ietf-lake-edhoc-grease-01."""
+
+        if not self.should_grease():
+            return eads
+
+        label = random.choice(grease_labels)
+        length = random.randrange(9, 41)
+
+        return [
+            *eads,
+            lakers.EADItem(label, value=random.randbytes(length), is_critical=False),
+        ]
+
+    def update_from_ead(self, eads: list[lakers.EADItem]):
+        """Increment the likelihood of using own grease from the remaining
+        incoming EAD items (after processable items have been removed).
+
+        This implementes the SHOULD of I-D.ietf-lake-edhoc-grease-01 Section 2.2."""
+        if len(eads):
+            print(f"Found EAD items {eads}, going to 100%")
+            self.bits = 0
+
+
 class EdhocCredentials(credentials._Objectish):
     own_key: Optional[CoseKeyForEdhoc]
     suite: int
@@ -273,6 +317,9 @@ class EdhocCredentials(credentials._Objectish):
         logger.info(
             "No OSCORE context found for EDHOC context %r, initiating one.", self
         )
+
+        grease_settings = GreaseSettings()
+
         # The semantic identifier (an arbitrary string)
         #
         # FIXME: We don't support role reversal yet, but once we
@@ -287,7 +334,9 @@ class EdhocCredentials(credentials._Objectish):
             # an extent that we are ready to do TOFU, so sending it
             # unconditionally is a good first step, also because it allows
             # peers to migrate towards sending by reference as a default.
-            [lakers.EADItem(EADLabel.CRED_BY_VALUE, is_critical=False)],
+            grease_settings.grease_ead(
+                [lakers.EADItem(EADLabel.CRED_BY_VALUE, is_critical=False)]
+            ),
         )
 
         msg1 = Message(
@@ -304,6 +353,8 @@ class EdhocCredentials(credentials._Objectish):
         if any(e.is_critical() for e in ead_2):
             self.log.error("Aborting EDHOC: Critical EAD2 present")
             raise error.BadRequest
+
+        grease_settings.update_from_ead(ead_2)
 
         assert isinstance(self.own_cred, dict) and list(self.own_cred.keys()) == [14], (
             "So far can only process CCS style own credentials a la {14: ...}, own_cred = %r"
@@ -348,7 +399,9 @@ class EdhocCredentials(credentials._Objectish):
 
         logger.debug("Message 2 was verified")
 
-        secctx = EdhocInitiatorContext(initiator, c_i, c_r, self.own_cred_style, logger)
+        secctx = EdhocInitiatorContext(
+            initiator, c_i, c_r, self.own_cred_style, logger, grease_settings
+        )
 
         if self.use_combined_edhoc is not False:
             secctx.complete_without_message_4()
@@ -386,8 +439,9 @@ class EdhocCredentials(credentials._Objectish):
 class _EdhocContextBase(
     oscore.CanProtect, oscore.CanUnprotect, oscore.SecurityContextUtils
 ):
-    def __init__(self, logger):
+    def __init__(self, logger, grease_settings):
         self.log = logger
+        self.grease_settings = grease_settings
 
     def post_seqnoincrease(self):
         # The context is not persisted
@@ -452,12 +506,15 @@ class EdhocInitiatorContext(_EdhocContextBase):
     through it."""
 
     # FIXME: Should we rather send it with *every* request that is sent before a message 4 is received implicitly?
-    def __init__(self, initiator, c_ours, c_theirs, cred_i_mode, logger):
-        super().__init__(logger)
+    def __init__(
+        self, initiator, c_ours, c_theirs, cred_i_mode, logger, grease_settings
+    ):
+        super().__init__(logger, grease_settings)
 
         # Only this line is role specific
         self._message_3, _i_prk_out = initiator.prepare_message_3(
-            cred_i_mode.as_lakers(), None
+            cred_i_mode.as_lakers(),
+            self.grease_settings.grease_ead([]),
         )
 
         self._incomplete = True
@@ -486,8 +543,10 @@ class EdhocInitiatorContext(_EdhocContextBase):
 
 
 class EdhocResponderContext(_EdhocContextBase):
-    def __init__(self, responder, c_i, c_r, server_credentials, logger):
-        super().__init__(logger)
+    def __init__(
+        self, responder, c_i, c_r, server_credentials, logger, grease_settings
+    ):
+        super().__init__(logger, grease_settings)
 
         # storing them where they will later be overwritten with themselves
         self.recipient_id = c_r
@@ -558,6 +617,7 @@ class EdhocResponderContext(_EdhocContextBase):
             if any(e.is_critical() for e in ead_3):
                 self.log.error("Aborting EDHOC: Critical EAD3 present")
                 raise error.BadRequest
+            self.grease_settings.update_from_ead(ead_3)
 
             try:
                 (cred_i, claims) = self._server_credentials.find_edhoc_by_id_cred_peer(
@@ -573,7 +633,9 @@ class EdhocResponderContext(_EdhocContextBase):
             self.authenticated_claims.extend(claims)
 
             self._responder.verify_message_3(cred_i)
-            self._message_4 = self._responder.prepare_message_4()
+            self._message_4 = self._responder.prepare_message_4(
+                self.grease_settings.grease_ead([])
+            )
 
             self._make_ready(self._responder, self.recipient_id, self.sender_id)
             self._incomplete = False

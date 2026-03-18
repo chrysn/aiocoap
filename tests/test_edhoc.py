@@ -200,5 +200,34 @@ class TestEadHandling(TestServerEdhocValueValue):
         self.assertEqual(response.code, aiocoap.BAD_REQUEST)
 
 
+class TestGreaseTools(unittest.TestCase):
+    def likelihood_for_bits(self, bits):
+        return 0.5**bits
+
+    def test_ranges(self):
+        # Not testing for the default 6: that'd need a longer loop or more
+        # extreme bounds to reliably pass
+        for bits in [0, 2, 3]:
+            greasing = aiocoap.edhoc.GreaseSettings()
+            greasing.bits = bits
+            total = 10000
+            events = 0
+            for _ in range(total):
+                events += greasing.should_grease()
+            fraction = events / total
+            expected_fraction = self.likelihood_for_bits(bits)
+            # This is not statstically rigorous, but good enough
+            bounds = (expected_fraction**1.2, expected_fraction**0.8)
+            self.assertTrue(
+                bounds[0] <= fraction <= bounds[1],
+                f"Random occurrences not in {bounds[0]} <= {fraction} <= {bounds[1]}",
+            )
+
+    def default_likelihood(self):
+        self.assertEqual(
+            self.likelihood_for_bits(aiocoap.edhoc.GreaseSettings()), 1 / 64
+        )
+
+
 # that's not supposed to be tested, its child classes are
 del BaseServerEdhoc

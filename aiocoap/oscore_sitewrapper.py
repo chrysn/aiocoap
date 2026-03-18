@@ -22,6 +22,7 @@ from aiocoap import oscore, error
 import aiocoap.pipe
 from .numbers.codes import FETCH, POST
 from .numbers.optionnumbers import OptionNumber
+from .numbers.eaditem import EADLabel
 from . import edhoc
 
 from aiocoap.transports.oscore import OSCOREAddress
@@ -218,6 +219,8 @@ class OscoreSiteWrapper(interfaces.Resource):
             )
             raise error.NotFound
 
+        grease_settings = edhoc.GreaseSettings()
+
         # FIXME lakers: Shouldn't have to commit this early, might still look at EAD1
         assert isinstance(own_credential_object.own_cred, dict) and list(
             own_credential_object.own_cred.keys()
@@ -233,6 +236,10 @@ class OscoreSiteWrapper(interfaces.Resource):
         if any(e.is_critical() for e in ead_1):
             self.log.error("Aborting EDHOC: Critical EAD1 present")
             raise error.BadRequest
+        # Processing CRED_BY_VALUE silently: we don't process it yet, just emit it.
+        ead_1 = [e for e in ead_1 if e.label() != EADLabel.CRED_BY_VALUE]
+
+        grease_settings.update_from_ead(ead_1)
 
         used_own_identifiers = (
             self.server_credentials.find_all_used_contextless_oscore_kid()
@@ -247,7 +254,9 @@ class OscoreSiteWrapper(interfaces.Resource):
             raise error.InternalServerError("Too many contexts")
         c_r = candidates[0]
         message_2 = responder.prepare_message_2(
-            own_credential_object.own_cred_style.as_lakers(), c_r, None
+            own_credential_object.own_cred_style.as_lakers(),
+            c_r,
+            grease_settings.grease_ead([]),
         )
 
         credentials_entry = edhoc.EdhocResponderContext(
@@ -256,6 +265,7 @@ class OscoreSiteWrapper(interfaces.Resource):
             c_r,
             self.server_credentials,
             self.log,
+            grease_settings,
         )
         # FIXME we shouldn't need arbitrary keys
         self.server_credentials[":" + uuid.uuid4().hex] = credentials_entry
