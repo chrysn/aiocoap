@@ -150,13 +150,12 @@ class TestServerEdhocVeryVerbose(TestServerEdhocValueValue):
 # or derived from any other BaseServerEdhoc -- it's not like we'd get far
 # enough that we'd see any styles used.
 class TestEadHandling(TestServerEdhocValueValue):
-    """Tests to see whether EAD items pass through or are, when critical, rejected.
-
-    On the long run, this should be using GREASE infrastructure; as a
-    short-term workaround we just test where it's easy"""
+    """Tests to see whether EAD items pass through or are, when critical, rejected."""
 
     @no_warnings
     async def test_grease_ead1(self):
+        # This test could be rewritten by turning down the grease bits to 0.
+
         import cbor2
         import lakers
 
