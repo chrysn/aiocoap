@@ -204,15 +204,21 @@ class TestEadHandling(TestServerEdhocValueValue):
         self.assertEqual(response.code, aiocoap.BAD_REQUEST)
 
 
+# We could really run this, but the whole edhoc module assumes that cbor2 is
+# present, and doesn't make much sense to move GreaseSettings out of that
+# module just to enable running the test independently.
+@unittest.skipIf(edhoc_modules, "EDHOC/OSCORE missing modules (%s)" % (edhoc_modules,))
 class TestGreaseTools(unittest.TestCase):
     def likelihood_for_bits(self, bits):
         return 0.5**bits
 
     def test_ranges(self):
+        from aiocoap import edhoc
+
         # Not testing for the default 6: that'd need a longer loop or more
         # extreme bounds to reliably pass
         for bits in [0, 2, 3]:
-            greasing = aiocoap.edhoc.GreaseSettings()
+            greasing = edhoc.GreaseSettings()
             greasing.bits = bits
             total = 10000
             events = 0
@@ -228,9 +234,9 @@ class TestGreaseTools(unittest.TestCase):
             )
 
     def default_likelihood(self):
-        self.assertEqual(
-            self.likelihood_for_bits(aiocoap.edhoc.GreaseSettings()), 1 / 64
-        )
+        from aiocoap import edhoc
+
+        self.assertEqual(self.likelihood_for_bits(edhoc.GreaseSettings()), 1 / 64)
 
 
 # that's not supposed to be tested, its child classes are
