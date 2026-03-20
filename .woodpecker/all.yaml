@@ -40,7 +40,8 @@ steps:
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
 
   test:pypy:
-    image: docker.io/pypy:3
+    # Workaround-For: https://github.com/pypy/pypy/issues/5388
+    image: docker.io/pypy:3-7.3.20
     depends_on: [test:3.13-minimal]
     environment:
       FORCE_COLOR: "1"

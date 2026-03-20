@@ -116,6 +116,11 @@ class BaseServerEdhoc(TestServerBase, WithEdhocPair):
         )
 
 
+# FIXME: Those tests are currently not very strong because CRED_BY_VALUE is
+# sent by the client unconditionally, and always respected by the server. (Eg.
+# AnonKid could have the server server set to by-key-id, and it'd still pass).
+
+
 class TestServerEdhocKidKid(BaseServerEdhoc):
     server_style = "by-key-id"
     client_style = "by-key-id"
@@ -145,13 +150,12 @@ class TestServerEdhocVeryVerbose(TestServerEdhocValueValue):
 # or derived from any other BaseServerEdhoc -- it's not like we'd get far
 # enough that we'd see any styles used.
 class TestEadHandling(TestServerEdhocValueValue):
-    """Tests to see whether EAD items pass through or are, when critical, rejected.
-
-    On the long run, this should be using GREASE infrastructure; as a
-    short-term workaround we just test where it's easy"""
+    """Tests to see whether EAD items pass through or are, when critical, rejected."""
 
     @no_warnings
     async def test_grease_ead1(self):
+        # This test could be rewritten by turning down the grease bits to 0.
+
         import cbor2
         import lakers
 
@@ -164,7 +168,12 @@ class TestEadHandling(TestServerEdhocValueValue):
         c_i = b"a"  # We don't care, won't go through
         initiator = lakers.EdhocInitiator()
         message_1 = initiator.prepare_message_1(
-            c_i, [lakers.EADItem(label=160, is_critical=False)]
+            c_i,
+            [
+                lakers.EADItem(
+                    label=aiocoap.numbers.eaditem.EADLabel.GREASE4, is_critical=False
+                )
+            ],
         )
 
         request.payload = cbor2.dumps(True) + message_1
@@ -193,6 +202,41 @@ class TestEadHandling(TestServerEdhocValueValue):
         response = await self.client.request(request).response
         # FIXME: response_raising outputs should be capturable as BadRequest, but that's not how ResponseWrappingError currently works
         self.assertEqual(response.code, aiocoap.BAD_REQUEST)
+
+
+# We could really run this, but the whole edhoc module assumes that cbor2 is
+# present, and doesn't make much sense to move GreaseSettings out of that
+# module just to enable running the test independently.
+@unittest.skipIf(edhoc_modules, "EDHOC/OSCORE missing modules (%s)" % (edhoc_modules,))
+class TestGreaseTools(unittest.TestCase):
+    def likelihood_for_bits(self, bits):
+        return 0.5**bits
+
+    def test_ranges(self):
+        from aiocoap import edhoc
+
+        # Not testing for the default 6: that'd need a longer loop or more
+        # extreme bounds to reliably pass
+        for bits in [0, 2, 3]:
+            greasing = edhoc.GreaseSettings()
+            greasing.bits = bits
+            total = 10000
+            events = 0
+            for _ in range(total):
+                events += greasing.should_grease()
+            fraction = events / total
+            expected_fraction = self.likelihood_for_bits(bits)
+            # This is not statstically rigorous, but good enough
+            bounds = (expected_fraction**1.2, expected_fraction**0.8)
+            self.assertTrue(
+                bounds[0] <= fraction <= bounds[1],
+                f"Random occurrences not in {bounds[0]} <= {fraction} <= {bounds[1]}",
+            )
+
+    def default_likelihood(self):
+        from aiocoap import edhoc
+
+        self.assertEqual(self.likelihood_for_bits(edhoc.GreaseSettings()), 1 / 64)
 
 
 # that's not supposed to be tested, its child classes are
