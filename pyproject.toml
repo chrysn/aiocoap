@@ -97,8 +97,6 @@ include = [ "aiocoap", "aiocoap.*" ]
 
 [[tool.mypy.overrides]]
 module = [
-    # Tracked in https://github.com/chrysn/cbor-diag-py/issues/2
-    "cbor_diag",
     # Tracked in https://github.com/openwsn-berkeley/lakers/issues/282
     "lakers",
     # Typing checks currently not tracked upstream
