@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: MIT
 
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -43,6 +43,10 @@ class Outer(LoadStoreClass):
     inner: Inner1
     label: Optional[str] = None
     items2: str | dict[str, Inner2] = "default"
+    # Using distinct properties because in TOML they'd be represented
+    # differently.
+    many: int | list[int | str] | None = None
+    manyitems: list[Inner2] = field(default_factory=list)
 
 
 FILE_DIR = Path(__file__).parent / "test_dataclassdata_data"
@@ -51,6 +55,8 @@ FILE_REFERENCE = Outer(
     inner=Inner1(x=Inner2(b="via inner", a=1), z=0.0, y=None),
     label="hello",
     items2={"one": Inner2(b="one", a=1)},
+    many=[1, 2, "three"],
+    manyitems=[Inner2("an item")],
 )
 
 

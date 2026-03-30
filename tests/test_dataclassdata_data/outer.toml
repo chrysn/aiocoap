@@ -1,8 +1,13 @@
 label = "hello"
 
+many = [1, 2, "three"]
+
 [inner]
 x.b = "via inner"
 z = 0.0
 
 [items2.one]
 b = "one"
+
+[[manyitems]]
+b = "an item"

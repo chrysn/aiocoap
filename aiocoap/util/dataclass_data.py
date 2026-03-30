@@ -222,9 +222,23 @@ def _load(value, fieldtype, keyprefix, depth_limit, basefile):
                     )
                     for (k, v) in value.items()
                 }
+            elif fieldtype.__origin__ is list and len(fieldtype.__args__) == 1:
+                if not isinstance(value, list):
+                    # Clear mismatch, continue searching
+                    continue
+                return [
+                    _load(
+                        v,
+                        fieldtype.__args__[0],
+                        "f{keyprefix}[{i}]",
+                        depth_limit - 1,
+                        basefile,
+                    )
+                    for (i, v) in enumerate(value)
+                ]
             else:
                 raise TypeError(
-                    "Annotations of generic aliases are limited to the shape dict[K, V]."
+                    "Annotations of generic aliases are limited to the shape dict[K, V] and list[T]."
                 )
 
         if not isinstance(fieldtype, type):
