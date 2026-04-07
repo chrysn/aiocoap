@@ -590,7 +590,9 @@ interactive_expecting_keyboard_interrupt = None
 
 async def interactive(globalopts, config):
     global interactive_expecting_keyboard_interrupt
-    interactive_expecting_keyboard_interrupt = asyncio.get_running_loop().create_future()
+    interactive_expecting_keyboard_interrupt = (
+        asyncio.get_running_loop().create_future()
+    )
 
     context = await aiocoap.Context.create_client_context(transports=config.transport)
 
