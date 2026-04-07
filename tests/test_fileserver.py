@@ -42,19 +42,20 @@ AIOCOAP_FILESERVER = PYTHON_PREFIX + [
 class WithFileServer(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        ready = asyncio.get_event_loop().create_future()
-        self.__done = asyncio.get_event_loop().create_future()
+        ready = asyncio.get_running_loop().create_future()
+        self.__done = asyncio.get_running_loop().create_future()
 
         self.filedir = tempfile.mkdtemp(suffix="-fileserver")
 
-        self.__task = asyncio.get_event_loop().create_task(
-            self.run_server(ready, self.__done)
-        )
+        self.__task = asyncio.create_task(self.run_server(ready, self.__done))
         await ready
 
     # This might be overly complex; it was stripped down from the more intricate OSCORE plug tests
     async def run_server(self, readiness, done):
-        self.process, process_outputs = await asyncio.get_event_loop().subprocess_exec(
+        (
+            self.process,
+            process_outputs,
+        ) = await asyncio.get_running_loop().subprocess_exec(
             CapturingSubprocess,
             *(AIOCOAP_FILESERVER + ["-vvvvvvvv"]),
             self.filedir,

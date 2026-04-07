@@ -287,7 +287,7 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
         assert self.__params.slipmux is not None
         devparams = self.__params.slipmux.devices.get(devicename, SlipmuxDevice())
         if devparams.unix_connect is not None:
-            (_, protocol) = await asyncio.get_event_loop().create_unix_connection(
+            (_, protocol) = await asyncio.get_running_loop().create_unix_connection(
                 protocol_factory,
                 # Type is ignored because mypy seems not to know that event
                 # loops *do* accept paths.

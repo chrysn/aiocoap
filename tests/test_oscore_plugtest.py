@@ -93,14 +93,12 @@ class WithAssertNofaillines(unittest.TestCase):
 class WithPlugtestServer(WithAssertNofaillines):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        ready = asyncio.get_event_loop().create_future()
-        self.__done = asyncio.get_event_loop().create_future()
+        ready = asyncio.get_running_loop().create_future()
+        self.__done = asyncio.get_running_loop().create_future()
 
         self.contextdir = tempfile.mkdtemp(suffix="-contexts")
 
-        self.__task = asyncio.get_event_loop().create_task(
-            self.run_server(ready, self.__done)
-        )
+        self.__task = asyncio.create_task(self.run_server(ready, self.__done))
         self.__task.add_done_callback(
             lambda _: (
                 None if ready.done() else ready.set_exception(self.__task.exception())
@@ -109,7 +107,10 @@ class WithPlugtestServer(WithAssertNofaillines):
         await ready
 
     async def run_server(self, readiness, done):
-        self.process, process_outputs = await asyncio.get_event_loop().subprocess_exec(
+        (
+            self.process,
+            process_outputs,
+        ) = await asyncio.get_running_loop().subprocess_exec(
             CapturingSubprocess, *self.SERVER, self.contextdir + "/server", stdin=None
         )
         try:
@@ -177,7 +178,7 @@ class WithPlugtestServer(WithAssertNofaillines):
 
 class TestOSCOREPlugtestBase(WithPlugtestServer, WithClient, WithAssertNofaillines):
     async def _test_plugtestclient(self, x):
-        proc, transport = await asyncio.get_event_loop().subprocess_exec(
+        proc, transport = await asyncio.get_running_loop().subprocess_exec(
             CapturingSubprocess,
             *(
                 CLIENT

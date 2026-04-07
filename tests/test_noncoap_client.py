@@ -65,7 +65,7 @@ class MockSockProtocol:
 class WithMockSock(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
-        _, self.mocksock = await asyncio.get_event_loop().create_datagram_endpoint(
+        _, self.mocksock = await asyncio.get_running_loop().create_datagram_endpoint(
             lambda: MockSockProtocol(self.mocksock_remote_addr),
             family=socket.AF_INET6,
         )
