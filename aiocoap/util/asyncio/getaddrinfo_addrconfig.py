@@ -55,6 +55,8 @@ async def getaddrinfo_routechecked(loop, log, host, port):
     if any(a[0] not in (socket.AF_INET6, socket.AF_INET) for a in addrinfo):
         log.warning("Addresses outside of INET and INET6 families ignored.")
 
+    log.debug("Original addrinfo set for %r:%s is %r", host, port, addrinfo)
+
     v6_addresses = (
         sockaddr for (family, *_, sockaddr) in addrinfo if family == socket.AF_INET6
     )
@@ -83,6 +85,11 @@ async def getaddrinfo_routechecked(loop, log, host, port):
                     tempsock.connect((ip, port))
                 except OSError as e:
                     if e.errno == errno.ENETUNREACH:
+                        log.debug(
+                            "Not emitting address %s for name %r because it is unreachable (emulating AI_ADDRCONFIG)",
+                            ip,
+                            host,
+                        )
                         continue
 
         yield (ip, port, flowinfo, scope_id)
