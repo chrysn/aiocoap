@@ -107,7 +107,7 @@ class TimeResource(resource.ObservableResource):
         self.reschedule()
 
     def reschedule(self):
-        self.handle = asyncio.get_event_loop().call_later(5, self.notify)
+        self.handle = asyncio.get_running_loop().call_later(5, self.notify)
 
     def update_observation_count(self, count):
         if count and self.handle is None:

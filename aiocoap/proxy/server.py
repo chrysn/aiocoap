@@ -247,7 +247,7 @@ class ProxyWithPooledObservations(Proxy, interfaces.ObservableResource):
         clientobservationrequest.__users.remove(serverobservation)
         # give the request that just cancelled time to be dealt with before
         # dropping the __latest_response
-        asyncio.get_event_loop().call_soon(
+        asyncio.get_running_loop().call_soon(
             self._consider_dropping, clientobservationrequest
         )
 

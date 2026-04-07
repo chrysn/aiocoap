@@ -590,14 +590,14 @@ interactive_expecting_keyboard_interrupt = None
 
 async def interactive(globalopts, config):
     global interactive_expecting_keyboard_interrupt
-    interactive_expecting_keyboard_interrupt = asyncio.get_event_loop().create_future()
+    interactive_expecting_keyboard_interrupt = asyncio.get_running_loop().create_future()
 
     context = await aiocoap.Context.create_client_context(transports=config.transport)
 
     while True:
         try:
             # when http://bugs.python.org/issue22412 is resolved, use that instead
-            line = await asyncio.get_event_loop().run_in_executor(
+            line = await asyncio.get_running_loop().run_in_executor(
                 None, lambda: input("aiocoap> ")
             )
         except EOFError:
@@ -627,7 +627,7 @@ async def interactive(globalopts, config):
             name="Interactive prompt command %r" % line,
         )
         interactive_expecting_keyboard_interrupt = (
-            asyncio.get_event_loop().create_future()
+            asyncio.get_running_loop().create_future()
         )
 
         done, pending = await asyncio.wait(
@@ -679,7 +679,7 @@ async def main(args=None):
         global_parser = build_parser(use_interactive=False)
         globalopts = global_parser.parse_args(args)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def ctrl_c():
             try:

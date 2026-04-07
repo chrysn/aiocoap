@@ -78,7 +78,7 @@ class TestNoncoapTCPClient(WithTestServer):
             triggered_eof = True
             self.mock_r.feed_eof()
 
-        asyncio.get_event_loop().create_task(kill_read())
+        asyncio.get_running_loop().create_task(kill_read())
         r = (
             await self.mock_r.read()
         )  # timing out would be a typical failure case here too

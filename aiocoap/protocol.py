@@ -126,7 +126,7 @@ class Context(interfaces.RequestProvider):
     ):
         self.log = logging.getLogger(loggername)
 
-        self.loop = loop or asyncio.get_event_loop()
+        self.loop = loop or asyncio.get_running_loop()
 
         self.serversite = serversite
 
@@ -178,7 +178,7 @@ class Context(interfaces.RequestProvider):
         """
 
         if loop is None:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
 
         self = cls(loop=loop, serversite=None, loggername=loggername)
 
@@ -297,7 +297,7 @@ class Context(interfaces.RequestProvider):
         """
 
         if loop is None:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
 
         self = cls(
             loop=loop,
@@ -1093,17 +1093,17 @@ class ClientObservation:
 
     class _Iterator:
         def __init__(self):
-            self._future = asyncio.get_event_loop().create_future()
+            self._future = asyncio.get_running_loop().create_future()
 
         def push(self, item):
             if self._future.done():
                 # we don't care whether we overwrite anything, this is a lossy queue as observe is lossy
-                self._future = asyncio.get_event_loop().create_future()
+                self._future = asyncio.get_running_loop().create_future()
             self._future.set_result(item)
 
         def push_err(self, e):
             if self._future.done():
-                self._future = asyncio.get_event_loop().create_future()
+                self._future = asyncio.get_running_loop().create_future()
             self._future.set_exception(e)
 
         async def __anext__(self):
@@ -1114,7 +1114,7 @@ class ClientObservation:
                 # the original future not yield the first future's result when
                 # a quick second future comes in in a push?
                 if f is self._future:
-                    self._future = asyncio.get_event_loop().create_future()
+                    self._future = asyncio.get_running_loop().create_future()
                 return result
             except (error.NotObservable, error.ObservationCancelled):
                 # only exit cleanly when the server -- right away or later --
@@ -1250,7 +1250,7 @@ class ClientObservation:
 class ServerObservation:
     def __init__(self):
         self._accepted = False
-        self._trigger = asyncio.get_event_loop().create_future()
+        self._trigger = asyncio.get_running_loop().create_future()
         # A deregistration is "early" if it happens before the response message
         # is actually sent; calling deregister() in that time (typically during
         # `render()`) will not send an unsuccessful response message but just
@@ -1292,5 +1292,5 @@ class ServerObservation:
             self._late_deregister = True
         if self._trigger.done():
             # we don't care whether we overwrite anything, this is a lossy queue as observe is lossy
-            self._trigger = asyncio.get_event_loop().create_future()
+            self._trigger = asyncio.get_running_loop().create_future()
         self._trigger.set_result(response)

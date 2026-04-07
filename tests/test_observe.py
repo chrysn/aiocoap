@@ -393,7 +393,7 @@ class TestObserve(WithObserveTestServer, WithClient):
         # this is not required in the current implementation as it calls back
         # right from the registration, but i don't want to prescribe that.
         wait_a_moment = asyncio.get_running_loop().create_future()
-        asyncio.get_event_loop().call_soon(lambda: wait_a_moment.set_result(None))
+        asyncio.get_running_loop().call_soon(lambda: wait_a_moment.set_result(None))
         await wait_a_moment
 
         pull_task.cancel()

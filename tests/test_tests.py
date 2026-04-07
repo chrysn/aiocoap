@@ -20,8 +20,8 @@ class TestRightRunner(IsolatedAsyncioTestCase):
         with this not to test it)"""
 
         if os.environ.get("AIOCOAP_TESTS_LOOP", None) == "uvloop":
-            assert "uvloop" in str(type(asyncio.get_event_loop()))
+            assert "uvloop" in str(type(asyncio.get_running_loop()))
         elif os.environ.get("AIOCOAP_TESTS_LOOP", None) == "glib":
-            assert "GLib" in str(type(asyncio.get_event_loop()))
+            assert "GLib" in str(type(asyncio.get_running_loop()))
         else:
-            assert "<class 'asyncio." in str(type(asyncio.get_event_loop()))
+            assert "<class 'asyncio." in str(type(asyncio.get_running_loop()))
