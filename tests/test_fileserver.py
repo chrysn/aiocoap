@@ -47,7 +47,7 @@ class WithFileServer(unittest.IsolatedAsyncioTestCase):
 
         self.filedir = tempfile.mkdtemp(suffix="-fileserver")
 
-        self.__task = asyncio.get_running_loop().create_task(
+        self.__task = asyncio.create_task(
             self.run_server(ready, self.__done)
         )
         await ready
