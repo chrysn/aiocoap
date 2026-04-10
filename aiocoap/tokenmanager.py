@@ -12,6 +12,9 @@ from .pipe import Pipe
 
 
 class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
+    token_interface: interfaces.TokenInterface
+    # needs to be set post-construction, because the token_interface in its constructor already needs to get its manager
+
     def __init__(self, context):
         self.context = context
 
@@ -27,8 +30,6 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
 
         self.log = self.context.log
         self.loop = self.context.loop
-
-        # self.token_interface = … -- needs to be set post-construction, because the token_interface in its constructor already needs to get its manager
 
     def __repr__(self):
         return "<%s for %s>" % (

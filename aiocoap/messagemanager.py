@@ -35,6 +35,9 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     tokens *only* where required by its sub-layer).
     """
 
+    message_interface: interfaces.MessageInterface
+    # needs to be set post-construction, because the message_interface in its constructor already needs to get its manager
+
     def __init__(self, token_manager) -> None:
         self.token_manager = token_manager
 
@@ -61,8 +64,6 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
 
         self.log = token_manager.log
         self.loop = token_manager.loop
-
-        # self.message_interface = … -- needs to be set post-construction, because the message_interface in its constructor already needs to get its manager
 
     def __repr__(self):
         return "<%s for %s>" % (
