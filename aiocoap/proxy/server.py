@@ -437,6 +437,8 @@ class SubdomainVirtualHost(NameBasedVirtualHost):
             )
 
     def _matches(self, hostname):
+        if hostname is None:
+            return False
         return hostname.endswith("." + self.match_name)
 
 
