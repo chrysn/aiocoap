@@ -18,16 +18,47 @@ from .util.dataclass_data import LoadStoreClass
 class Udp6Parameters(LoadStoreClass):
     """Parameters for setting up a :mod:`udp6 <aiocoap.transports.udp6>` transport."""
 
-    # Not managing any details yet; those will come as things are being wired up.
+    bind: Optional[list[str]] = None
+    """Address and port to bind to.
 
+    Addresses without a port are bound to the default port (5683). Binding to an
+    address at the unspecified port is possible by explicitly giving the port
+    as `:0`; the choice of a port of an ephemeral port will be left to the
+    operating system.
 
-#     bind: Optional[str] = None
-#     """Address and port to bind to.
-#
-#     The practical value when nothing is given explicitly depends on whether
-#     a server is run (then it's ``[::]:5683``) or not (then it's effectively
-#     ``[::]:0``, which binds to an ephemeral port, although the `bind`
-#     syscall may be elided in that case)."""
+    The default value when nothing is given explicitly depends on whether
+    a server is run (then it's ``["[::]"]`` implying port 5683) or not (then
+    it's effectively ``["[::]:0"]``, although the `bind` syscall may be elided
+    in that case). The default is altered when the to-be-deprecated ``bind``
+    argument is passed at server creation.
+
+    Multiple explicit ports can be bound to, both by listing them explicitly,
+    and by giving names that are resolved (at startup) to multiple
+    addresses.
+
+    Currently, only the first address (first resolved value of the first
+    address) is used for outgoing requests (more precisley, for outgoing
+    requests with an ``UnspecifiedRemote`` remote; outgoing requests from role
+    reversal always stick with their addresses). That means that only that
+    addresse's IP version will work for outgoing requests."""
+    # FIXME: How do we assist users in taking SIGHUP (or whatever is a
+    # convention) and re-evaluating at least the DNS names?
+    #
+    # Typing is authority-style string rather than (host, port) for ease of
+    # configuration use, and as a soft hint that at some point we might be
+    # doing SVCB resolution on the names and .
+
+    reuse_port: Optional[bool] = None
+    """Use the SO_REUSEPORT option.
+
+    It has the effect that multiple Python processes can be bound to the same
+    port to get some implicit load balancing.
+
+    The default is currently True if available on the platform, and also
+    influenced by the (hereby deprecated) AIOCOAP_REUSE_PORT environment
+    variable."""
+    # FIXME: Check if bind-after-shutdown is still an issue; if so, document
+    # why this is useful.
 
 
 @dataclass
