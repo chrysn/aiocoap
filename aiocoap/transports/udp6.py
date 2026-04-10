@@ -312,7 +312,9 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         still not be processed fully because the token and message manager are
         not fully set up."""
 
-        assert params.udp6 is not None, "Transport initiated without actual configuration"
+        assert params.udp6 is not None, (
+            "Transport initiated without actual configuration"
+        )
 
         bind = params.udp6.bind
         if bind is None and params._legacy_bind is not None:
@@ -375,7 +377,9 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                             "RFC3542 PKTINFO flags are unavailable, unable to create a udp6 transport."
                         )
                     if socknumbers.HAS_RECVERR:
-                        sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1)
+                        sock.setsockopt(
+                            socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1
+                        )
                         # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
                         # it clear that i don't care about the ip version as long as everything looks the same?
                         sock.setsockopt(socket.IPPROTO_IP, socknumbers.IP_RECVERR, 1)
@@ -389,7 +393,9 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                         map(
                             # Expand shortcut of "interface name means default CoAP all-nodes addresses"
                             lambda i: (
-                                [(a, i) for a in constants.MCAST_ALL] if isinstance(i, str) else [i]
+                                [(a, i) for a in constants.MCAST_ALL]
+                                if isinstance(i, str)
+                                else [i]
                             ),
                             params._legacy_multicast or [],
                         ),
@@ -400,17 +406,24 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
                         if isinstance(mcaddress, ipaddress.IPv4Address):
                             s = struct.pack(
-                                "4s4si", mcaddress.packed, socket.inet_aton("0.0.0.0"), interface
+                                "4s4si",
+                                mcaddress.packed,
+                                socket.inet_aton("0.0.0.0"),
+                                interface,
                             )
                             try:
-                                sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s)
+                                sock.setsockopt(
+                                    socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s
+                                )
                             except OSError:
                                 log.warning("Could not join IPv4 multicast group")
 
                         elif isinstance(mcaddress, ipaddress.IPv6Address):
                             s = struct.pack("16si", mcaddress.packed, interface)
                             try:
-                                sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, s)
+                                sock.setsockopt(
+                                    socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, s
+                                )
                             except OSError:
                                 log.warning("Could not join IPv6 multicast group")
 
@@ -434,9 +447,11 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
         This is done in a 2nd phase for reasons outlined in
         :meth:`MessageInterfaceUDP6.prepare_transport_endpoints`."""
-        self.log.debug("Starting transport endpoint %r binding to %r", self, self.__bind)
+        self.log.debug(
+            "Starting transport endpoint %r binding to %r", self, self.__bind
+        )
         # Should we special-case '[::]:0' here and just not call? Does it make any difference?
-        self.transport.get_extra_info('socket').bind(self.__bind)
+        self.transport.get_extra_info("socket").bind(self.__bind)
 
     async def shutdown(self):
         self._shutting_down = asyncio.get_running_loop().create_future()

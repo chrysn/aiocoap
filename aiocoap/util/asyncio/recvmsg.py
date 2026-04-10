@@ -82,7 +82,7 @@ class RecvmsgSelectorDatagramTransport(BaseTransport):
         loop.call_soon(_set_result_unless_cancelled, waiter, None)
 
     def get_extra_info(self, name, default=None):
-        if name == 'socket':
+        if name == "socket":
             return self.__sock
         return super().get_extra_info(name, default)
 
