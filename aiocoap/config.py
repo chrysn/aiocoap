@@ -39,8 +39,12 @@ class Udp6Parameters(LoadStoreClass):
     Currently, only the first address (first resolved value of the first
     address) is used for outgoing requests (more precisley, for outgoing
     requests with an ``UnspecifiedRemote`` remote; outgoing requests from role
-    reversal always stick with their addresses). That means that only that
-    addresse's IP version will work for outgoing requests."""
+    reversal always stick with their addresses). That means that unless the
+    first item is a `[::]` unspecified address, only that addresse's IP version
+    will work for outgoing requests. A convenient workaround is to bind to
+    `[::]:0` first, which sends all such outgoing requests through a random
+    port chosen by the OS at startup, and then list the concrete addresses to
+    bind to."""
     # FIXME: How do we assist users in taking SIGHUP (or whatever is a
     # convention) and re-evaluating at least the DNS names?
     #
@@ -252,6 +256,14 @@ class TransportParameters(LoadStoreClass):
     ws: WsParameters | None = None
     oscore: OscoreParameters | None = None
     slipmux: SlipmuxParameters | None = None
+
+    _legacy_bind = None
+    """Stores the bind= argument of create_server_context, which will be
+    deprecated in favor of setting up bindings per transport in this object."""
+    _legacy_multicast = None
+    """Stores the multicast= argument of create_server_context, which will be
+    deprecated in favor of setting those in the UDP transport in this
+    object."""
 
 
 @dataclass

@@ -146,6 +146,11 @@ def has_reuse_port(*, use_env=True):
     0."""
 
     if use_env and os.environ.get("AIOCOAP_REUSE_PORT"):
+        warnings.warn(
+            "The AIOCOAP_REUSE_PORT environment variable is deprecated in favor "
+            "of providing TransportParameters at Context creation",
+            warnings.DeprecationWarning,
+        )
         return bool(int(os.environ["AIOCOAP_REUSE_PORT"]))
 
     return hasattr(socket, "SO_REUSEPORT")

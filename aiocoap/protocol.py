@@ -207,11 +207,22 @@ class Context(interfaces.RequestProvider):
         if selected_transports.udp6:
             from .transports.udp6 import MessageInterfaceUDP6
 
-            await self._append_tokenmanaged_messagemanaged_transport(
-                lambda mman: MessageInterfaceUDP6.create_client_transport_endpoint(
-                    mman, log=self.log, loop=loop
-                )
-            )
+            # This can probably be generalized into something like
+            # _append_tokenmanaged_messagemanaged_transport, maybe already with
+            # using an interface rather than a lambda (now that we
+            # comprehensively pass in all relevant options through the transport parameters).
+            async for mint in MessageInterfaceUDP6.prepare_transport_endpoints(
+                params=selected_transports,
+                log=self.log,
+                loop=loop,
+            ):
+                tman = TokenManager(self)
+                mman = MessageManager(tman)
+                mint._ctx = mman
+                mman.message_interface = mint
+                tman.token_interface = mman
+                self.request_interfaces.append(tman)
+                await mint.start_transport_endpoint()
         if selected_transports.simple6:
             from .transports.simple6 import MessageInterfaceSimple6
 
@@ -311,6 +322,8 @@ class Context(interfaces.RequestProvider):
         selected_transports = TransportParameters._compat_create(transports)
         if selected_transports.is_server is None:
             selected_transports.is_server = True
+        selected_transports._legacy_bind = bind
+        selected_transports._legacy_multicast = multicast
         selected_transports._apply_defaults()
 
         if selected_transports.oscore:
@@ -329,14 +342,27 @@ class Context(interfaces.RequestProvider):
                     loop=self.loop,
                 )
             )
+        # FIXME this is duplicated from the client version, as it uses the transport parameters
         if selected_transports.udp6:
             from .transports.udp6 import MessageInterfaceUDP6
 
-            await self._append_tokenmanaged_messagemanaged_transport(
-                lambda mman: MessageInterfaceUDP6.create_server_transport_endpoint(
-                    mman, log=self.log, loop=loop, bind=bind, multicast=multicast
-                )
-            )
+            # This can probably be generalized into something like
+            # _append_tokenmanaged_messagemanaged_transport, maybe already with
+            # using an interface rather than a lambda (now that we
+            # comprehensively pass in all relevant options through the
+            # transport parameters).
+            async for mint in MessageInterfaceUDP6.prepare_transport_endpoints(
+                params=selected_transports,
+                log=self.log,
+                loop=loop,
+            ):
+                tman = TokenManager(self)
+                mman = MessageManager(tman)
+                mint._ctx = mman
+                mman.message_interface = mint
+                tman.token_interface = mman
+                self.request_interfaces.append(tman)
+                await mint.start_transport_endpoint()
             multicast_done = True
         # FIXME this is duplicated from the client version, as those are client-only anyway
         if selected_transports.simple6:
