@@ -660,6 +660,11 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             )
             return
 
+        if exc.errno == errno.ENETUNREACH and self.__bind[0] != "::":
+            self.log.warning(
+                "Forwarding ENETUNREACH from a UDP6 connection that is not bound to [::]. Consider having a `[::]:0` binding at the start of the list to initiate requests as a client on both IP families."
+            )
+
         try:
             self._ctx.dispatch_error(exc, remote)
         except BaseException as exc:
