@@ -407,6 +407,12 @@ class Context(interfaces.RequestProvider):
                         bind, tman, self.log, loop, _ssl_context
                     )
                 )
+            else:
+                # Could also be a warning, but at least as of now, TLS often
+                # enabled implicitly, and turning this into a warning is
+                # excessive as long as we don't have a recommentation about how
+                # users should acknowledge that they don't need TLS anyway.
+                self.log.info("Not opening TLS server: No server certificates present")
         if selected_transports.tlsclient:
             from .transports.tls import TLSClient
 
