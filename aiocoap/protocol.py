@@ -188,6 +188,11 @@ class Context(interfaces.RequestProvider):
             selected_transports.is_server = False
         selected_transports._apply_defaults()
 
+        self.log.debug(
+            "Creating client context from transport configuration %r",
+            selected_transports,
+        )
+
         # FIXME make defaults overridable (postponed until they become configurable too)
         if selected_transports.oscore:
             from .transports.oscore import TransportOSCORE
@@ -314,6 +319,11 @@ class Context(interfaces.RequestProvider):
             selected_transports.is_server = True
         selected_transports._apply_defaults()
 
+        self.log.debug(
+            "Creating server context from transport configuration %r",
+            selected_transports,
+        )
+
         if selected_transports.oscore:
             from .transports.oscore import TransportOSCORE
 
@@ -398,6 +408,12 @@ class Context(interfaces.RequestProvider):
                         bind, tman, self.log, loop, _ssl_context
                     )
                 )
+            else:
+                # Could also be a warning, but at least as of now, TLS often
+                # enabled implicitly, and turning this into a warning is
+                # excessive as long as we don't have a recommentation about how
+                # users should acknowledge that they don't need TLS anyway.
+                self.log.info("Not opening TLS server: No server certificates present")
         if selected_transports.tlsclient:
             from .transports.tls import TLSClient
 
