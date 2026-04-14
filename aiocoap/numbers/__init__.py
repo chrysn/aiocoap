@@ -14,6 +14,8 @@ are accessible through this module directly; :mod:`.contentformat`'s and
 import warnings
 import string
 
+from ..util import DeprecationWarning
+
 from . import constants, types, codes
 from .contentformat import ContentFormat, _MediaTypes, _MediaTypesRev
 from .optionnumbers import OptionNumber

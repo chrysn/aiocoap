@@ -19,7 +19,13 @@ from .numbers.types import Type
 from .numbers.constants import TransportTuning, MAX_REGULAR_BLOCK_SIZE_EXP
 from .numbers import uri_path_abbrev
 from .options import Options
-from .util import hostportjoin, hostportsplit, Sentinel, quote_nonascii
+from .util import (
+    hostportjoin,
+    hostportsplit,
+    Sentinel,
+    quote_nonascii,
+    DeprecationWarning,
+)
 from .util.uri import quote_factory, unreserved, sub_delims
 from . import interfaces
 

@@ -154,8 +154,12 @@ def has_reuse_port(*, use_env=True):
 def use_ai_v4mapped_emulation():
     """This used to indicate when ai_v4mapped emulation was used. Given it is
     not used at all any more, the function is deprecated."""
+    # Importing late because many internal modules want to call functions of
+    # defaults early on
+    from aiocoap.util import DeprecationWarning
+
     warnings.warn(
-        "AI_V4MAPPED emulation is not used any more at all", warnings.DeprecationWarning
+        "AI_V4MAPPED emulation is not used any more at all", DeprecationWarning
     )
     return False
 

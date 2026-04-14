@@ -10,6 +10,8 @@ DEFAULT_BLOCK_SIZE_EXP, EMPTY_ACK_DELAY)."""
 import warnings
 import string
 
+from ..util import DeprecationWarning
+
 COAP_PORT = 5683
 """The IANA-assigned standard port for COAP services."""
 

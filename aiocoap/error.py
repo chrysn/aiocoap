@@ -14,6 +14,7 @@ import ipaddress
 
 from .numbers import codes
 from . import util
+from .util import DeprecationWarning
 
 
 class Error(Exception):
