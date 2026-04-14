@@ -14,8 +14,6 @@ are accessible through this module directly; :mod:`.contentformat`'s and
 import warnings
 import string
 
-from ..util import DeprecationWarning
-
 from . import constants, types, codes
 from .contentformat import ContentFormat, _MediaTypes, _MediaTypesRev
 from .optionnumbers import OptionNumber
@@ -51,6 +49,8 @@ def __getattr__(name):
     if name[0] in string.ascii_uppercase and hasattr(
         constants._default_transport_tuning, name
     ):
+        from ..util import DeprecationWarning
+
         warnings.warn(
             f"{name} is deprecated, use through the message's transport_tuning instead",
             DeprecationWarning,
