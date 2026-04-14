@@ -10,6 +10,8 @@ DEFAULT_BLOCK_SIZE_EXP, EMPTY_ACK_DELAY)."""
 import warnings
 import string
 
+from ..util import DeprecationWarning
+
 COAP_PORT = 5683
 """The IANA-assigned standard port for COAP services."""
 
@@ -197,5 +199,7 @@ SHUTDOWN_TIMEOUT = 3
 """Maximum time, in seconds, for which the process is kept around during shutdown"""
 
 __all__ = [
-    k for k in dir() if not k.startswith("_") and k not in ("warnings", "string")
+    k
+    for k in dir()
+    if not k.startswith("_") and k not in ("warnings", "string", "DeprecationWarning")
 ]

@@ -49,6 +49,8 @@ def __getattr__(name):
     if name[0] in string.ascii_uppercase and hasattr(
         constants._default_transport_tuning, name
     ):
+        from ..util import DeprecationWarning
+
         warnings.warn(
             f"{name} is deprecated, use through the message's transport_tuning instead",
             DeprecationWarning,

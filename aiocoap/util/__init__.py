@@ -210,3 +210,13 @@ def deprecation_getattr(_deprecated_aliases: dict, _globals: dict):
         raise AttributeError(f"module {__name__} has no attribute {name}")
 
     return __getattr__
+
+
+class DeprecationWarning(UserWarning):
+    """Produced when deprecated components of aiocoap are used.
+
+    aiocoap is not using ``warnings.DeprecationWarning`` due to it being
+    ignored by default. `Seth Larson's article
+    <https://sethmlarson.dev/deprecations-via-warnings-dont-work-for-python-libraries>`__
+    explains the situation in more detail.
+    """

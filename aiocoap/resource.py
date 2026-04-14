@@ -34,6 +34,7 @@ from .numbers.contentformat import ContentFormat
 from .numbers.codes import Code
 from .numbers import uri_path_abbrev
 from .pipe import Pipe
+from .util import DeprecationWarning
 from .util.linkformat import Link, LinkFormat
 
 

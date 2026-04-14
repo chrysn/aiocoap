@@ -18,6 +18,7 @@ import warnings
 
 from aiocoap.pipe import Pipe
 from aiocoap.numbers.constants import MAX_REGULAR_BLOCK_SIZE_EXP
+from .util import DeprecationWarning
 
 from typing import Optional, Callable
 

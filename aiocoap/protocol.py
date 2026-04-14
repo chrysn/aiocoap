@@ -56,6 +56,7 @@ from .message import Message
 from .messagemanager import MessageManager
 from .tokenmanager import TokenManager
 from .pipe import Pipe, run_driving_pipe, error_to_message
+from .util import DeprecationWarning
 from . import interfaces
 from . import error
 from .numbers import INTERNAL_SERVER_ERROR, NOT_FOUND, CONTINUE, SHUTDOWN_TIMEOUT

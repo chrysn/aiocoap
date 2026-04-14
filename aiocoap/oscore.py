@@ -29,6 +29,7 @@ from aiocoap.util import cryptography_additions, deprecation_getattr, Sentinel
 from aiocoap.numbers import GET, POST, FETCH, CHANGED, UNAUTHORIZED, CONTENT
 from aiocoap import error
 from . import credentials
+from .util import DeprecationWarning
 from aiocoap.defaults import log_secret
 
 from cryptography.hazmat.primitives.ciphers import aead

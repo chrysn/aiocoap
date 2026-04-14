@@ -7,7 +7,7 @@ import warnings
 from ..message import UndecidedRemote
 from .. import interfaces
 
-from ..util import hostportsplit
+from ..util import hostportsplit, DeprecationWarning
 
 
 class ProxyForwarder(interfaces.RequestProvider):

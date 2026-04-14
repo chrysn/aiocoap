@@ -16,6 +16,7 @@ from .. import numbers, interfaces, message, error, util, resource
 from ..numbers import codes
 from ..blockwise import Block1Spool, Block2Cache
 from ..pipe import Pipe
+from ..util import DeprecationWarning
 
 
 class CanNotRedirect(error.ConstructionRenderableError):
