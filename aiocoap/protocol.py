@@ -187,6 +187,11 @@ class Context(interfaces.RequestProvider):
             selected_transports.is_server = False
         selected_transports._apply_defaults()
 
+        self.log.debug(
+            "Creating client context from transport configuration %r",
+            selected_transports,
+        )
+
         # FIXME make defaults overridable (postponed until they become configurable too)
         if selected_transports.oscore:
             from .transports.oscore import TransportOSCORE
@@ -312,6 +317,11 @@ class Context(interfaces.RequestProvider):
         if selected_transports.is_server is None:
             selected_transports.is_server = True
         selected_transports._apply_defaults()
+
+        self.log.debug(
+            "Creating server context from transport configuration %r",
+            selected_transports,
+        )
 
         if selected_transports.oscore:
             from .transports.oscore import TransportOSCORE
