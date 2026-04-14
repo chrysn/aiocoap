@@ -48,8 +48,14 @@ async def getaddrinfo_routechecked(loop, log, host, port):
         family=socket.AF_UNSPEC,
         type=socket.SOCK_DGRAM,
         proto=socket.IPPROTO_UDP,
-        # Still setting that -- it spares us the traffic of pointless requests.
-        flags=socket.AI_ADDRCONFIG,
+        # Setting AI_ADDRCONFIG would spare us even sending AAAA requests on
+        # v4-only hosts, but causes trouble eg. when `::1` is actually
+        # reachable but AI_ADDRCONFIG says no because the main interface has
+        # IPv6 disabled. (Really disabled, as in
+        # `/proc/sys/net/ipv6/conf/eth0/disable_ipv6`, not just not having any
+        # but the link-local addresses -- but that's what is currently in
+        # Codeberg CI).
+        flags=0,
     )
 
     if any(a[0] not in (socket.AF_INET6, socket.AF_INET) for a in addrinfo):
