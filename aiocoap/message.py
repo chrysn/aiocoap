@@ -842,6 +842,12 @@ class UndecidedRemote(
 
         return super().__new__(cls, scheme, hostinfo)
 
+    @property
+    def hostinfo_local(self):
+        # Could also raise AnonymousHost, but there might also be a sensible
+        # value to come, so we better point out the issue.
+        raise RuntimeError(f"Access to {self}.hostinfo_local is premature.")
+
     @classmethod
     def from_pathless_uri(cls, uri: str) -> UndecidedRemote:
         """Create an UndecidedRemote for a given URI that has no query, path,
