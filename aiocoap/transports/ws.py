@@ -125,6 +125,18 @@ def _serialize(msg: Message) -> bytes:
 PoolKey = namedtuple("PoolKey", ("scheme", "hostinfo"))
 
 
+class InvalidStatus(error.NetworkError):
+    def __str__(self):
+        return str(self.__cause__)
+
+    def extra_help(self, hints={}):
+        return (
+            "This indicates that while an HTTP server was reached, "
+            "it is not offering CoAP-over-WebSockets at the standard-defined location "
+            "/.well-known/coap."
+        )
+
+
 class WSRemote(rfc8323common.RFC8323Remote, interfaces.EndpointAddress):
     _connection: websockets.asyncio.connection.Connection
     # Only used to ensure that remotes are associated to the right pool -- not
@@ -356,13 +368,16 @@ class WSPool(interfaces.TokenInterface):
 
                         ssl_context = ssl.create_default_context()
 
-            websocket = await websockets.connect(
-                "%s://%s/.well-known/coap" % (ws_scheme, key.hostinfo),
-                # Ignoring type: Documentation says strings are OK
-                subprotocols=["coap"],  # type: ignore[list-item]
-                ping_interval=None,
-                ssl=ssl_context,
-            )
+            try:
+                websocket = await websockets.connect(
+                    "%s://%s/.well-known/coap" % (ws_scheme, key.hostinfo),
+                    # Ignoring type: Documentation says strings are OK
+                    subprotocols=["coap"],  # type: ignore[list-item]
+                    ping_interval=None,
+                    ssl=ssl_context,
+                )
+            except websockets.exceptions.InvalidStatus as e:
+                raise InvalidStatus from e
 
             remote = WSRemote(
                 self,
