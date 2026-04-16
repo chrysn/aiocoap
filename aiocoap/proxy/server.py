@@ -117,7 +117,6 @@ class Proxy(interfaces.Resource):
         # wants. everything the responder needs of the request should be
         # extracted beforehand.
         request = request.copy(mid=None, token=None)
-        request.direction = message.Direction.OUTGOING
 
         try:
             request = self.apply_redirection(request)
@@ -129,6 +128,8 @@ class Proxy(interfaces.Resource):
             if response is None:
                 raise IncompleteProxyUri("No matching proxy rule")
             return response
+
+        request.direction = message.Direction.OUTGOING
 
         try:
             response = await self.outgoing_context.request(
@@ -375,6 +376,7 @@ class ForwardProxy(Proxy):
         # Maybe the URI-Host matches a known forwarding -- in that case, catch that.
         redirected = super(ForwardProxy, self).apply_redirection(request)
         if redirected is not None:
+            redirected.direction = message.Direction.OUTGOING
             return redirected
 
         return request
