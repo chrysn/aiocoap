@@ -119,19 +119,18 @@ class Proxy(interfaces.Resource):
         request = request.copy(mid=None, token=None)
 
         try:
-            request = self.apply_redirection(request)
+            redirected = self.apply_redirection(request)
         except CanNotRedirect as e:
             return e.to_message()
 
-        if request is None:
+        if redirected is None:
             response = await super().render(request)
             if response is None:
                 raise IncompleteProxyUri("No matching proxy rule")
             return response
 
-        assert request.direction is message.Direction.OUTGOING, (
-            "direction needs to be updated when remote is set"
-        )
+        redirected.direction = message.Direction.OUTGOING
+        request = redirected
 
         try:
             response = await self.outgoing_context.request(
@@ -378,6 +377,7 @@ class ForwardProxy(Proxy):
         # Maybe the URI-Host matches a known forwarding -- in that case, catch that.
         redirected = super(ForwardProxy, self).apply_redirection(request)
         if redirected is not None:
+            redirected.direction = message.Direction.OUTGOING
             return redirected
 
         return request
@@ -426,7 +426,6 @@ class NameBasedVirtualHost(Redirector):
             if self.rewrite_uri_host:
                 request.opt.uri_host, _ = util.hostportsplit(self.target)
             request.unresolved_remote = self.target
-            request.direction = message.Direction.OUTGOING
             return request
 
     def _matches(self, hostname):
@@ -458,7 +457,6 @@ class UnconditionalRedirector(Redirector):
         if self.use_as_proxy:
             request.opt.proxy_scheme = request.remote.scheme
         request.unresolved_remote = self.target
-        request.direction = message.Direction.OUTGOING
         return request
 
 
@@ -473,5 +471,4 @@ class SubresourceVirtualHost(Redirector):
         if self.path == request.opt.uri_path[: len(self.path)]:
             request.opt.uri_path = request.opt.uri_path[len(self.path) :]
             request.unresolved_remote = self.target
-            request.direction = message.Direction.OUTGOING
             return request
