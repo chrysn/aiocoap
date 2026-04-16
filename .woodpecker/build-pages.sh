@@ -42,7 +42,7 @@ cat > public/index.html <<EOF
         <p>or in Pyodide (for which this index also contains some additional binary dependencies in the right versions):
         <p><code>&gt;&gt;&gt; await micropip.install("aiocoap[all]", index_urls=["https://aiocoap.codeberg.page/aiocoap", "PYPI"])</code>
 
-        <footer>Current version described as ${DESCRIBE}
+        <footer>Current version described as <tt>${DESCRIBE}</tt>
     </body>
 </html>
 EOF
@@ -93,7 +93,7 @@ EOF
     done
     cat >> public/$PACKAGE/index.html <<EOF
         </ul>
-        <footer>Current version described as ${DESCRIBE}
+        <footer>Current version described as <tt>${DESCRIBE}</tt>
     </body>
 </html>
 EOF
