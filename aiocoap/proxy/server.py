@@ -117,6 +117,7 @@ class Proxy(interfaces.Resource):
         # wants. everything the responder needs of the request should be
         # extracted beforehand.
         request = request.copy(mid=None, token=None)
+        request.direction = message.Direction.OUTGOING
 
         try:
             request = self.apply_redirection(request)
@@ -128,10 +129,6 @@ class Proxy(interfaces.Resource):
             if response is None:
                 raise IncompleteProxyUri("No matching proxy rule")
             return response
-
-        assert request.direction is message.Direction.OUTGOING, (
-            "direction needs to be updated when remote is set"
-        )
 
         try:
             response = await self.outgoing_context.request(
@@ -426,7 +423,6 @@ class NameBasedVirtualHost(Redirector):
             if self.rewrite_uri_host:
                 request.opt.uri_host, _ = util.hostportsplit(self.target)
             request.unresolved_remote = self.target
-            request.direction = message.Direction.OUTGOING
             return request
 
     def _matches(self, hostname):
@@ -458,7 +454,6 @@ class UnconditionalRedirector(Redirector):
         if self.use_as_proxy:
             request.opt.proxy_scheme = request.remote.scheme
         request.unresolved_remote = self.target
-        request.direction = message.Direction.OUTGOING
         return request
 
 
@@ -473,5 +468,4 @@ class SubresourceVirtualHost(Redirector):
         if self.path == request.opt.uri_path[: len(self.path)]:
             request.opt.uri_path = request.opt.uri_path[len(self.path) :]
             request.unresolved_remote = self.target
-            request.direction = message.Direction.OUTGOING
             return request
