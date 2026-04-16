@@ -6,10 +6,21 @@
 the asyncio DatagramProtocol.
 
 This implementation strives to be correct and complete behavior while still
-only using a single socket; that is, to be usable for all kinds of multicast
+only using a single socket (or a few, if distinct addresses are confgiured);
+that is, to be usable for all kinds of multicast
 traffic, to support server and client behavior at the same time, and to work
 correctly even when multiple IPv6 and IPv4 (using V4MAPPED style addresses)
 interfaces are present, and any of the interfaces has multiple addresses.
+
+Configuration
+-------------
+
+This transport is configured in the ``transports.udp`` item of an
+:mod:`aiocoap.config`, a :class:`Udp6Parameters
+<aiocoap.config.Udp6Parameters>` instance.
+
+Implementation
+--------------
 
 This requires using some standardized and (as of 2025) widely supported
 features:
