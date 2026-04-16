@@ -50,6 +50,7 @@ import struct
 import weakref
 from collections import namedtuple
 
+from ..config import TransportParameters
 from ..message import Message, Direction
 from ..numbers import constants
 from .. import defaults
@@ -260,8 +261,11 @@ class SockExtendedErr(
 
 
 class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface):
-    def __init__(self, ctx: interfaces.MessageManager, log, loop):
-        self._ctx = ctx
+    # Set between prepare_transport_endpoints and start_transport_endpoint
+    _ctx: interfaces.MessageManager
+
+    def __init__(self, bind, log, loop):
+        self.__bind = bind
         self.log = log
         self.loop = loop
 
@@ -290,132 +294,164 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
         return self.transport.get_extra_info("socket").getsockname()[1]
 
     @classmethod
-    async def _create_transport_endpoint(
-        cls, sock, ctx: interfaces.MessageManager, log, loop, multicast=[]
+    async def prepare_transport_endpoints(
+        cls,
+        *,
+        params: TransportParameters,
+        log,
+        loop,
     ):
-        try:
-            sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
-        except NameError:
-            raise RuntimeError(
-                "RFC3542 PKTINFO flags are unavailable, unable to create a udp6 transport."
-            )
-        if socknumbers.HAS_RECVERR:
-            sock.setsockopt(socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1)
-            # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
-            # it clear that i don't care about the ip version as long as everything looks the same?
-            sock.setsockopt(socket.IPPROTO_IP, socknumbers.IP_RECVERR, 1)
-        else:
-            log.warning(
-                "Transport udp6 set up on platform without RECVERR capability. ICMP errors will be ignored."
-            )
+        """Produces instances that do *not* accept messages yet.
 
-        for address_string, interface_string in sum(
-            map(
-                # Expand shortcut of "interface name means default CoAP all-nodes addresses"
-                lambda i: (
-                    [(a, i) for a in constants.MCAST_ALL] if isinstance(i, str) else [i]
-                ),
-                multicast,
-            ),
-            [],
-        ):
-            address = ipaddress.ip_address(address_string)
-            interface = socket.if_nametoindex(interface_string)
+        After this, interconnect the instance with a message manager, and then
+        call start_transport_endpoint() to receive messages.
 
-            if isinstance(address, ipaddress.IPv4Address):
-                s = struct.pack(
-                    "4s4si", address.packed, socket.inet_aton("0.0.0.0"), interface
-                )
-                try:
-                    sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s)
-                except OSError:
-                    log.warning("Could not join IPv4 multicast group")
+        This split setup is needed because UDP sockets do not have TCP's
+        separation between bind() and accept(); were this not split, there is a
+        danger of receiving datagrams that are not trigger ICMP errors, but can
+        still not be processed fully because the token and message manager are
+        not fully set up."""
 
-            elif isinstance(address, ipaddress.IPv6Address):
-                s = struct.pack("16si", address.packed, interface)
-                try:
-                    sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, s)
-                except OSError:
-                    log.warning("Could not join IPv6 multicast group")
-
-            else:
-                raise RuntimeError("Unknown address format")
-
-        transport, protocol = await create_recvmsg_datagram_endpoint(
-            loop, lambda: cls(ctx, log=log, loop=loop), sock=sock
+        assert params.udp6 is not None, (
+            "Transport initiated without actual configuration"
         )
 
-        await protocol.ready
+        bind = params.udp6.bind
+        if bind is None and params._legacy_bind is not None:
+            bind = [hostportjoin(*params._legacy_bind)]
+        if bind is None:
+            if params.is_server:
+                bind = ["[::]"]
+            else:
+                bind = ["[::]:0"]
 
-        return protocol
+        reuseport = params.udp6.reuse_port
+        if reuseport is None:
+            reuseport = defaults.has_reuse_port()
 
-    @classmethod
-    async def create_client_transport_endpoint(
-        cls, ctx: interfaces.MessageManager, log, loop
-    ):
-        sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
-        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        for joined in bind:
+            (host, port) = hostportsplit(joined)
+            if port is None:
+                port = COAP_PORT
 
-        return await cls._create_transport_endpoint(sock, ctx, log, loop)
+            log.debug("Resolving address for %r (port %r) to bind to.", host, port)
 
-    @classmethod
-    async def create_server_transport_endpoint(
-        cls, ctx: interfaces.MessageManager, log, loop, bind, multicast
-    ):
-        bind = bind or ("::", None)
-        # Interpret None as 'default port', but still allow to bind to 0 for
-        # servers that want a random port (eg. when the service URLs are
-        # advertised out-of-band anyway, or in LwM2M clients)
-        bind = (bind[0], COAP_PORT if bind[1] is None else bind[1])
-
-        # The later bind() does most of what getaddr info usually does
-        # (including resolving names), but is missing out subtly: It does not
-        # populate the zone identifier of an IPv6 address, making it impossible
-        # without a getaddrinfo (or manual mapping of the name to a number) to
-        # bind to a specific link-local interface
-        try:
-            addriter = getaddrinfo(
-                loop,
-                log,
-                bind[0],
-                bind[1],
-            )
+            # Using getaddrinfo before bind for multiple reasons:
+            #
+            # * getaddrinfo might produce multiple addresses, typical example
+            #   is `localhost`.
+            #
+            # * bind does not populate the zone identifier of an IPv6 address
+            #   from a %-suffix, making it impossible without a getaddrinfo (or
+            #   manual parsing into the tuple) to bind to a specific link-local
+            #   address.
             try:
-                bind = await addriter.__anext__()
-            except StopAsyncIteration:
-                raise RuntimeError(
-                    "getaddrinfo returned zero-length list rather than erring out"
+                async for address in getaddrinfo(
+                    loop,
+                    log,
+                    host,
+                    port,
+                ):
+                    log.debug("Found address %r, preparing transport for it.", address)
+                    # FIXME:
+                    #
+                    # * Should we tolerate not being able to bind to all addresses,
+                    #   eg. so that an anycast server can still use its name?
+                    # * If so, can we find out before we yield and later bind, or
+                    #   do we need to back down later?
+                    #
+                    # For the time being the resolution is that setup will fail
+                    # if not all; users of anycast / DNS-switched domains
+                    # better have an "this-instance-only" name, or give
+                    # addresses explicitly.
+
+                    sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
+                    if reuseport:
+                        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+                    sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+
+                    try:
+                        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
+                    except NameError:
+                        raise RuntimeError(
+                            "RFC3542 PKTINFO flags are unavailable, unable to create a udp6 transport."
+                        )
+                    if socknumbers.HAS_RECVERR:
+                        sock.setsockopt(
+                            socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1
+                        )
+                        # i'm curious why this is required; didn't IPV6_V6ONLY=0 already make
+                        # it clear that i don't care about the ip version as long as everything looks the same?
+                        sock.setsockopt(socket.IPPROTO_IP, socknumbers.IP_RECVERR, 1)
+                    else:
+                        log.warning(
+                            "Transport udp6 set up on platform without RECVERR capability. ICMP errors will be ignored."
+                        )
+
+                    interface_string: str
+                    for address_string, interface_string in sum(
+                        map(
+                            # Expand shortcut of "interface name means default CoAP all-nodes addresses"
+                            lambda i: (
+                                [(a, i) for a in constants.MCAST_ALL]
+                                if isinstance(i, str)
+                                else [i]
+                            ),
+                            params._legacy_multicast or [],
+                        ),
+                        [],
+                    ):
+                        mcaddress = ipaddress.ip_address(address_string)
+                        interface = socket.if_nametoindex(interface_string)
+
+                        if isinstance(mcaddress, ipaddress.IPv4Address):
+                            s = struct.pack(
+                                "4s4si",
+                                mcaddress.packed,
+                                socket.inet_aton("0.0.0.0"),
+                                interface,
+                            )
+                            try:
+                                sock.setsockopt(
+                                    socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, s
+                                )
+                            except OSError:
+                                log.warning("Could not join IPv4 multicast group")
+
+                        elif isinstance(mcaddress, ipaddress.IPv6Address):
+                            s = struct.pack("16si", mcaddress.packed, interface)
+                            try:
+                                sock.setsockopt(
+                                    socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, s
+                                )
+                            except OSError:
+                                log.warning("Could not join IPv6 multicast group")
+
+                        else:
+                            raise RuntimeError("Unknown address format")
+
+                    transport, protocol = await create_recvmsg_datagram_endpoint(
+                        loop, lambda: cls(bind=address, log=log, loop=loop), sock=sock
+                    )
+
+                    await protocol.ready
+
+                    yield protocol
+            except socket.gaierror:
+                raise error.ResolutionError(
+                    "No local bindable address found for %s" % bind[0]
                 )
-        except socket.gaierror:
-            raise error.ResolutionError(
-                "No local bindable address found for %s" % bind[0]
-            )
 
-        try:
-            additional = await addriter.__anext__()
-        except StopAsyncIteration:
-            pass
-        except Exception as e:
-            log.error(
-                "Ignoring exception raised when checking for additional addresses that match the bind address",
-                exc_info=e,
-            )
-        else:
-            log.warning(
-                "Multiple addresses to bind to, only selecting %r and discarding %r and any later",
-                bind,
-                additional,
-            )
+    async def start_transport_endpoint(self):
+        """Run the last phase of transport startup: actually binding.
 
-        sock = socket.socket(family=socket.AF_INET6, type=socket.SOCK_DGRAM)
-        if defaults.has_reuse_port():
-            # I doubt that there is any platform that supports RECVPKTINFO but
-            # not REUSEPORT, but why take chances.
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-        sock.bind(bind)
-
-        return await cls._create_transport_endpoint(sock, ctx, log, loop, multicast)
+        This is done in a 2nd phase for reasons outlined in
+        :meth:`MessageInterfaceUDP6.prepare_transport_endpoints`."""
+        self.log.debug(
+            "Starting transport endpoint %r binding to %r", self, self.__bind
+        )
+        # Should we special-case '[::]:0' here and just not call? Does it make any difference?
+        self.transport.get_extra_info("socket").bind(self.__bind)
 
     async def shutdown(self):
         self._shutting_down = asyncio.get_running_loop().create_future()
@@ -638,6 +674,11 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                 exc,
             )
             return
+
+        if exc.errno == errno.ENETUNREACH and self.__bind[0] != "::":
+            self.log.warning(
+                "Forwarding ENETUNREACH from a UDP6 connection that is not bound to [::]. Consider having a `[::]:0` binding at the start of the list to initiate requests as a client on both IP families."
+            )
 
         try:
             self._ctx.dispatch_error(exc, remote)

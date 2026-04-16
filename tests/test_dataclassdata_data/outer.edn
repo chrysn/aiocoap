@@ -11,5 +11,7 @@
         "one": {
             "b": "one"
         }
-    }
+    },
+    "many": [1, 2, "three"],
+    "manyitems": [{"b": "an item"}]
 }
