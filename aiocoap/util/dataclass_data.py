@@ -8,11 +8,15 @@ Unlike what is in the aiocoap.credentials module, this works from the fixed
 assumption that the item is a dataclass (as opposed to having an arbitrary
 constructor), which should ease things.
 
-**Caveats**:
+Caveats
+-------
 
 * The module expects the data classes' annotations to be types and
-  not strings, and therefore can't be used with types defined under `from
-  __future__ import annotations`.
+  not strings, and therefore can't be used with types defined under ``from
+  __future__ import annotations``.
+
+Example use
+-----------
 
 >>> from dataclasses import dataclass
 >>> from typing import Optional
@@ -27,6 +31,15 @@ constructor), which should ease things.
 ...     z: dict[str, int]
 >>> Top.load({"x": "test", "y": {"some-text": "one", "some-number": 42}, "z": {"a": 1}})
 Top(x='test', y=Inner(some_text='one', some_number=42), z={'a': 1})
+
+Stability
+---------
+
+This module's content is not stable for direct use.
+Nonetheless, it is updated carefully, as changes in behavior of the :mod:`aiocoap.config` module might result from changes here.
+
+Components
+----------
 """
 
 import dataclasses
