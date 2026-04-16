@@ -6,6 +6,21 @@
 taken from transport-indication_: It chooses the pattern `{NAME}.dev.alt` for
 devices named /dev/{NAME}, which are treated case-insensitively.
 
+Configuration
+=============
+
+While the ``slipmux`` transport is implicitly enabled whenever its dependencies
+are met, it has no effect on servers (because devices are not automatically
+bound to: a slipmux device is not generally recognizable as such).
+
+To set up server configuration, or for extra options such as the use or
+creation of UNIX sockets, this transport can be configured by setting
+:class:`aiocoap.config.SlipmuxParameters` in the transports configured at
+context creation (:meth:`Context.create_client_context()
+<aiocoap.protocol.Context.create_client_context>` /
+:meth:`create_server_context()
+<aiocoap.protocol.Context.create_server_context>`).
+
 Usage example
 =============
 
