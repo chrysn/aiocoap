@@ -782,6 +782,7 @@ class StandaloneResourceDirectory(Proxy, Site):
             "Forwarding request to %r to remote %s", request.opt.uri_host, actual_remote
         )
         request.remote = actual_remote
+        request.direction = aiocoap.message.Direction.OUTGOING
         request.opt.uri_host = None
         return request
 
