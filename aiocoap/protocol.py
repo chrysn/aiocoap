@@ -173,6 +173,16 @@ class Context(interfaces.RequestProvider):
         This is the easiest way to get a context suitable for sending client
         requests.
 
+        :param TransportParameters|dict|list|None transports: A Configuration
+          item that lists which transports are to be configured, and how they are
+          to be bound. If left unset, a default choice of transports is
+          initialized.
+
+          For ease of use, a `dict` can be passed in, which gets :meth:`.load()
+          <aiocoap.util.dataclass_data.LoadStoreClass.load>`ed, or a list can
+          be passed in that merely lists the transports (equivalent to ``{k: {}
+          for k in transports}``).
+
         :meta private:
             (not actually private, just hiding from automodule due to being
             grouped with the important functions)
@@ -307,6 +317,16 @@ class Context(interfaces.RequestProvider):
         trigger requests on their own. For those cases, it is usually easiest
         to pass None in as a site, and set the fully constructed site later by
         assigning to the ``serversite`` attribute.
+
+        :param TransportParameters|dict|list|None transports: A Configuration
+          item that lists which transports are to be configured, and how they are
+          to be bound. If left unset, a default choice of transports is
+          initialized.
+
+          For ease of use, a `dict` can be passed in, which gets :meth:`.load()
+          <aiocoap.util.dataclass_data.LoadStoreClass.load>`ed, or a list can
+          be passed in that merely lists the transports (equivalent to ``{k: {}
+          for k in transports}``).
 
         :meta private:
             (not actually private, just hiding from automodule due to being

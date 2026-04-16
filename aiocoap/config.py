@@ -2,6 +2,78 @@
 #
 # SPDX-License-Identifier: MIT
 
+"""Configurable behavior of aiocoap.
+
+Classes of this module can be used to customize aspects of aiocoap operation
+that are generally not part of a written application, such as which addresses
+to bind to or which CoAP transports to make available.
+
+The two main places to enter them are:
+
+* Passing :class:`TransportParameters` as an argument to
+  :meth:`Context.create_client_context() <aiocoap.protocol.Context.create_client_context>`
+  / :meth:`create_server_context() <aiocoap.protocol.Context.create_server_context>`.
+* A :class:`Config` being processed by many :doc:`/tools` in their ``--server-config`` argument.
+
+There are two main ways to create them:
+
+* Programmatically by constructing the classes.
+
+  All these classes are standard Python dataclasses, and can be populated in a
+  constructor or be built up after constructing them with default values.
+
+  This is practical when the application has its own configuration format that
+  is exposed to the user, or when in ad-hoc scripts where the configuration is
+  hard-coded.
+
+* Loading from JSON, TOML, or (provided dependencies are present) YAML, CBOR or CBOR Diagnostic Notation (EDN) files.
+
+  All types in here are instances of
+  :class:`LoadStoreClass <aiocoap.util.dataclass_data.LoadStoreClass>`, and
+  thus have a :meth:`.load_from_file()
+  <aiocoap.util.dataclass_data.LoadStoreClass.load_from_file>` method by which
+  they can be loaded.
+
+  For most data types, the common information model has a trivial representation --
+  for example, a full config that contains a transport details for UDP can be::
+
+      [transport.udp6]
+      bind = ["[::]:5683", "[::]:61616"]
+
+  Some types in the items receive special handling to make them easier to use:
+  For example, any ``Path`` items are, when relative, resolved based on the
+  loaded file's location.
+
+* There exists the hybrid option of creating the deserialized version of such a
+  configuration file in Python, and passing it to :meth:`.load()
+  <aiocoap.util.dataclass_data.LoadStoreClass.load>`::
+
+      >>> config = Config.load({"transport": {"udp6": {"bind": ["[::]:5683", "[::]:61616"]}}})
+      >>> config.transport.udp6                      # doctest: +ELLIPSIS
+      Udp6Parameters(bind=['[::]:5683', '[::]:61616'], ...)
+
+..
+    Grouped to the front as they are most imnportant; code can be restructured
+    when all supported Python versions have lazy annotation loading.
+
+Stability
+---------
+
+This module is regarded as stable; breaking changes will be pointed out through
+semver releases.
+
+Main classes
+------------
+
+.. autoclass:: Config
+   :members:
+.. autoclass:: TransportParameters
+   :members:
+
+Transport specifics
+-------------------
+"""
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Self
@@ -23,12 +95,12 @@ class Udp6Parameters(LoadStoreClass):
 
     Addresses without a port are bound to the default port (5683). Binding to an
     address at the unspecified port is possible by explicitly giving the port
-    as `:0`; the choice of a port of an ephemeral port will be left to the
+    as ``:0``; the choice of a port of an ephemeral port will be left to the
     operating system.
 
     The default value when nothing is given explicitly depends on whether
     a server is run (then it's ``["[::]"]`` implying port 5683) or not (then
-    it's effectively ``["[::]:0"]``, although the `bind` syscall may be elided
+    it's effectively ``["[::]:0"]``, although the ``bind`` syscall may be elided
     in that case). The default is altered when the to-be-deprecated ``bind``
     argument is passed at server creation.
 
@@ -40,9 +112,9 @@ class Udp6Parameters(LoadStoreClass):
     address) is used for outgoing requests (more precisley, for outgoing
     requests with an ``UnspecifiedRemote`` remote; outgoing requests from role
     reversal always stick with their addresses). That means that unless the
-    first item is a `[::]` unspecified address, only that addresse's IP version
+    first item is a ``[::]`` unspecified address, only that addresse's IP version
     will work for outgoing requests. A convenient workaround is to bind to
-    `[::]:0` first, which sends all such outgoing requests through a random
+    ``[::]:0`` first, which sends all such outgoing requests through a random
     port chosen by the OS at startup, and then list the concrete addresses to
     bind to."""
     # FIXME: How do we assist users in taking SIGHUP (or whatever is a
@@ -171,7 +243,12 @@ class SlipmuxParameters(LoadStoreClass):
 @dataclass
 class TransportParameters(LoadStoreClass):
     """Parameters that guide which transports are selected and how they are
-    configured."""
+    configured.
+
+    :meta private:
+        (not actually private, just hiding from automodule due to being
+        explicitly called out.
+    """
 
     @classmethod
     def _compat_create(cls, input: Self | None | dict | list[str]) -> Self:
@@ -272,8 +349,15 @@ class Config(LoadStoreClass):
 
     An instance of this type covers aspects of aiocoap's behavior that are
     orthogonal to typical CoAP server or client applications, or for which an
-    application would typically only forward configuration settings to."""
+    application would typically only forward configuration settings to.
+
+    :meta private:
+        (not actually private, just hiding from automodule due to being
+        explicitly called out.
+    """
 
     transport: TransportParameters = field(
         default_factory=lambda: TransportParameters._compat_create(None)
     )
+    """Configuration for which transport protocols of CoAP are to be enabled,
+    and how they are to be set up."""

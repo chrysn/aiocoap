@@ -6,24 +6,42 @@
 the asyncio DatagramProtocol.
 
 This implementation strives to be correct and complete behavior while still
-only using a single socket; that is, to be usable for all kinds of multicast
+only using a single socket (or a few, if distinct addresses are confgiured);
+that is, to be usable for all kinds of multicast
 traffic, to support server and client behavior at the same time, and to work
 correctly even when multiple IPv6 and IPv4 (using V4MAPPED style addresses)
 interfaces are present, and any of the interfaces has multiple addresses.
 
-This requires using some standardized but not necessarily widely ported
-features: ``IPV6_RECVPKTINFO`` to determine
-incoming packages' destination addresses (was it multicast) and to return
-packages from the same address, ``IPV6_JOIN_GROUP`` for multicast
-membership management and ``recvmsg`` to obtain data configured with the above
-options. The need for ``AI_V4MAPPED`` and ``AI_ADDRCONFIG`` is not manifest
+Configuration
+-------------
+
+This transport is configured in the ``transports.udp`` item of an
+:mod:`aiocoap.config`, a :class:`Udp6Parameters
+<aiocoap.config.Udp6Parameters>` instance.
+
+Implementation
+--------------
+
+This requires using some standardized and (as of 2025) widely supported
+features:
+
+* ``IPV6_JOIN_GROUP`` for multicast membership management.
+
+* ``IPV6_RECVPKTINFO`` to determine incoming packages' destination addresses
+  (was it multicast) and to return packages from the same address,
+
+* ``recvmsg`` to obtain that data (and, see below, also data from the error queue).
+
+The need for ``AI_V4MAPPED`` and ``AI_ADDRCONFIG`` is not manifest
 in the code because the latter on its own is insufficient to enable seamless
 interoperability with IPv4+IPv6 servers on IPv4-only hosts; instead,
-short-lived sockets are created to assess which addresses are routable. This
-should correctly deal with situations in which a client has an IPv6 ULA
+short-lived sockets are created to assess which addresses are routable. (Those
+are created in the :mod:`aiocoap.util.asyncio.getaddrinfo_addrconfig` module).
+This should correctly deal with situations in which a client has an IPv6 ULA
 assigned but no route, no matter whether the server advertises global IPv6
 addresses or addresses inside that ULA. It can not deal with situations in
-which the host has a default IPv6 route, but that route is not actually usable.
+which the host has a default IPv6 route, but that route is not actually usable:
+There is no Happy Eyeballs mechanism implemented.
 
 To the author's knowledge, there is no standardized mechanism for receiving
 ICMP errors in such a setup. On Linux, ``IPV6_RECVERR`` and ``MSG_ERRQUEUE``
