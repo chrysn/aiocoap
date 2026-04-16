@@ -119,17 +119,18 @@ class Proxy(interfaces.Resource):
         request = request.copy(mid=None, token=None)
 
         try:
-            request = self.apply_redirection(request)
+            redirected = self.apply_redirection(request)
         except CanNotRedirect as e:
             return e.to_message()
 
-        if request is None:
+        if redirected is None:
             response = await super().render(request)
             if response is None:
                 raise IncompleteProxyUri("No matching proxy rule")
             return response
 
-        request.direction = message.Direction.OUTGOING
+        redirected.direction = message.Direction.OUTGOING
+        request = redirected
 
         try:
             response = await self.outgoing_context.request(
