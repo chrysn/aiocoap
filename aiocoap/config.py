@@ -95,12 +95,12 @@ class Udp6Parameters(LoadStoreClass):
 
     Addresses without a port are bound to the default port (5683). Binding to an
     address at the unspecified port is possible by explicitly giving the port
-    as `:0`; the choice of a port of an ephemeral port will be left to the
+    as ``:0``; the choice of a port of an ephemeral port will be left to the
     operating system.
 
     The default value when nothing is given explicitly depends on whether
     a server is run (then it's ``["[::]"]`` implying port 5683) or not (then
-    it's effectively ``["[::]:0"]``, although the `bind` syscall may be elided
+    it's effectively ``["[::]:0"]``, although the ``bind`` syscall may be elided
     in that case). The default is altered when the to-be-deprecated ``bind``
     argument is passed at server creation.
 
@@ -112,9 +112,9 @@ class Udp6Parameters(LoadStoreClass):
     address) is used for outgoing requests (more precisley, for outgoing
     requests with an ``UnspecifiedRemote`` remote; outgoing requests from role
     reversal always stick with their addresses). That means that unless the
-    first item is a `[::]` unspecified address, only that addresse's IP version
+    first item is a ``[::]`` unspecified address, only that addresse's IP version
     will work for outgoing requests. A convenient workaround is to bind to
-    `[::]:0` first, which sends all such outgoing requests through a random
+    ``[::]:0`` first, which sends all such outgoing requests through a random
     port chosen by the OS at startup, and then list the concrete addresses to
     bind to."""
     # FIXME: How do we assist users in taking SIGHUP (or whatever is a
