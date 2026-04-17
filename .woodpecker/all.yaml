@@ -55,7 +55,20 @@ steps:
       - tox --notest --skip-env '^py[^p]'
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py[^p]'"
 
-  test:py312:
+  test:py312-pyloop:
+    image: docker.io/python:3.12
+    depends_on: [test:3.13-minimal]
+    environment:
+      FORCE_COLOR: "1"
+    commands:
+      - apt-get update
+      - apt-get -y install iproute2
+      - pip install tox
+      # Separate run so I don't waste time telling errors in setup apart from errors at runtime
+      - tox --notest -e py312-noextras -e py312-allextras
+      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox -e py312-noextras -e py312-allextras"
+
+  test:py312-otherloop:
     image: docker.io/python:3.12
     depends_on: [test:3.13-minimal]
     environment:
@@ -66,8 +79,8 @@ steps:
       - apt-get -y install iproute2 cmake libgirepository1.0-dev
       - pip install tox
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
-      - tox --notest --skip-env '^py31[^2]'
-      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^2]'"
+      - tox --notest -e py312-uvloop-simpleudp -e py312-uvloop -e py312-glib
+      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox -e py312-uvloop-simpleudp -e py312-uvloop -e py312-glib"
 
 
   test:3.13-minimal:
@@ -173,7 +186,8 @@ steps:
     image: docker.io/python:3
     depends_on:
       - test:tox-bookworm
-      - test:py312
+      - test:py312-pyloop
+      - test:py312-otherloop
       - test:3.13-minimal
       - test:3.13
       - test:3.14
