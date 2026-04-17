@@ -20,14 +20,21 @@ when:
 # that we don't waste resources if one already fails.
 
 steps:
+  env:
+    # small enough, widespread, and has busybox iproute
+    image: docker.io/bash
+    commands:
+      - echo export FORCE_COLOR=1 > envvars
+      - echo export AIOCOAP_TEST_MCIF=`ip -6 route list default |sed -e 's/^.* dev //' -e 's/ .*$//'` >> envvars
+      - cat envvars
+
   test:tox-bookworm:
     image: debian:bookworm
-    depends_on: [test:3.13-minimal]
-    environment:
-      FORCE_COLOR: "1"
+    depends_on: [env, test:3.13-minimal]
     commands:
+      - . ./envvars
       - apt-get update
-      - apt-get -y install build-essential python3.11-dev libssl-dev autoconf python3-pip python3-venv iproute2 libffi-dev libgirepository1.0-dev libcairo2-dev
+      - apt-get -y install build-essential python3.11-dev libssl-dev autoconf python3-pip python3-venv libffi-dev libgirepository1.0-dev libcairo2-dev
       # "Externally managed", so we have to go through a venv
       - python3 -m venv .venv
       - . .venv/bin/activate
@@ -37,103 +44,88 @@ steps:
       - pip install tox setuptools
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest
-      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox"
+      - tox
 
   test:pypy:
     # Workaround-For: https://github.com/pypy/pypy/issues/5388
     image: docker.io/pypy:3-7.3.20
-    depends_on: [test:3.13-minimal]
-    environment:
-      FORCE_COLOR: "1"
+    depends_on: [env, test:3.13-minimal]
     commands:
-      - apt-get update
-      - apt-get -y install iproute2
+      - . ./envvars
       - pip install tox
       - tox --notest --skip-env '^py[^p]'
-      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py[^p]'"
+      - tox --skip-env '^py[^p]'
 
   test:py312-pyloop:
     image: docker.io/python:3.12
-    depends_on: [test:3.13-minimal]
-    environment:
-      FORCE_COLOR: "1"
+    depends_on: [env, test:3.13-minimal]
     commands:
-      - apt-get update
-      - apt-get -y install iproute2
+      - . ./envvars
       - pip install tox
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest -e py312-noextras -e py312-allextras
-      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox -e py312-noextras -e py312-allextras"
+      - tox -e py312-noextras -e py312-allextras
 
   test:py312-otherloop:
     image: docker.io/python:3.12
-    depends_on: [test:3.13-minimal]
-    environment:
-      FORCE_COLOR: "1"
+    depends_on: [env, test:3.13-minimal]
     commands:
+      - . ./envvars
       - apt-get update
-      # cmake, libgirepository1.0-dev: required for building pygobject
-      - apt-get -y install iproute2 cmake libgirepository1.0-dev
+      # required for building pygobject
+      - apt-get -y install cmake libgirepository1.0-dev
       - pip install tox
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest -e py312-uvloop-simpleudp -e py312-uvloop -e py312-glib
-      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox -e py312-uvloop-simpleudp -e py312-uvloop -e py312-glib"
+      - tox -e py312-uvloop-simpleudp -e py312-uvloop -e py312-glib
 
 
   test:3.13-minimal:
     image: docker.io/python:3.13
-    depends_on: []
+    depends_on: [env]
     environment:
       # This is the fastest we can run at all, and serves as our "hero test"
       TOXENV: "py313-noextras"
-      FORCE_COLOR: "1"
     commands:
+      - . ./envvars
       - pip install tox
       - tox --notest
       - tox
 
   test:3.13:
     image: docker.io/python:3.13
-    depends_on: [test:3.13-minimal]
-    environment:
-      FORCE_COLOR: "1"
+    depends_on: [env, test:3.13-minimal]
     commands:
-      - apt-get update
-      - apt-get -y install iproute2
+      - . ./envvars
       - pip install tox
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest --skip-env '^py31[^3]'
-      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^3]|py313-noextras'"
+      - tox --skip-env '^py31[^3]|py313-noextras'
 
   test:3.14:
     image: docker.io/python:3.14
-    depends_on: [test:3.13-minimal]
-    environment:
-      FORCE_COLOR: "1"
+    depends_on: [env, test:3.13-minimal]
     commands:
-      - apt-get update
-      - apt-get -y install iproute2
+      - . ./envvars
       - pip install tox
       # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest --skip-env '^py31[^4]'
-      - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py31[^4]'"
+      - tox --skip-env '^py31[^4]'
 
   mypy:
     image: docker.io/python:3.12
-    depends_on: []
-    environment:
-      FORCE_COLOR: "1"
+    depends_on: [env]
     commands:
+      - . ./envvars
       - pip install mypy
       - pip install '.[all]'
       - mypy --install-types --non-interactive aiocoap
 
   ruff:
     image: python:3
-    depends_on: []
-    environment:
-      FORCE_COLOR: "1"
+    depends_on: [env]
     commands:
+      - . ./envvars
       - pip install ruff
       - ruff format --check
       # Excluding the client scripts as their heavy reliance on `from aiocoap
@@ -142,23 +134,21 @@ steps:
 
   reuse:
     image: python:3
-    depends_on: []
-    environment:
-      FORCE_COLOR: "1"
+    depends_on: [env]
     commands:
+      - . ./envvars
       - pip install reuse
       - reuse lint
 
   doc:
     image: python:3.13
-    # Not because there's a hard dependency, but because those two appear to
+    # build-wheel: Not because there's a hard dependency, but because those two appear to
     # occasionally race for creating that wheel. The tox instances all work in
     # their isolation, but it'd need extra work to tell sphinx or build to not
     # use a shared dist/.
-    depends_on: [build-wheel]
-    environment:
-      FORCE_COLOR: "1"
+    depends_on: [env, build-wheel]
     commands:
+      - . ./envvars
       # synced with .readthedocs.yaml and pyproject.toml
       - pip install '.[docs,oscore,prettyprint,slipmux]'
       - python3 -m sphinx doc public/doc/
@@ -170,10 +160,9 @@ steps:
 
   build-wheel:
     image: python:3.13
-    depends_on: []
-    environment:
-      FORCE_COLOR: "1"
+    depends_on: [env]
     commands:
+      - . ./envvars
       - pip install build
       - python3 -m build
       - mkdir -p public
@@ -182,6 +171,7 @@ steps:
   build-pages:
     image: docker.io/python:3
     depends_on:
+      - env
       - test:tox-bookworm
       - test:py312-pyloop
       - test:py312-otherloop
@@ -191,9 +181,8 @@ steps:
       - test:pypy
       - doc
       - build-wheel
-    environment:
-      FORCE_COLOR: "1"
     commands:
+      - . ./envvars
       - python3 -m pip install tox coverage genbadge[all]
       - "# Test whether all described tox environments have succeeded"
       - "# (equivalently: started, for on failure, this step would not be run)"
