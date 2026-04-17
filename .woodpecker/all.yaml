@@ -111,17 +111,28 @@ steps:
       - tox --notest -e py312-noextras -e py312-allextras
       - tox -e py312-noextras -e py312-allextras
 
-  test:py312-otherloop:
+  test:py312-uvloop:
     image: docker.io/python:3.12
     depends_on: [env, test:3.13-minimal]
+    commands:
+      - . ./envvars
+      - pip install tox
+      - tox --notest -e py312-uvloop-simpleudp -e py312-uvloop
+      - tox -e py312-uvloop-simpleudp -e py312-uvloop
+
+  test:py312-gobject:
+    image: docker.io/python:3.12
+    depends_on: [env, test:3.13-minimal]
+    environment:
+      TOXENV: py312-glib
     commands:
       - . ./envvars
       - apt-get update
       # required for building pygobject
       - apt-get -y install cmake libgirepository1.0-dev
       - pip install tox
-      - tox --notest -e py312-uvloop-simpleudp -e py312-uvloop -e py312-glib
-      - tox -e py312-uvloop-simpleudp -e py312-uvloop -e py312-glib
+      - tox --notest
+      - tox
 
 
   test:3.13-minimal:
@@ -216,7 +227,8 @@ steps:
       - env
       - test:tox-bookworm
       - test:py312-pyloop
-      - test:py312-otherloop
+      - test:py312-uvloop
+      - test:py312-gobject
       - test:3.13-minimal
       - test:3.13
       - test:3.14
