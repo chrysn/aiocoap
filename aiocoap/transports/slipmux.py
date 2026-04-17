@@ -359,6 +359,7 @@ class MessageInterfaceSlipmux(interfaces.MessageInterface):
             # See determine_remote: from the current API, this is the only
             # asynchronous point before a send.
             await self._get(remote)
+            return True
         return False
 
     async def determine_remote(self, message):
