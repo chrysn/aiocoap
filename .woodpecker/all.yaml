@@ -47,10 +47,7 @@ steps:
       FORCE_COLOR: "1"
     commands:
       - apt-get update
-      - apt-get -y install build-essential libssl-dev autoconf iproute2 libffi-dev
-      # lakers-python is not yet built for pypy; tracked at <https://github.com/openwsn-berkeley/lakers/issues/288>
-      - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh /dev/stdin -y
-      - . ~/.cargo/env
+      - apt-get -y install iproute2
       - pip install tox
       - tox --notest --skip-env '^py[^p]'
       - "AIOCOAP_TEST_MCIF=\"$(ip -j -6 route list default | python3 -c 'import sys, json; print(json.load(sys.stdin)[0][\"dev\"])')\" tox --skip-env '^py[^p]'"
