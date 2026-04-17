@@ -35,7 +35,10 @@ steps:
     image: docker.io/bash
     commands:
       - echo export FORCE_COLOR=1 > envvars
-      - echo export AIOCOAP_TEST_MCIF=`ip -6 route list default |sed -e 's/^.* dev //' -e 's/ .*$//'` >> envvars
+      # Using IPv4 while Codeberg's woodpecker has no IPv6 route, but
+      # generally, the IPv6 default interface is usually also the IPv4 default
+      # inteface.
+      - echo export AIOCOAP_TEST_MCIF=`ip route list |grep default |sed -e 's/^.* dev //' -e 's/ .*$//'` >> envvars
       - cat envvars
 
   test:tox-bookworm:
