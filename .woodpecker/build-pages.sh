@@ -85,6 +85,7 @@ do
     </head>
     <body>
         <h1>Package files for ${PACKAGE}</h1>
+        <p>If you found this page, you are probably a a Python installer. If not, you'll find useful context <a href="../" rel="up">in the artifacts overview</a>.
         <ul>
 EOF
     for WHEEL in $( ( git ls-tree --name-only origin/pages:dist/ ; cd public/dist/ && ls ) |grep "^${PACKAGEFILE}" | sort -u )
