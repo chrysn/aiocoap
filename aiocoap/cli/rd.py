@@ -692,8 +692,12 @@ class SimpleRegistration(ThingWithCommonRD, Resource):
         get.code = aiocoap.GET
         get.opt.accept = ContentFormat.LINKFORMAT
 
-        # not trying to catch anything here -- the errors are most likely well renderable into the final response
-        response = await self.context.request(get).response_raising
+        try:
+            response = await self.context.request(get).response_raising
+        except error.ResponseWrappingError as e:
+            # Note that ResponseWrappingError is *not* itself renderable
+            raise error.BadRequest(f"got error {e.coapmessage.code.dotted}")
+        # No handling needed here: This raises renderable error
         links = link_format_from_message(response)
 
         if self.registration_warning:
