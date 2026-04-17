@@ -39,7 +39,9 @@ class Link(link_header.Link):
         )
 
 
-def parse(linkformat):
+def parse(linkformat: str | bytes) -> LinkFormat:
+    if isinstance(linkformat, bytes):
+        linkformat = linkformat.decode("utf-8")
     data = link_header.parse(linkformat)
     data.__class__ = LinkFormat
     for link in data.links:
