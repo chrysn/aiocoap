@@ -20,8 +20,6 @@ fi
 
 WHEEL=$(cd dist && echo *.whl)
 DESCRIBE=$(git describe --always)
-# Link for the wheel goes to the `raw.` URI because that allows CORS,
-# making it useful as a pyodide source.
 cat > public/index.html <<EOF
 <!DOCTYPE html>
 <html>
@@ -36,7 +34,7 @@ cat > public/index.html <<EOF
         <ul>
             <li><a href="coverage/">Coverage report</a>
             <li><a href="doc/">Documentation</a> (locally built; official and versioned <a href="https://aiocoap.readthedocs.io/en/latest/">at readthedocs.io</a>)
-            <li><a href="https://raw.codeberg.page/aiocoap/aiocoap/@pages/dist/${WHEEL}">Current wheel</a>
+            <li><a href="./dist/${WHEEL}">Current wheel</a>
         </ul>
 
         <p>Released versions of aiocoap are published at the <a href="https://pypi.org/project/aiocoap/">the Python package index (PyPI)</a>.
