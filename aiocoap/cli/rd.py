@@ -324,8 +324,14 @@ class CommonRD:
 
         proxy = pop_single_arg(registration_parameters, "proxy")
 
-        if proxy is not None and proxy != "on":
+        if proxy is not None and proxy not in ("on", "yes", "ondemand"):
             raise error.BadRequest("Unsupported proxy value")
+
+        if proxy == "on":
+            # FIXME: Deprecate more visibly -- but this has been in the impl
+            # for quite some time, and is presumably used, given that the
+            # missing "yes" went uncontested for years.
+            self.log.warning("Client uses old proprietary value proxy=on")
 
         key = (ep, d)
 
