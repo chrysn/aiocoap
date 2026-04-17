@@ -467,18 +467,12 @@ class Site(interfaces.ObservableResource, PathCapable):
         # need to agree on how the path is processed, even before we go into
         # the site dispatch -- so we better resolve this now (exercising our
         # liberties as a library proxy) and provide a consistent view.
-        if request.request.opt.uri_path_abbrev is not None:
-            if request.request.opt.uri_path:
-                # Conflicting options
-                raise error.BadOption()
-            try:
-                request.request.opt.uri_path = uri_path_abbrev._map[
-                    request.request.opt.uri_path_abbrev
-                ]
-            except KeyError:
-                # Unknown option
-                raise error.BadOption() from None
-            request.request.opt.uri_path_abbrev = None
+        #
+        # Factored out because other components that don't yet go through
+        # render_to_pipe
+        #
+        # Workaround-For: https://github.com/chrysn/aiocoap/issues/414
+        _expand_upa(request.request)
 
         try:
             child, subrequest = self._find_child_and_pathstripped_message(
@@ -491,3 +485,17 @@ class Site(interfaces.ObservableResource, PathCapable):
             # It probably is.
             request.request = subrequest
             return await child.render_to_pipe(request)
+
+
+def _expand_upa(request):
+    """Expands the Uri-Path-Abbrev option in-place, or raises BadOption"""
+    if request.opt.uri_path_abbrev is not None:
+        if request.opt.uri_path:
+            # Conflicting options
+            raise error.BadOption()
+        try:
+            request.opt.uri_path = uri_path_abbrev._map[request.opt.uri_path_abbrev]
+        except KeyError:
+            # Unknown option
+            raise error.BadOption() from None
+        request.opt.uri_path_abbrev = None
