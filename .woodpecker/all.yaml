@@ -129,7 +129,7 @@ steps:
       - . ./envvars
       - apt-get update
       # required for building pygobject
-      - apt-get -y install cmake libgirepository1.0-dev
+      - apt-get -y install libgirepository1.0-dev
       - pip install tox
       - tox --notest
       - tox
