@@ -141,7 +141,11 @@ steps:
 
   doc:
     image: python:3.13
-    depends_on: []
+    # Not because there's a hard dependency, but because those two appear to
+    # occasionally race for creating that wheel. The tox instances all work in
+    # their isolation, but it'd need extra work to tell sphinx or build to not
+    # use a shared dist/.
+    depends_on: [build-wheel]
     environment:
       FORCE_COLOR: "1"
     commands:
