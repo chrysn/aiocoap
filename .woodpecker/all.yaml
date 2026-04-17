@@ -8,14 +8,24 @@ when:
   # - event: pull_request
 
 
-# running tests twice, so if something breaks when optional dependencies are
-# missing, it still shows up. (full coverage would mean running each
-# combination, but let's not blow the test matrix out of proportion).
-
+# Generally, our test and tox running matrix is:
+#
+# * We have a -noextras variant and an -allextras variant, and run them both,
+#   so if something breaks when optional dependencies are missing, it still shows up.
+#
+#   (Full coverage would mean running each combination, but let's not blow the
+#   test matrix out of proportion).
+#
+# * We always run a --notest pass first as to not waste time telling errors in
+#   setup apart from errors at runtime
+#
+# * For some Python versions, we run different main loops and/or transports.
+#   (Again, full coverage against all versions is probably excessive.)
+#
 # --skip-env is often used to mask out Python versions that are installed on
 # the system but are not what we want to test here (for example, the Python
 # 3.13 image is based on a Debian that ships its own older Python).
-
+#
 # Generally, all can run in parallel; setting depends_on to one hero test so
 # that we don't waste resources if one already fails.
 
@@ -42,7 +52,6 @@ steps:
       # __TOX_ENVIRONMENT_VARIABLE_ORIGINAL_CI (tox since 4.30.0) or would fail
       # to build (setuptools).
       - pip install tox setuptools
-      # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest
       - tox
 
@@ -62,7 +71,6 @@ steps:
     commands:
       - . ./envvars
       - pip install tox
-      # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest -e py312-noextras -e py312-allextras
       - tox -e py312-noextras -e py312-allextras
 
@@ -75,7 +83,6 @@ steps:
       # required for building pygobject
       - apt-get -y install cmake libgirepository1.0-dev
       - pip install tox
-      # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest -e py312-uvloop-simpleudp -e py312-uvloop -e py312-glib
       - tox -e py312-uvloop-simpleudp -e py312-uvloop -e py312-glib
 
@@ -98,7 +105,6 @@ steps:
     commands:
       - . ./envvars
       - pip install tox
-      # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest --skip-env '^py31[^3]'
       - tox --skip-env '^py31[^3]|py313-noextras'
 
@@ -108,7 +114,6 @@ steps:
     commands:
       - . ./envvars
       - pip install tox
-      # Separate run so I don't waste time telling errors in setup apart from errors at runtime
       - tox --notest --skip-env '^py31[^4]'
       - tox --skip-env '^py31[^4]'
 
