@@ -34,7 +34,13 @@ steps:
     # small enough, widespread, and has busybox iproute
     image: docker.io/bash
     commands:
-      - echo export FORCE_COLOR=1 > envvars
+      # make reuse checks happy
+      # REUSE-IgnoreStart
+      - "echo '# SPDX-FileCopyrightText: NONE' > envvars"
+      - "echo '# SPDX-License-Identifier: MIT' >> envvars"
+      # REUSE-IgnoreEnd
+
+      - echo export FORCE_COLOR=1 >> envvars
       # Using IPv4 while Codeberg's woodpecker has no IPv6 route, but
       # generally, the IPv6 default interface is usually also the IPv4 default
       # inteface.
