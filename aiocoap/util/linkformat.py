@@ -13,6 +13,15 @@ from .vendored import link_header
 
 
 class LinkFormat(link_header.LinkHeader):
+    """Variation of the now vendered-in link_header package.
+
+    This accounts for the RFC6690 constraint (not present in RFC5899) that
+    there be no space after commas or semicolons.
+
+    >>> str(LinkFormat([Link("/parent/", rel="up"), Link("/parent/here/child")]))
+    '</parent/>;rel="up",</parent/here/child>'
+    """
+
     def __str__(self):
         return ",".join(str(link) for link in self.links)
 
@@ -40,6 +49,18 @@ class Link(link_header.Link):
 
 
 def parse(linkformat: str | bytes) -> LinkFormat:
+    """Parses RFC6690 links.
+
+    Unlike the (now vendored-in) link_header package's parsing, this
+
+    - accepts either bytes or strings; the former are decoded as UTF-8
+    - produces types that, in their serialization, account for differences between RFC6690 and RFC5899
+
+    >>> parse(b"</hell\\xc3\\xb6>")
+    LinkHeader([Link('/hellö')])
+    >>> parse("</hellö>")
+    LinkHeader([Link('/hellö')])
+    """
     if isinstance(linkformat, bytes):
         linkformat = linkformat.decode("utf-8")
     data = link_header.parse(linkformat)
