@@ -30,14 +30,18 @@ cat > public/index.html <<EOF
     </head>
     <body>
         <h1>aiocoap build artifacts</h1>
+        <p>This page lists automatically generated output of the latest unreleased version of aiocoap.
+        See <a href="https://codeberg.org/aiocoap/aiocoap">the canonical git repository</a> for sources and general information about the project.
+
         <ul>
             <li><a href="coverage/">Coverage report</a>
-            <li><a href="doc/">Documentation</a>
+            <li><a href="doc/">Documentation</a> (locally built; official and versioned <a href="https://aiocoap.readthedocs.io/en/latest/">at readthedocs.io</a>)
             <li><a href="https://raw.codeberg.page/aiocoap/aiocoap/@pages/dist/${WHEEL}">Current wheel</a>
         </ul>
 
-        <p>This URL (but without the trailing slash) also serves as a Python index API entry point (simple HTML index):
-        You can install the latest aiocoap using:
+        <p>Released versions of aiocoap are published at the <a href="https://pypi.org/project/aiocoap/">the Python package index (PyPI)</a>.
+        <p>This URL (but without the trailing slash) serves as a Python index API entry point (simple HTML index) for the latest unreleased version.
+        <p>You can install aiocoap from here using:
         <p><code>$ pip install --extra-index-url https://aiocoap.codeberg.page/aiocoap 'aiocoap[all]'</code>
         <p>or in Pyodide (for which this index also contains some additional binary dependencies in the right versions):
         <p><code>&gt;&gt;&gt; await micropip.install("aiocoap[all]", index_urls=["https://aiocoap.codeberg.page/aiocoap", "PYPI"])</code>
