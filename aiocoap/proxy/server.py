@@ -153,6 +153,15 @@ class Proxy(interfaces.Resource):
     # resolution tree (it can't deal with None requests, which are used among
     # proxy implementations)
     async def render_to_pipe(self, pipe: Pipe) -> None:
+        # I'd rather not expand unconditionally, but if we don't do this here,
+        # we're too deep into render() etc to get out again. This is working on
+        # the assumption that all proxies are really at root.
+        #
+        # Workaround-For: https://github.com/chrysn/aiocoap/issues/414
+        try:
+            resource._expand_upa(pipe.request)
+        except error.BadOption:
+            pass
         await resource.Resource.render_to_pipe(self, pipe)  # type: ignore
 
 
