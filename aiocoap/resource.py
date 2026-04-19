@@ -175,7 +175,7 @@ class ObservableResource(Resource, interfaces.ObservableResource):
         should be sent to observers."""
 
         for o in self._observations:
-            o.trigger(response)
+            o.trigger(response.copy() if response else response)
 
     def get_link_description(self):
         link = super(ObservableResource, self).get_link_description()
