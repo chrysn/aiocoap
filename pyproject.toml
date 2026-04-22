@@ -126,3 +126,12 @@ ignore-words-list = [
     "EDN",
     "AFAIR", # As Far As I Remember
     ]
+
+[tool.pytest.ini_options]
+# It's rather hard to convince setuptools to do out-of-source builds, and the
+# temporary ./aiocoap-{version}/ copy that setuptools creates during
+# build_sdist can easily upset concurrent pytest runs -- so we restrict
+# manually where pytest even looks.
+testpaths = [
+    "tests",
+]

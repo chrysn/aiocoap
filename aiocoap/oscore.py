@@ -1851,10 +1851,14 @@ class FilesystemSecurityContext(
         self.lockfile: Optional[filelock.FileLock] = filelock.FileLock(
             os.path.join(basedir, "lock")
         )
-        # 0.001: Just fail if it can't be acquired
-        # See https://github.com/benediktschmitt/py-filelock/issues/57
+        # We *actually* want to fail right if there's any other process locking
+        # it, but making this small means that it'll fail when the system is
+        # under load and time passes just inside the code.
+        #
+        # As this is a very unlikely unhappy path (some othe process is sitting
+        # on the same lock file), we can afford a 1s delay in showing the error.
         try:
-            self.lockfile.acquire(timeout=0.001)
+            self.lockfile.acquire(timeout=1)
         # see https://github.com/PyCQA/pycodestyle/issues/703
         except:  # noqa: E722
             # No lock, no loading, no need to fail in __del__

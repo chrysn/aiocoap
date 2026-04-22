@@ -45,6 +45,7 @@ steps:
       # generally, the IPv6 default interface is usually also the IPv4 default
       # inteface.
       - echo export AIOCOAP_TEST_MCIF=`ip route list |grep default |sed -e 's/^.* dev //' -e 's/ .*$//'` >> envvars
+      - echo "echo '=== General debugging help ==='; pwd; ls -l; env; echo '== End of debugging help ==='" >> envvars
       - cat envvars
 
   test:tox-bookworm:

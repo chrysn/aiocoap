@@ -73,10 +73,10 @@ import weakref
 from aiocoap import Message, interfaces, ABORT, util, error
 from aiocoap.transports import rfc8323common
 from ..credentials import CredentialsMap
-from ..defaults import is_pyodide
+from .. import defaults
 from ..message import Direction
 
-if not is_pyodide:
+if not defaults.is_pyodide:
     import websockets.asyncio.connection
     import websockets.asyncio.server
 else:
@@ -282,6 +282,7 @@ class WSPool(interfaces.TokenInterface):
                 subprotocols=["coap"],  # type: ignore[list-item]
                 process_request=self._process_request,
                 ping_interval=None,  # "SHOULD NOT be used"
+                reuse_port=defaults.has_reuse_port(),
             )
             self._servers.append(server)
 
@@ -354,7 +355,7 @@ class WSPool(interfaces.TokenInterface):
                     "An SSL context was provided for a remote accessed via a plaintext websockets."
                 )
             if ws_scheme == "wss":
-                if is_pyodide:
+                if defaults.is_pyodide:
                     if ssl_context is not None:
                         raise ValueError(
                             "The pyodide websocket implementation can't be configured with a non-default context -- connections created in a browser will always use the browser's CA set."
