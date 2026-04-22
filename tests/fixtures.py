@@ -58,7 +58,18 @@ def is_test_successful(testcase):
     raising errors. This is supposed to be used in asyncTearDown handlers on self
     when additional debug information can be shown that would otherwise be
     discarded, or to skip tests during teardown that are bound to fail."""
-    return testcase._outcome.success
+
+    # This is known to be brittle because we're reaching deep into internals,
+    # and may need updating from time to time. A safe replacement is True --
+    # after all, this is only used to suppress GC errors that are expected when
+    # things break apart mid-test.
+
+    if hasattr(testcase._outcome.result, "errors"):
+        # taken when run with `python3 -m unittest`
+        return not testcase._outcome.result.errors
+    else:
+        # taken when run with `python3 -m pytest`
+        return not testcase._outcome.result._excinfo
 
 
 def no_warnings(function, expected_warnings=None):
