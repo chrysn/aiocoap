@@ -305,6 +305,10 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
             "_remote_being_sent_to", default=None
         )
 
+    def __repr__(self):
+        socket = self.transport.get_extra_info("socket")
+        return f"<{type(self).__name__} at {id(self):#x} bound to {socket.getsockname() if socket else '(nothing)'}>"
+
     def _local_port(self):
         # FIXME: either raise an error if this is 0, or send a message to self
         # to force the OS to decide on a port. Right now, this reports wrong

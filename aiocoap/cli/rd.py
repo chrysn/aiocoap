@@ -324,8 +324,14 @@ class CommonRD:
 
         proxy = pop_single_arg(registration_parameters, "proxy")
 
-        if proxy is not None and proxy != "on":
+        if proxy is not None and proxy not in ("on", "yes", "ondemand"):
             raise error.BadRequest("Unsupported proxy value")
+
+        if proxy == "on":
+            # FIXME: Deprecate more visibly -- but this has been in the impl
+            # for quite some time, and is presumably used, given that the
+            # missing "yes" went uncontested for years.
+            self.log.warning("Client uses old proprietary value proxy=on")
 
         key = (ep, d)
 
@@ -407,7 +413,7 @@ def link_format_from_message(message):
     This expects an explicit media type set on the response (or was explicitly requested)
     """
     certain_format = message.opt.content_format
-    if certain_format is None and hasattr(message, "request"):
+    if certain_format is None and message.request is not None:
         certain_format = message.request.opt.accept
     try:
         if certain_format == ContentFormat.LINKFORMAT:
@@ -692,8 +698,12 @@ class SimpleRegistration(ThingWithCommonRD, Resource):
         get.code = aiocoap.GET
         get.opt.accept = ContentFormat.LINKFORMAT
 
-        # not trying to catch anything here -- the errors are most likely well renderable into the final response
-        response = await self.context.request(get).response_raising
+        try:
+            response = await self.context.request(get).response_raising
+        except error.ResponseWrappingError as e:
+            # Note that ResponseWrappingError is *not* itself renderable
+            raise error.BadRequest(f"got error {e.coapmessage.code.dotted}")
+        # No handling needed here: This raises renderable error
         links = link_format_from_message(response)
 
         if self.registration_warning:
