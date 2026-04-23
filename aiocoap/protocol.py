@@ -131,7 +131,7 @@ class Context(interfaces.RequestProvider):
 
         self.serversite = serversite
 
-        self.request_interfaces = []
+        self.request_interfaces: list[interfaces.RequestInterface] = []
 
         self.client_credentials = client_credentials or CredentialsMap()
         self.server_credentials = server_credentials or CredentialsMap()

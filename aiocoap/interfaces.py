@@ -272,6 +272,8 @@ class TokenManager(metaclass=abc.ABCMeta):
 
 
 class RequestInterface(metaclass=abc.ABCMeta):
+    """A transport of CoAP."""
+
     @abc.abstractmethod
     async def fill_or_recognize_remote(self, message):
         pass

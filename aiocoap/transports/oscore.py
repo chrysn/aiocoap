@@ -7,7 +7,7 @@
 # reasons why RequestInterface, TokenInterface and MessageInterface were split
 # in the first place.
 
-"""This module implements a RequestProvider for OSCORE. As such, it takes
+"""This module implements a RequestInterface for OSCORE. As such, it takes
 routing ownership of requests that it has a security context available for, and
 sends off the protected messages via another transport.
 
@@ -114,7 +114,7 @@ class OSCOREAddress(
         return (self.underlying_address.blockwise_key, detail)
 
 
-class TransportOSCORE(interfaces.RequestProvider):
+class TransportOSCORE(interfaces.RequestInterface):
     def __init__(self, context, forward_context):
         self._context = context
         self._wire = forward_context
