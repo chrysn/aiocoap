@@ -137,35 +137,36 @@ class TransportOSCORE(interfaces.RequestInterface):
     # implement RequestInterface
     #
 
-    async def fill_or_recognize_remote(self, message):
-        if isinstance(message.remote, OSCOREAddress):
-            return True
+    async def recognize_remote(self, message):
+        # There is just one of those
+        return isinstance(message.remote, OSCOREAddress)
+
+    async def determine_remote(self, message):
         if message.opt.oscore is not None:
             # double oscore is not specified; using this fact to make `._wire
             # is ._context` an option
-            return False
+            return None
         if message.opt.uri_path == (".well-known", "edhoc"):
             # FIXME better criteria based on next-hop?
-            return False
+            return None
 
         try:
             secctx = self._context.client_credentials.credentials_from_request(message)
         except credentials.CredentialsMissingError:
-            return False
+            return None
 
         # FIXME: it'd be better to have a "get me credentials *of this type* if they exist"
         if isinstance(secctx, oscore.CanProtect) or isinstance(
             secctx, edhoc.EdhocCredentials
         ):
-            message.remote = OSCOREAddress(secctx, message.remote)
             self.log.debug(
                 "Selecting OSCORE transport based on context %r for new request %r",
                 secctx,
                 message,
             )
-            return True
+            return OSCOREAddress(secctx, message.remote)
         else:
-            return False
+            return None
 
     def request(self, request):
         t = self.loop.create_task(

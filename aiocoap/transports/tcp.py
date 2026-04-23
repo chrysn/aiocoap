@@ -171,7 +171,7 @@ class TcpConnection(
         # * send event through pool so it can propagate the error to all
         #   requests on the same remote
         # * mark the address as erroneous so it won't be recognized by
-        #   fill_or_recognize_remote
+        #   determine_remote
 
         self._ctx._dispatch_error(self, exc)
 
@@ -342,15 +342,12 @@ class TCPServer(_TCPPooling, interfaces.TokenInterface):
 
     # implementing TokenInterface
 
-    async def fill_or_recognize_remote(self, message):
-        if (
-            message.remote is not None
-            and isinstance(message.remote, TcpConnection)
-            and message.remote._ctx is self
-        ):
-            return True
+    async def recognize_remote(self, message):
+        return isinstance(message.remote, TcpConnection) and message.remote._ctx is self
 
-        return False
+    async def determine_remote(self, message):
+        # We're a server at the transport level
+        return None
 
     async def shutdown(self):
         self.log.debug("Shutting down server %r", self)
@@ -450,24 +447,17 @@ class TCPClient(_TCPPooling, interfaces.TokenInterface):
 
     # implementing TokenInterface
 
-    async def fill_or_recognize_remote(self, message):
-        if (
-            message.remote is not None
-            and isinstance(message.remote, TcpConnection)
-            and message.remote._ctx is self
-        ):
-            return True
+    async def recognize_remote(self, message):
+        return isinstance(message.remote, TcpConnection) and message.remote._ctx is self
 
+    async def determine_remote(self, message):
         if message.requested_scheme == self._scheme:
             # FIXME: This could pool outgoing connections.
             # (Checking if an incoming connection is a pool candidate is
             # probably overkill because even if a URI can be constructed from a
             # ephemeral client port, nobody but us can use it, and we can just
             # set .remote).
-            message.remote = await self._spawn_protocol(message)
-            return True
-
-        return False
+            return await self._spawn_protocol(message)
 
     async def shutdown(self):
         self.log.debug("Shutting down any outgoing connections on on %r", self)

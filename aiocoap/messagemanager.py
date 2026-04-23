@@ -402,15 +402,11 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
     # outgoing messages
     #
 
-    async def fill_or_recognize_remote(self, message):
-        if message.remote is not None:
-            if await self.message_interface.recognize_remote(message.remote):
-                return True
-        remote = await self.message_interface.determine_remote(message)
-        if remote is not None:
-            message.remote = remote
-            return True
-        return False
+    async def recognize_remote(self, message):
+        return await self.message_interface.recognize_remote(message.remote)
+
+    async def determine_remote(self, message):
+        return await self.message_interface.determine_remote(message)
 
     def send_message(self, message, messageerror_monitor):
         """Encode and send message. This takes care of retransmissions (if

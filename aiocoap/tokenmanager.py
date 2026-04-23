@@ -211,8 +211,11 @@ class TokenManager(interfaces.RequestInterface, interfaces.TokenManager):
     # implement RequestInterface
     #
 
-    async def fill_or_recognize_remote(self, message):
-        return await self.token_interface.fill_or_recognize_remote(message)
+    async def recognize_remote(self, message):
+        return await self.token_interface.recognize_remote(message)
+
+    async def determine_remote(self, message):
+        return await self.token_interface.determine_remote(message)
 
     def request(self, request):
         if self.outgoing_requests is None:

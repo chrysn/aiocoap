@@ -541,9 +541,10 @@ class Context(interfaces.RequestProvider):
     # populated).
     async def find_remote_and_interface(self, message):
         if message.remote is None:
-            raise error.MissingRemoteError()
-        for ri in self.request_interfaces:
-            if await ri.fill_or_recognize_remote(message):
+            if await ri.recognize_remote(message):
+                return ri
+            if remote := await ri.determine_remote(message):
+                message.remote = remote
                 return ri
         raise error.NoRequestInterface()
 
