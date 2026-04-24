@@ -72,7 +72,7 @@ class TestClientWithSetHost(WithTestServer, WithClient):
         resp = self.client.request(request).response
         try:
             # give the request some time to finish getaddrinfo
-            result = await asyncio.as_completed([resp], timeout=0.1).__next__()
+            result = await asyncio.as_completed([resp], timeout=0.5).__next__()
         except aiocoap.error.NetworkError as e:
             # This is a bit stricter than what the API indicates, but hey, we
             # can still relax the tests.
