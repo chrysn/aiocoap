@@ -15,6 +15,7 @@ from .test_server import (
     WithTestServer,
     WithClient,
     no_warnings,
+    slow_empty_ack,
     BigResource,
     BasicTestingSite,
 )
@@ -74,6 +75,10 @@ class TestBlockwise(WithChunkyTestServer, WithClient):
         )
 
     @no_warnings
+    # because we're counting responses, and on slow loaded systems a response
+    # might all of a sudden take 0.2s -- it's unlikely, but we're counting 80
+    # of them.
+    @slow_empty_ack()
     async def test_client_hints(self):
         """Test whether a handle_blockwise=True request takes a block2 option
         set in it as a hint to start requesting with a low size right away
