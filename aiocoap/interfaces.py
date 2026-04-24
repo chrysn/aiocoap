@@ -258,12 +258,28 @@ class TokenInterface(metaclass=abc.ABCMeta):
         Currently, it is up to the TokenInterface to unset the no_response
         option in response messages, and to possibly not send them."""
 
-    @abc.abstractmethod
     async def fill_or_recognize_remote(self, message):
-        """Return True if the message is recognized to already have a .remote
-        managedy by this TokenInterface, or return True and set a .remote on
-        message if it should (by its unresolved remote or Uri-* options) be
-        routed through this TokenInterface, or return False otherwise."""
+        """Deprecated; like :meth:`RequestInterface.fill_or_recognize_remote`"""
+
+        warnings.warn(
+            "fill_or_recognize_remote has been split into recognize_remote and determine_remote",
+            DeprecationWarning,
+        )
+        if self.recognize_remote(message):
+            return True
+        remote = self.determine_remote(message)
+        if remote is not None:
+            message.remote = remote
+            return True
+        return False
+
+    @abc.abstractmethod
+    async def recognize_remote(self, message):
+        """Like :meth:`RequestInterface.recognize_remote`"""
+
+    @abc.abstractmethod
+    async def determine_remote(self, message):
+        """Like :meth:`RequestInterface.determine_remote`"""
 
 
 class TokenManager(metaclass=abc.ABCMeta):
@@ -272,13 +288,46 @@ class TokenManager(metaclass=abc.ABCMeta):
 
 
 class RequestInterface(metaclass=abc.ABCMeta):
-    @abc.abstractmethod
+    """A transport of CoAP."""
+
     async def fill_or_recognize_remote(self, message):
-        pass
+        """Deprecated method to perform
+        :meth:`RequestInterface.recognize_remote` and
+        :meth:`RequestInterface.determine_remote` in one go.
+
+        The implementation is only provided for compatibility, and will be
+        removed after the next release.
+
+        Return True if the message is recognized to already have a .remote
+        managedy by this TokenInterface, or return True and set a .remote on
+        message if it should (by its unresolved remote or Uri-* options) be
+        routed through this TokenInterface, or return False otherwise."""
+
+        warnings.warn(
+            "fill_or_recognize_remote has been split into recognize_remote and determine_remote",
+            DeprecationWarning,
+        )
+        if self.recognize_remote(message):
+            return True
+        remote = self.determine_remote(message)
+        if remote is not None:
+            message.remote = remote
+            return True
+        return False
 
     @abc.abstractmethod
     def request(self, request: Pipe):
         pass
+
+    @abc.abstractmethod
+    async def recognize_remote(self, message):
+        """Return True if the remote of this message is currently expected to
+        be usable with this transport."""
+
+    @abc.abstractmethod
+    async def determine_remote(self, message):
+        """Return a remote if the transport expects to be able to deliver the
+        request based on its URI components."""
 
 
 class RequestProvider(metaclass=abc.ABCMeta):

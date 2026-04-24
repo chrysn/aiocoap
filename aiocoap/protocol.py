@@ -131,7 +131,7 @@ class Context(interfaces.RequestProvider):
 
         self.serversite = serversite
 
-        self.request_interfaces = []
+        self.request_interfaces: list[interfaces.RequestInterface] = []
 
         self.client_credentials = client_credentials or CredentialsMap()
         self.server_credentials = server_credentials or CredentialsMap()
@@ -543,7 +543,11 @@ class Context(interfaces.RequestProvider):
         if message.remote is None:
             raise error.MissingRemoteError()
         for ri in self.request_interfaces:
-            if await ri.fill_or_recognize_remote(message):
+            if await ri.recognize_remote(message):
+                return ri
+        for ri in self.request_interfaces:
+            if remote := await ri.determine_remote(message):
+                message.remote = remote
                 return ri
         raise error.NoRequestInterface()
 

@@ -402,29 +402,25 @@ class WSPool(interfaces.TokenInterface):
 
     # Implementation of TokenInterface
 
-    async def fill_or_recognize_remote(self, message):
-        if isinstance(message.remote, WSRemote) and message.remote._pool() is self:
-            return True
+    async def recognize_remote(self, message):
+        return isinstance(message.remote, WSRemote) and message.remote._pool() is self
 
+    async def determine_remote(self, message):
         if message.requested_scheme in ("coap+ws", "coaps+ws"):
             key = PoolKey(message.requested_scheme, message.remote.hostinfo)
 
             if key in self._pool:
-                message.remote = self._pool[key]
                 # It would have handled the ConnectionClosed on recv and
                 # removed itself if it was not live.
-                return True
+                return self._pool[key]
 
             if key not in self._outgoing_starting:
                 self._connect(key)
             # It's a bit unorthodox to wait for an (at least partially)
-            # established connection in fill_or_recognize_remote, but it's
+            # established connection in determine_remote, but it's
             # not completely off off either, and it makes it way easier to
             # not have partially initialized remotes around
-            message.remote = await self._outgoing_starting[key]
-            return True
-
-        return False
+            return await self._outgoing_starting[key]
 
     def send_message(self, message, messageerror_monitor):
         # Ignoring messageerror_monitor: CoAP over reliable transports has no
