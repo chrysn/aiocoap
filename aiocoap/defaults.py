@@ -70,11 +70,11 @@ def get_default_clienttransports(*, loop=None, use_env=True):
         # There, the remaining ones would just raise NotImplementedError all over the place
         return
 
-    if sys.platform != "linux":
-        # udp6 was never reported to work on anything but linux; would happily
-        # add more platforms.
-        yield "simple6"
-        return
+    # if sys.platform != "linux":
+    #     # udp6 was never reported to work on anything but linux; would happily
+    #     # add more platforms.
+    #     yield "simple6"
+    #     return
 
     # on android it seems that it's only the AI_V4MAPPED that causes trouble,
     # that should be manageable in udp6 too.
