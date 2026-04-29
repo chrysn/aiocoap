@@ -401,11 +401,22 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
                     sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
 
                     try:
-                        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)
+                        # On Windows they call it different, but
+                        # <https://learn.microsoft.com/en-us/windows/win32/winsock/ipv6-pktinfo>
+                        # describes what it does, and that's the same as
+                        # RECVPKTINFO everywhere else.
+                        pktinfo_option = (
+                            socket.IPV6_RECVPKTINFO
+                            if hasattr(socket, "IPV6_RECVPKTINFO")
+                            else socket.IPV6_PKTINFO
+                        )
                     except NameError:
                         raise RuntimeError(
                             "RFC3542 PKTINFO flags are unavailable, unable to create a udp6 transport."
                         )
+
+                    sock.setsockopt(socket.IPPROTO_IPV6, pktinfo_option, 1)
+
                     if socknumbers.HAS_RECVERR:
                         sock.setsockopt(
                             socket.IPPROTO_IPV6, socknumbers.IPV6_RECVERR, 1
