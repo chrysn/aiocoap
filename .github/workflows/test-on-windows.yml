@@ -1,0 +1,24 @@
+name: Test Python package
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # not bothering with old versions on Windows; this is tested more for
+          # curiosity anyway.
+          python-version: 3.14
+      - name: Install dependencies
+        run: |
+          pip install tox
+          python3 -m tox --notest -e py314-noextras
+      - name: Run tests
+        # -allextras would be nice, but DTLSSocket doesn't built
+        # out-of-the-box, and I don't want to cut it up too much
+        run: |
+          python3 -m tox -e py314-noextras
