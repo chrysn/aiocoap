@@ -307,7 +307,15 @@ class MessageInterfaceUDP6(RecvmsgDatagramProtocol, interfaces.MessageInterface)
 
     def __repr__(self):
         socket = self.transport.get_extra_info("socket")
-        return f"<{type(self).__name__} at {id(self):#x} bound to {socket.getsockname() if socket else '(nothing)'}>"
+        if socket is not None:
+            try:
+                sockname = socket.getsockname()
+            except OSError as e:
+                # This has only ever failed on Windows
+                sockname = f"(getsockname failed: {e})"
+        else:
+            sockname = "(no socket in extra info)"
+        return f"<{type(self).__name__} at {id(self):#x} bound to {sockname}>"
 
     def _local_port(self):
         # FIXME: either raise an error if this is 0, or send a message to self
