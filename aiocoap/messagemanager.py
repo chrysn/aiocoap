@@ -71,11 +71,13 @@ class MessageManager(interfaces.TokenInterface, interfaces.MessageManager):
             getattr(self, "message_interface", "(unbound)"),
         )
 
-    @property
+       @property
     def client_credentials(self):
         return self.token_manager.client_credentials
 
     async def shutdown(self):
+        if self._active_exchanges is None:
+            return
         for messageerror_monitor, cancellable in self._active_exchanges.values():
             # Not calling messageerror_monitor: This is not message specific,
             # and its shutdown will take care of these things
