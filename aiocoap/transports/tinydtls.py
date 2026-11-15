@@ -249,13 +249,14 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         self._startup.cancel()
         self._retransmission_task.cancel()
 
-        if self._connection is not None:
+        # Detach first: a failing close alert re-enters shutdown() through
+        # error_received, which must not reset the peer again. Dropping the
+        # attribute early also avoids segfaults seen on Python 3.12.
+        connection, self._connection = self._connection, None
+        if connection is not None:
             # This also does what `.close()` does -- that would happen at
             # __del__, but let's wait for that.
-            self._dtls_socket.resetPeer(self._connection)
-            # At least on Python 3.12 with websockets present in tests, this
-            # needs to be dropped now or segfaults happen.
-            self._connection = None
+            self._dtls_socket.resetPeer(connection)
         # doing this here allows the dtls socket to send a final word, but
         # by closing this, we protect the nascent next connection from any
         # delayed ICMP errors that might still wind up in the old socket
