@@ -229,11 +229,10 @@ class DTLSClientConnection(interfaces.EndpointAddress):
         except Exception as e:
             self.coaptransport.ctx.dispatch_error(e, self)
         finally:
-            if self._queue is None:
-                # all worked, we're done here
-                return
-
-            self.shutdown()
+            # The queue is only cleared once the connection worked; a return
+            # in finally would swallow exceptions (PEP 765, SyntaxWarning on 3.14)
+            if self._queue is not None:
+                self.shutdown()
 
     async def _run_retransmissions(self):
         while True:
